@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `specs/approved/` is the arbiter's lane.
+"""PreToolUse hook: `specs/approved/` is the gauntlet-arbiter's lane.
 
-Wire it session-wide from `.claude/settings.json`, so it binds the orchestrator
+Wire it session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`.claude/agents/arbiter.md` and `.claude/agents/testsmith.md`.
+`.claude/agents/gauntlet-arbiter.md` and `.claude/agents/gauntlet-testsmith.md`.
 
-An approved spec is the only thing the blind `testsmith` works from. If the
+An approved spec is the only thing the blind `gauntlet-testsmith` works from. If the
 agent that wants a test can also write the file the test is generated from,
-approval is a formality: the author states the behavior, hands it to the
+approval is a formality: the main agent states the behavior, hands it to the
 writer, and the adversarial review it was supposed to survive never happened.
 So the file is written by exactly one hand, the one that holds the gate.
 
 Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under a `specs/approved/`
-    directory, unless the caller's `agent_type` is `arbiter`
+    directory, unless the caller's `agent_type` is `gauntlet-arbiter`
   * a `Bash` command that names a `specs/approved/` path and is not read-only,
     except a restore from a named git object (`git restore --source <rev>`
     or `git checkout <rev> --` onto the path), which copies a commit and
@@ -24,8 +24,8 @@ Allowed: every read of `specs/approved/`, by any agent and by the shell; every
 write anywhere else, including a draft spec outside `specs/approved/`.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
-is the orchestrator, which is denied. If a build omits the key for subagents
-too, the arbiter is over-denied, which is the safe direction: no
+is the main agent, which is denied. If a build omits the key for subagents
+too, the gauntlet-arbiter is over-denied, which is the safe direction: no
 unreviewed spec reaches the writer, and the denial names this file.
 """
 
@@ -39,17 +39,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import shell_shapes as sh  # noqa: E402
 
-REVIEWER = "arbiter"
+REVIEWER = "gauntlet-arbiter"
 WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
 LANE = "specs/approved"
 BASH_APPROVED = sh.lane_pattern(LANE)
 
 _LANE = (
-    "specs/approved/ is the arbiter's lane. An approved spec is written "
+    "specs/approved/ is the gauntlet-arbiter's lane. An approved spec is written "
     "there by the reviewer that approved it, and by nothing else: it is the "
-    "only evidence the blind testsmith has that the behavior it is about to "
+    "only evidence the blind gauntlet-testsmith has that the behavior it is about to "
     "pin was reviewed. Draft outside the folder and send the draft to the "
-    "arbiter. (hooks/specs-lane.py)"
+    "gauntlet-arbiter. (hooks/specs-lane.py)"
 )
 _BASH = (
     "A shell write naming a specs/approved/ path is denied: " + _LANE + " Restoring "
@@ -105,12 +105,14 @@ def self_test() -> int:
 
     denied, allowed = (lambda v: isinstance(v, str)), (lambda v: v is None)
     lines = {
-        "1 specs/approved/ closed to every agent but the arbiter": all(
+        "1 specs/approved/ closed to every agent but the gauntlet-arbiter": all(
             (
                 denied(write(f"{root}/specs/approved/slug.txt")),
                 denied(write("specs/approved/slug.txt")),
-                denied(write(f"{root}/specs/approved/slug.txt", "testsmith")),
+                denied(write(f"{root}/specs/approved/slug.txt", "gauntlet-testsmith")),
                 denied(write(f"{root}/specs/approved/slug.txt", "cavecrew-builder")),
+                #: an unprefixed same-named agent in the host project is not this one
+                denied(write(f"{root}/specs/approved/slug.txt", "arbiter")),
                 allowed(write(f"{root}/specs/approved/slug.txt", REVIEWER)),
             )
         ),
@@ -119,7 +121,7 @@ def self_test() -> int:
                 allowed(write(f"{root}/specs/draft/slug.txt")),
                 allowed(write(f"{root}/specs/slug.txt")),
                 allowed(write(f"{root}/tests/approved/t.py")),
-                allowed(write(f"{root}/docs/lane.txt", "testsmith")),
+                allowed(write(f"{root}/docs/lane.txt", "gauntlet-testsmith")),
             )
         ),
         "3 shell writes naming the lane denied, reads and object restores pass": all(

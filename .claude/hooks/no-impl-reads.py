@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """PreToolUse hook: keep a blind agent out of the implementation.
 
-Wired from the `hooks:` frontmatter of `.claude/agents/arbiter.md` and
-`.claude/agents/testsmith.md`, so it binds those subagents only. The
-orchestrator and every other agent are untouched, deliberately: a session-wide
+Wired from the `hooks:` frontmatter of `.claude/agents/gauntlet-arbiter.md` and
+`.claude/agents/gauntlet-testsmith.md`, so it binds those subagents only. The
+main agent and every other agent are untouched, deliberately: a session-wide
 `permissions.deny` would blind the one agent that has to read the code to
 adjudicate a failing test.
 
 The rule those two work under is that a spec is judged, and a test written,
 from the behavior contract and never from the code under test. A test shaped
 against the implementation mirrors it, and goes green on an implementation
-that is wrong in exactly the way its author was wrong. A prompt alone does not
+that is wrong in exactly the way the main agent was wrong. A prompt alone does not
 enforce that: the agent that must not peek is the same agent deciding whether
 it peeked.
 

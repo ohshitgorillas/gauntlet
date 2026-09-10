@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `tests/` is the testsmith's lane, and only in its spec tree.
+"""PreToolUse hook: `tests/` is the gauntlet-testsmith's lane, and only in its spec tree.
 
-Wired session-wide from `.claude/settings.json`, so it binds the orchestrator
+Wired session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`.claude/agents/testsmith.md`, where the same script confines that agent to
+`.claude/agents/gauntlet-testsmith.md`, where the same script confines that agent to
 its own tree's `tests/`.
 
 The rule it enforces: tests are written blind, from an approved spec block, by
-the `testsmith`, in the spec worktree cut for the run. Every other hand on a
+the `gauntlet-testsmith`, in the spec worktree cut for the run. Every other hand on a
 test file is the one the chain exists to keep off it: the agent that
 implements the change editing a test until it passes.
 
 Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under `tests/` of any
-    checkout, unless the caller's `agent_type` is `testsmith` AND the
+    checkout, unless the caller's `agent_type` is `gauntlet-testsmith` AND the
     target is inside a `.claude/worktrees/*-spec` tree
-  * for the `testsmith`, any `Write`/`Edit` outside its spec tree's `tests/`
+  * for the `gauntlet-testsmith`, any `Write`/`Edit` outside its spec tree's `tests/`
   * a `Bash` command that writes and that names a `tests/` path, except a
     restore from a named git object (`git restore --source <rev>` or
     `git checkout <rev> --` onto the path), which copies a commit and types
@@ -33,7 +33,7 @@ This hook does not see that removal and is not meant to: it governs what an
 agent types, and the script is bounded by the block it reads from git.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
-is the orchestrator. If a build omits the key for subagents too, the writer is
+is the main agent. If a build omits the key for subagents too, the writer is
 over-denied, which is the safe direction: nothing leaks, and the denial names
 this file.
 """
@@ -48,13 +48,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import shell_shapes as sh  # noqa: E402
 
-WRITER = "testsmith"
+WRITER = "gauntlet-testsmith"
 WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
 LANE = "tests"
 BASH_TESTS = sh.lane_pattern(LANE)
 
 _LANE = (
-    "tests/ is the testsmith's lane, written only in its spec tree from the "
+    "tests/ is the gauntlet-testsmith's lane, written only in its spec tree from the "
     "committed spec block. A test that must change goes back through the spec: "
     "a re-approved line, a new `spec:` commit, a delta to the writer. Never by "
     "hand, never in the impl tree, never on the branch. (hooks/tests-lane.py)"
@@ -138,6 +138,8 @@ def self_test() -> int:
                 denied(write(f"{impl}/tests/t.py")),
                 denied(write(f"{spec}/tests/t.py")),
                 denied(write(f"{impl}/tests/t.py", "cavecrew-builder")),
+                #: an unprefixed same-named agent in the host project is not this one
+                denied(write(f"{spec}/tests/t.py", "testsmith")),
                 allowed(write(f"{spec}/tests/t.py", WRITER)),
                 denied(write(f"{impl}/tests/t.py", WRITER)),
             )
