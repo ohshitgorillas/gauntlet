@@ -1,0 +1,63 @@
+slug: excision-diff
+kind: new
+brief:
+> How can we streamline the current process for tests-only changes? For example, I
+> bring an agent failing tests and nothing else. The current process is very heavily
+> focused on implementation AND tests, and is a bit much for tests-only changes.
+> "Tests are wrong; only tests/ changes"
+> "Bring pair.sh into scope now"
+
+surface: `scripts/excision-diff.py`, invoked as
+`python3 scripts/excision-diff.py --spec <path> --base <rev> --head <rev>`, one line
+per target on stdout.
+
+1. For a block line excising `tests/test_a.py::test_x`, the target's stdout line is
+   `OK tests/test_a.py::test_x` at a head where that test name is absent from
+   `tests/test_a.py`, and `UNSATISFIED tests/test_a.py::test_x` at a head where the
+   name is present and the line's quoted `assertion:` text is inside that test's body.
+   kills: reports `OK tests/test_a.py::test_x` whenever the test name is present, so a
+     test that kept the offending assertion it was excised for passes the merge
+   bite: null stub fails at the second head (surface new)
+   existing: none, `ls tests/` -> no such directory
+
+2. With the line's quoted `assertion:` text present in a sibling test of
+   `tests/test_a.py` but absent from `test_x`'s own body, the target's stdout line is
+   `OK tests/test_a.py::test_x`.
+   kills: greps the whole file for the assertion text and prints
+     `UNSATISFIED tests/test_a.py::test_x` on a file where a parametrize case carries
+     the same assertion line
+   bite: null stub fails at that head (surface new)
+   existing: none, `ls tests/` -> no such directory
+
+3. At a head where `tests/test_b.py` still exists and differs from base, the
+   `tests/test_b.py` stdout line is `UNSATISFIED tests/test_b.py` when the block
+   carries a whole-file line naming it, and `UNNAMED tests/test_b.py` when the block
+   names only `tests/test_a.py`.
+   kills: prints a fixed `UNNAMED` line without reading the diff, so the run whose
+     block names `tests/test_b.py` reports it unnamed too
+   bite: null stub fails at both runs (surface new)
+   existing: none, `ls tests/` -> no such directory
+
+4. For a spec line whose `as:` names `tests/test_a.py::test_x_renamed`, the stdout line
+   is `OK tests/test_a.py::test_x_renamed` at a head defining a test of that name and
+   `MISSING tests/test_a.py::test_x_renamed` at a head defining no such test.
+   kills: prints `MISSING` for every `as:` name without reading the head, so the head
+     that carries the replacement is reported as lacking it
+   bite: null stub fails at both heads (surface new)
+   existing: none, `ls tests/` -> no such directory
+
+--- reviewer ---
+READY
+discriminates: differential on `excision-diff.py` stdout status token (lines 1+2 on assertion location at a fixed spec; line 3 on named-vs-unnamed at a fixed head; line 4 on replacement presence across two heads)
+
+1  KEEP  carried
+2  KEEP  carried
+3  KEEP  head where tests/test_b.py exists and differs from base; block carrying a whole-file line naming it -> `UNSATISFIED tests/test_b.py`, block naming only tests/test_a.py -> `UNNAMED tests/test_b.py`; "prints a fixed UNNAMED line without reading the diff" fails it at the first run; bite: null stub fails at both runs (no stdout line at all)
+4  KEEP  carried
+
+null stub: `excision-diff.py` exists, parses nothing, exits 0 with empty stdout.
+  satisfies: none   fails: 1, 2, 3, 4
+hard-coded stub: for the fixture spec, print `OK tests/test_a.py::test_x` unless the head file contains `def test_x`, plus a fixed `UNNAMED tests/test_b.py` line; no diff read, no body scoping, no `as:` lookup.
+  satisfies: none   fails: 1, 2, 3, 4
+
+survives: 4
