@@ -103,16 +103,16 @@ def _repo(tmp_path, spec_text, review_text):
     repo = tmp_path / "repo"
     (repo / "tests").mkdir(parents=True)
     (repo / "scripts").mkdir()
-    (repo / "specs" / "approved").mkdir(parents=True)
-    (repo / "state" / "reviews").mkdir(parents=True)
+    (repo / "docs" / "gauntlet" / "specs").mkdir(parents=True)
+    (repo / "docs" / "gauntlet" / "reviews").mkdir(parents=True)
     for source in (PAIR, EXCISION_DIFF):
         landed = repo / "scripts" / source.name
         shutil.copy2(source, landed)
         landed.chmod(landed.stat().st_mode | stat.S_IXUSR)
     (repo / "tests" / "test_a.py").write_text(TEST_A)
     (repo / "tests" / "test_b.py").write_text(TEST_B)
-    (repo / "specs" / "approved" / "demo.txt").write_text(spec_text)
-    (repo / "state" / "reviews" / "demo.1.txt").write_text(review_text)
+    (repo / "docs" / "gauntlet" / "specs" / "demo.txt").write_text(spec_text)
+    (repo / "docs" / "gauntlet" / "reviews" / "demo.1.txt").write_text(review_text)
     (repo / ".gitignore").write_text(GITIGNORE)
     _git(repo, "init", "-b", "main")
     _git(repo, "add", "-A")
@@ -147,7 +147,7 @@ def _python_listing(directory):
     "review_text,expected",
     [
         (REVIEWER, "OPEN .claude/worktrees/demo-spec"),
-        (DIVERGED_REVIEWER, "MISMATCH state/reviews/demo.1.txt"),
+        (DIVERGED_REVIEWER, "MISMATCH docs/gauntlet/reviews/demo.1.txt"),
     ],
     ids=["reviewer-section-matches-round-file", "reviewer-section-differs"],
 )
