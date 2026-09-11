@@ -40,7 +40,11 @@ the carried verdicts in the main agent's own return.
 
 Allowed: every read-only command naming `state/reviews/` for everyone but
 those two agents, git commands that never write the working tree, `Glob` for
-anyone, and every write elsewhere by every non-reviewer. `state/` is meant to
+anyone, and every write elsewhere by every non-reviewer. A reviewer's suite
+run counts as read-only in every form `shell_shapes.is_runner` recognizes —
+`pytest`, `python -m pytest`, `node --test`, `npm test`, `npx vitest` — and an
+interpreter handed an inline script (`-e`, `-c`, `--eval`) counts as a write
+in all of them, which is the distinction a head word cannot make. `state/` is meant to
 be gitignored, so there is no git object to restore from and no restore
 carve-out.
 
@@ -84,8 +88,10 @@ _REVIEWER_LANE = (
 _REVIEWER_BASH = (
     "Reviewer: a shell command that changes anything is denied; your writes are "
     "the Write tool onto state/reviews/ and, for the gauntlet-arbiter on READY, "
-    "specs/approved/. Read-only shell (cat, grep, sed -n, pytest) passes. "
-    "(hooks/reviews-lane.py)"
+    "specs/approved/. Read-only shell passes: cat, grep, sed -n, and a suite run "
+    "in any of its recognized forms (pytest, python -m pytest, node --test, "
+    "npm test, npx vitest). An interpreter given an inline script (-e, -c, "
+    "--eval) is a write, whatever it does. (hooks/reviews-lane.py)"
 )
 _REVIEWER_READ = (
     "Reviewer: state/reviews/ is not yours to read. A prior round reaches you "
@@ -191,6 +197,13 @@ def self_test() -> int:
                 denied(bash("sed -i 's/a/b/' src/m.py", SPEC_REVIEWER)),
                 allowed(bash("git show HEAD:specs/approved/slug.txt", SPEC_REVIEWER)),
                 allowed(bash("grep -rn 'def test_' tests/", SPEC_REVIEWER)),
+                #: the suite run this file promises a reviewer, in the spellings
+                #: a head-word reader list cannot tell apart from a write
+                allowed(bash("pytest tests/ -q", SPEC_REVIEWER)),
+                allowed(bash("python -m pytest tests/ -q", SPEC_REVIEWER)),
+                denied(bash("python -c \"open('x','w')\"", SPEC_REVIEWER)),
+                denied(bash("node -e \"require('fs').writeFileSync('x','')\"", SPEC_REVIEWER)),
+                denied(bash("make clean", SPEC_REVIEWER)),
             )
         ),
         "3 the gauntlet-arbiter alone also writes specs/approved/": all(

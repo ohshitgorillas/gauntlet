@@ -26,10 +26,17 @@ beside this file:
 
     {"allow": ["reference/", "vendor/protocol.h"], "runners": ["pytest", "make"]}
 
-`allow` entries are repo-relative paths, a trailing `/` meaning the directory
-and everything under it. `runners` are command names whose output may quote
-implementation source — a traceback through the code is the cost of running
-the suite at all, and running the suite is the point.
+`allow` entries are repo-relative paths anchored at the repo root, a trailing
+`/` meaning the directory and everything under it. A name matches there and
+nowhere else: `docs/` is this repository's `docs`, never `src/docs`.
+
+`runners` are the names of this repo's own suite commands, accepted with any
+arguments — a traceback through the code is the cost of running the suite at
+all, and running the suite is the point. The common runners need no entry:
+`shell_shapes.is_runner` recognizes them by their whole invocation, which is
+the only way to tell `node --test` from `node -e`. An inline-script flag
+(`-e`, `-c`, `-p`, `--eval`, `--print`) disqualifies any command, configured
+name included.
 
 Blocked for those agents:
 
@@ -37,6 +44,9 @@ Blocked for those agents:
   * `Grep`/`Glob` rooted outside it, and `Grep`/`Glob` with no path at all
     (an unrooted search sweeps the tree and prints matching source lines)
   * a `Bash` command naming a path outside it, by any reader the tool reaches
+  * a `Bash` command that reads recursively with nothing to root it — `grep
+    -rn x .`, `grep -rn x`, `rg x` — which sweeps the tree the same way an
+    unrooted `Grep` does
   * a `Bash` fetch of a served source file from localhost (`.js`, `.css`,
     `.map`, `.ts`, `.py`) — the same source by another road
 """
@@ -49,12 +59,21 @@ import re
 import shlex
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import shell_shapes as sh  # noqa: E402
+
 #: repo-relative paths a blind agent may read; a trailing `/` means the subtree
 DEFAULT_ALLOW = ("docs/", "tests/", "specs/")
 #: repo-root files a blind agent may read, by extension
 DEFAULT_ROOT_FILES = (".md", ".txt", ".pdf")
-#: commands whose output may quote source, because running them is the job
-DEFAULT_RUNNERS = ("pytest", "make", "node", "npx", "npm", "tox", "cargo", "go")
+
+#: commands that read a whole tree; unrooted, they sweep the implementation
+RECURSIVE_ALWAYS = frozenset({"find", "rg", "tree"})
+#: commands that read a whole tree only when told to
+RECURSIVE_ON_FLAG = {"grep": "rR", "egrep": "rR", "fgrep": "rR", "ls": "R"}
+#: path candidates that root a search at the whole tree, which is no root
+UNROOTED = frozenset({".", ".."})
 
 #: a served source file fetched from a local dev server
 SERVED = re.compile(
@@ -97,17 +116,31 @@ def config() -> dict:
 
 
 def _rules(conf: dict) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The allowlist and the repo's own extra runner names.
+
+    There is no default runner list any more. A head word cannot tell a suite
+    run from an interpreter printing a source file — `node -e` and `node
+    --test` share it — so the runner question goes to `shell_shapes.is_runner`,
+    which reads the whole invocation. What stays configurable is the name a
+    repo gives its own suite command, and an inline-script flag disqualifies
+    those too.
+    """
     allow = tuple(DEFAULT_ALLOW) + tuple(conf.get("allow") or ())
-    runners = tuple(DEFAULT_RUNNERS) + tuple(conf.get("runners") or ())
-    return allow, runners
+    return allow, tuple(conf.get("runners") or ())
 
 
 def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) -> bool:
     """Is this path one of the spec's own sources?
 
-    Outside a checkout there is no repo-relative path to test, so nothing is
-    readable but the allowlisted names appearing as path segments. Failing
-    closed there is the point: a blind agent in an unknown tree stays blind.
+    An allowlist entry is anchored: `docs/` is the repository's own `docs`,
+    not any directory called `docs` at any depth. Matching at depth reads
+    `src/docs/impl.py` as documentation, which hands the blind agent the
+    implementation under a directory name it does not control.
+
+    Outside a checkout there is no repo-relative path to test, so the path is
+    anchored at the filesystem root instead and almost nothing is readable.
+    Failing closed there is the point: a blind agent in an unknown tree stays
+    blind.
     """
     if not target:
         return True
@@ -123,9 +156,7 @@ def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) ->
     for entry in allow:
         name = entry.rstrip("/").replace("/", os.sep)
         if entry.endswith("/"):
-            if rel == name or rel.startswith(name + os.sep) or (os.sep + name + os.sep) in (
-                os.sep + rel
-            ):
+            if rel == name or rel.startswith(name + os.sep):
                 return True
         elif rel == name:
             return True
@@ -135,13 +166,9 @@ def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) ->
     )
 
 
-def _names_unreadable(command: str, root: str | None, cwd: str, allow: tuple[str, ...]) -> bool:
-    """Does any word of the command look like a path outside the allowlist?"""
-    try:
-        words = shlex.split(command, comments=False, posix=True)
-    except ValueError:
-        words = command.split()
-    candidates = [
+def _candidates(words: list[str]) -> list[str]:
+    """The words of a command that look like paths."""
+    return [
         w
         for w in words[1:]
         #: a URL is not a path: `SERVED` above rules on the ones that carry source,
@@ -150,7 +177,43 @@ def _names_unreadable(command: str, root: str | None, cwd: str, allow: tuple[str
         and ("/" in w or os.path.splitext(w)[1])
         and not w.startswith("-")
     ]
-    return any(not readable(w, root, cwd, allow) for w in candidates)
+
+
+def _reads_recursively(words: list[str]) -> bool:
+    """Does this command walk a whole tree?
+
+    `find`, `tree` and `rg` always do — `rg` needs no flag for it. The grep
+    family and `ls` do when told to, and they are told in three spellings: a
+    standalone `-r`, a clustered short option carrying it (`-rn`), or the long
+    `--recursive`.
+    """
+    head = os.path.basename(words[0]) if words else ""
+    if head in RECURSIVE_ALWAYS:
+        return True
+    letters = RECURSIVE_ON_FLAG.get(head)
+    if letters is None:
+        return False
+    return any(
+        w == "--recursive"
+        or (w.startswith("-") and not w.startswith("--") and any(c in w[1:] for c in letters))
+        for w in words[1:]
+    )
+
+
+def _unrooted_sweep(words: list[str]) -> bool:
+    """A recursive reader with nothing to root it is a read of the whole tree."""
+    if not _reads_recursively(words):
+        return False
+    return all(w.rstrip(os.sep) in UNROOTED for w in _candidates(words))
+
+
+def _names_unreadable(command: str, root: str | None, cwd: str, allow: tuple[str, ...]) -> bool:
+    """Does any word of the command look like a path outside the allowlist?"""
+    try:
+        words = shlex.split(command, comments=False, posix=True)
+    except ValueError:
+        words = command.split()
+    return any(not readable(w, root, cwd, allow) for w in _candidates(words))
 
 
 def _verdict(name: str, tool_input: dict, root: str | None, cwd: str, conf: dict) -> str | None:
@@ -167,9 +230,13 @@ def _verdict(name: str, tool_input: dict, root: str | None, cwd: str, conf: dict
         command = tool_input.get("command", "")
         if SERVED.search(command):
             return _WHY
-        head = os.path.basename(shlex.split(command)[0]) if command.strip() else ""
-        if head in runners:
+        words = sh.words_of(command) if command.strip() else []
+        head = os.path.basename(words[0]) if words else ""
+        inline = any(w in sh.INLINE_SCRIPT for w in words[1:])
+        if sh.is_runner(words) or (head in runners and not inline):
             return None
+        if _unrooted_sweep(words):
+            return _UNROOTED
         return _WHY if _names_unreadable(command, root, cwd, allow) else None
     return None
 
@@ -244,6 +311,36 @@ def self_test() -> int:
                 allowed(bash("pytest tests/test_lane.py -q")),
                 allowed(bash("curl -s http://127.0.0.1:8090/api/state")),
                 denied(bash("curl -s http://127.0.0.1:8090/components/copy.js")),
+            )
+        ),
+        "4 an interpreter reading source is denied, a suite run is not": all(
+            (
+                #: the runner question is the whole invocation, never the head
+                #: word: `node -e` and `node --test` share one
+                denied(bash("node -e \"console.log(require('fs').readFileSync('src/core.py','utf8'))\"")),
+                denied(bash("python -c \"print(open('src/core.py').read())\"")),
+                allowed(bash("pytest tests/test_lane.py -q")),
+                allowed(bash("npx vitest run")),
+                allowed(bash("node --test tests/t.test.js")),
+            )
+        ),
+        "5 a recursive search with no root is denied, a rooted one is not": all(
+            (
+                denied(bash("grep -rn secret .")),
+                denied(bash("grep -rn secret")),
+                denied(bash("grep --recursive secret .")),
+                denied(bash("rg secret")),
+                allowed(bash("grep -rn secret docs/")),
+                allowed(bash("grep -n secret README.md")),
+            )
+        ),
+        "6 an allowlisted directory name counts at the root and nowhere else": all(
+            (
+                denied(read(f"{root}/src/docs/impl.py")),
+                denied(read(f"{root}/src/tests/impl.py")),
+                denied(call("Grep", {"pattern": "x", "path": f"{root}/src/specs"})),
+                allowed(read(f"{root}/docs/testing.md")),
+                allowed(read(f"{root}/tests/test_lane.py")),
             )
         ),
     }
