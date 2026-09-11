@@ -60,7 +60,8 @@ Break rule = review say no. Even if test green.
      behavior test.
    - Curated count/order is copy.
    - Selector need wording → add stable test id. Nothing live through remove
-     wording → delete via `kind: excision`, never hand-edit `tests/`.
+     wording → delete via `kind: excision`, or `kind: repair` where behavior
+     under it stay pinned. Never hand-edit `tests/`.
    - `<mechanical gate for this>`.
 
 10. **A test discriminates, or it's a tautology.** Name failing
@@ -130,6 +131,36 @@ N. excise <target>
 Target: `tests/<file>::<test>`, or `tests/<file>` (no `::`) for whole file.
 No `kills:`/`bite:`/`existing:`, four-line cap no apply. Rule number must
 match what quoted assertion really break.
+
+## Repair blocks
+
+Test that break rule but pin behavior worth keeping walk chain as
+`kind: repair`. One line carry both halves — what go, what take its place:
+
+```
+N. excise tests/<file>::<test>
+   rule: docs/testing.md rule <n>
+   assertion: <the offending assertion, quoted from the test file>
+   replace: <behavior as the caller sees it>
+   as: tests/<file>::<test_name>
+   kills: <a wrong implementation a user would notice>
+```
+
+Target always `tests/<file>::<test>`. Whole-file target belong to
+`kind: excision` only: replacement cannot land in file excision half delete.
+
+`as:` name test replacement must land as. May equal target — coupled test name
+often state behavior right (rule 6) and only assertion wrong, so rename is
+churn. Merge check read target as satisfied on either fact: name gone from
+`tests/`, or name present and quoted `assertion:` gone from that test's own
+body. Body, not file — same assertion text can sit in sibling test
+(parametrize case, shared line).
+
+No `bite:`. Replacement pin behavior HEAD already have = characterization,
+rule 8 exempt it. Four-line cap count `replace:` lines only.
+
+Excision half empty a file (every test gone, none replaced there) → writer
+delete file.
 
 ## Markers
 

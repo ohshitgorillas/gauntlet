@@ -26,7 +26,7 @@ The approved file carries the block as approved and the verdicts that approved i
 
 ```
 slug: <slug>
-kind: new | characterization | refactor | excision
+kind: new | characterization | refactor | excision | repair
 brief:
 > <the owner's words that asked for this work>
 

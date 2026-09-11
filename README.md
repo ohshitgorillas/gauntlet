@@ -23,14 +23,25 @@ The workflow enforced by Gauntlet is, as its name implies, quite brutal:
 3. The main agent drafts a plan on those pointers and provides it to a `gauntlet-prosecutor`.
 4. The `gauntlet-prosecutor` checks the drafted plan for mistakes, errors, inconsistencies, and resolves the plan's citations against the tree to return a pass or fail per check. It may also return a refusal to rule if the main agent is caught trying to game its context or evades a posed question. Any questions the agents cannot answer are escalated to you, who then approves the plan only on a pass.
 5. The main agent drafts a testing spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-accountant` measures it.
-6. The main agent supplies its spec block to an `gauntlet-arbiter`.
+6. The main agent supplies its spec block to a `gauntlet-arbiter`.
 7. The `gauntlet-arbiter` runs its checks blind: it cannot read the implementation. It evaluates the spec block based on its merits alone and returns verdicts per test proposal. It may also outright refuse the prompt on steering or evasion attempts by the main agent. On `READY`, it sends the approved specs to `specs/approved/`, a folder only it can write to.
 8. The `gauntlet-testsmith`, also blind to implementation, takes its orders only from `specs/approved/`. A line it cannot test goes back to the `gauntlet-arbiter` instead of getting a weak test; a test that passes against no implementation sends the block back to the main agent for a new spec.
-9. Both gauntlet-testsmith and main agent work concurrently in different branches, the latter on implementation.
+9. Both the `gauntlet-testsmith` and the main agent work concurrently in different branches, the latter on implementation.
 10. The tests run red in the `gauntlet-testsmith`'s tree, and green in the implementation branch.
 11. The main agent has two approaches to a test failing against implementation: fix the code, or send a revised spec back to the `gauntlet-arbiter` for approval. The `gauntlet-testsmith` will refuse any direct attempts by the main agent to weaken the tests to pass at this phase.
 12. Once the test suite is green against implementation, the change merges. 
 13. The `gauntlet-arbiter` checks the landed tests against the block it approved; a test that no longer matches gets restored from the red commit, or the spec goes back to the main agent.
+
+## The tests-only lane
+
+A change confined to `tests/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not thirteen:
+
+1. The main agent drafts a `kind: excision` block (the test goes) or a `kind: repair` block (the test goes, and one line names the behavior that replaces it).
+2. The `gauntlet-arbiter` reviews it against the test file, which it is allowed to read, and writes `specs/approved/<slug>.txt` on `READY`.
+3. The `gauntlet-testsmith` removes the targets and writes the replacements.
+4. `scripts/excision-diff.py` checks the landed diff against the approved block at merge.
+
+No plan gate, no red run, no post-merge review round. Those three exist to police an implementation phase, and a tests-only change has none. What still holds is the part that matters: the main agent never writes `tests/`, and never decides on its own that a test it finds inconvenient pins nothing.
 
 See `docs/agents.md` for what each agent is allowed to see and write, and `docs/approved-specs.md` for the hook that makes step 7 and step 8 a fact on disk rather than a step that happened somewhere in the transcript.
 
@@ -43,6 +54,7 @@ python3 .claude/hooks/specs-lane.py --self-test
 python3 .claude/hooks/tests-lane.py --self-test
 python3 .claude/hooks/reviews-lane.py --self-test
 python3 .claude/hooks/no-impl-reads.py --self-test
+python3 scripts/excision-diff.py --self-test
 ```
 
 Each prints one `PASS` or `FAIL` per line it exists to hold. A `FAIL` means the lane is not binding, and the gate it enforces is not there.

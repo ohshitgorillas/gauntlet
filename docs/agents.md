@@ -28,6 +28,17 @@ Blindness costs something, so it is paid for. The `gauntlet-accountant` measures
 5. The `gauntlet-testsmith` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
 6. The tests run red. The main agent implements against them, and never edits them.
 
+## The tests-only lane
+
+A change confined to `tests/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
+
+1. The main agent drafts a `kind: excision` or `kind: repair` block and sends it to a `gauntlet-arbiter`.
+2. The reviewer resolves each line's quoted assertion against the test file itself — `tests/` is open to it, and the implementation is not what these lines rest on — and writes `specs/approved/<slug>.txt` on `READY`.
+3. The `gauntlet-testsmith` removes the targets and writes the replacements its `as:` fields name.
+4. `scripts/excision-diff.py`, run by `scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither kind has an implementation phase, so the window those two watch does not exist.
+
+The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `tests/`.
+
 Steps 4 and 5 are the load-bearing pair, which is why a hook and not a convention stands between them: `specs/approved/` is written by the reviewer alone, so the file's existence is the writer's proof that the lines were reviewed. Rules in `approved-specs.md`.
 
 ## Verdicts, not grades

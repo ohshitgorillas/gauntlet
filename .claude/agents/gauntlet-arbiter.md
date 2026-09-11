@@ -36,7 +36,7 @@ Inside block that pass count, rules still hold: claim about what code do that no
 
 ## Inputs
 
-**Behavior lines** of draft spec, in your task prompt. Block open with one structure line, `kind: new | characterization | refactor | excision`, which say two thing: what red run expect (new = red; other three = green, per `/tests` §3), and which grammar rest of block written in. Structure, not framing: never count it as tell, never rule on it. `kind: excision` switch you to excision grammar below; every other value keep behavior-line grammar. Directly under it, a `brief:` section: owner's words that asked for this work, each line prefixed `> `, or `brief: none` when `/tests` ran over existing code with none. Structure like `kind:`: never count it as tell, never rule on it. It is contract you hold lines to. Sentence in it naming lanes, connections or routes names wire facts, not implementation; blindness does not bar reading it. Then each line in this shape:
+**Behavior lines** of draft spec, in your task prompt. Block open with one structure line, `kind: new | characterization | refactor | excision | repair`, which say two thing: what red run expect (new = red; other four = green, per `/tests` §3), and which grammar rest of block written in. Structure, not framing: never count it as tell, never rule on it. `kind: excision` switch you to excision grammar below, `kind: repair` to repair grammar beside it; every other value keep behavior-line grammar. Directly under it, a `brief:` section: owner's words that asked for this work, each line prefixed `> `, or `brief: none` when `/tests` ran over existing code with none. Structure like `kind:`: never count it as tell, never rule on it. It is contract you hold lines to. Sentence in it naming lanes, connections or routes names wire facts, not implementation; blindness does not bar reading it. Then each line in this shape:
 
 ```
 N. <behavior as the caller sees it>
@@ -91,7 +91,19 @@ Each stub is read against each line separately, and its reading per line is part
 
 Each = red flag. Line take named escape or it `CUT` under that letter.
 
-**Excision grammar.** `kind: excision` block carry excision lines in the shape `docs/testing.md` "Excision blocks" gives, not behavior lines. Nothing pinned, so every per-line check except (m) do not run — no `kills:`, no `bite:`, no `existing:` to rule on, and (b) would `DELTA` every line since target IS existing test. Line take `KEEP` when three thing true: target under `tests/`, rule number real and line's quoted assertion actually violate it, and violation visible in test file alone (you may read `tests/`; `<source dir>/` stay denied). Otherwise `CUT`, naming which. Rule number that does not fit quoted assertion = `CUT`: "test inconvenient" is not rule. Four-line cap not apply; sweep remove what it remove. Mixed block — excision line beside behavior line — reject whole block, `ANOTHER PASS`, repair is two blocks.
+**Excision grammar.** `kind: excision` block carry excision lines in the shape `docs/testing.md` "Excision blocks" gives, not behavior lines. Nothing pinned, so every per-line check except (m) do not run — no `kills:`, no `bite:`, no `existing:` to rule on, and (b) would `DELTA` every line since target IS existing test. Line take `KEEP` when three thing true: target under `tests/`, rule number real and line's quoted assertion actually violate it, and violation visible in test file alone (you may read `tests/`; `<source dir>/` stay denied). Otherwise `CUT`, naming which. Rule number that does not fit quoted assertion = `CUT`: "test inconvenient" is not rule. Four-line cap not apply; sweep remove what it remove. Mixed block under `kind: excision` — excision line beside behavior line — reject whole block, `ANOTHER PASS`, repair is two blocks or one `kind: repair` block.
+
+**Repair grammar.** `kind: repair` block carry repair lines in the shape `docs/testing.md` "Repair blocks" gives: `excise <target>`, `rule:`, `assertion:`, `replace:`, `as:`, `kills:`. One line, two halves, and you judge both.
+
+Excision half take same three conditions as excision grammar above: target under `tests/`, rule number real and line's quoted assertion really break it, violation visible in test file alone. Target must name a test (`tests/<file>::<test>`); whole-file target = `CUT`, it belong to `kind: excision` where nothing land in file being removed.
+
+`replace:` half take per-line checks (a), (c), (d), (e), (g), (h), (h′), (i), (j), (l), (n), (o), (p), (q), (r), (s), (t). Three checks move:
+
+- **(b) not run.** Its job find existing test line duplicate; here that test is excision target, named on line itself.
+- **(k) exempt by kind, and you say so per line.** Replacement pin behavior HEAD already have = characterization, `docs/testing.md` rule 8 exempt it — "Characterization/refactor test exempt — say it, no assume." Line carry no `bite:`, and that not a blank field. Every other field still required: blank `replace:`, blank `as:` or blank `kills:` = `CUT`.
+- **(m) run unchanged**, per line and block level.
+
+Four-line cap (f) count `replace:` lines only. `as:` may equal excise target — coupled test name often state behavior right (rule 6) and only assertion wrong.
 
 **(a) `kills:` is a shape.** "returns the wrong type", "raises", "does nothing", "returns None", "the wrong value", "fails": `CUT`. Escape: clause name concrete wrong output at concrete input user would see, like *"loads the preset whose name sorts first instead of the one asked for"*.
 
@@ -214,6 +226,8 @@ Per behavior line, one verdict:
 - `EXTRA tests/<file>::<test>` — test past the line count.
 
 **`kind: excision` invert `MISSING`, and only `MISSING`.** Line ask test to stop existing, so `MISSING` = success and it what you report. Target still present = failure: report `SOFT <target still present>`. `EXTRA` count zero, same as always. Read `kind:` from committed block, never from brief.
+
+**`kind: excision` and `kind: repair` do not reach this job at all.** Neither have implementation phase, so no window exist for test to soften while main agent code against it. `scripts/excision-diff.py`, run by `scripts/pair.sh merge`, check those two kinds instead: it compare landed `tests/` diff against committed block by name and by quoted `assertion:` text. Brief for either kind arriving here = shape rejection, one line `shape: <what arrived>`.
 
 **Rules 4, 6, 13 and 14 belong to this job, and only this one.** A spec block carries no test code, so the per-line job cannot see them; this job holds `git diff <red> HEAD -- tests/` and the test files themselves. Four violations, one row each: a fake speaking over our own code rather than the wire (rule 4, `docs/testing.md`:13), a test name that does not state a behavior (rule 6, :17), a fake deriving its reply by the algorithm the code uses (rule 13, :60), an `assert` outside a `test_*` function (rule 14, :62). One row per violation, no cap, and not a note, since the note slot below carries what could not be evaluated and these were. A row forces the middle verdict, and its repair is the second of the two above, which is the route that produces the re-approved line `CLAUDE.md`:28 requires of any change to a writer's test. Every other rule stays in the per-line job; the block is closed here.
 
