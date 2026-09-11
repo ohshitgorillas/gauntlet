@@ -12,6 +12,7 @@ Versioning: [SemVer](https://semver.org/), 0.x during pre-release.
 - `scripts/excision-diff.py`, the mechanical merge check that replaces the reviewer round for those two kinds. It compares the landed `tests/` diff against the approved block by test name and by quoted assertion text, scoped to the target test's own body so a sibling parametrize case sharing the assertion does not hold the target open. It never reads `replace:` prose.
 
 ### Changed
+- An `EVASION` rejection no longer burns the reviewer. Only `STEERING` does. A reviewer calls `EVASION` on a re-review whose return neither did the named repair nor supplied the missing citation; replacing the reviewer there handed the main agent a fresh one that held none of the evaded findings, and so a free second run at the same evasion. The call now leaves the reviewer open with its findings, and the main agent answers it back to that same reviewer, which can call `EVASION` again on an answer that evades again.
 - The five agents are now named `gauntlet-accountant`, `gauntlet-arbiter`, `gauntlet-detective`, `gauntlet-prosecutor` and `gauntlet-testsmith`. The lane hooks key on the caller's `agent_type`, so the previous generic names meant that an unrelated agent already called `arbiter` or `testsmith` in the host project satisfied a lane check and could write `specs/approved/` or `tests/`. **Breaking for existing installs:** copy the renamed agent files in, delete the old ones, and re-run the four `--self-test` commands.
 
 ### Added

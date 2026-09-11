@@ -33,10 +33,12 @@ Denied:
     `state/reviews/` path
 
 A reviewer is denied the lane's contents as well as its writes, because a
-rejection burns the agent that printed it and its replacement continues the
-numbering in the same directory: the `Glob` that finds the next `<N>` is
-allowed and returns filenames, and a prior round reaches a reviewer only as
-the carried verdicts in the main agent's own return.
+steering rejection burns the agent that printed it and its replacement
+continues the numbering in the same directory: the `Glob` that finds the next
+`<N>` is allowed and returns filenames, and a prior round reaches a reviewer
+only as the carried verdicts in the main agent's own return. An evasion
+rejection burns nobody — the same reviewer stays open and takes the next `<N>`
+itself — so the denial holds for the same reason either way.
 
 Allowed: every read-only command naming `state/reviews/` for everyone but
 those two agents, git commands that never write the working tree, `Glob` for
