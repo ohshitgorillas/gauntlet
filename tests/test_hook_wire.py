@@ -122,6 +122,34 @@ class TestsLaneShellShapes(unittest.TestCase):
             "sed -i 's/a/b/' tests/t.py": DENY,
             "cat tests/t.py": SILENT,
             "grep -rn 'def test_' tests/": SILENT,
+            # fail-open-bypasses line 1.  A redirection read only when no file
+            # descriptor precedes it lets `cat impl.py 1> tests/t.py` write the
+            # test the agent was barred from writing with Edit, while the same
+            # lane refuses `2>&1` on a plain read.  /dev/null is not a write.
+            "cat impl.py 1> tests/t.py": DENY,
+            "cat impl.py 2> tests/t.py": DENY,
+            "cat impl.py &> tests/t.py": DENY,
+            "cat impl.py > tests/t.py 2>/dev/null": DENY,
+            "cat impl.py > tests/nullish": DENY,
+            "grep x tests/t.py 2>&1": SILENT,
+            "echo hi >&2": SILENT,
+            "cat tests/t.py 2>/dev/null": SILENT,
+            # fail-open-bypasses line 2.  A heredoc body dropped before any
+            # check names its target where nothing looks, so `python3 - <<EOF`
+            # writes a test unseen; a delimiter merely carrying a hyphen is no
+            # reason to treat the same body differently, and prose stays prose.
+            "python3 - <<EOF\nopen('tests/t.py','w')\nEOF": DENY,
+            "python3 - <<EOF\nopen('tests/t.py','w')": DENY,
+            "python3 - <<'EOF-1'\nopen('tests/t.py','w')\nEOF-1": DENY,
+            "echo hi && python3 - <<EOF\nopen('tests/t.py','w')\nEOF": DENY,
+            "cat <<EOF\nprose about tests/t.py\nEOF": SILENT,
+            # fail-open-bypasses line 5.  `pytest` accepted with any arguments
+            # at all is a write primitive handed an output path: the runner the
+            # lane exists to let through becomes the way into the lane.
+            "pytest --junitxml=tests/out.xml": DENY,
+            "pytest --cov-report=html:tests/cov tests/": DENY,
+            "pytest --basetemp=tests/tmp tests/": DENY,
+            "pytest tests/ -q": SILENT,
         }
         actual = sweep(
             "tests-lane.py",
@@ -142,6 +170,12 @@ class TestsLaneShellShapes(unittest.TestCase):
             "node --test tests/t.test.js": SILENT,
             "python -c \"open('tests/t.py','w')\"": DENY,
             "node -e \"require('fs').writeFileSync('tests/t.py','')\"": DENY,
+            # fail-open-bypasses line 4.  An inline-script flag read without the
+            # head word in front of it turns the two standard ways of spelling a
+            # pytest run -- with a config file, without a cache directory --
+            # into writes, and the lane refuses its own red run.
+            "pytest -p no:cacheprovider tests/": SILENT,
+            "pytest -c pytest.ini tests/": SILENT,
         }
         actual = sweep(
             "tests-lane.py",
@@ -167,6 +201,37 @@ class NoImplReadsShellShapes(unittest.TestCase):
             "python -c \"print(open('src/core.py').read())\"": DENY,
             "pytest tests/test_lane.py -q": SILENT,
             "npx vitest run": SILENT,
+            # fail-open-bypasses line 4, the guard's half of the same flag.
+            # Read against the head word the flag still refuses `python -c` and
+            # `node -e` above, and `python3 -` reading the implementation on
+            # stdin, while a pytest run carrying a config file goes through.
+            "pytest -c pytest.ini tests/": SILENT,
+            "python3 - < src/core.py": DENY,
+        }
+        actual = sweep(
+            "no-impl-reads.py",
+            expected,
+            lambda command: bash_payload(command, REPO_CWD),
+        )
+        self.assertEqual(actual, expected)
+
+    def test_git_subcommands_that_print_content_need_an_allowlisted_path(self):
+        # fail-open-bypasses line 3.  A git command scored only by the
+        # path-shaped words it carries hands `git show HEAD` -- the whole
+        # implementation -- to the blind agent because it names no path, and
+        # refuses `git show HEAD:specs/approved/...` because the revision
+        # prefix makes an allowlisted spec look like a filename.  Metadata
+        # subcommands print no content; an unknown one is treated as content.
+        expected = {
+            "git show HEAD": DENY,
+            "git log -p": DENY,
+            "git diff HEAD~1": DENY,
+            "git stash show -p": DENY,
+            "git frobnicate": DENY,
+            "git cat-file -p HEAD": DENY,
+            "git status": SILENT,
+            "git log --oneline": SILENT,
+            "git show HEAD:specs/approved/pair-sh.txt": SILENT,
         }
         actual = sweep(
             "no-impl-reads.py",
@@ -232,6 +297,32 @@ class SpecsLaneWithoutGitRoot(unittest.TestCase):
             expected,
             lambda file_path: write_payload(file_path, NOGIT_CWD),
         )
+        self.assertEqual(actual, expected)
+
+
+class RedirectionsIntoTheOtherLanes(unittest.TestCase):
+    """specs-lane.py and reviews-lane.py, on the same redirection shape."""
+
+    maxDiff = None
+
+    def test_file_descriptor_redirection_into_a_lane_is_a_write(self):
+        # fail-open-bypasses line 1, the two lanes the tests-lane table cannot
+        # hold.  The same `1>` that writes a test writes an approved spec block
+        # and a review verdict, so a lane reading a redirection only when no
+        # file descriptor precedes it fails open on all three.  The
+        # reviews-lane payload carries no `agent_type` key: with one, that hook
+        # refuses a reviewer's metered shell whatever the command classifies
+        # as, and the redirection would be pinning nothing.
+        expected = {
+            ("specs-lane.py", "cat impl.py 1> specs/approved/s.txt"): DENY,
+            ("reviews-lane.py", "cat impl.py 1> state/reviews/s.9.txt"): DENY,
+        }
+        actual = {
+            (hook_name, command): hook_decision(
+                hook_name, bash_payload(command, REPO_CWD)
+            )
+            for hook_name, command in expected
+        }
         self.assertEqual(actual, expected)
 
 
