@@ -1,0 +1,60 @@
+slug: pair-sh
+kind: new
+brief:
+> How can we streamline the current process for tests-only changes? For example, I
+> bring an agent failing tests and nothing else. The current process is very heavily
+> focused on implementation AND tests, and is a bit much for tests-only changes.
+> "Bring pair.sh into scope now"
+
+surface: `scripts/pair.sh`, invoked as `scripts/pair.sh open <slug>`,
+`scripts/pair.sh red <slug>` and `scripts/pair.sh merge <slug>`, stdout plus the
+files it leaves in the spec worktree.
+
+1. For a slug whose approved spec carries a reviewer section byte-identical to the
+   newest `state/reviews/<slug>.<N>.txt`, `scripts/pair.sh open <slug>` prints
+   `OPEN .claude/worktrees/<slug>-spec`, and for a slug where those two texts differ
+   it prints `MISMATCH state/reviews/<slug>.<N>.txt`.
+   kills: opens the worktree on the spec file alone, so a block edited after the
+     reviewer passed it reaches the writer as though the reviewer had passed the
+     edited text
+   bite: null stub fails at both slugs (surface new)
+   existing: none, `grep -rn pair tests/` -> no match
+
+2. After `scripts/pair.sh red <slug>` over a block whose line names the whole file
+   `tests/test_b.py`, the `tests/` listing of `.claude/worktrees/<slug>-spec` is
+   {test_a.py}, and over a block whose line names `tests/test_a.py::test_x` it is
+   {test_a.py, test_b.py}.
+   kills: removes every path any line names, so a single-test target takes its whole
+     file with it and the tests that file's other lines pin go too
+   bite: null stub fails at the first block (surface new)
+   existing: none, `grep -rn pair tests/` -> no match
+
+3. For a block whose `kind:` is `excision`, the first stdout line of
+   `scripts/pair.sh merge <slug>` is `OK tests/test_a.py::test_x`, and for a block
+   whose `kind:` is `new` it is `TEST CHECK <slug>`.
+   kills: prints the `TEST CHECK` brief whatever the kind, so a tests-only change is
+     sent to a blind reviewer that has no implementation phase to review
+   bite: null stub fails at both blocks (surface new)
+   existing: none, `grep -rn pair tests/` -> no match
+
+--- reviewer ---
+READY
+discriminates: differential on each of the three subcommands (open / red / merge), two distinct expected values per surface
+
+1  KEEP  carried
+2  KEEP  `red <slug>` over a block naming the whole file tests/test_b.py -> the tests/ listing of .claude/worktrees/<slug>-spec is {test_a.py}, and over a block naming tests/test_a.py::test_x -> {test_a.py, test_b.py}; the kills implementation (removes every path any line names) fails it at the second block, where the listing comes back {test_b.py}; bite: null stub fails at the first block, where the listing is still {test_a.py, test_b.py}
+3  KEEP  carried
+
+null stub: scripts/pair.sh exists, every subcommand exits 0 printing nothing, creating nothing, removing nothing.
+  satisfies: none   fails: 1, 2, 3
+hard-coded stub: each subcommand prints the one literal the block names for it and does no reading of the spec, the target or the kind (open always prints OPEN, red removes nothing, merge always prints TEST CHECK).
+  satisfies: none   fails: 1, 2, 3
+  reading: each line demands two different outputs from one subcommand, and the two inputs are distinguished only by file content (reviewer text, target shape, kind:), never by a slug literal the block names, so a stub keyed on the inputs would have to do the discriminating read.
+
+survives: 3
+
+findings of round 1, resolved:
+- CUT h' on line 2: repaired as named. The outcome is now one positive set comparison over the same two inputs, and it survives (g): the kills implementation yields {test_b.py} at the second block.
+- note 1 (scripts/pair.sh at HEAD): citation `git ls-files scripts/pair.sh` -> no output. Withdrawn; "surface new" stands and the null-stub bite discharges rule 8 on all three lines.
+- note 2 (OPEN / MISMATCH undocumented, rule 9 copy): resolved by docs/agents.md:31-42, a `scripts/pair.sh` section whose table carries `OPEN .claude/worktrees/<slug>-spec` and `MISMATCH state/reviews/<slug>.<N>.txt` against their conditions. Verified by my own grep. The writer reaches both literals without the implementation, so the (c) escape holds and (n)'s invariant-at-two-inputs escape holds with it: each line states one branch property at two inputs, not two design literals. Line 3's `OK tests/test_a.py::test_x` is additionally already pinned in tests/test_excision_diff.py:123,144, which is open to the writer.
+- existing: re-verified. `grep -rn pair /home/atom/dev/gauntlet/tests/` -> no match; no test under tests/ invokes pair.sh, so line 3 is not a delta to tests/test_excision_diff.py, which pins excision-diff.py's verdict text and not pair.sh's routing on `kind:`.

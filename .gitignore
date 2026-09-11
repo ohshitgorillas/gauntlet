@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 state/
 *.swp
+.claude/worktrees/
+.venv/
