@@ -141,6 +141,17 @@ def self_test() -> int:
                 allowed(bash("rm -rf build/ && cat specs/approved/slug.txt")),
             )
         ),
+        "4 the lane directory itself is in the lane, checkout or not": all(
+            (
+                #: outside any checkout the path is read off its own segments, and
+                #: the last segment is one of them: the write that creates the
+                #: directory is the lane's first write, not its exception
+                denied(write("/nogit/specs/approved")),
+                denied(write("/nogit/specs/approved/slug.txt")),
+                allowed(write("/nogit/specs/draft/slug.txt")),
+                allowed(write(f"{root}/specs/approved", REVIEWER)),
+            )
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")

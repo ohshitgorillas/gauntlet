@@ -165,6 +165,38 @@ def self_test() -> int:
                 allowed(bash("git commit -m 'test: pins tests/t.py'")),
             )
         ),
+        "4 a write into tests/ is a write however it is spelled": all(
+            (
+                #: a separator the splitter did not know left the whole command
+                #: reading as its first word, so any reader in front hid a write
+                denied(bash("cat tests/t.py\nrm tests/t.py")),
+                denied(bash("cat README.md & rm tests/t.py")),
+                #: `find` and the interpreters are write primitives, not readers
+                denied(bash("find tests -name '*.py' -delete")),
+                denied(bash("node -e \"require('fs').writeFileSync('tests/t.py','')\"")),
+                denied(bash("python -c \"open('tests/t.py','w')\"")),
+                #: a stage that cd'd into the lane writes to it without naming it
+                denied(bash("cd tests && rm t.py")),
+                denied(bash("cd tests; rm t.py")),
+                #: and a `cd` the walk cannot follow does not carry the taint back
+                allowed(bash("cd /tmp && rm t.py")),
+                #: a separator inside a quoted argument is not a separator
+                allowed(bash("grep -rn 'a && b' tests/")),
+            )
+        ),
+        "5 a suite run naming tests/ is a read, an inline script is not": all(
+            (
+                allowed(bash("python -m pytest tests/ -q")),
+                allowed(bash("python3 -m unittest discover tests/")),
+                allowed(bash("node --test tests/t.test.js")),
+                allowed(bash("npm test -- tests/t.py")),
+                allowed(bash("npx vitest run tests/")),
+                #: the same heads without the argument that makes them a run
+                denied(bash("npm run build -- tests/")),
+                denied(bash("npx rimraf tests/")),
+                denied(bash("node -e \"require('fs').rmSync('tests/t.py')\"")),
+            )
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")

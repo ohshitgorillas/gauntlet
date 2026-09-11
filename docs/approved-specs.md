@@ -85,6 +85,7 @@ Check them after wiring. Each prints one `PASS` or `FAIL` per line it exists to 
 python3 .claude/hooks/specs-lane.py --self-test
 python3 .claude/hooks/tests-lane.py --self-test
 python3 .claude/hooks/reviews-lane.py --self-test
+python3 .claude/hooks/no-impl-reads.py --self-test
 ```
 
 ## Failure modes it accepts
