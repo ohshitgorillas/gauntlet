@@ -217,6 +217,56 @@ def _unrooted_sweep(words: list[str]) -> bool:
     return all(w.rstrip(os.sep) in UNROOTED for w in _candidates(words))
 
 
+def _git_subcommand(words: list[str]) -> str | None:
+    """The subcommand of a git invocation, past any global option.
+
+    `git -C <dir> show` and `git --no-pager show` put the option in `words[1]`,
+    so reading `words[1]` as the subcommand misses both. A bare `git` has no
+    subcommand at all.
+    """
+    i = 1
+    while i < len(words):
+        word = words[i]
+        if word in ("-C", "-c", "--git-dir", "--work-tree", "--namespace"):
+            i += 2
+            continue
+        if word.startswith("-"):
+            i += 1
+            continue
+        return word
+    return None
+
+
+def _git_prints_content(words: list[str]) -> bool:
+    """Does this git command print file content?
+
+    Metadata subcommands print commits, refs and names. Everything else prints
+    some of the tree, and an unrecognized subcommand is treated as content --
+    the same direction the rest of this hook takes, where unlisted is denied.
+    """
+    sub = _git_subcommand(words)
+    if sub is None:
+        return True
+    if sub == "log":
+        return any(w in sh.GIT_PATCH_FLAGS for w in words[1:])
+    return sub not in sh.GIT_METADATA
+
+
+def _git_candidates(words: list[str]) -> list[str]:
+    """The path-shaped words of a git command, with any `<rev>:` prefix removed.
+
+    `git show HEAD:specs/approved/<slug>.txt` is the supported way for a blind agent to
+    read an allowlisted spec out of history. Scored literally, the revision
+    prefix makes that path a filename that exists nowhere, so the read the
+    escape hatch exists for was refused.
+    """
+    out = []
+    for word in _candidates(words):
+        head, sep, tail = word.partition(":")
+        out.append(tail if sep and "/" not in head else word)
+    return out
+
+
 def _strip_env(words: list[str]) -> list[str]:
     """Drop a leading `VAR=value` prefix, so the head word is the command.
 
@@ -255,11 +305,20 @@ def _bash_verdict(
                 here = os.path.abspath(os.path.join(here, target))
             continue
         head = os.path.basename(words[0])
-        inline = any(w in sh.INLINE_SCRIPT for w in words[1:])
+        inline = sh.has_inline_script(words)
         if sh.is_runner(words) or (head in runners and not inline):
             continue
         if _unrooted_sweep(words):
             return _UNROOTED
+        if head == "git":
+            #: a git command that prints content carries no path of its own when
+            #: it is spelled `git show <rev>`, so the candidate test has nothing
+            #: to fail on and the implementation goes out whole
+            if _git_prints_content(words):
+                paths = _git_candidates(words)
+                if not paths or any(not readable(w, root, here, allow) for w in paths):
+                    return _WHY
+            continue
         if any(not readable(w, root, here, allow) for w in _candidates(words)):
             return _WHY
     return None

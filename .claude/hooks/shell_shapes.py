@@ -45,8 +45,39 @@ READ_ONLY = frozenset(
 )
 
 #: an interpreter told to run a script given on the command line; never a run
-#: of the suite, whatever the head word in front of it
+#: of the suite. Which flag means that depends on the head word in front of it,
+#: so the set is read through `has_inline_script`, never against a bare word
+#: list: `-c` is an inline script to `python` and a config file to `pytest`,
+#: and `-p` is an inline script to `perl` and a plugin to `pytest`.
 INLINE_SCRIPT = frozenset({"-e", "-c", "-p", "--eval", "--print"})
+
+#: heads for which `-c` is an inline script rather than a configuration file
+INLINE_C_HEADS = frozenset({"sh", "bash", "zsh", "ruby", "perl", "php"})
+#: heads for which `-p`/`--print` is an inline script rather than an argument
+INLINE_P_HEADS = frozenset({"perl", "node"})
+
+#: `pytest` arguments that make it write somewhere of its own choosing, so the
+#: invocation stops being a run of the suite and falls to the ordinary path test
+PYTEST_WRITE_FLAGS = (
+    "--junitxml", "--junit-xml", "--report-log", "--result-log",
+    "--cov-report", "--basetemp",
+)
+
+#: git subcommands that print no file content; everything else prints some, and
+#: an unrecognized subcommand is treated as content. Staging and committing
+#: belong here: they print no tree, and leaving them out denies the blind test
+#: writer the commit its own red run depends on. `GIT_NO_WORKTREE` above is the
+#: same judgment asked from the write side, and the two lists agree on `add`
+#: and `commit` for that reason.
+GIT_METADATA = frozenset(
+    {
+        "status", "rev-parse", "ls-files", "branch", "describe", "remote",
+        "config", "symbolic-ref", "merge-base", "rev-list", "tag",
+        "add", "commit", "restore", "checkout", "switch", "worktree", "reset",
+    }
+)
+#: flags that turn `git log` from a list of commits into a patch
+GIT_PATCH_FLAGS = frozenset({"-p", "-u", "--patch", "--full-diff"})
 
 #: packages `npx` may run as a test runner
 NPX_RUNNERS = frozenset({"ava", "jest", "mocha", "playwright", "tap", "vitest"})
@@ -60,10 +91,29 @@ GIT_NO_WORKTREE = frozenset(
     {"add", "blame", "commit", "diff", "log", "ls-files", "rev-parse", "show", "status"}
 )
 
-#: an output redirection; `2>&1` and `>&2` are not one
-REDIRECT = re.compile(r"(?:^|[^0-9<>&])>>?(?![&>])")
+#: an output redirection and the target it opens. A file-descriptor prefix
+#: (`1>`, `2>`) and `&>` are redirections; `2>&1` and `>&2` duplicate a
+#: descriptor and open nothing, which is what the `(?![&>])` lookahead excludes.
+#: The prefix is not what tells those apart, so it is not excluded here.
+REDIRECT = re.compile(r"(?:^|[^<>&])(?:\d*|&)>>?(?![&>])\s*([^\s;|&)]*)")
 
-_HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+#: a redirection to this target changes nothing on disk
+NULL_TARGET = "/dev/null"
+
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)([\w][\w.-]*)\1")
+
+
+def redirect_writes(segment: str) -> bool:
+    """Does any redirection in this stage open something other than `/dev/null`?
+
+    Asked per redirection, not per stage. A stage carries more than one, and a
+    stage-level answer would let `cat impl.py > tests/t.py 2>/dev/null` off on
+    the harmless half of it.
+    """
+    for match in REDIRECT.finditer(segment):
+        if match.group(1).strip("\"'") != NULL_TARGET:
+            return True
+    return False
 
 
 def strip_heredocs(command: str) -> str:
@@ -138,6 +188,62 @@ def segments(command: str) -> list[str]:
     return _split_unquoted(strip_heredocs(command))
 
 
+def segments_with_bodies(command: str) -> list[tuple[str, str]]:
+    """Each stage, paired with the heredoc body opened on that stage's line.
+
+    `segments` drops every body before a caller sees it, which is right for a
+    question about what a command *does* — the head word already answers that.
+    It is wrong for a question about *which path* a stage touches, because the
+    path a heredoc names lives in the body. The body attaches to the last stage
+    of the line that opened it, which is the stage carrying the `<<`.
+
+    A body is evidence about the target of a write, never evidence that a write
+    happened: `lane_write_in` reads one only for a stage that already
+    classifies as a write, so `cat <<EOF` carrying prose stays prose.
+    """
+    units: list[tuple[str, str]] = []
+    lines = command.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        body: list[str] = []
+        for match in _HEREDOC.finditer(line):
+            terminator = match.group(2)
+            #: an unterminated heredoc runs to the end of the input, as it does
+            #: in the shell, so the body is whatever is left
+            while i < len(lines) and lines[i].strip() != terminator:
+                body.append(lines[i])
+                i += 1
+            i += 1 if i < len(lines) else 0
+        stages = _split_unquoted(line)
+        for index, stage in enumerate(stages):
+            last = index == len(stages) - 1
+            units.append((stage, "\n".join(body) if last else ""))
+    return units
+
+
+def has_inline_script(words: list[str]) -> bool:
+    """Is this invocation an interpreter told to run a script given inline?
+
+    Read against the head word. `-e` and `--eval` are that shape for every head
+    that has them; `-c` only for a shell or an interpreter; `-p` and `--print`
+    only for `perl` and `node`. A bare `-` is the same shape by another road —
+    it is how `python3 - <<EOF` feeds a script in without a flag at all.
+    """
+    if not words:
+        return False
+    head = os.path.basename(words[0])
+    for word in words[1:]:
+        if word in ("-e", "--eval", "-"):
+            return True
+        if word == "-c" and (head.startswith("python") or head in INLINE_C_HEADS):
+            return True
+        if word in ("-p", "--print") and head in INLINE_P_HEADS:
+            return True
+    return False
+
+
 def is_runner(words: list[str]) -> bool:
     """Is this invocation a run of the project's suite, rather than a write?
 
@@ -147,13 +253,13 @@ def is_runner(words: list[str]) -> bool:
     """
     if not words:
         return False
-    if any(w in INLINE_SCRIPT for w in words[1:]):
+    if has_inline_script(words):
         return False
     head = os.path.basename(words[0])
     rest = words[1:]
     first = rest[0] if rest else ""
     if head == "pytest":
-        return True
+        return not any(w.startswith(PYTEST_WRITE_FLAGS) for w in rest)
     if head == "python" or head.startswith("python3"):
         if "-m" not in rest:
             return False
@@ -194,7 +300,7 @@ def words_of(segment: str) -> list[str]:
 
 def segment_writes(segment: str, *, restore_ok: bool = True) -> bool:
     """Does this one pipeline stage change anything on disk?"""
-    if REDIRECT.search(segment):
+    if redirect_writes(segment):
         return True
     words = words_of(segment)
     if not words:
@@ -257,7 +363,7 @@ def lane_write_in(command: str, pattern: re.Pattern[str], *, restore_ok: bool = 
     no `cd` anywhere the walk is the old per-stage test.
     """
     here: str | None = ""
-    for stage in segments(command):
+    for stage, body in segments_with_bodies(command):
         words = words_of(stage)
         target = cd_target(words)
         if target is not None:
@@ -269,6 +375,8 @@ def lane_write_in(command: str, pattern: re.Pattern[str], *, restore_ok: bool = 
         if not segment_writes(stage, restore_ok=restore_ok):
             continue
         if pattern.search(stage):
+            return True
+        if body and pattern.search(body):
             return True
         if here and pattern.search(here.rstrip("/") + "/"):
             return True
