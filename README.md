@@ -21,11 +21,11 @@ The workflow enforced by Gauntlet is, as its name implies, quite brutal:
 1. You supply an agent with a brief: the problem to solve or feature to add.
 2. The main agent sends its grounding questions, all of them, to one `gauntlet-detective`, which returns a `file:line` table and nothing else.
 3. The main agent drafts a plan on those pointers and provides it to a `gauntlet-prosecutor`.
-4. The `gauntlet-prosecutor` checks the drafted plan for mistakes, errors, inconsistencies, and resolves the plan's citations against the tree to return a pass or fail per check. It may also return a refusal to rule if the main agent is caught trying to game its context or evades a posed question. Any questions the agents cannot answer are escalated to you, who then approves the plan only on a pass.
+4. The `gauntlet-prosecutor` checks the drafted plan for mistakes, errors, inconsistencies, and resolves the plan's citations against the tree to return a pass or fail per check. It may also return a refusal to rule if the main agent is caught trying to game its context or evades a posed question. Any questions the agents cannot answer are escalated to you, who then approves the plan only on a pass. On `READY`, it writes the approved plan to `docs/gauntlet/plans/`, a folder only it can write to, so a later stage reads the plan from disk rather than inheriting it — the shape is in `docs/plans.md`.
 5. The main agent drafts a testing spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-accountant` measures it.
 6. The main agent supplies its spec block to a `gauntlet-arbiter`.
-7. The `gauntlet-arbiter` runs its checks blind: it cannot read the implementation. It evaluates the spec block based on its merits alone and returns verdicts per test proposal. It may also outright refuse the prompt on steering or evasion attempts by the main agent. On `READY`, it sends the approved specs to `specs/approved/`, a folder only it can write to.
-8. The `gauntlet-testsmith`, also blind to implementation, takes its orders only from `specs/approved/`. A line it cannot test goes back to the `gauntlet-arbiter` instead of getting a weak test; a test that passes against no implementation sends the block back to the main agent for a new spec.
+7. The `gauntlet-arbiter` runs its checks blind: it cannot read the implementation. It evaluates the spec block based on its merits alone and returns verdicts per test proposal. It may also outright refuse the prompt on steering or evasion attempts by the main agent. On `READY`, it sends the approved specs to `docs/gauntlet/specs/`, a folder only it can write to.
+8. The `gauntlet-testsmith`, also blind to implementation, takes its orders only from `docs/gauntlet/specs/`. A line it cannot test goes back to the `gauntlet-arbiter` instead of getting a weak test; a test that passes against no implementation sends the block back to the main agent for a new spec.
 9. Both the `gauntlet-testsmith` and the main agent work concurrently in different branches, the latter on implementation.
 10. The tests run red in the `gauntlet-testsmith`'s tree, and green in the implementation branch.
 11. The main agent has two approaches to a test failing against implementation: fix the code, or send a revised spec back to the `gauntlet-arbiter` for approval. The `gauntlet-testsmith` will refuse any direct attempts by the main agent to weaken the tests to pass at this phase.
@@ -37,7 +37,7 @@ The workflow enforced by Gauntlet is, as its name implies, quite brutal:
 A change confined to `tests/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not thirteen:
 
 1. The main agent drafts a `kind: excision` block (the test goes) or a `kind: repair` block (the test goes, and one line names the behavior that replaces it).
-2. The `gauntlet-arbiter` reviews it against the test file, which it is allowed to read, and writes `specs/approved/<slug>.txt` on `READY`.
+2. The `gauntlet-arbiter` reviews it against the test file, which it is allowed to read, and writes `docs/gauntlet/specs/<slug>.txt` on `READY`.
 3. The `gauntlet-testsmith` removes the targets and writes the replacements.
 4. `scripts/excision-diff.py` checks the landed diff against the approved block at merge.
 
@@ -47,9 +47,10 @@ See `docs/agents.md` for what each agent is allowed to see and write, and `docs/
 
 ## Setup
 
-Clone this repository and copy its `.claude/` directory (agents, hooks, and `settings.json`) into the target project. `.claude/settings.json` wires `specs-lane.py`, `tests-lane.py` and `reviews-lane.py` session-wide, so they bind the main agent and every subagent; `no-impl-reads.py` is wired only per-agent, from the `hooks:` frontmatter of `gauntlet-arbiter.md` and `gauntlet-testsmith.md` — see `docs/approved-specs.md` for why. After copying, check the lanes:
+Clone this repository and copy its `.claude/` directory (agents, hooks, and `settings.json`) into the target project. `.claude/settings.json` wires `plans-lane.py`, `specs-lane.py`, `tests-lane.py` and `reviews-lane.py` session-wide, so they bind the main agent and every subagent; `no-impl-reads.py` is wired only per-agent, from the `hooks:` frontmatter of `gauntlet-arbiter.md` and `gauntlet-testsmith.md` — see `docs/approved-specs.md` for why. After copying, check the lanes:
 
 ```
+python3 .claude/hooks/plans-lane.py --self-test
 python3 .claude/hooks/specs-lane.py --self-test
 python3 .claude/hooks/tests-lane.py --self-test
 python3 .claude/hooks/reviews-lane.py --self-test

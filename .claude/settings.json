@@ -10,6 +10,10 @@
           },
           {
             "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/plans-lane.py"
+          },
+          {
+            "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/tests-lane.py"
           }
         ]

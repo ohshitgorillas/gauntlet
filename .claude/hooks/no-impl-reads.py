@@ -20,12 +20,24 @@ blocklist has to know what this repo calls its source directory, and gets it
 wrong the first time someone adds one — and it fails closed: an unlisted path
 is denied, and the denial names the file to widen.
 
-Allowed by default: `docs/`, `tests/`, `specs/`, `state/`, and documentation
-files at the repo root (`*.md`, `*.txt`, `*.pdf`). `state/` is the workflow's
-own output, never the repository's source: it holds the red run a blind writer
-must certify and the reviewer rounds a blind reviewer writes. Denying it moved
-the certification to the main agent, which is the inversion this hook exists
-to prevent. Extend the list per repo with `blind-reads.json` beside this file:
+Allowed by default: `docs/`, `tests/`, `state/`, and documentation files at the
+repo root (`*.md`, `*.txt`, `*.pdf`). `state/` is the workflow's own output,
+never the repository's source: it holds the red run a blind writer must
+certify. Denying it moved the certification to the main agent, which is the
+inversion this hook exists to prevent.
+
+`docs/gauntlet/` is the exception carved inside `docs/`, and it is a denial,
+not a widening. Everything the gauntlet's agents write lives there, and three
+of the four kinds quote implementation citations: an approved plan resolves
+`file:line` into the source, a draft does so unreviewed, and a reviewer round
+quotes the plan back. So the base is denied entire, with `docs/gauntlet/specs/`
+re-allowed as the one subtree a blind agent works from — the approved spec
+block, which is the whole of what it is given. Both tests run before the allow
+list below, so a fifth artifact directory added later is blind-safe until
+someone deliberately opens it, and no `blind-reads.json` entry can re-open the
+plans, the drafts or the rounds.
+
+Extend the list per repo with `blind-reads.json` beside this file:
 
     {"allow": ["reference/", "vendor/protocol.h"], "runners": ["pytest", "make"]}
 
@@ -66,7 +78,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 #: repo-relative paths a blind agent may read; a trailing `/` means the subtree
-DEFAULT_ALLOW = ("docs/", "tests/", "specs/", "state/")
+DEFAULT_ALLOW = ("docs/", "tests/", "state/")
+#: the gauntlet's own artifact base, denied entire inside the allowed `docs/`
+GAUNTLET_BASE = "docs/gauntlet"
+#: the one subtree of it a blind agent works from: the approved spec block
+GAUNTLET_SPECS = "docs/gauntlet/specs"
 #: repo-root files a blind agent may read, by extension
 DEFAULT_ROOT_FILES = (".md", ".txt", ".pdf")
 
@@ -84,14 +100,18 @@ SERVED = re.compile(
 
 _WHY = (
     "Blind agent: the implementation is out of bounds. Work from the approved spec "
-    "block, docs/ and tests/. If the spec does not say what the behavior is, report "
-    "that gap instead of reading the code to find out. If this path is genuinely a "
-    "spec source, add it to the allow list in hooks/blind-reads.json. "
-    "(hooks/no-impl-reads.py)"
+    "block at docs/gauntlet/specs/, the rest of docs/, and tests/. If the spec does "
+    "not say what the behavior is, report that gap instead of reading the code to "
+    "find out. If this path is genuinely a spec source, add it to the allow list in "
+    "hooks/blind-reads.json — except under docs/gauntlet/, which is the gauntlet's "
+    "own artifact base: docs/gauntlet/specs/ is the only part of it that is yours, "
+    "and no allow-list entry reaches the plans, the drafts or the reviewer rounds, "
+    "which quote implementation citations. A spec source belongs in "
+    "docs/gauntlet/specs/. (hooks/no-impl-reads.py)"
 )
 _UNROOTED = (
-    "Give Grep/Glob an explicit path (tests/, docs/, specs/): an unrooted search "
-    "sweeps the whole tree and prints its source. " + _WHY
+    "Give Grep/Glob an explicit path (tests/, docs/, docs/gauntlet/specs/): an "
+    "unrooted search sweeps the whole tree and prints its source. " + _WHY
 )
 
 
@@ -131,6 +151,17 @@ def _rules(conf: dict) -> tuple[tuple[str, ...], tuple[str, ...]]:
     return allow, tuple(conf.get("runners") or ())
 
 
+def _under(rel: str, name: str) -> bool:
+    """Is this repo-relative path that directory, or something inside it?
+
+    The bare directory counts. A test that only asks whether the path starts
+    with the directory plus a separator misses `Grep` rooted at the directory
+    itself, which is the one search that returns everything in it.
+    """
+    prefix = name.replace("/", os.sep)
+    return rel == prefix or rel.startswith(prefix + os.sep)
+
+
 def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) -> bool:
     """Is this path one of the spec's own sources?
 
@@ -161,7 +192,18 @@ def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) ->
             return False
     else:
         rel = resolved.lstrip(os.sep)
-    #: the allowlist runs first: `tests` is the allowed directory itself, not a
+    #: the gauntlet's own base, inside the allowed `docs/`, in the one order that
+    #: works. The approved spec is tested first and is readable; the base is
+    #: tested second and is denied; the allow list runs last. Reversing the first
+    #: two refuses the blind writer the block it is spawned against, and putting
+    #: either behind the allow list lets `docs/` — or a `blind-reads.json` entry —
+    #: hand over the plans, the drafts and the rounds, every one of which carries
+    #: implementation citations.
+    if _under(rel, GAUNTLET_SPECS):
+        return True
+    if _under(rel, GAUNTLET_BASE):
+        return False
+    #: the allowlist runs next: `tests` is the allowed directory itself, not a
     #: root file that happens to carry no extension
     for entry in allow:
         name = entry.rstrip("/").replace("/", os.sep)
@@ -255,8 +297,8 @@ def _git_prints_content(words: list[str]) -> bool:
 def _git_candidates(words: list[str]) -> list[str]:
     """The path-shaped words of a git command, with any `<rev>:` prefix removed.
 
-    `git show HEAD:specs/approved/<slug>.txt` is the supported way for a blind agent to
-    read an allowlisted spec out of history. Scored literally, the revision
+    `git show HEAD:docs/gauntlet/specs/<slug>.txt` is the supported way for a blind
+    agent to read an allowlisted spec out of history. Scored literally, the revision
     prefix makes that path a filename that exists nowhere, so the read the
     escape hatch exists for was refused.
     """
@@ -390,7 +432,7 @@ def self_test() -> int:
             (
                 allowed(read(f"{root}/docs/testing.md")),
                 allowed(read(f"{root}/tests/test_lane.py")),
-                allowed(read(f"{root}/specs/approved/slug.txt")),
+                allowed(read(f"{root}/docs/gauntlet/specs/slug.txt")),
                 allowed(read(f"{root}/README.md")),
                 denied(read(f"{root}/src/core/manager.py")),
                 denied(read(f"{root}/app/main.py")),
@@ -447,7 +489,7 @@ def self_test() -> int:
         ),
         "7 a blind agent's own worktree is anchored at that worktree": all(
             (
-                allowed(read(f"{tree}/specs/approved/demo.txt")),
+                allowed(read(f"{tree}/docs/gauntlet/specs/demo.txt")),
                 allowed(read(f"{tree}/tests/test_demo.py")),
                 allowed(call("Grep", {"pattern": "x", "path": f"{tree}/tests"})),
                 #: the worktree carries its own copy of these, and neither is a
@@ -463,8 +505,51 @@ def self_test() -> int:
         "8 the workflow's own state is readable, so the writer certifies its run": all(
             (
                 allowed(read(f"{root}/state/red/demo.txt")),
-                allowed(read(f"{root}/state/reviews/demo.1.txt")),
                 denied(read(f"{root}/src/state/manager.py")),
+            )
+        ),
+        "9 the gauntlet's base is denied inside docs/, its specs re-allowed": all(
+            (
+                allowed(read(f"{root}/docs/gauntlet/specs/demo.txt")),
+                denied(read(f"{root}/docs/gauntlet/plans/demo.txt")),
+                denied(read(f"{root}/docs/gauntlet/reviews/demo.plan.4.txt")),
+                denied(read(f"{root}/docs/gauntlet/drafts/plans/demo.txt")),
+                denied(read(f"{root}/docs/gauntlet/drafts/specs/demo.txt")),
+                #: the bare directory is the one search that returns everything
+                #: in it, and it is not `<dir>/` + something
+                denied(call("Grep", {"pattern": "x", "path": f"{root}/docs/gauntlet"})),
+                denied(call("Grep", {"pattern": "x", "path": f"{root}/docs/gauntlet/plans"})),
+                allowed(call("Grep", {"pattern": "x", "path": f"{root}/docs/gauntlet/specs"})),
+                #: the rest of docs/ is untouched, and so is the same name nested
+                #: under the source tree
+                allowed(read(f"{root}/docs/testing.md")),
+                allowed(read(f"{root}/docs/plans.md")),
+                denied(read(f"{root}/src/docs/gauntlet/specs/demo.txt")),
+                #: the git-object read a blind agent is told to make
+                allowed(bash("git show HEAD:docs/gauntlet/specs/demo.txt")),
+                denied(bash("git show HEAD:docs/gauntlet/plans/demo.txt")),
+            )
+        ),
+        "10 no blind-reads.json entry re-opens the base": all(
+            (
+                denied(
+                    _verdict(
+                        "Read",
+                        {"file_path": f"{root}/docs/gauntlet/plans/demo.txt"},
+                        root,
+                        root,
+                        {"allow": ["docs/gauntlet/plans/", "docs/gauntlet/"]},
+                    )
+                ),
+                allowed(
+                    _verdict(
+                        "Read",
+                        {"file_path": f"{root}/reference/protocol.md"},
+                        root,
+                        root,
+                        {"allow": ["reference/"]},
+                    )
+                ),
             )
         ),
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `state/reviews/` is the reviewers' lane, and nearly their only one.
+"""PreToolUse hook: `docs/gauntlet/reviews/` is the reviewers' lane, and nearly their only one.
 
 Wired session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
@@ -7,30 +7,33 @@ and every subagent, and again from the `hooks:` frontmatter of
 the same script confines those two agents to what they are allowed to write.
 
 The rule it enforces: a reviewer's verdict reaches the rest of the chain from a
-file the reviewer wrote itself, `state/reviews/<slug>.<N>.txt`, never from a
-transcription the main agent typed. A verdict that passes through another
-agent's hands on the way is a verdict that agent can soften.
+file the reviewer wrote itself, `docs/gauntlet/reviews/<slug>.<N>.txt`, never
+from a transcription the main agent typed. A verdict that passes through
+another agent's hands on the way is a verdict that agent can soften.
 
-The `gauntlet-arbiter` has a second write, and exactly one: the approved block at
-`specs/approved/<slug>.txt`, which it writes on `READY` and on nothing else.
-That is the same rule in the other direction — the file the blind gauntlet-testsmith
-works from is written by the gate itself — so this hook must allow it or the
-reviewer is locked out of the lane `specs-lane.py` reserves for it. The
-`gauntlet-prosecutor` approves no spec and does not get that write.
+Each reviewer has a second write, and exactly one: the `gauntlet-arbiter` the
+approved block at `docs/gauntlet/specs/<slug>.txt`, and the `gauntlet-prosecutor`
+the approved plan at `docs/gauntlet/plans/<slug>.txt`, each written on `READY`
+and on nothing else. That is the same rule in the other direction — the file a
+later stage works from is written by the gate itself — so this hook must allow
+both or each reviewer is locked out of the lane `specs-lane.py` and
+`plans-lane.py` reserve for it. Neither write is the other's: the
+`gauntlet-prosecutor` approves no spec, and the `gauntlet-arbiter` approves no plan.
 
 Denied:
 
-  * `Write`/`Edit`/`NotebookEdit` whose target is under `state/reviews/` of
-    any checkout, unless the caller's `agent_type` is `gauntlet-arbiter` or
+  * `Write`/`Edit`/`NotebookEdit` whose target is under `docs/gauntlet/reviews/`
+    of any checkout, unless the caller's `agent_type` is `gauntlet-arbiter` or
     `gauntlet-prosecutor`
   * for those two agents, any `Write`/`Edit`/`NotebookEdit` outside
-    `state/reviews/`, except the `gauntlet-arbiter` writing under
-    `specs/approved/`
+    `docs/gauntlet/reviews/`, except the `gauntlet-arbiter` writing under
+    `docs/gauntlet/specs/` and the `gauntlet-prosecutor` under
+    `docs/gauntlet/plans/`
   * for those two agents, any `Bash` command that writes anything at all
-  * for those two agents, a `Read` or a `Grep` aimed under `state/reviews/`,
-    and a read-only `Bash` command naming such a path
+  * for those two agents, a `Read` or a `Grep` aimed under
+    `docs/gauntlet/reviews/`, and a read-only `Bash` command naming such a path
   * for everyone else, a `Bash` command that writes and that names a
-    `state/reviews/` path
+    `docs/gauntlet/reviews/` path
 
 A reviewer is denied the lane's contents as well as its writes, because a
 steering rejection burns the agent that printed it and its replacement
@@ -40,15 +43,15 @@ only as the carried verdicts in the main agent's own return. An evasion
 rejection burns nobody — the same reviewer stays open and takes the next `<N>`
 itself — so the denial holds for the same reason either way.
 
-Allowed: every read-only command naming `state/reviews/` for everyone but
+Allowed: every read-only command naming `docs/gauntlet/reviews/` for everyone but
 those two agents, git commands that never write the working tree, `Glob` for
 anyone, and every write elsewhere by every non-reviewer. A reviewer's suite
 run counts as read-only in every form `shell_shapes.is_runner` recognizes —
 `pytest`, `python -m pytest`, `node --test`, `npm test`, `npx vitest` — and an
 interpreter handed an inline script (`-e`, `-c`, `--eval`) counts as a write
-in all of them, which is the distinction a head word cannot make. `state/` is meant to
-be gitignored, so there is no git object to restore from and no restore
-carve-out.
+in all of them, which is the distinction a head word cannot make.
+`docs/gauntlet/reviews/` is meant to be gitignored, so there is no git object to
+restore from and no restore carve-out.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
 is the main agent. If a build omits the key for subagents too, a reviewer is
@@ -67,42 +70,49 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 SPEC_REVIEWER = "gauntlet-arbiter"
-REVIEWERS = frozenset({SPEC_REVIEWER, "gauntlet-prosecutor"})
+PLAN_REVIEWER = "gauntlet-prosecutor"
+REVIEWERS = frozenset({SPEC_REVIEWER, PLAN_REVIEWER})
 WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
 #: tools that hand back a file's contents; `Glob` returns names only and is not one
 READ_TOOLS = ("Read", "Grep")
-LANE = "state/reviews"
-APPROVED = "specs/approved"
+LANE = "docs/gauntlet/reviews"
+APPROVED = "docs/gauntlet/specs"
+PLANS = "docs/gauntlet/plans"
+#: the one approved-artifact lane each reviewer writes, and no other's
+SECOND_WRITE = {SPEC_REVIEWER: APPROVED, PLAN_REVIEWER: PLANS}
 BASH_REVIEWS = sh.lane_pattern(LANE)
 
 _LANE = (
-    "state/reviews/ is the reviewers' lane: a verdict file is written by the "
-    "gauntlet-arbiter or gauntlet-prosecutor that produced it, and the chain reads the "
-    "verdict from that file. Nothing else writes there. "
+    "docs/gauntlet/reviews/ is the reviewers' lane: a verdict file is written by "
+    "the gauntlet-arbiter or gauntlet-prosecutor that produced it, and the chain reads "
+    "the verdict from that file. Nothing else writes there. "
     "(hooks/reviews-lane.py)"
 )
 _REVIEWER_LANE = (
-    "Reviewer: your verdict goes to state/reviews/<slug>.<N>.txt of the main "
-    "checkout, and the gauntlet-arbiter's approved block to specs/approved/<slug>.txt. "
-    "Nowhere else: not the source tree, not tests/, not docs/. "
+    "Reviewer: your verdict goes to docs/gauntlet/reviews/<slug>.<N>.txt of the "
+    "main checkout, the gauntlet-arbiter's approved block to "
+    "docs/gauntlet/specs/<slug>.txt, and the gauntlet-prosecutor's approved plan to "
+    "docs/gauntlet/plans/<slug>.txt. Nowhere else: not the source tree, not tests/, "
+    "not the rest of docs/, and not the other reviewer's lane. "
     "(hooks/reviews-lane.py)"
 )
 _REVIEWER_BASH = (
     "Reviewer: a shell command that changes anything is denied; your writes are "
-    "the Write tool onto state/reviews/ and, for the gauntlet-arbiter on READY, "
-    "specs/approved/. Read-only shell passes: cat, grep, sed -n, and a suite run "
+    "the Write tool onto docs/gauntlet/reviews/ and, on READY, docs/gauntlet/specs/ "
+    "for the gauntlet-arbiter or docs/gauntlet/plans/ for the gauntlet-prosecutor. "
+    "Read-only shell passes: cat, grep, sed -n, and a suite run "
     "in any of its recognized forms (pytest, python -m pytest, node --test, "
     "npm test, npx vitest). An interpreter given an inline script (-e, -c, "
     "--eval) is a write, whatever it does. (hooks/reviews-lane.py)"
 )
 _REVIEWER_READ = (
-    "Reviewer: state/reviews/ is not yours to read. A prior round reaches you "
-    "as the carried verdicts in the main agent's return, never as a file: the round "
+    "Reviewer: docs/gauntlet/reviews/ is not yours to read. A prior round reaches "
+    "you as the carried verdicts in the main agent's return, never as a file: the round "
     "that rejected a brief printed the steering back verbatim, and it is written "
     "nowhere for you to find. Glob for the next <N> is allowed and returns "
     "filenames. (hooks/reviews-lane.py)"
 )
-_BASH = "A shell write naming a state/reviews/ path is denied: " + _LANE
+_BASH = "A shell write naming a docs/gauntlet/reviews/ path is denied: " + _LANE
 
 
 def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
@@ -111,7 +121,9 @@ def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
         return _LANE if in_reviews else None
     if in_reviews:
         return None
-    if agent == SPEC_REVIEWER and sh.path_in_lane(target, cwd, APPROVED):
+    #: each reviewer's one other lane, and never the other reviewer's
+    second = SECOND_WRITE[agent]
+    if sh.path_in_lane(target, cwd, second):
         return None
     return _REVIEWER_LANE
 
@@ -158,7 +170,7 @@ def main() -> None:
 
 
 def self_test() -> int:
-    """Pin the four spec lines of the reviewers' lane."""
+    """Pin the five spec lines of the reviewers' lane."""
     root = "/repo"
 
     def call(tool: str, tool_input: dict, agent: str | None = None) -> str | None:
@@ -178,26 +190,27 @@ def self_test() -> int:
 
     denied, allowed = (lambda v: isinstance(v, str)), (lambda v: v is None)
     lines = {
-        "1 state/reviews/ closed to everyone but the two reviewers": all(
+        "1 docs/gauntlet/reviews/ closed to everyone but the two reviewers": all(
             (
-                denied(write(f"{root}/state/reviews/slug.1.txt")),
-                denied(write(f"{root}/state/reviews/slug.1.txt", "gauntlet-testsmith")),
+                denied(write(f"{root}/docs/gauntlet/reviews/slug.1.txt")),
+                denied(write(f"{root}/docs/gauntlet/reviews/slug.1.txt", "gauntlet-testsmith")),
                 #: an unprefixed same-named agent in the host project is not this one
-                denied(write(f"{root}/state/reviews/slug.1.txt", "arbiter")),
-                denied(write(f"{root}/state/reviews/slug.1.txt", "prosecutor")),
-                allowed(write(f"{root}/state/reviews/slug.1.txt", SPEC_REVIEWER)),
-                allowed(write(f"{root}/state/reviews/slug.1.txt", "gauntlet-prosecutor")),
-                denied(bash("echo x > state/reviews/slug.1.txt")),
-                allowed(bash("cat state/reviews/slug.1.txt")),
+                denied(write(f"{root}/docs/gauntlet/reviews/slug.1.txt", "arbiter")),
+                denied(write(f"{root}/docs/gauntlet/reviews/slug.1.txt", "prosecutor")),
+                allowed(write(f"{root}/docs/gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
+                allowed(write(f"{root}/docs/gauntlet/reviews/slug.1.txt", PLAN_REVIEWER)),
+                denied(bash("echo x > docs/gauntlet/reviews/slug.1.txt")),
+                allowed(bash("cat docs/gauntlet/reviews/slug.1.txt")),
             )
         ),
         "2 a reviewer writes its verdict and nothing else": all(
             (
                 denied(write(f"{root}/src/m.py", SPEC_REVIEWER)),
                 denied(write(f"{root}/tests/t.py", SPEC_REVIEWER)),
-                denied(write(f"{root}/docs/testing.md", "gauntlet-prosecutor")),
+                denied(write(f"{root}/docs/testing.md", PLAN_REVIEWER)),
+                denied(write(f"{root}/docs/gauntlet/drafts/plans/slug.txt", PLAN_REVIEWER)),
                 denied(bash("sed -i 's/a/b/' src/m.py", SPEC_REVIEWER)),
-                allowed(bash("git show HEAD:specs/approved/slug.txt", SPEC_REVIEWER)),
+                allowed(bash("git show HEAD:docs/gauntlet/specs/slug.txt", SPEC_REVIEWER)),
                 allowed(bash("grep -rn 'def test_' tests/", SPEC_REVIEWER)),
                 #: the suite run this file promises a reviewer, in the spellings
                 #: a head-word reader list cannot tell apart from a write
@@ -208,19 +221,26 @@ def self_test() -> int:
                 denied(bash("make clean", SPEC_REVIEWER)),
             )
         ),
-        "3 the gauntlet-arbiter alone also writes specs/approved/": all(
+        "3 the gauntlet-arbiter alone also writes docs/gauntlet/specs/": all(
             (
-                allowed(write(f"{root}/specs/approved/slug.txt", SPEC_REVIEWER)),
-                denied(write(f"{root}/specs/approved/slug.txt", "gauntlet-prosecutor")),
-                denied(write(f"{root}/specs/draft/slug.txt", SPEC_REVIEWER)),
+                allowed(write(f"{root}/docs/gauntlet/specs/slug.txt", SPEC_REVIEWER)),
+                denied(write(f"{root}/docs/gauntlet/specs/slug.txt", PLAN_REVIEWER)),
+                denied(write(f"{root}/docs/gauntlet/drafts/specs/slug.txt", SPEC_REVIEWER)),
             )
         ),
-        "4 a reviewer never reads the round files": all(
+        "4 the gauntlet-prosecutor alone also writes docs/gauntlet/plans/": all(
             (
-                denied(read(f"{root}/state/reviews/slug.1.txt", SPEC_REVIEWER)),
-                denied(read(f"{root}/state/reviews/slug.1.txt", "gauntlet-prosecutor")),
-                denied(bash("cat state/reviews/slug.1.txt", SPEC_REVIEWER)),
-                allowed(read(f"{root}/state/reviews/slug.1.txt")),
+                allowed(write(f"{root}/docs/gauntlet/plans/slug.txt", PLAN_REVIEWER)),
+                denied(write(f"{root}/docs/gauntlet/plans/slug.txt", SPEC_REVIEWER)),
+                denied(write(f"{root}/docs/plans.md", PLAN_REVIEWER)),
+            )
+        ),
+        "5 a reviewer never reads the round files": all(
+            (
+                denied(read(f"{root}/docs/gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
+                denied(read(f"{root}/docs/gauntlet/reviews/slug.1.txt", PLAN_REVIEWER)),
+                denied(bash("cat docs/gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
+                allowed(read(f"{root}/docs/gauntlet/reviews/slug.1.txt")),
                 allowed(read(f"{root}/tests/t.py", SPEC_REVIEWER)),
             )
         ),

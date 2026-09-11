@@ -4,10 +4,10 @@ Six agents, and the whole system is the shape of what each one is not allowed to
 
 | Agent | Sees the code | Writes | Hooks |
 | --- | --- | --- | --- |
-| `gauntlet-prosecutor` | yes, all of it | `state/reviews/<slug>.plan.<N>.txt` | `reviews-lane` |
+| `gauntlet-prosecutor` | yes, all of it | `docs/gauntlet/reviews/<slug>.plan.<N>.txt`, `docs/gauntlet/plans/<slug>.txt` | `reviews-lane`, `plans-lane` |
 | `gauntlet-detective` | yes, all of it | nothing | `specs-lane`, `tests-lane`, `reviews-lane` |
 | `gauntlet-accountant` | yes, all of it | throwaway scripts outside the tree | `specs-lane`, `tests-lane` |
-| `gauntlet-arbiter` | **no** | `state/reviews/<slug>.<N>.txt`, `specs/approved/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
+| `gauntlet-arbiter` | **no** | `docs/gauntlet/reviews/<slug>.<N>.txt`, `docs/gauntlet/specs/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
 | `gauntlet-testsmith` | **no** | `tests/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane` |
 | the main agent | yes | everything else | all of them, session-wide |
 
@@ -22,9 +22,9 @@ Blindness costs something, so it is paid for. The `gauntlet-accountant` measures
 ## The chain
 
 1. The main agent drafts a plan and sends its grounding questions, all of them, to one `gauntlet-detective`.
-2. The `gauntlet-prosecutor` resolves the plan's citations and returns a pass or fail per check. The owner reads it only on a pass.
+2. The `gauntlet-prosecutor` resolves the plan's citations and returns a pass or fail per check and, on `READY` and only then, writes `docs/gauntlet/plans/<slug>.txt`. The owner reads it only on a pass. Rules in `plans.md`.
 3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-accountant` measures it.
-4. The `gauntlet-arbiter` runs its checks blind and, on `READY` and only then, writes `specs/approved/<slug>.txt`.
+4. The `gauntlet-arbiter` runs its checks blind and, on `READY` and only then, writes `docs/gauntlet/specs/<slug>.txt`.
 5. The `gauntlet-testsmith` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
 6. The tests run red. The main agent implements against them, and never edits them.
 
@@ -34,8 +34,8 @@ The script that moves a block between the reviewer, the writer and the tree. Thr
 
 | Invocation | stdout | when |
 | --- | --- | --- |
-| `pair.sh open <slug>` | `OPEN .claude/worktrees/<slug>-spec` | the approved spec's reviewer section is byte-identical to the newest `state/reviews/<slug>.<N>.txt` |
-| `pair.sh open <slug>` | `MISMATCH state/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
+| `pair.sh open <slug>` | `OPEN .claude/worktrees/<slug>-spec` | the approved spec's reviewer section is byte-identical to the newest `docs/gauntlet/reviews/<slug>.<N>.txt` |
+| `pair.sh open <slug>` | `MISMATCH docs/gauntlet/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
 | `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
 | `pair.sh merge <slug>` | `TEST CHECK <slug>` and the brief beneath it | `kind:` is `new`, `characterization` or `refactor` |
 | `pair.sh merge <slug>` | the `scripts/excision-diff.py` verdict lines | `kind:` is `excision` or `repair` |
@@ -47,13 +47,13 @@ The script that moves a block between the reviewer, the writer and the tree. Thr
 A change confined to `tests/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
 
 1. The main agent drafts a `kind: excision` or `kind: repair` block and sends it to a `gauntlet-arbiter`.
-2. The reviewer resolves each line's quoted assertion against the test file itself — `tests/` is open to it, and the implementation is not what these lines rest on — and writes `specs/approved/<slug>.txt` on `READY`.
+2. The reviewer resolves each line's quoted assertion against the test file itself — `tests/` is open to it, and the implementation is not what these lines rest on — and writes `docs/gauntlet/specs/<slug>.txt` on `READY`.
 3. The `gauntlet-testsmith` removes the targets and writes the replacements its `as:` fields name.
 4. `scripts/excision-diff.py`, run by `scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither kind has an implementation phase, so the window those two watch does not exist.
 
 The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `tests/`.
 
-Steps 4 and 5 are the load-bearing pair, which is why a hook and not a convention stands between them: `specs/approved/` is written by the reviewer alone, so the file's existence is the writer's proof that the lines were reviewed. Rules in `approved-specs.md`.
+Steps 4 and 5 are the load-bearing pair, which is why a hook and not a convention stands between them: `docs/gauntlet/specs/` is written by the reviewer alone, so the file's existence is the writer's proof that the lines were reviewed. Rules in `approved-specs.md`.
 
 ## Verdicts, not grades
 

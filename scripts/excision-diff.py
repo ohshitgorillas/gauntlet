@@ -10,7 +10,7 @@ mechanical so it costs no reviewer round.
 Run by `scripts/pair.sh merge`, never by a hook: a PreToolUse entry fires on a
 tool call, and a comparison of two commits has none.
 
-It reads the committed `specs/approved/<slug>.txt` and prints one line per
+It reads the committed `docs/gauntlet/specs/<slug>.txt` and prints one line per
 target:
 
     OK <target>            the excision landed
@@ -156,7 +156,7 @@ def report(block: str, base: str, head: str) -> list[str]:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--spec", required=True, help="specs/approved/<slug>.txt")
+    ap.add_argument("--spec", required=True, help="docs/gauntlet/specs/<slug>.txt")
     ap.add_argument("--base", required=True, help="the commit the change started from")
     ap.add_argument("--head", required=True, help="the commit that landed it")
     args = ap.parse_args(argv)

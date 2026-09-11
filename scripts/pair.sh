@@ -26,7 +26,7 @@ die() {
 	exit 2
 }
 
-spec_path() { echo "specs/approved/$1.txt"; }
+spec_path() { echo "docs/gauntlet/specs/$1.txt"; }
 worktree_path() { echo ".claude/worktrees/$1-spec"; }
 
 #: everything below the divider is the reviewer's own output, verbatim
@@ -37,7 +37,7 @@ reviewer_section() {
 #: the highest <N> the reviewer has written for this slug, or nothing
 newest_round() {
 	local slug=$1 newest= best=-1 n
-	for f in state/reviews/"$slug".[0-9]*.txt; do
+	for f in docs/gauntlet/reviews/"$slug".[0-9]*.txt; do
 		[ -e "$f" ] || continue
 		n=${f##*"$slug".}
 		n=${n%.txt}
