@@ -16,6 +16,11 @@ Versioning: [SemVer](https://semver.org/), 0.x during pre-release.
 ### Added
 - Each lane's `--self-test` now asserts that the unprefixed agent name is denied, so the collision above cannot reappear unnoticed.
 
+### Fixed
+- The lanes let writes into `tests/` and `specs/approved/` through whenever a command opened with a harmless-looking word: `cd tests && rm t.py`, `find tests -delete`, `node -e` writing a file, a write after a newline or a `&`. All are denied now.
+- The blind reviewers could read the implementation after all — through `node -e` or `python -c`, through an unrooted `grep -rn x .`, or through any source file sitting under a directory named `docs`, `tests` or `specs`. All three roads are closed.
+- The lanes hold in a directory that is not a git checkout yet, including the write that first creates `specs/approved/`.
+
 ## [0.0.1] - 2026-09-09
 
 ### Added
