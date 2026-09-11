@@ -28,6 +28,20 @@ Blindness costs something, so it is paid for. The `gauntlet-accountant` measures
 5. The `gauntlet-testsmith` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
 6. The tests run red. The main agent implements against them, and never edits them.
 
+## `scripts/pair.sh`
+
+The script that moves a block between the reviewer, the writer and the tree. Three subcommands, and their stdout is contract:
+
+| Invocation | stdout | when |
+| --- | --- | --- |
+| `pair.sh open <slug>` | `OPEN .claude/worktrees/<slug>-spec` | the approved spec's reviewer section is byte-identical to the newest `state/reviews/<slug>.<N>.txt` |
+| `pair.sh open <slug>` | `MISMATCH state/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
+| `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
+| `pair.sh merge <slug>` | `TEST CHECK <slug>` and the brief beneath it | `kind:` is `new`, `characterization` or `refactor` |
+| `pair.sh merge <slug>` | the `scripts/excision-diff.py` verdict lines | `kind:` is `excision` or `repair` |
+
+`open` refuses on mismatch because the spec file is editable after the reviewer passed it, and the round file is not: the comparison is what makes the approved block the reviewed block rather than the latest one. `red` removes the whole-file excision targets, which the lane hook denies every agent, and leaves single-test targets to the writer's `Edit`. `merge` routes on `kind:` because the two tests-only kinds have no implementation phase, so the blind post-merge reviewer round has no window to watch and the mechanical check takes it.
+
 ## The tests-only lane
 
 A change confined to `tests/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
