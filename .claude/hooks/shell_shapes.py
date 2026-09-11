@@ -64,11 +64,16 @@ PYTEST_WRITE_FLAGS = (
 )
 
 #: git subcommands that print no file content; everything else prints some, and
-#: an unrecognized subcommand is treated as content
+#: an unrecognized subcommand is treated as content. Staging and committing
+#: belong here: they print no tree, and leaving them out denies the blind test
+#: writer the commit its own red run depends on. `GIT_NO_WORKTREE` above is the
+#: same judgment asked from the write side, and the two lists agree on `add`
+#: and `commit` for that reason.
 GIT_METADATA = frozenset(
     {
         "status", "rev-parse", "ls-files", "branch", "describe", "remote",
         "config", "symbolic-ref", "merge-base", "rev-list", "tag",
+        "add", "commit", "restore", "checkout", "switch", "worktree", "reset",
     }
 )
 #: flags that turn `git log` from a list of commits into a patch
