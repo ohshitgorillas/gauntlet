@@ -1,0 +1,70 @@
+slug: shell-shape-classification
+kind: new
+brief:
+> Above is the output of a previous agent describing the repository's issues.
+> Your job is to solve these issues via the gauntlet.
+> shell_shapes.py — the shared shell-shape layer. Every lane calls it. Bypasses 1, 2, 5, 7 are one module's defects, and 3, 4 are the same defect class one layer up in no-impl-reads.py. 8 is the same heuristic (READ_ONLY head-word) failing in the other direction. One coherent unit: shell command classification is wrong in both directions.
+> _SEGMENT: add \n and &. Kills bypass 1 across all four lanes.
+> READ_ONLY: drop node, npx, pytest, find, awk, echo. Interpreters and find are write primitives, not readers. Kills bypass 2.
+> New: recognize runner invocations explicitly (python -m pytest, npm test, npx vitest, node --test) so item 8 unbreaks without re-widening the head-word list. Inline-script forms (-e, -c, -p, --eval) never count as runners.
+> cd tracking across segments: a segment that cds into a lane taints later writing segments. Kills bypass 5.
+> path_in_lane fallback: range(... + 1). Kills bypass 7.
+> DEFAULT_RUNNERS no longer blanket-passes; same runner recognizer, inline-script forms denied. Kills bypass 3.
+> _names_unreadable: treat a bare ., .., or no path at all on a recursive reader as unrooted. Kills bypass 4.
+> readable(): drop the os.sep + name + os.sep any-depth clause; anchor allowlist entries at repo root. Kills bypass 6.
+> Self-tests, all four hooks: pin each of the seven bypasses as a named line.
+
+Surface under test: the wire surface of the four PreToolUse hooks in .claude/hooks/. One JSON object on stdin, carrying `tool_name`, `tool_input` and `cwd`, and optionally `agent_type`. The hook answers on stdout with either nothing at all, written SILENT below, which is the call being allowed, or a JSON object whose `hookSpecificOutput.permissionDecision` is `deny`, written DENY below. The hooks are invoked as `python3 .claude/hooks/<hook>.py` with the payload on stdin. Every `bite:` value below was measured that way, by a script that ran each payload through `subprocess.run([sys.executable, "<hook>"], input=json.dumps(payload))` and read stdout.
+
+1. tests-lane.py answers DENY for a Bash command that removes or overwrites a file under tests/, in each of the shapes `cat tests/t.py\nrm tests/t.py`, `cat README.md & rm tests/t.py`, `find tests -name '*.py' -delete`, `node -e "require('fs').writeFileSync('tests/t.py','')"` and `cd tests && rm t.py`, and SILENT for `cat tests/t.py` and for `grep -rn 'def test_' tests/`.
+   kills: keeps letting a write into tests/ through whenever the command's first word is one a reader would use, so an agent that cannot edit a test with the Edit tool deletes it with `cd tests && rm t.py` and the lane answers nothing.
+   bite: SILENT at all five writing shapes; SILENT at both reading shapes; DENY at `sed -i 's/a/b/' tests/t.py`, with cwd /home/atom/dev/gauntlet.
+   existing: none, `find /home/atom/dev/gauntlet -type d -name tests` returns nothing and the repository holds no test file of any kind.
+
+2. tests-lane.py answers SILENT for `python -m pytest tests/ -q`, for `.venv/bin/pytest tests/t.py -q` and for `node --test tests/t.test.js`, and DENY for `python -c "open('tests/t.py','w')"` and for `node -e "require('fs').writeFileSync('tests/t.py','')"`.
+   kills: reads the first word instead of the whole invocation, so the suite run the red run is made of is refused when it is spelled `python -m pytest`, while the same interpreter writing a test file directly is allowed.
+   bite: DENY at `python -m pytest tests/ -q`; SILENT at `.venv/bin/pytest tests/t.py -q`; SILENT at `node --test tests/t.test.js`; DENY at `python -c "open('tests/t.py','w')"`; SILENT at `node -e "require('fs').writeFileSync('tests/t.py','')"`, with cwd /home/atom/dev/gauntlet.
+   existing: none, same find: no tests directory exists.
+
+3. no-impl-reads.py answers DENY for `node -e "console.log(require('fs').readFileSync('src/core.py','utf8'))"` and for `python -c "print(open('src/core.py').read())"`, and SILENT for `pytest tests/test_lane.py -q` and for `npx vitest run`.
+   kills: passes any command whose first word is on its runner list, whatever the arguments, so `node -e` prints src/core.py to the blind agent while `python -c` printing the same file is refused.
+   bite: SILENT at the node inline script; DENY at the python inline script; SILENT at `pytest tests/test_lane.py -q`; SILENT at `npx vitest run`, with cwd /home/atom/dev/gauntlet.
+   existing: none, same find: no tests directory exists.
+
+4. specs-lane.py answers DENY for a Write whose `file_path` is `/nogit/specs/approved` and for a Write whose `file_path` is `/nogit/specs/approved/s.txt`, both with cwd `/nogit` and no `.git` at or above either path, and SILENT for a Write whose `file_path` is `/nogit/specs/draft/s.txt`.
+   kills: treats the approved-spec directory itself as outside its own lane whenever no `.git` sits above it, so the write that creates that directory in a fresh checkout goes to any agent that asks.
+   bite: SILENT at `/nogit/specs/approved`; DENY at `/nogit/specs/approved/s.txt`; SILENT at `/nogit/specs/draft/s.txt`, with cwd /nogit.
+   existing: none, same find: no tests directory exists.
+
+5. no-impl-reads.py answers DENY for `grep -rn secret .` and for `grep -rn secret`, and SILENT for `grep -rn secret docs/`.
+   kills: judges a shell search only by the path words it carries, so a recursive grep given a dot or given no path at all has nothing to test and sweeps the implementation, while the same search rooted at docs/ is the only one it ever examines.
+   bite: SILENT at `grep -rn secret .`; SILENT at `grep -rn secret`; SILENT at `grep -rn secret docs/`, with cwd /home/atom/dev/gauntlet.
+   existing: none, same find: no tests directory exists.
+   past the cap because: the rooting of a search and the classification of an invocation are two different wrong implementations on the same hook — a hook that reads whole invocations still passes `grep -rn secret .`, and a hook that demands a root still passes `node -e`, so neither line's inputs can fail for the other's reason.
+
+6. no-impl-reads.py answers DENY for a Read whose `file_path` is `/home/atom/dev/gauntlet/src/docs/impl.py` and for one whose `file_path` is `/home/atom/dev/gauntlet/src/tests/impl.py`, and SILENT for a Read whose `file_path` is `/home/atom/dev/gauntlet/docs/testing.md`.
+   kills: matches an allowlisted directory name at any depth, so any source file under a directory someone called docs or tests reads as documentation and goes to the blind agent whole.
+   bite: SILENT at the Read of src/docs/impl.py; SILENT at the Read of src/tests/impl.py; SILENT at the Read of docs/testing.md, with cwd /home/atom/dev/gauntlet and `{"tool_name": "Read", "tool_input": {"file_path": <path>}}`.
+   past the cap because: this is the only line on the Read tool surface. Every other line is a Bash or Write payload, and no classification of a shell command can decide what an allowlist entry means when it is matched against a path, so nothing in lines 1 to 5 can fail for this line's reason.
+   existing: none, same find: no tests directory exists.
+
+--- reviewer ---
+READY
+discriminates: sweep on the four hooks' stdout decision (DENY vs SILENT), two distinct expected values from inputs that differ by one token on one invariant
+
+1  KEEP  carried (round 1)
+2  KEEP  carried (round 1)
+3  KEEP  `node -e "console.log(require('fs').readFileSync('src/core.py','utf8'))"` and `python -c "print(open('src/core.py').read())"` -> DENY, `pytest tests/test_lane.py -q` and `npx vitest run` -> SILENT; a head-word runner list that never looks at the arguments fails it at the node inline script (SILENT, expected DENY); bite: SILENT at the node inline script at HEAD
+4  KEEP  carried (round 1)
+5  KEEP  `grep -rn secret .` and `grep -rn secret` -> DENY, `grep -rn secret docs/` -> SILENT; a rooting test that judges only the path words present fails it at `grep -rn secret .` and at `grep -rn secret` (SILENT, expected DENY); bite: SILENT at both unrooted forms at HEAD; past the cap with the sentence given, which names the two wrong implementations that pass for each other's reason
+6  KEEP  Read of `/home/atom/dev/gauntlet/src/docs/impl.py` and of `/home/atom/dev/gauntlet/src/tests/impl.py` -> DENY, Read of `/home/atom/dev/gauntlet/docs/testing.md` -> SILENT; an allowlist matched on a directory name at any depth fails it at both src/ paths (SILENT, expected DENY); bite: SILENT at both src/ Reads at HEAD; past the cap with the sentence given, and it is the only line on the Read tool surface
+
+null stub: every hook reads stdin and exits with empty stdout, never emitting a deny object.
+  satisfies: none   fails: 1, 2, 3, 4, 5, 6
+hard-coded stub: a table keyed on the literal command string / file_path listed, returning the named decision and classifying nothing.
+  satisfies: 1, 2, 3, 4, 5, 6 by literal lookup   fails: none by literal lookup — the block clears this stub under the sweep escape of the discrimination check: every line carries two distinct expected values reached from inputs that differ by one token on one invariant (`node --test` vs `node -e`, `npx vitest run` vs `node -e`, `grep -rn secret .` vs `grep -rn secret docs/`, `src/docs/impl.py` vs `docs/testing.md`, `/nogit/specs/approved` vs `/nogit/specs/draft/s.txt`), never two design literals.
+survives: 6
+
+notes:
+- Round 1's one CUT (line 3, check i) was repaired as named: three lines, one invariant each, each with its own kills: and measured bite:, and the two lines past the cap carry the justifying sentence.
+- (b) verified independently: `ls /home/atom/dev/gauntlet/tests` -> No such file or directory, so no existing test touches any of these surfaces.
