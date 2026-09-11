@@ -20,9 +20,12 @@ blocklist has to know what this repo calls its source directory, and gets it
 wrong the first time someone adds one — and it fails closed: an unlisted path
 is denied, and the denial names the file to widen.
 
-Allowed by default: `docs/`, `tests/`, `specs/`, and documentation files at the
-repo root (`*.md`, `*.txt`, `*.pdf`). Extend it per repo with `blind-reads.json`
-beside this file:
+Allowed by default: `docs/`, `tests/`, `specs/`, `state/`, and documentation
+files at the repo root (`*.md`, `*.txt`, `*.pdf`). `state/` is the workflow's
+own output, never the repository's source: it holds the red run a blind writer
+must certify and the reviewer rounds a blind reviewer writes. Denying it moved
+the certification to the main agent, which is the inversion this hook exists
+to prevent. Extend the list per repo with `blind-reads.json` beside this file:
 
     {"allow": ["reference/", "vendor/protocol.h"], "runners": ["pytest", "make"]}
 
@@ -56,7 +59,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shlex
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -64,7 +66,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 #: repo-relative paths a blind agent may read; a trailing `/` means the subtree
-DEFAULT_ALLOW = ("docs/", "tests/", "specs/")
+DEFAULT_ALLOW = ("docs/", "tests/", "specs/", "state/")
 #: repo-root files a blind agent may read, by extension
 DEFAULT_ROOT_FILES = (".md", ".txt", ".pdf")
 
@@ -145,8 +147,16 @@ def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) ->
     if not target:
         return True
     resolved = os.path.abspath(os.path.join(cwd or (root or "."), target))
-    if root:
-        rel = os.path.relpath(resolved, root)
+    #: a path inside `.claude/worktrees/<slug>` is anchored at that worktree, not
+    #: at the checkout the session was started in. A blind agent is handed the
+    #: absolute paths of files in its own worktree, and against the session root
+    #: every one of them reads as `.claude/worktrees/<slug>/tests/...` — outside
+    #: the allowlist — so its own spec block and its own tests were denied to it.
+    #: `shell_shapes.root_by_name` is the rule the three lane hooks already use;
+    #: this hook carried a private `repo_root` that did not know a worktree.
+    base = sh.root_by_name(resolved) or root
+    if base:
+        rel = os.path.relpath(resolved, base)
         if rel.startswith(".."):
             return False
     else:
@@ -161,7 +171,7 @@ def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) ->
         elif rel == name:
             return True
     #: a documentation file sitting at the repo root, by extension
-    return root is not None and os.sep not in rel and (
+    return base is not None and os.sep not in rel and (
         os.path.splitext(rel)[1].lower() in DEFAULT_ROOT_FILES
     )
 
@@ -207,13 +217,52 @@ def _unrooted_sweep(words: list[str]) -> bool:
     return all(w.rstrip(os.sep) in UNROOTED for w in _candidates(words))
 
 
-def _names_unreadable(command: str, root: str | None, cwd: str, allow: tuple[str, ...]) -> bool:
-    """Does any word of the command look like a path outside the allowlist?"""
-    try:
-        words = shlex.split(command, comments=False, posix=True)
-    except ValueError:
-        words = command.split()
-    return any(not readable(w, root, cwd, allow) for w in _candidates(words))
+def _strip_env(words: list[str]) -> list[str]:
+    """Drop a leading `VAR=value` prefix, so the head word is the command.
+
+    The suite run a blind writer is told to make is `PYTHONPATH=$(pwd) pytest
+    ...`. Without this the head word is the assignment, no runner is recognized,
+    and the run falls through to the path test.
+    """
+    i = 0
+    while i < len(words) and re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", words[i]):
+        i += 1
+    return words[i:]
+
+
+def _bash_verdict(
+    command: str, root: str | None, cwd: str, allow: tuple[str, ...], runners: tuple[str, ...]
+) -> str | None:
+    """Why this shell command is refused, or None to let it through.
+
+    The stages are walked in order carrying the directory a `cd` moved them to,
+    because a blind agent works by `cd <its worktree> && <run>`: the tree is
+    named once, as a `cd` target, and every path after it is relative to that
+    tree. Scoring that target as a path to allowlist denied the whole idiom, and
+    with it every run of the tests the agent had just written.
+    """
+    here = cwd
+    for stage in sh.segments(command):
+        words = _strip_env(sh.words_of(stage))
+        if not words:
+            continue
+        target = sh.cd_target(words)
+        if target is not None:
+            #: `cd`, `cd -` and `cd ~...` move where this walk cannot follow
+            if target in ("", "-") or target.startswith("~"):
+                here = cwd
+            else:
+                here = os.path.abspath(os.path.join(here, target))
+            continue
+        head = os.path.basename(words[0])
+        inline = any(w in sh.INLINE_SCRIPT for w in words[1:])
+        if sh.is_runner(words) or (head in runners and not inline):
+            continue
+        if _unrooted_sweep(words):
+            return _UNROOTED
+        if any(not readable(w, root, here, allow) for w in _candidates(words)):
+            return _WHY
+    return None
 
 
 def _verdict(name: str, tool_input: dict, root: str | None, cwd: str, conf: dict) -> str | None:
@@ -230,14 +279,7 @@ def _verdict(name: str, tool_input: dict, root: str | None, cwd: str, conf: dict
         command = tool_input.get("command", "")
         if SERVED.search(command):
             return _WHY
-        words = sh.words_of(command) if command.strip() else []
-        head = os.path.basename(words[0]) if words else ""
-        inline = any(w in sh.INLINE_SCRIPT for w in words[1:])
-        if sh.is_runner(words) or (head in runners and not inline):
-            return None
-        if _unrooted_sweep(words):
-            return _UNROOTED
-        return _WHY if _names_unreadable(command, root, cwd, allow) else None
+        return _bash_verdict(command, root, cwd, allow, runners)
     return None
 
 
@@ -269,8 +311,9 @@ def main() -> None:
 
 
 def self_test() -> int:
-    """Pin the three spec lines of the blind-read allowlist."""
+    """Pin the spec lines of the blind-read allowlist."""
     root = "/repo"
+    tree = f"{root}/.claude/worktrees/demo-spec"
     conf: dict = {}
 
     def call(tool: str, tool_input: dict) -> str | None:
@@ -341,6 +384,28 @@ def self_test() -> int:
                 denied(call("Grep", {"pattern": "x", "path": f"{root}/src/specs"})),
                 allowed(read(f"{root}/docs/testing.md")),
                 allowed(read(f"{root}/tests/test_lane.py")),
+            )
+        ),
+        "7 a blind agent's own worktree is anchored at that worktree": all(
+            (
+                allowed(read(f"{tree}/specs/approved/demo.txt")),
+                allowed(read(f"{tree}/tests/test_demo.py")),
+                allowed(call("Grep", {"pattern": "x", "path": f"{tree}/tests"})),
+                #: the worktree carries its own copy of these, and neither is a
+                #: spec source in either tree
+                denied(read(f"{tree}/src/core/manager.py")),
+                denied(read(f"{tree}/.claude/hooks/no-impl-reads.py")),
+                #: the run the agent is told to make, from inside its own tree
+                allowed(bash(f"cd {tree} && PYTHONPATH=$(pwd) .venv/bin/pytest tests/t.py -q")),
+                #: a `cd` does not launder a read: the path is resolved from there
+                denied(bash(f"cd {tree}/src && cat core.py")),
+            )
+        ),
+        "8 the workflow's own state is readable, so the writer certifies its run": all(
+            (
+                allowed(read(f"{root}/state/red/demo.txt")),
+                allowed(read(f"{root}/state/reviews/demo.1.txt")),
+                denied(read(f"{root}/src/state/manager.py")),
             )
         ),
     }

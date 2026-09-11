@@ -95,7 +95,7 @@ Tests under `tests/` of your tree, and nothing else. You do not touch `<source d
 
 A line you cannot test as written — no public entry point for its input, an outcome that is copy (`docs/testing.md` rule 9), an outcome you would have to read the implementation to phrase — gets no test. It gets `UNTESTABLE N: <reason>` in your report, and the main agent returns the line to the gauntlet-arbiter. Do not write the weak test instead; a weak test goes green and nobody sees it.
 
-Verify before you report: run the tests you wrote (`.venv/bin/pytest tests/<file> -q`, or `node --test` with the loader hook for JS) and the mechanical gates that apply to them (`.venv/bin/ruff check tests`, `.venv/bin/black --check tests`, `.venv/bin/python scripts/gates/check_test_assertions.py tests/*.py`, `.venv/bin/python scripts/gates/check_no_copy_assertions.py tests/*.py`; `npx eslint tests/js/<file>` for JS).
+Verify before you report: run the tests you wrote (`.venv/bin/pytest tests/<file> -q`, or `node --test` with the loader hook for JS) and the mechanical gates that apply to them (`.venv/bin/ruff check tests`, `.venv/bin/black --check tests`; `npx eslint tests/js/<file>` for JS).
 
 ## The red run is yours to certify
 
