@@ -1,0 +1,188 @@
+slug: cite-py
+kind: new
+brief:
+> scripts/cite.py — citation resolver for the plan gate. Fact reporter, no verdicts, same contract as gauntlet-detective.
+> Problem: tree is frozen during drafting and review, so citation errors are mis-transcription, not drift — detective table retyped wrong, grep-hit line cited instead of the construct, bare :49 inheriting the wrong file, off-by-one ranges, citing from memory. All deterministic, all checkable.
+> Three modes: --resolve DOC (prosecutor, table of every citation with its actual line text, replaces N Read calls with one command); --check DOC (main agent, pre-flight, exit 1 on MISSING, RANGE, AMBIGUOUS, quote mismatch); --fix DOC (author, fills the number from the quoted anchor where the hit is unique, refuses on zero or multiple).
+> Parser is the hard part: bare :49 continuation (must print INHERITED-FROM <file>), basename-only, ranges, cross-repo paths. Prose numbers without backticks out of scope.
+> Guarantee: the number points at a line containing that quote. Nothing more.
+> if the citations are automatically generated, why are we spending tokens re-resolving them
+> doesn't happen, what are you talking about?
+> Build it.
+> cut --resolve, ok by me, approved
+
+surface: `scripts/cite.py`, invoked as `python3 scripts/cite.py --check <doc>` and
+`python3 scripts/cite.py --fix <doc>`. `--check` prints one row per reported citation on
+stdout and exits 1 where any failing row is present, 0 otherwise. A citation is a
+backticked `path:line` or `path:line-line`; the path may be omitted to continue the
+previous one. The checkout root is resolved from the script's own path, not the cwd.
+
+1. For a doc whose one citation names a path present in the checkout at a line the file
+   has, `--check` exits 0. For a doc whose one citation names a path absent from the
+   checkout, it exits 1 and its stdout carries a row naming `MISSING` and the citation
+   as written.
+   kills: reads an unresolvable path as a cross-repo citation and exits 0, so a mistyped
+     in-tree path passes the pre-flight it exists to fail
+   bite: null stub fails at the absent-path run (surface new). Null stub: `scripts/cite.py`
+     present and importable, parsing nothing, printing no rows, exiting 0 on every
+     document and leaving every document byte-identical.
+   existing: none, `grep -rn cite tests/` -> no hits
+
+2. For a citation whose range ends past the file's last line, `--check` exits 1 with a
+   row naming `RANGE`; for the same start line with the range ending on the file's last
+   line, it exits 0.
+   kills: checks only a span's first line against the file's length, so a range running
+     off the end of the file passes
+   bite: null stub fails at the past-the-end run (surface new), the stub named on line 1
+   existing: none, `grep -rn cite tests/` -> no hits
+
+3. For a citation naming a bare basename that two paths in the checkout carry,
+   `--check` exits 1 with a row naming `AMBIGUOUS`; for a basename exactly one path
+   carries, it exits 0.
+   kills: resolves a basename to the first path that matches it, so a basename standing
+     for two files resolves silently against one of them
+   bite: null stub fails at the two-path run (surface new), the stub named on line 1
+   existing: none, `grep -rn cite tests/` -> no hits
+
+4. For a doc whose first citation is a bare number with no full citation before it,
+   `--check` exits 1 with a row naming `ORPHAN`; for the same bare number preceded by a
+   full citation that resolves, it exits 0.
+   kills: skips a bare number it holds no path for, so a continuation whose antecedent
+     was cut out of the prose is reported as nothing at all
+   bite: null stub fails at the orphan run (surface new), the stub named on line 1
+   existing: none, `grep -rn cite tests/` -> no hits
+
+5. For a bare continuation whose inherited path and number both resolve, and for a bare
+   continuation whose number runs past the end of the file it inherits, stdout carries
+   an `INHERITED-FROM` row naming the path inherited.
+   kills: prints `INHERITED-FROM` on failing rows only, so a continuation that inherits
+     the wrong file and resolves against it leaves no trace in the output
+   bite: null stub fails at both runs (surface new), the stub named on line 1
+   existing: none, `grep -rn cite tests/` -> no hits
+   past the fourth line: lines 1 to 4 pin exit codes and the rows a failure prints. None
+     of them says anything about a run that passes, and the brief's one output
+     requirement — "must print INHERITED-FROM <file>" — is a row on a passing run, the
+     only signal a reader gets for the error shape the brief names and no check decides.
+
+6. For a doc carrying a full citation to one path, then a full citation to a second
+   path, then a bare number, the `INHERITED-FROM` row names the second path; for the
+   same doc with the two full citations in the opposite order, it names the other one.
+   kills: inherits the document's first full citation rather than the nearest preceding
+     one, so every continuation after a path change resolves against the wrong file
+   bite: null stub fails at both runs (surface new), the stub named on line 1
+   existing: none, `grep -rn cite tests/` -> no hits
+   past the fourth line: which path a bare number inherits is a choice no earlier line
+     exercises — each of lines 1 to 5 feeds at most one full citation, where
+     first-citation and nearest-citation inheritance agree — and a plan carries a run of
+     continuations under several paths, where they do not.
+
+7. For a citation whose quoted anchor text sits on the cited line, `--check` exits 0;
+   for the same anchor text sitting on a different line of the same file than the one
+   cited, it exits 1 with a row naming `QUOTE`.
+   kills: searches the whole file for the anchor rather than the cited line, so an
+     off-by-one citation whose text sits one line away passes
+   bite: null stub fails at the off-by-one run (surface new), the stub named on line 1
+   existing: none, `grep -rn cite tests/` -> no hits
+   past the fourth line: lines 1 to 4 resolve a path and a number and stop there. The
+     brief's guarantee is this line and nothing else — "the number points at a line
+     containing that quote" — and an off-by-one number resolves, so no earlier line
+     fails on it.
+
+8. For a two-line range whose quoted anchor sits on the span's second line, `--check`
+   exits 0; for a two-line range whose anchor sits on neither line of the span, it exits
+   1 with a row naming `QUOTE`.
+   kills: compares the anchor against a span's first line only, so a correct citation to
+     a two-line construct quoted from its second line fails
+   bite: null stub fails at the anchor-absent run (surface new), the stub named on line 1
+   existing: none, `grep -rn cite tests/` -> no hits
+   past the fourth line: line 2 pins a range against the file's length and line 7 pins a
+     quote against a single line; a first-line-only comparison satisfies both and rejects
+     a correct citation to a two-line construct, which is how ranges are written.
+
+9. For a citation carrying no quoted anchor beside it, `--check` exits 0 where the path
+   resolves and the number is in range, whatever the surrounding prose says; for the
+   same citation with a number past the file's end, it exits 1.
+   kills: takes the sentence around an unquoted citation as its anchor, so every
+     structural citation in a plan is reported as a quote mismatch
+   bite: null stub fails at the out-of-range run (surface new), the stub named on line 1
+   existing: none, `grep -rn cite tests/` -> no hits
+   past the fourth line: every line from 7 on feeds a quoted anchor, and most citations
+     in a plan carry none. Without this line the quote rule's behavior on the majority
+     shape is unstated, and an implementation that treats adjacent prose as an anchor
+     passes lines 1 to 8 while failing every document the script is for.
+
+10. For a citation naming an absolute path outside the checkout that exists at that
+    line, `--check` exits 0 and stdout carries a `CROSS-REPO` row naming the path; for
+    an absolute path outside the checkout that does not exist, it exits 1 with a row
+    naming `MISSING`.
+    kills: reports every path outside the checkout as `MISSING`, so a plan citing a
+      real file the repo does not contain fails the gate
+    bite: null stub fails at both runs (surface new), the stub named on line 1
+    existing: none, `grep -rn cite tests/` -> no hits
+    past the fourth line: line 1 makes an unresolvable path `MISSING`, and a path outside
+      the checkout is the one class that must resolve instead. No earlier line separates
+      absent from elsewhere, and the brief names cross-repo paths as a parser case.
+
+11. For a doc whose backticked citation resolves and which also carries an unbackticked
+    `path:line` naming a line no file has, `--check` exits 0; for the same doc with that
+    unbackticked text inside backticks, it exits 1.
+    kills: matches `path:line` anywhere in the document, so a sentence naming a line
+      number in prose is resolved and fails the gate
+    bite: null stub fails at the backticked run (surface new), the stub named on line 1
+    existing: none, `grep -rn cite tests/` -> no hits
+    past the fourth line: the backtick is the parser's whole delimiter, by the brief's
+      "Prose numbers without backticks out of scope". Every line from 1 to 10 feeds only
+      backticked citations, so none of them fails an implementation that ignores the
+      delimiter and resolves any `path:line` token it meets.
+
+12. For a citation whose number does not resolve and whose quoted anchor matches
+    exactly one line of the file, `--fix` rewrites the doc so the citation carries that
+    line's number; where the anchor matches two lines of the file, the doc is left
+    byte-identical.
+    kills: fills the number from the first line the anchor matches, so an anchor
+      occurring twice is resolved to an arbitrary one of them
+    bite: null stub fails at the unique-anchor run (surface new), the stub named on line 1
+    existing: none, `grep -rn cite tests/` -> no hits
+    past the fourth line: `--fix` is the second mode and it writes; no `--check` line
+      constrains what it puts in a document, and the brief's refusal — "refuses on zero
+      or multiple" — is a behavior of this mode alone.
+
+13. For a doc carrying one citation whose number already sits on its anchor and one
+    whose number does not, the doc after `--fix` differs from the doc before it at
+    exactly one citation, the one whose number did not sit on its anchor.
+    kills: rewrites every citation from its anchor, so a correct number pointing at one
+      of several identical lines is moved to another of them
+    bite: null stub fails at the run, differing at no citation (surface new), the stub
+      named on line 1
+    existing: none, `grep -rn cite tests/` -> no hits
+    past the fourth line: line 12 pins what `--fix` writes where a number is wrong. An
+      implementation that rewrites every citation from its anchor satisfies line 12 and
+      still moves numbers that were right, which is the one way this mode damages a
+      document that passed `--check`.
+
+--- reviewer ---
+READY
+discriminates: differential on `python3 scripts/cite.py --check <doc>` exit code and on the row a run prints, two inputs per line differing in one property of the cited document or file
+
+repair 2 (m, block level), from round 2: withdrawn. The brief's new last line — "cut --resolve, ok by me, approved" — is the owner cutting the mode, quoted in the block's own `brief:` section, which is the second of the two repairs I named. No brief sentence now states a behavior that no surviving line pins, and no per-line defect stands. Repairs 1 and 3 were discharged in round 2 and nothing they rest on moved.
+The `brief:` section changed, so (m) re-ran on all thirteen lines and every other check carries from round 2. No line's outcome contradicts a brief sentence and no `kills:` names a brief sentence's plain reading as the wrong implementation; lines 1-13 speak only to `--check` and `--fix`, the two modes that survive the owner's cut.
+
+1  KEEP  doc with one backticked citation to an in-checkout path at an existing line -> exits 0; same doc with the path absent from the checkout -> exits 1 with a row naming MISSING and the citation as written; "reads an unresolvable path as a cross-repo citation and exits 0" fails it at the absent-path run; bite: null stub fails at the absent-path run (surface new)
+2  KEEP  range ending past the file's last line -> exits 1 with a row naming RANGE; same start line, range ending on the file's last line -> exits 0; "checks only a span's first line against the file's length" fails it at the past-the-end run; bite: null stub fails at the past-the-end run (surface new)
+3  KEEP  basename two checkout paths carry -> exits 1 with a row naming AMBIGUOUS; basename exactly one path carries -> exits 0; "resolves a basename to the first path that matches it" fails it at the two-path run; bite: null stub fails at the two-path run (surface new)
+4  KEEP  first citation a bare number with no full citation before it -> exits 1 with a row naming ORPHAN; same bare number preceded by a resolving full citation -> exits 0; "skips a bare number it holds no path for" fails it at the orphan run; bite: null stub fails at the orphan run (surface new)
+5  KEEP  bare continuation that resolves, and bare continuation whose number runs past the inherited file's end -> stdout carries an INHERITED-FROM row naming the inherited path at both; "prints INHERITED-FROM on failing rows only" fails it at the resolving run; bite: null stub fails at both runs (surface new)
+6  KEEP  full citation to path A, then to path B, then a bare number -> INHERITED-FROM names B; the two full citations in the opposite order -> it names A; "inherits the document's first full citation rather than the nearest preceding one" fails it at the A-then-B run; bite: null stub fails at both runs (surface new)
+7  KEEP  quoted anchor sitting on the cited line -> exits 0; same anchor sitting on a different line of the same file -> exits 1 with a row naming QUOTE; "searches the whole file for the anchor rather than the cited line" fails it at the off-by-one run; bite: null stub fails at the off-by-one run (surface new)
+8  KEEP  two-line range with the anchor on the span's second line -> exits 0; two-line range with the anchor on neither line -> exits 1 with a row naming QUOTE; "compares the anchor against a span's first line only" fails it at the second-line run; bite: null stub fails at the anchor-absent run (surface new)
+9  KEEP  citation with no quoted anchor, path resolving and number in range -> exits 0; same citation with a number past the file's end -> exits 1; "takes the sentence around an unquoted citation as its anchor" fails it at the in-range run; bite: null stub fails at the out-of-range run (surface new)
+10 KEEP  absolute path outside the checkout that exists at the cited line -> exits 0 with a CROSS-REPO row naming the path; absolute path outside the checkout that does not exist -> exits 1 with a row naming MISSING; "reports every path outside the checkout as MISSING" fails it at the existing-path run; bite: null stub fails at both runs (surface new)
+11 KEEP  doc with a resolving backticked citation plus an unbackticked path:line naming a line no file has -> exits 0; same doc with that text inside backticks -> exits 1; "matches path:line anywhere in the document" fails it at the unbackticked run; bite: null stub fails at the backticked run (surface new)
+12 KEEP  non-resolving citation whose anchor matches exactly one line -> --fix rewrites the citation to that line's number; anchor matching two lines -> doc left byte-identical; "fills the number from the first line the anchor matches" fails it at the two-match run; bite: null stub fails at the unique-anchor run (surface new)
+13 KEEP  doc with one citation already on its anchor and one not -> after --fix the doc differs from before at exactly that second citation; "rewrites every citation from its anchor" fails it at that doc; bite: null stub fails, differing at no citation (surface new)
+
+null stub: `scripts/cite.py` present and importable, parsing nothing, printing no rows, exiting 0 on every document and leaving every document byte-identical.
+  satisfies: none   fails: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13
+hard-coded stub: fixed rows and fixed exit codes keyed on the document text it is handed, opening no cited file and rewriting no document.
+  satisfies: none   fails: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 -- every line's two inputs differ only in a property of a file on disk or in which of two fixture paths the answer must name, so no table keyed on the document alone separates them; lines 5 and 6 are not an exception, since the row must carry the inherited path and line 6 demands two different paths for two orderings of the same two citations.
+survives: 13
