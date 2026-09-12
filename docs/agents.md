@@ -6,26 +6,26 @@ Six agents, and the whole system is the shape of what each one is not allowed to
 | --- | --- | --- | --- |
 | `gauntlet-prosecutor` | yes, all of it | `docs/gauntlet/reviews/<slug>.plan.<N>.txt`, `docs/gauntlet/plans/<slug>.txt` | `reviews-lane`, `plans-lane` |
 | `gauntlet-detective` | yes, all of it | nothing | `specs-lane`, `tests-lane`, `reviews-lane` |
-| `gauntlet-accountant` | yes, all of it | throwaway scripts outside the tree | `specs-lane`, `tests-lane` |
+| `gauntlet-examiner` | yes, all of it | throwaway scripts outside the tree | `specs-lane`, `tests-lane` |
 | `gauntlet-arbiter` | **no** | `docs/gauntlet/reviews/<slug>.<N>.txt`, `docs/gauntlet/specs/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
-| `gauntlet-testsmith` | **no** | `tests/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane` |
+| `gauntlet-scrivener` | **no** | `tests/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane` |
 | the main agent | yes | everything else | all of them, session-wide |
 
 ## Who is blind, and why
 
-The `gauntlet-arbiter` and the `gauntlet-testsmith` are the two that never read the implementation. Everything else in the repo exists to keep that true.
+The `gauntlet-arbiter` and the `gauntlet-scrivener` are the two that never read the implementation. Everything else in the repo exists to keep that true.
 
 A reviewer that can read the code will rationalize a spec line that merely describes what the code already does — the line looks true, because it is, and it pins nothing. A test writer that can read the code writes a test that mirrors it: the test and the implementation share the same mistake, so it goes green on a wrong implementation and nobody sees.
 
-Blindness costs something, so it is paid for. The `gauntlet-accountant` measures the values a blind reviewer cannot look up, and the `gauntlet-detective` finds the lines a plan needs to cite. Both can read everything. Neither issues a verdict, which is why letting them see is safe.
+Blindness costs something, so it is paid for. The `gauntlet-examiner` measures the values a blind reviewer cannot look up, and the `gauntlet-detective` finds the lines a plan needs to cite. Both can read everything. Neither issues a verdict, which is why letting them see is safe.
 
 ## The chain
 
 1. The main agent drafts a plan and sends its grounding questions, all of them, to one `gauntlet-detective`.
 2. The `gauntlet-prosecutor` resolves the plan's citations and returns a pass or fail per check and, on `READY` and only then, writes `docs/gauntlet/plans/<slug>.txt`. The owner reads it only on a pass. Rules in `plans.md`.
-3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-accountant` measures it.
+3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-examiner` measures it.
 4. The `gauntlet-arbiter` runs its checks blind and, on `READY` and only then, writes `docs/gauntlet/specs/<slug>.txt`.
-5. The `gauntlet-testsmith` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
+5. The `gauntlet-scrivener` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
 6. The tests run red. The main agent implements against them, and never edits them.
 
 ## `scripts/pair.sh`
@@ -48,7 +48,7 @@ A change confined to `tests/` — a test that violates `docs/testing.md` and has
 
 1. The main agent drafts a `kind: excision` or `kind: repair` block and sends it to a `gauntlet-arbiter`.
 2. The reviewer resolves each line's quoted assertion against the test file itself — `tests/` is open to it, and the implementation is not what these lines rest on — and writes `docs/gauntlet/specs/<slug>.txt` on `READY`.
-3. The `gauntlet-testsmith` removes the targets and writes the replacements its `as:` fields name.
+3. The `gauntlet-scrivener` removes the targets and writes the replacements its `as:` fields name.
 4. `scripts/excision-diff.py`, run by `scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither kind has an implementation phase, so the window those two watch does not exist.
 
 The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `tests/`.

@@ -1,20 +1,20 @@
 # The approved-spec lane
 
-`docs/gauntlet/specs/` holds the spec blocks that passed adversarial review. It is the boundary between "someone wants this behavior" and "this behavior is the contract", and the blind `gauntlet-testsmith` works from nothing else.
+`docs/gauntlet/specs/` holds the spec blocks that passed adversarial review. It is the boundary between "someone wants this behavior" and "this behavior is the contract", and the blind `gauntlet-scrivener` works from nothing else.
 
 ## The rule
 
 One directory, one writer.
 
-- **`docs/gauntlet/specs/<slug>.txt` is written by the `gauntlet-arbiter` and by no one else.** Not the main agent, not the `gauntlet-testsmith`, not the person driving the session through an agent. `hooks/specs-lane.py` denies every other hand at the tool call.
+- **`docs/gauntlet/specs/<slug>.txt` is written by the `gauntlet-arbiter` and by no one else.** Not the main agent, not the `gauntlet-scrivener`, not the person driving the session through an agent. `hooks/specs-lane.py` denies every other hand at the tool call.
 - **A file appears there only when that reviewer's gate verdict is `READY`.** The reviewer writes the block it just passed, verbatim, with its own per-line verdicts beneath it. An `ANOTHER PASS` or `ESCALATE` round writes nothing.
-- **The `gauntlet-testsmith` reads from there and refuses a spec path anywhere else.** The path being under `docs/gauntlet/specs/` is the writer's proof that the behavior it is about to pin survived review; a draft handed to it directly is a spec that skipped the gate.
+- **The `gauntlet-scrivener` reads from there and refuses a spec path anywhere else.** The path being under `docs/gauntlet/specs/` is the writer's proof that the behavior it is about to pin survived review; a draft handed to it directly is a spec that skipped the gate.
 - **Reads are open.** Any agent, and the shell, may read the folder. The lane governs writing.
 - **Drafts live beside it, not in it.** `docs/gauntlet/drafts/specs/<slug>.txt` is the main agent's own, gitignored, and open to every hand. Nothing about drafting is restricted; the lane governs only the folder a block reaches after review.
 
 ## Why one writer
 
-The `gauntlet-testsmith` is blind on purpose: a test written by the agent that wrote the code mirrors the code, and goes green on an implementation that is wrong in exactly the way the main agent was wrong. The spec block is the only thing standing between that agent's intent and the test that will certify it.
+The `gauntlet-scrivener` is blind on purpose: a test written by the agent that wrote the code mirrors the code, and goes green on an implementation that is wrong in exactly the way the main agent was wrong. The spec block is the only thing standing between that agent's intent and the test that will certify it.
 
 So if the main agent can write the spec file, the blindness buys nothing. The main agent states the behavior it already implemented, drops it in the folder, and the writer faithfully pins the mistake. Review becomes a step that happened somewhere in the transcript rather than a fact on disk.
 
@@ -71,9 +71,9 @@ Session-wide, in `.claude/settings.json`, so the lane binds the main agent and e
 }
 ```
 
-`no-impl-reads.py` is the exception: it is wired only from the `hooks:` frontmatter of `gauntlet-arbiter.md` and `gauntlet-testsmith.md`, never session-wide — a session-wide read-block would blind the main agent itself, which has to read the implementation to adjudicate a failing test.
+`no-impl-reads.py` is the exception: it is wired only from the `hooks:` frontmatter of `gauntlet-arbiter.md` and `gauntlet-scrivener.md`, never session-wide — a session-wide read-block would blind the main agent itself, which has to read the implementation to adjudicate a failing test.
 
-The same `specs-lane.py` script is wired again from the `hooks:` frontmatter of every agent that could reach the folder — `gauntlet-arbiter.md`, `gauntlet-testsmith.md`, `gauntlet-accountant.md`, `gauntlet-detective.md` — so the lane holds even where a build does not apply session hooks to subagent calls.
+The same `specs-lane.py` script is wired again from the `hooks:` frontmatter of every agent that could reach the folder — `gauntlet-arbiter.md`, `gauntlet-scrivener.md`, `gauntlet-examiner.md`, `gauntlet-detective.md` — so the lane holds even where a build does not apply session hooks to subagent calls.
 
 Copy the whole `hooks/` directory, not the one file. `specs-lane.py` imports `shell_shapes.py` from beside it, and it has three siblings that enforce the other half of the same rule: `plans-lane.py`, which holds this same one-directory-one-writer rule for the plan gate one stage earlier (`docs/gauntlet/plans/`, the `gauntlet-prosecutor` alone — rules in `plans.md`); `tests-lane.py`, which keeps every hand but the blind writer's off `tests/`; and `reviews-lane.py`, which keeps a reviewer's verdict a file the reviewer wrote. `reviews-lane.py` is the one that must know about both lanes: it confines each reviewer to `docs/gauntlet/reviews/`, so it carries the explicit carve-outs that let the `gauntlet-arbiter` write `docs/gauntlet/specs/` and the `gauntlet-prosecutor` write `docs/gauntlet/plans/`, each and nothing else besides. Ship them together or a reviewer is locked out of the folder reserved for it.
 

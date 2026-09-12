@@ -1,5 +1,5 @@
 ---
-name: gauntlet-testsmith
+name: gauntlet-scrivener
 description: Blind test writer. Writes pytest and node --test tests for `<project>` from a behavior spec block, having never seen the implementation. Spawn it for every spec block, whatever its size; brief it with the committed spec path and the target path, never the block, never the diff. It also certifies the red run.
 tools: Read, Grep, Glob, Write, Edit, Bash
 model: inherit

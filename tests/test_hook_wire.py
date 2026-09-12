@@ -312,7 +312,7 @@ class NoImplReadsShellShapes(unittest.TestCase):
             # docs-gauntlet-base line 2.  The docs/gauntlet/ denial sits under
             # the docs/ allowance and above a re-allowance of the approved
             # specs.  Tested the other way round it answers DENY for the very
-            # path the blind gauntlet-testsmith is spawned against and reads
+            # path the blind gauntlet-scrivener is spawned against and reads
             # from its worktree, while plans, reviews and drafts stay shut.
             str(REPO_CWD / "docs" / "gauntlet" / "specs" / "demo.txt"): SILENT,
             str(REPO_CWD / "docs" / "gauntlet" / "plans" / "demo.txt"): DENY,
@@ -392,7 +392,7 @@ class PlansLaneCallers(unittest.TestCase):
         expected = {
             None: DENY,
             "gauntlet-arbiter": DENY,
-            "gauntlet-testsmith": DENY,
+            "gauntlet-scrivener": DENY,
             "prosecutor": DENY,
             "gauntlet-prosecutor": SILENT,
         }

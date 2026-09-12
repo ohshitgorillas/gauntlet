@@ -2,7 +2,7 @@
 """PreToolUse hook: keep a blind agent out of the implementation.
 
 Wired from the `hooks:` frontmatter of `.claude/agents/gauntlet-arbiter.md` and
-`.claude/agents/gauntlet-testsmith.md`, so it binds those subagents only. The
+`.claude/agents/gauntlet-scrivener.md`, so it binds those subagents only. The
 main agent and every other agent are untouched, deliberately: a session-wide
 `permissions.deny` would blind the one agent that has to read the code to
 adjudicate a failing test.

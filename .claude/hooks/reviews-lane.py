@@ -193,7 +193,7 @@ def self_test() -> int:
         "1 docs/gauntlet/reviews/ closed to everyone but the two reviewers": all(
             (
                 denied(write(f"{root}/docs/gauntlet/reviews/slug.1.txt")),
-                denied(write(f"{root}/docs/gauntlet/reviews/slug.1.txt", "gauntlet-testsmith")),
+                denied(write(f"{root}/docs/gauntlet/reviews/slug.1.txt", "gauntlet-scrivener")),
                 #: an unprefixed same-named agent in the host project is not this one
                 denied(write(f"{root}/docs/gauntlet/reviews/slug.1.txt", "arbiter")),
                 denied(write(f"{root}/docs/gauntlet/reviews/slug.1.txt", "prosecutor")),

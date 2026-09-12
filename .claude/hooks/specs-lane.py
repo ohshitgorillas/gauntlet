@@ -3,9 +3,9 @@
 
 Wire it session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`.claude/agents/gauntlet-arbiter.md` and `.claude/agents/gauntlet-testsmith.md`.
+`.claude/agents/gauntlet-arbiter.md` and `.claude/agents/gauntlet-scrivener.md`.
 
-An approved spec is the only thing the blind `gauntlet-testsmith` works from. If the
+An approved spec is the only thing the blind `gauntlet-scrivener` works from. If the
 agent that wants a test can also write the file the test is generated from,
 approval is a formality: the main agent states the behavior, hands it to the
 writer, and the adversarial review it was supposed to survive never happened.
@@ -48,7 +48,7 @@ BASH_APPROVED = sh.lane_pattern(LANE)
 _LANE = (
     "docs/gauntlet/specs/ is the gauntlet-arbiter's lane. An approved spec is "
     "written there by the reviewer that approved it, and by nothing else: it is "
-    "the only evidence the blind gauntlet-testsmith has that the behavior it is about "
+    "the only evidence the blind gauntlet-scrivener has that the behavior it is about "
     "to pin was reviewed. Draft under docs/gauntlet/drafts/specs/ and send the draft "
     "to the gauntlet-arbiter. (hooks/specs-lane.py)"
 )
@@ -110,7 +110,7 @@ def self_test() -> int:
             (
                 denied(write(f"{root}/docs/gauntlet/specs/slug.txt")),
                 denied(write("docs/gauntlet/specs/slug.txt")),
-                denied(write(f"{root}/docs/gauntlet/specs/slug.txt", "gauntlet-testsmith")),
+                denied(write(f"{root}/docs/gauntlet/specs/slug.txt", "gauntlet-scrivener")),
                 denied(write(f"{root}/docs/gauntlet/specs/slug.txt", "cavecrew-builder")),
                 #: an unprefixed same-named agent in the host project is not this one
                 denied(write(f"{root}/docs/gauntlet/specs/slug.txt", "arbiter")),
@@ -122,7 +122,7 @@ def self_test() -> int:
                 allowed(write(f"{root}/docs/gauntlet/drafts/specs/slug.txt")),
                 allowed(write(f"{root}/docs/gauntlet/plans/slug.txt")),
                 allowed(write(f"{root}/tests/specs/t.py")),
-                allowed(write(f"{root}/docs/lane.txt", "gauntlet-testsmith")),
+                allowed(write(f"{root}/docs/lane.txt", "gauntlet-scrivener")),
             )
         ),
         "3 shell writes naming the lane denied, reads and object restores pass": all(
