@@ -1,0 +1,2 @@
+dup a line one
+dup a line two
