@@ -1,0 +1,3 @@
+alpha fixture line one
+alpha fixture line two
+alpha fixture line three
