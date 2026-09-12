@@ -52,6 +52,24 @@ def _outcome_naming(done, text):
     return (done.returncode, [t for row in rows for t in _statuses_in(row)])
 
 
+def _quote_outcome(done, citation):
+    """(exit code, whether a row naming `citation` names QUOTE)."""
+    rows = [row for row in done.stdout.splitlines() if citation in row]
+    return (done.returncode, any("QUOTE" in _statuses_in(row) for row in rows))
+
+
+def _fix(doc):
+    """Run --fix over `doc` in place; give the document it leaves behind."""
+    done = subprocess.run(
+        [sys.executable, str(SCRIPT), "--fix", str(doc)],
+        cwd=doc.parent,
+        capture_output=True,
+        text=True,
+    )
+    sys.stderr.write(done.stderr)
+    return doc.read_text()
+
+
 def _inherited(done, candidates):
     """Per INHERITED-FROM row, which of `candidates` that row names."""
     return [
@@ -169,6 +187,90 @@ def test_a_citation_with_no_anchor_is_judged_by_its_number_not_the_prose(
     )
     done = _check(tmp_path, body)
     assert done.returncode == expected_code
+
+
+# anchor block, 1
+def test_the_anchor_is_matched_against_the_cited_line_not_the_whole_file(tmp_path):
+    target = tmp_path / "target.txt"
+    citation = str(target) + ":2"
+    body = (
+        "The rule holds `"
+        + citation
+        + '`, "the anchored line" is what it carries.\n'
+    )
+
+    target.write_text("first line here\nthe anchored line\nthird line here\n")
+    anchor_on_the_cited_line = _quote_outcome(_check(tmp_path, body), citation)
+
+    target.write_text("first line here\nsomething else here\nthe anchored line\n")
+    anchor_one_line_away = _quote_outcome(_check(tmp_path, body), citation)
+
+    assert (anchor_on_the_cited_line, anchor_one_line_away) == (
+        (0, False),
+        (1, True),
+    )
+
+
+# anchor block, 2
+def test_the_anchor_may_sit_on_any_line_of_the_cited_span(tmp_path):
+    target = tmp_path / "target.txt"
+    citation = str(target) + ":2-3"
+    body = (
+        "The construct spans `"
+        + citation
+        + '`, "the anchored line" is what it carries.\n'
+    )
+
+    target.write_text(
+        "one here\ntwo here\nthe anchored line\nfour here\nfive here\n"
+    )
+    anchor_on_the_spans_second_line = _quote_outcome(
+        _check(tmp_path, body), citation
+    )
+
+    target.write_text(
+        "one here\ntwo here\nthree here\nfour here\nthe anchored line\n"
+    )
+    anchor_outside_the_span = _quote_outcome(_check(tmp_path, body), citation)
+
+    assert (anchor_on_the_spans_second_line, anchor_outside_the_span) == (
+        (0, False),
+        (1, True),
+    )
+
+
+# anchor block, 3
+def test_fix_fills_the_number_only_where_the_anchor_matches_one_line(tmp_path):
+    target = tmp_path / "target.txt"
+    doc = tmp_path / "plan.md"
+    handed_in = (
+        "The rule holds `"
+        + str(target)
+        + ':1`, "the target line" is what it carries.\n'
+    )
+    filled = (
+        "The rule holds `"
+        + str(target)
+        + ':4`, "the target line" is what it carries.\n'
+    )
+
+    target.write_text(
+        "one here\ntwo here\nthree here\nthe target line\nfive here\nsix here\n"
+    )
+    doc.write_text(handed_in)
+    after_a_unique_anchor = _fix(doc)
+
+    target.write_text(
+        "one here\ntwo here\nthree here\nthe target line\nfive here\n"
+        "the target line\n"
+    )
+    doc.write_text(handed_in)
+    after_a_repeated_anchor = _fix(doc)
+
+    assert (after_a_unique_anchor, after_a_repeated_anchor) == (
+        filled,
+        handed_in,
+    )
 
 
 # 10
