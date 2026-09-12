@@ -6,3 +6,4 @@ docs/gauntlet/drafts/
 *.swp
 .claude/worktrees/
 .venv/
+.claude/logs/

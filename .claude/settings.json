@@ -15,6 +15,10 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/tests-lane.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/verdicts-lane.py"
           }
         ]
       },
@@ -24,6 +28,16 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/reviews-lane.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/verdicts-lane.py --stop"
           }
         ]
       }

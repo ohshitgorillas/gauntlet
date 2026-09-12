@@ -1,9 +1,16 @@
 # Changelog
 
-Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-Versioning: [SemVer](https://semver.org/), 0.x during pre-release.
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/), 0.x during pre-release.
 
 ## [Unreleased]
+
+### Added
+- `gauntlet-juror`, a blind agent spawned once per red run. It reads the approved block and the run output, and returns one verdict per behavior line — `RED`, `ERROR`, `GREEN` or `INVALID`.
+- `verdicts-lane.py`. The `gauntlet-juror` writes `docs/gauntlet/verdicts/<slug>.txt`, tracked; nothing else can write there, the main agent included.
+- `verdicts-lane.py --stop`, wired as a `Stop` hook. A turn ending with a red run in `state/red/` that has no verdict, or a verdict older than the run it answers, is blocked and every outstanding slug is named. An empty red run is blocked with its own message. No `state/red/` means no block, so a project that never runs `scripts/pair.sh red` never sees it.
+- `scripts/cite.py`, a citation resolver for a plan draft. `--check` resolves every backticked `path:line` against the tree and exits 1 on one that does not, `--fix` fills a number from its quoted anchor where the anchor is unique in the file. A bare continuation and a path outside the checkout print a row whether or not they fail.
+
+**Breaking for existing installs:** re-copy `.claude/` and re-run the `--self-test` commands, which are now eight.
 
 ## [0.1.0] - 2026-09-10
 

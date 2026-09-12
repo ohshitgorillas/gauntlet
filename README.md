@@ -1,12 +1,13 @@
 # Gauntlet
 
-Gauntlet is a set of five subagents that surround the main agent, built around two blind reviewers:
+Gauntlet is a set of six subagents that surround the main agent, built around two blind reviewers:
 
 1. An adversarial plan reviewer (`gauntlet-prosecutor`)
 2. A grounding locator for plans (`gauntlet-detective`)
 3. A blind adversarial spec reviewer (`gauntlet-arbiter`)
 4. A measurement agent (`gauntlet-accountant`)
 5. A blind test writer (`gauntlet-testsmith`)
+6. A blind juror for the red run (`gauntlet-juror`)
 
 "Blind" in this instance means that those agents are forbidden from reading, and therefore making judgment calls based on, implementation.
 
@@ -28,34 +29,37 @@ The workflow enforced by Gauntlet is, as its name implies, quite brutal:
 8. The `gauntlet-testsmith`, also blind to implementation, takes its orders only from `docs/gauntlet/specs/`. A line it cannot test goes back to the `gauntlet-arbiter` instead of getting a weak test; a test that passes against no implementation sends the block back to the main agent for a new spec.
 9. Both the `gauntlet-testsmith` and the main agent work concurrently in different branches, the latter on implementation.
 10. The tests run red in the `gauntlet-testsmith`'s tree, and green in the implementation branch.
-11. The main agent has two approaches to a test failing against implementation: fix the code, or send a revised spec back to the `gauntlet-arbiter` for approval. The `gauntlet-testsmith` will refuse any direct attempts by the main agent to weaken the tests to pass at this phase.
-12. Once the test suite is green against implementation, the change merges. 
-13. The `gauntlet-arbiter` checks the landed tests against the block it approved; a test that no longer matches gets restored from the red commit, or the spec goes back to the main agent.
+11. A `gauntlet-juror`, blind and spawned fresh for that one run, reads the red run's output against the approved block and returns one verdict per behavior line — `RED`, `ERROR`, `GREEN` or `INVALID`. It writes them to `docs/gauntlet/verdicts/<slug>.txt`, a folder only it can write to, so the main agent, which has read the code, cannot rule on whether its own tests bit. A turn that leaves a red run unruled does not end: the `Stop` hook names the slug.
+12. The main agent has two approaches to a test failing against implementation: fix the code, or send a revised spec back to the `gauntlet-arbiter` for approval. The `gauntlet-testsmith` will refuse any direct attempts by the main agent to weaken the tests to pass at this phase.
+13. Once the test suite is green against implementation, the change merges.
+14. The `gauntlet-arbiter` checks the landed tests against the block it approved; a test that no longer matches gets restored from the red commit, or the spec goes back to the main agent.
 
 ## The tests-only lane
 
-A change confined to `tests/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not thirteen:
+A change confined to `tests/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not fourteen:
 
-1. The main agent drafts a `kind: excision` block (the test goes) or a `kind: repair` block (the test goes, and one line names the behavior that replaces it).
+1. The main agent drafts a `kind: excision` block (the test goes) or a `kind: repair` block (the test goes, and one line names the behavior that replaces it). An excision line cites the rule the test breaks, or — where the test breaks none and the behavior it pins is one the owner dropped — quotes the owner's sentence that dropped it.
 2. The `gauntlet-arbiter` reviews it against the test file, which it is allowed to read, and writes `docs/gauntlet/specs/<slug>.txt` on `READY`.
 3. The `gauntlet-testsmith` removes the targets and writes the replacements.
 4. `scripts/excision-diff.py` checks the landed diff against the approved block at merge.
 
-No plan gate, no red run, no post-merge review round. Those three exist to police an implementation phase, and a tests-only change has none. What still holds is the part that matters: the main agent never writes `tests/`, and never decides on its own that a test it finds inconvenient pins nothing.
+No plan gate, no red run, no juror, no post-merge review round. The `Stop` hook fires on a red run that exists and never on the absence of one, so it stays silent here. Those three exist to police an implementation phase, and a tests-only change has none. What still holds is the part that matters: the main agent never writes `tests/`, and never decides on its own that a test it finds inconvenient pins nothing.
 
 See `docs/agents.md` for what each agent is allowed to see and write, and `docs/approved-specs.md` for the hook that makes step 7 and step 8 a fact on disk rather than a step that happened somewhere in the transcript.
 
 ## Setup
 
-Clone this repository and copy its `.claude/` directory (agents, hooks, and `settings.json`) into the target project. `.claude/settings.json` wires `plans-lane.py`, `specs-lane.py`, `tests-lane.py` and `reviews-lane.py` session-wide, so they bind the main agent and every subagent; `no-impl-reads.py` is wired only per-agent, from the `hooks:` frontmatter of `gauntlet-arbiter.md` and `gauntlet-testsmith.md` — see `docs/approved-specs.md` for why. After copying, check the lanes:
+Clone this repository and copy its `.claude/` directory (agents, hooks, and `settings.json`) into the target project. `.claude/settings.json` wires `plans-lane.py`, `specs-lane.py`, `tests-lane.py`, `reviews-lane.py` and `verdicts-lane.py` session-wide, so they bind the main agent and every subagent, and wires `verdicts-lane.py --stop` as a `Stop` hook, which blocks a turn that leaves a red run unruled; `no-impl-reads.py` is wired only per-agent, from the `hooks:` frontmatter of `gauntlet-arbiter.md`, `gauntlet-testsmith.md` and `gauntlet-juror.md` — see `docs/approved-specs.md` for why. After copying, check the lanes:
 
 ```
 python3 .claude/hooks/plans-lane.py --self-test
 python3 .claude/hooks/specs-lane.py --self-test
 python3 .claude/hooks/tests-lane.py --self-test
 python3 .claude/hooks/reviews-lane.py --self-test
+python3 .claude/hooks/verdicts-lane.py --self-test
 python3 .claude/hooks/no-impl-reads.py --self-test
 python3 scripts/excision-diff.py --self-test
+python3 scripts/cite.py --self-test
 ```
 
 Each prints one `PASS` or `FAIL` per line it exists to hold. A `FAIL` means the lane is not binding, and the gate it enforces is not there.

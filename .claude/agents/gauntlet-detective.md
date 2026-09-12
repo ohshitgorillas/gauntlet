@@ -2,7 +2,7 @@
 name: gauntlet-detective
 description: Read-only locator. Answers "where is X defined", "what calls Y", "which file holds Z", "what does this directory contain" with a file:line table and nothing else. The grounding round of the plan gate runs through it: one gauntlet-detective per plan, every question in one brief, so the pointers a plan will cite are found without the main agent reading half the tree. Refuses to propose a fix, a design or a verdict.
 tools: Read, Grep, Glob, Bash
-model: inherit
+model: sonnet
 hooks:
   PreToolUse:
     - matcher: "Write|Edit|NotebookEdit|Bash"

@@ -1,0 +1,176 @@
+slug: cite-py
+grounding: gauntlet-detective
+
+brief:
+> scripts/cite.py — citation resolver for the plan gate. Fact reporter, no verdicts, same contract as gauntlet-detective.
+  delivered: a new `scripts/cite.py` with no verdict vocabulary in its output. The contract borrowed is the locator's: `file:line` and the line's text, never a judgment about whether the citation supports the sentence around it.
+> Problem: tree is frozen during drafting and review, so citation errors are mis-transcription, not drift — detective table retyped wrong, grep-hit line cited instead of the construct, bare :49 inheriting the wrong file, off-by-one ranges, citing from memory. All deterministic, all checkable.
+  delivered: the "What is wrong" section, and the five error shapes are the five the parser and the checker are built around.
+> Three modes: --resolve DOC (prosecutor, table of every citation with its actual line text, replaces N Read calls with one command); --check DOC (main agent, pre-flight, exit 1 on MISSING, RANGE, AMBIGUOUS, quote mismatch); --fix DOC (author, fills the number from the quoted anchor where the hit is unique, refuses on zero or multiple).
+  delivered: `--check` and `--fix`, with those exit codes and those refusals.
+  dropped: `--resolve`, and with it the whole prosecutor-facing half of the script. Dropped by the owner's later sentence, quoted below, which overrides this one.
+> Parser is the hard part: bare :49 continuation (must print INHERITED-FROM <file>), basename-only, ranges, cross-repo paths. Prose numbers without backticks out of scope.
+  delivered: the citation grammar and its five boundaries. `INHERITED-FROM <file>` survives the loss of `--resolve`: every bare continuation prints it, passing or failing, so the requirement holds on the case it exists for — a `:49` that inherits the wrong file and resolves anyway, which no check can decide and only the printed path exposes. One thing the brief assumes that the tree does not state: no file in this repo documents the bare `:49` continuation. The grammar this script pins is new prose, not a restatement, and `docs/plans.md` takes it.
+> Guarantee: the number points at a line containing that quote. Nothing more.
+  delivered: the guarantee is the whole of `--check`'s quote rule and the whole of `--fix`'s anchor rule.
+> Still the prosecutor's (b): wrong line quoted, right text in a dead branch or comment, cherry-picking where the next line reverses it, sentence overstating what the line says. (b) stops being transcription review, becomes relevance review, shrinks.
+  delivered: the four residues the sentence lists are exactly what (b) keeps, and "What the owner sees change" names them as the part no check touches.
+  dropped: "shrinks". Measured across the two gate rounds this plan itself drew, the saving is one failing check line in nine, and the prosecutor still opens every line it rules on because relevance needs the surrounding context. The sentence assumed a larger saving than the script delivers. The measurement is under "Open questions", beneath the owner's ruling; the owner was shown it and ruled build anyway.
+> Constraints: prosecutor re-runs it itself rather than trusting the main agent ran it — its own file says the main agent is not a reliable narrator.
+  dropped: overridden by the owner's later sentence. The prosecutor does not run this script at all, so there is nothing for it to re-run and no reliance on the main agent's report of a run. What replaces the constraint is that the prosecutor does not need the script's output: it resolves the citations it rules on by reading them, exactly as `.claude/agents/gauntlet-prosecutor.md:23` already tells it to.
+> Blind agents (gauntlet-arbiter, gauntlet-testsmith) must not reach it; a resolver printing implementation lines is a no-impl-reads.py bypass, enforced via reviews-lane.py, not a flag in the script.
+  delivered: no flag in the script, and the exclusion holds. Corrected: the hook that holds it is `no-impl-reads.py`, not `reviews-lane.py`, and it holds already with no change to either. The "Which files get touched" section gives the mechanism and the one way a consumer project dissolves it.
+> Lives in scripts/, owes a --self-test and a CHANGELOG.md entry.
+  delivered: `scripts/cite.py`, a `--self-test` following `scripts/excision-diff.py:173-219`, a ninth line on the gate list at `CLAUDE.md:20-27`, an eighth on the list at `README.md:55-61`, and an `Added` entry under `CHANGELOG.md:7`.
+> Open: --fix fills the number once; edit the prose afterward and the number is authored again, unchecked. Needs something that re-runs per turn, or a discipline that does.
+  dropped: withdrawn by the owner — "doesn't happen, what are you talking about?" — and the withdrawal is right. A prose edit does not re-author a number, the tree is frozen so a correct number cannot go stale on its own, and a number the author does retype is caught by the `--check` run that precedes every handoff. No per-turn mechanism, no `Stop` hook, no discipline sentence.
+> if the citations are automatically generated, why are we spending tokens re-resolving them
+  delivered: this sentence cut `--resolve`, the `.claude/hooks/reviews-lane.py` allowance it needed, and the overturn of `CLAUDE.md:36` that allowance would have carried. It overrides the "prosecutor re-runs it itself" constraint three sentences above it. The first draft of this plan had all three and escalated the lane question to the owner; the answer was that the question should not have arisen, because a number a deterministic script filled and verified is not a claim that needs re-verifying.
+> doesn't happen, what are you talking about?
+  delivered: withdrew the `--fix` staleness item, as recorded above.
+> Build it.
+  delivered: the owner's ruling on this plan's open question 1, given after being shown the measurement — nine failing check lines across two gate rounds, one of them a mistyped citation — and after being offered a `--check`-only variant and an outright drop. It authorizes the plan as written: both modes, the grammar into `docs/plans.md`, the ninth gate. It is the answer to a question this plan raised against its own brief, so it confirms the commission rather than extending it.
+
+## What is wrong
+
+A plan's citations are typed by hand, and nothing checks them.
+
+`docs/plans.md:37` requires them — "A claim about the tree carries `file:line`" — and `docs/plans.md:46` says where they come from: "The pointers a plan cites come from one `gauntlet-detective` round: every question in one brief, a `file:line` table back." Between that table and the plan prose sits a retyping step with no check on it. The approved plan on disk, `docs/gauntlet/plans/juror-verdicts-lane.txt`, carries on the order of fifty citations, most of them bare continuations; every one was typed from a table or from memory.
+
+The tree is frozen while a plan is drafted and reviewed, so a citation that does not resolve is a transcription error and nothing else. That is what distinguishes the class from the judgment the prosecutor's check (b) exists for, and it is what makes a script the right instrument: the whole class is decidable without reading a sentence.
+
+Nothing in the repo does this today. No script parses a `file:line`, resolves one, or reads a plan file's contents at all: `docs/gauntlet/plans` appears in `.claude/hooks/plans-lane.py`, `.claude/hooks/reviews-lane.py`, `.claude/hooks/specs-lane.py:123` and `.claude/hooks/no-impl-reads.py` only as a path to gate writes and reads against. `scripts/excision-diff.py` parses a spec block with `_LINE` and `_FIELD` at `:38-39`, and those regexes match `N. excise <target>` lines, not citations.
+
+This plan's first draft carried a second defect — that the `gauntlet-prosecutor` cannot run a script in `scripts/`, because `.claude/hooks/reviews-lane.py:143` denies the reviewers every writing `Bash` command and `shell_shapes.py:317` classifies `python3 <script>` as one. That is still true of the tree and it is no longer a defect of this plan, because nothing here asks the prosecutor to run anything. It is recorded because the first draft proposed widening that lane, and a reader comparing drafts should find the reason the widening went away rather than infer one.
+
+## What the owner sees change
+
+A plan's citations resolve before a reviewer or the owner reads it.
+
+One command before handing a draft over: `--check` exits 1 and names every citation that does not resolve, by shape — `MISSING` for a path that is not there, `RANGE` for a span running past the end of the file, `AMBIGUOUS` for a basename matching more than one path, `ORPHAN` for a bare number with nothing to inherit a path from, and `QUOTE` for a number pointing at a line that does not contain the text the plan quotes. Each failing row prints the citation as written, the path it resolved to, and the line it found.
+
+Two classes of row print whether or not they fail, and they are the reason `--check` is not a silent-on-success command. A bare continuation prints `INHERITED-FROM <file>`, always. A citation resolving outside the checkout prints `CROSS-REPO <file>`, always. Neither is an error and neither sets the exit code; both are cases where the script resolved something the author cannot see in the text they wrote, and the whole of the guarantee for them is "this is where it landed". A run with no failures and no rows at all means every citation was a plain in-tree one — and on a plan written the way this repo writes them, that run does not occur. Bare continuations dominate: the approved plan on disk is mostly `` `:49` ``-shaped, so `INHERITED-FROM` rows are the normal output, not a warning. The `--help` text has to say so, because a command that prints a screen of rows on a clean document is read as failing unless its own documentation says otherwise, and an author who reads it that way will stop running it.
+
+For the author, `--fix` fills a number from a quoted anchor where the anchor matches exactly one line, and refuses on zero matches or several. It never guesses, and it never rewrites a number that already resolves.
+
+For the `gauntlet-prosecutor`, its check (b) round changes in one way only: the numbers resolve when it opens them. `.claude/agents/gauntlet-prosecutor.md:59` is check (b), "Grounding", and its instruction is "Open each citation, compare against what plan says it shows". It still opens each one. What stops arriving is the finding raised on a number that was simply mistyped. On the plan this script was drafted against, that was one failing check line in nine across two rounds, carrying two miscitations — the full count and the eight it excludes are under "Open questions", and the ratio is given there rather than here because a round-1-only reading of it flatters the script. The prosecutor runs nothing, reads nothing new, and takes no instruction from this plan.
+
+What (b) keeps is everything the brief names as residue: a wrong line quoted accurately, right text sitting in a dead branch or a comment, a quote cherry-picked where the next line reverses it, a sentence that overstates what its line says. Those are relevance. They need the lines around the cited one, which no resolver row carries, and `.claude/agents/gauntlet-prosecutor.md:23` — "Prefer reading cited line over reasoning about what it probably says" — stands exactly as written.
+
+## Which files get touched, and roughly how
+
+**`scripts/cite.py`, new.** Modeled on `scripts/excision-diff.py`, the repo's only existing report-and-exit script and the closest shape by construction: module constants and regexes at `:36-39`, a parsed-line dataclass at `:42-57`, a parser at `:60-77`, per-item verdict functions at `:119-141`, a `report` assembler at `:144-154`, an argparse `main` at `:157-170`, a `self_test` at `:173-219`, and the single dispatch line at `:222-223`, `sys.exit(self_test() if "--self-test" in sys.argv else main(sys.argv[1:]))`. `cite.py` takes that skeleton with two mode flags in place of `--spec`/`--base`/`--head`.
+
+The parser is the work. The grammar it accepts, in the order the brief names it:
+
+- a full citation, path and number inside backticks: `` `docs/plans.md:37` ``;
+- a range: `` `:202-203` ``, `` `gauntlet-juror.md:8-11` ``;
+- a bare continuation, a number with no path: `` `:49` ``, which inherits the path of the nearest preceding full citation in the same document, and always prints `INHERITED-FROM <file>`, passing or failing, so a reader sees which file it landed in;
+- a basename with no directory: `` `pair.sh:86` ``, resolved against the tree, `AMBIGUOUS` where more than one path matches;
+- a cross-repo path, one resolving outside the checkout: not `MISSING`, since `/home/atom/dev/CLAUDE.md` is a real file and a legitimate citation from a plan in this repo.
+
+Five boundaries of that grammar, each with a reading rather than a silence:
+
+- **A cross-repo citation.** It resolves — path and line are checked the same way — and it prints `CROSS-REPO <file>` on a row of its own whether or not it fails, because it is the one citation class the frozen-tree argument does not cover. `/home/atom/dev/CLAUDE.md` is outside this checkout, nothing in this repo's chain freezes it, and a number correct when it was typed can go stale without any edit here. So the reading is: checked like any other, never `MISSING` for being outside, exit code unaffected, and always visible in the output so the author knows a citation rests on a file this repo does not control.
+- **A continuation with nothing to inherit from.** A bare `` `:49` `` with no full citation before it in the document — the first citation in a file, or one whose antecedent was cut in an edit — is `ORPHAN`, and `--check` exits 1 on it. It cannot be a quote mismatch, because there is no file to open, and it must not be silently skipped: an orphan is the exact shape a prose edit produces when it removes the sentence that carried the path.
+- **A continuation that inherits the wrong file.** This is the brief's own second error shape, "bare `:49` inheriting the wrong file", and it is the one the script cannot decide: a `` `:49` `` that inherits the wrong path, lands on a line that exists, and carries no quoted anchor is indistinguishable to the script from a correct one. Nothing here detects it. What the script does instead is refuse to hide it — every bare continuation prints `INHERITED-FROM <file>`, passing or failing, so the author reads back which file each number landed in and sees a wrong inheritance as a wrong filename rather than as silence. A quoted anchor turns the case decidable, and where the plan has one it is `QUOTE` like any other mismatch.
+- **A range against the quote rule.** A range passes when any line in the span contains the quoted text, not when the first does and not when all do. Any-line matches how ranges are actually cited — `` `:202-203` `` names a two-line construct and the sentence quotes one of them — and first-line or all-lines would fail citations that are correct. The span is still checked against the file's length, so `RANGE` still fires on one running past the end.
+- **A citation with no quoted text.** Most citations in a plan are structural: `` `:58` `` naming where a function starts, with no quotation beside it. The quote rule has nothing to test, so the reading is existence only — the path resolves and the number is in range — and `--check` does not exit 1 on it. This is the majority case, not an edge, and it is where the guarantee is thinnest: for these the script says the line exists and nothing whatever about whether it says what the plan claims.
+
+A number in prose without backticks is out of scope, by the owner's sentence. That is what keeps the parser decidable: the backticks are the delimiter, so "line 72 now says six" is prose and `` `:72` `` is a citation.
+
+**`docs/plans.md`.** The bare continuation is not documented anywhere in the repo. `docs/plans.md:37` and `:46` are the only two lines stating how a citation is written, and neither mentions ranges or the continuation form; an exhaustive grep across `docs/`, `.claude/agents/`, `README.md` and `CLAUDE.md` finds the `file:line` convention named at `.claude/agents/gauntlet-detective.md:3`, `:24`, `:41`, `:52` and `:60`, at `.claude/agents/gauntlet-arbiter.md:52`, `:110`, `:163` and `:181`, at `.claude/agents/gauntlet-prosecutor.md:23` and `:41`, and at `README.md:23`, and no line anywhere describing a citation that omits its path.
+
+Meanwhile the one approved plan on disk uses the form throughout. The convention is live and unwritten, and a script that pinned it would be enforcing a grammar the repo never stated. `docs/plans.md` takes the grammar — the five forms and what a bare number inherits — as prose, in the section carrying `:37`. The script then checks a documented rule rather than inventing one.
+
+**`.claude/hooks/no-impl-reads.py`: no change, and the blind-agent exclusion holds without one.** The brief names `reviews-lane.py` as the enforcement point. It is not: `reviews-lane.py` gates the reviews lane and knows nothing about `scripts/`. The hook that holds the exclusion is `no-impl-reads.py`, and it already does, three ways over.
+
+`DEFAULT_ALLOW` at `.claude/hooks/no-impl-reads.py:81` is `("docs/", "tests/", "state/")`; `scripts/` is not in it. A `Bash` stage running `python3 scripts/cite.py` reaches `_bash_verdict` at `:325-366`, passes `is_runner` at `:351` — `python3 <script>` is not a runner, by `shell_shapes.py:263-267` — and falls to the candidate test at `:365`, where `scripts/cite.py` is a path candidate and `readable` at `:165-218` returns False. Denied, with `_WHY`.
+
+Second, the input is unreachable too. `readable` at `:202-205` re-allows `docs/gauntlet/specs` and then denies `docs/gauntlet` entire, and that pair runs before the allow loop at `:207-213`, so no allow entry reaches a plan or a draft for a blind agent to pass in.
+
+Third, the `gauntlet-juror` holds no `Bash` at all: `.claude/agents/gauntlet-juror.md:4` is `tools: Read, Grep, Glob, Write`. The `gauntlet-arbiter` and the `gauntlet-testsmith` do hold it, and both wire `no-impl-reads.py` on matcher `Read|Grep|Glob|Bash` at `.claude/agents/gauntlet-arbiter.md:7-11` and `.claude/agents/gauntlet-testsmith.md:7-11`.
+
+So no flag in the script, as the brief requires, and no hook change either. The exclusion is a consequence of `scripts/` being outside the blind allow list, which is a property of every script this repo has and not of this one.
+
+One way a consumer project dissolves it, named because a reader would otherwise take the exclusion as unconditional. `.claude/hooks/no-impl-reads.py:40` documents a per-repo `blind-reads.json` beside the hook, carrying `allow` and `runners` keys, read at `:151`. A project adding `scripts/` to `allow`, or `python3` to `runners`, hands its blind agents this script along with every other. That is true of the resolver exactly as it is true of a `cat` of the source, so it is a property of the allow list rather than a defect this plan introduces, and the `_WHY` denial text at `:101-111` already tells an agent what that file does, naming it at `:106`.
+
+**`CLAUDE.md`, `README.md` and `CHANGELOG.md`.** The gate list at `CLAUDE.md:17-28` says "Green means all eight" and lists eight commands at `:20-27`; it becomes nine, with `python3 scripts/cite.py --self-test` beside `scripts/excision-diff.py --self-test` at `:27`. `README.md:55-61` is the consumer's list, seven commands, and `:61` is already `python3 scripts/excision-diff.py --self-test`; it becomes eight. `CHANGELOG.md` takes an `Added` entry under the `[Unreleased]` heading at `:5`, in the `### Added` subsection at `:7` — the script is in `scripts/`, and this repo's own rule names `pair.sh` and `excision-diff.py` as changelog material, so the resolver is too. One entry, not two: no hook changes.
+
+## Caller-side delta
+
+**Three `--self-test` lists, not one, and they already disagree.** This plan's first draft said a ninth gate forces no change outside `CLAUDE.md`, on the reading that `README.md`'s list was hooks-only. That was wrong: `README.md:61` is a script gate, so a script gate does belong on that list, and `cite.py` takes a line there. The correction is why this section exists.
+
+`docs/approved-specs.md:85-89` is a third list, five commands, hooks only. It is stale against the eight at `CLAUDE.md:20-27` before this plan touches anything: it predates `verdicts-lane.py` and `excision-diff.py`. This plan does not repair that drift — the missing entries are two other changes' debts, not this one's — but it names it, because a reader who adds `cite.py` to two lists and not the third has made the drift worse, and because three hand-maintained copies of one list is the defect underneath all of it. Whether to collapse them is not this plan's question.
+
+`docs/agents.md:7` is the `gauntlet-prosecutor` roster row. No column of it moves: the agent gains no tool, loses none, its lanes are unchanged, and this plan gives it no new instruction. The row is named so that "the roster changes" is not assumed from a plan that talks about the prosecutor throughout.
+
+The test tree needs cases for the script. The main agent cannot write them — `.claude/settings.json:5-23` wires `tests-lane.py` session-wide, and this repo's own `CLAUDE.md` says such a write from the main agent comes back denied here as anywhere — so they come through a spec block, the `gauntlet-arbiter` and the `gauntlet-testsmith`, after this plan lands. `test_excision_diff.py:10` is the shape they follow, resolving the script by path from the test file.
+
+Nothing else. No agent's tool list changes, no lane changes at all, and no existing script imports anything this adds.
+
+## What it costs
+
+A ninth gate on a bar that reads "all eight", an eighth line on the consumer's list, and both re-counted by every consumer who tracks them.
+
+A grammar the repo now has to hold. Writing the continuation form into `docs/plans.md` turns a convention into a rule, and a rule has an enforcement cost: a plan that omits a path where the script expects one starts failing a check no plan has ever failed. The five forms and the five boundaries have to be settled in the first version rather than as each first bites, which is why both lists are in this plan rather than in the implementation.
+
+**The frozen-tree assumption, which is the argument for the whole script.** It holds for the main checkout and not for a worktree: `.claude/worktrees/<slug>-spec` and `-impl` are live during the implementation stage, and `shell_shapes.py:397-400` treats them as roots by construction. The script resolves its root the way the repo's existing gates do, from its own path rather than from the cwd — `scripts/gates/check_md_trivia.py:63` is `ROOT = Path(__file__).resolve().parent.parent.parent` — so each checkout checks its own copy of a plan. A plan citing the main checkout while being checked from inside a worktree is the case that produces a false `MISSING`, and it is named here rather than discovered.
+
+**A citation that resolves and lies.** `--check` passing is not a claim that the plan is grounded. The guarantee is the brief's and it is one sentence: the number points at a line containing that quote. A green `--check` on a plan whose every sentence misreads its line is a plan that has passed nothing, and check (b) is what stands between that plan and the owner. Worth stating in the script's own `--help`, because a tool reporting `OK` is read as an endorsement whatever its documentation says.
+
+**An uncited claim.** `--check` sees citations. A load-bearing claim carrying no citation at all is invisible to it, and that is the failure check (b) names first: "claim with no citation and no `ASSUMED` tag unresolved on its face", at `.claude/agents/gauntlet-prosecutor.md:59`. The one class of grounding defect a plan gets no help on is the one where the author never typed a number. Nothing here changes that.
+
+**`--fix` writes into the document it reads.** Against a draft under `docs/gauntlet/drafts/plans/` that is the main agent's own file and nothing gates it. Against anything under `docs/gauntlet/plans/`, `.claude/hooks/plans-lane.py` denies every hand but the prosecutor, so `--fix` on an approved plan fails at the tool call. That is correct and wanted: an approved plan is the artifact a later stage reads, and a script that could rewrite its numbers after approval would defeat the lane.
+
+Deliberately left out, each by an owner sentence: `--resolve` and the reviewers'-lane allowance it required; any per-turn re-check of a filled number; any resolver for prose numbers without backticks; and any verdict vocabulary in the output.
+
+## Open questions
+
+None.
+
+The question this plan raised against its own brief — whether the script is worth building at the measured saving — the owner answered "Build it", and that sentence is in the `brief:` block. The measurement it was answered on is kept below, because a later reader should find the number the ruling was made against rather than the expectation the brief was written on.
+
+**The measurement.** The brief's expectation was that check (b) "becomes relevance review, shrinks". It becomes relevance review. The shrink is small, and this plan measured it on itself.
+
+   Across two prosecutor rounds, eleven checks each, **nine check lines failed, and one of the nine was a mistyped citation.** Round 1 failed (b), (e), (f), (g) and (k); round 2 failed (b), (f), (i) and (k). One check line, round 1's (b), was citations — two of them. The other eight, one line each:
+
+   - round 1 (e), a standing rule the plan touched and did not name;
+   - round 1 (f), boundaries of the citation grammar left unqualified;
+   - round 1 (g), an open question the brief had already answered;
+   - round 1 (k), `delivered:` lines carrying a condition their brief sentence did not state;
+   - round 2 (b), a miscount of the plan's own check lines;
+   - round 2 (f), a further boundary left unqualified after the first repair;
+   - round 2 (i), a `delivered in part:` label the block does not admit;
+   - round 2 (k), `INHERITED-FROM` promised on failing rows only, losing the case the brief named.
+
+   No `--check` run touches any of the eight.
+
+   An earlier draft of this question gave the ratio as one line against four and omitted three failures. The omission made the citation class look like a larger share of the gate's cost than it is, and it biased this escalation toward building. One in nine is the number to rule on.
+
+   The one fact pointing the other way, and it is not nothing: of the two miscitations, one was `README.md`'s `--self-test` list, where the plan said six commands ending at `:60` and the reviewer independently said the same — it read to line 60 and never looked at `:61`, which is the seventh. Two careful readers, the same off-by-one, caught on a third pass. That is the case for a script over a reader, and it is the whole of the case.
+
+   Set against: a new file in `scripts/`, a ninth gate on a bar reading "all eight", an eighth line on the consumer list, a `CHANGELOG.md` entry, a spec round and a testsmith round for the tests, and — the item that outlives the script — a citation grammar written into `docs/plans.md` that every future plan is held to, five forms and five boundary readings, all of which have to be right in the first version.
+
+The reading the plan put to the owner was: build it, on the strength of the `README.md` case rather than on the frequency, while saying that one in nine is a thinner case than the brief assumed and that dropping it was defensible. The owner ruled build.
+
+The other two questions this plan escalated in its first round the owner answered by cutting the work that produced them. `--resolve` is gone, so the `.claude/hooks/reviews-lane.py` allowance and the overturn of `CLAUDE.md:36` are not proposed and no owner ruling on them is owed. The `--fix` staleness item is withdrawn, so no `Stop` hook and no discipline sentence are proposed either.
+
+Two things are recorded rather than asked, because a reader will meet them and should not have to rediscover them. `docs/approved-specs.md:85-89` is stale against `CLAUDE.md:20-27` by two entries this plan did not cause and does not fix. And `.claude/hooks/reviews-lane.py:143`, with `shell_shapes.py:317`, denies the two reviewers every `python3 <script>` invocation — true of the tree, untouched by this plan, and the reason no design here routes through a reviewer running anything.
+
+--- reviewer ---
+READY
+
+a  PASS  Two escapes taken, and the stronger one arrived this round. The owner's ruling is quoted at `:31` — "Build it." — and its `delivered:` line at `:32` names what it authorizes: "both modes, the grammar into `docs/plans.md`, the ninth gate". That is an owner ruling authorizing the one redefinition the plan still proposes, the citation grammar behind `docs/plans.md:37`. The plan also states the redefinition outright at `:13` and `:84`, which is the second escape. The other redefinition this plan once carried — the flat reviewers' `Bash` denial at `.claude/hooks/reviews-lane.py:140-145` — is withdrawn and stays withdrawn; `:110` says "no lane changes at all" and the touched list at `:60-98` names no hook.
+b  PASS  The enumeration at `:136-145` is repaired and countable. It names the failing letters per round — round 1 (b), (e), (f), (g), (k); round 2 (b), (f), (i), (k) — identifies round 1's (b) as the citation line carrying two miscitations, and gives the other eight as eight bullets, one check line each, each labelled by round and letter. I resolved every bullet against the round it names and all eight are accurate, including the one that was missing last round, round 2's (k) at `:145`. No mixed units remain. The three boundary counts stay at five (`:13`, `:72`, `:116`) against a five-entry list at `:74-78`. Every citation the plan carries has been resolved across five rounds and each says what the plan says it says; `grounding: gauntlet-detective` at `:2` is correct, since no file cited sits outside the touched list without a detective pointer behind it.
+c  N/A   carried: Nothing split, extracted or moved; `--resolve` leaving removes a mode never written, so it moves no call site.
+d  PASS  carried: Cause named upstream of the appearance — the unchecked retyping step between `docs/plans.md:46` and `docs/plans.md:37`, with the frozen tree at `:38` making the class decidable without reading a sentence. No fix list grew across five rounds; the plan shrank.
+e  PASS  carried: Nothing in the plan touches `.claude/hooks/reviews-lane.py`, so the escape is "none touched" rather than "named and overturned". `CLAUDE.md:36` survives at `:28` and `:157` in the past conditional only, and `:42` records the lane's denial as a standing property of the tree the plan routes around.
+f  PASS  carried: Every boundary of the grammar's state space carries a reading rather than a silence — cross-repo at `:74`, orphan continuation at `:75`, wrong-file continuation at `:76`, range at `:77`, unquoted citation at `:78` — and `:76` is the one that names a case the script cannot decide and says so instead of claiming a check.
+g  PASS  "Open questions" is `None` at `:130`, and all three questions this plan raised are retired on owner sentences quoted in the block: `:27` cut `--resolve` and the lane allowance, `:29` withdrew the `--fix` staleness item, `:31` ruled build. The measurement is kept below the ruling rather than deleted, which is the right disposal. One thing the owner should know rather than be asked: the measurement is scoped to rounds 1 and 2 and says so, and rounds 3, 4 and 5 added four more failing check lines, none of them a mistyped citation — so extending the denominator moves the ratio against the script, not for it, and the ruling stands on the weaker case rather than a flattered one.
+h  PASS  carried: The reach claims — `:74` on what freezes a cross-repo file, `:88`, `:90` and `:92` on the blind-agent exclusion holding through three separate mechanisms with no hook change, and `:110` on no lane changing — were each traced inside the one-hop bound in rounds 1 to 3 and their text has not moved since. Nothing arrives at anything the plan calls untouched.
+i  PASS  Every brief sentence carries exactly one of the two labels, every `delivered:` resolves to a named element in the body, and the one substantive drop — "shrinks", at `:18` — was escalated, ruled on, and now points at the measurement beneath the ruling rather than at a retired question, with the corrected number. The ten-sentence block covers the original brief, the two sentences that cut work, and the ruling.
+j  N/A   carried: This repository names no composition-root file in any architecture doc — `docs/agents.md` is a roster and `README.md` is an entry point, and neither designates a construction site.
+k  PASS  carried: Each `delivered:` element reads as its brief sentence reads. The last one to fail this check, `INHERITED-FROM`, is delivered at `:68`, `:52` and `:76` in agreement — always printed, passing or failing — with the case the script cannot decide named at `:76` rather than papered over, which is a delivery of the brief's sentence rather than a claim of a check the script lacks.
+
+Note. Whether the `brief:` block quotes the owner verbatim is the one thing I could not settle: the owner's words reached me only inside the plan, so there is nothing to compare them against. Ten sentences now, including the ruling. The owner is the only reader who can confirm it, and it is the one claim in this plan resting on the main agent's transcription rather than on a line I opened.

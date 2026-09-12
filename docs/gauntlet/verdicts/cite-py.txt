@@ -1,0 +1,13 @@
+RED 1: assert (2, []) == (0, []) [path-in-checkout]; assert (2, []) == (1, ['MISSING']) [path-absent-from-checkout]
+RED 2: assert (2, []) == (0, []) [range-ends-on-last-line]; assert (2, []) == (1, ['RANGE']) [range-ends-past-last-line]
+RED 3: assert (2, []) == (0, []) [basename-one-path-carries]; assert (2, []) == (1, ['AMBIGUOUS']) [basename-two-paths-carry]
+RED 4: assert (2, []) == (0, []) [bare-number-after-a-full-citation]; assert (2, []) == (1, ['ORPHAN']) [bare-number-with-no-antecedent]
+RED 5: assert [] == [['tests/support/fixtures/cite/alpha.txt']] [continuation-resolves]; assert [] == [['tests/support/fixtures/cite/alpha.txt']] [continuation-past-end-of-file]
+RED 6: assert [] == [['tests/support/fixtures/cite/beta.txt']] [alpha-then-beta]; assert [] == [['tests/support/fixtures/cite/alpha.txt']] [beta-then-alpha]
+INVALID 7: no test found for this line
+INVALID 8: no test found for this line
+RED 9: assert 2 == 0 [unquoted-citation-in-range]; assert 2 == 1 [unquoted-citation-past-end-of-file]
+RED 10: assert (2, []) == (0, ['CROSS-REPO']) [outside-path-exists]; assert (2, []) == (1, ['MISSING']) [outside-path-absent]
+RED 11: assert 2 == 0 [bare-prose-number]; assert 2 == 1 [same-text-backticked]
+INVALID 12: no test found for this line
+INVALID 13: no test found for this line
