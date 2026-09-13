@@ -244,6 +244,23 @@ def self_test() -> int:
                 allowed(read(f"{root}/tests/t.py", SPEC_REVIEWER)),
             )
         ),
+        "6 read-only git naming the lane passes, its write forms do not": all(
+            (
+                allowed(bash("git grep -n foo -- docs/gauntlet/reviews/")),
+                allowed(bash("git grep -n 'docs/gauntlet/reviews/' -- .claude/hooks")),
+                allowed(bash("git ls-tree HEAD docs/gauntlet/reviews/")),
+                denied(bash("git grep -Ovim foo -- docs/gauntlet/reviews/")),
+                denied(bash("git diff --output=docs/gauntlet/reviews/x.txt")),
+            )
+        ),
+        "7 a reviewer's read-only git passes, its write forms do not": all(
+            (
+                allowed(bash("git grep foo", SPEC_REVIEWER)),
+                denied(bash("git grep foo -- docs/gauntlet/reviews/", SPEC_REVIEWER)),
+                denied(bash("git reflog expire --all", SPEC_REVIEWER)),
+                denied(bash("git diff --output=out.txt", SPEC_REVIEWER)),
+            )
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")

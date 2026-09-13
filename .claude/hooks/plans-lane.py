@@ -155,6 +155,15 @@ def self_test() -> int:
                 allowed(write(f"{root}/docs/gauntlet/plans", REVIEWER)),
             )
         ),
+        "5 read-only git naming the lane passes, its write forms do not": all(
+            (
+                allowed(bash("git grep -n foo -- docs/gauntlet/plans/")),
+                allowed(bash("git grep -n 'docs/gauntlet/plans/' -- .claude/hooks")),
+                allowed(bash("git ls-tree HEAD docs/gauntlet/plans/")),
+                denied(bash("git grep -Ovim foo -- docs/gauntlet/plans/")),
+                denied(bash("git diff --output=docs/gauntlet/plans/x.txt")),
+            )
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")

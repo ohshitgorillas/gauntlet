@@ -66,9 +66,11 @@ PYTEST_WRITE_FLAGS = (
 #: git subcommands that print no file content; everything else prints some, and
 #: an unrecognized subcommand is treated as content. Staging and committing
 #: belong here: they print no tree, and leaving them out denies the blind test
-#: writer the commit its own red run depends on. `GIT_NO_WORKTREE` above is the
-#: same judgment asked from the write side, and the two lists agree on `add`
-#: and `commit` for that reason.
+#: writer the commit its own red run depends on. `GIT_NO_WORKTREE` below asks a
+#: different question, whether a subcommand writes, not whether it prints:
+#: `cat-file`, `grep` and `show` write nothing and print content, so they are
+#: there and not here. The two lists share `add`, `commit`, `describe`,
+#: `ls-files`, `merge-base`, `rev-list`, `rev-parse` and `status`.
 GIT_METADATA = frozenset(
     {
         "status", "rev-parse", "ls-files", "branch", "describe", "remote",
@@ -85,11 +87,24 @@ NPX_RUNNERS = frozenset({"ava", "jest", "mocha", "playwright", "tap", "vitest"})
 #: modules `python -m` may run as a test runner
 PY_MODULES = frozenset({"pytest", "unittest"})
 
-#: git subcommands that never write the working tree; a commit message or a
-#: pathspec naming a lane is not a write to it
+#: git subcommands that never write the working tree in their reading forms; a
+#: commit message or a pathspec naming a lane is not a write to it. Membership
+#: is conditional: `git_write_form` counts a member's stage as a write when it
+#: carries `--output`, `grep -O` or a writing `reflog` form.
 GIT_NO_WORKTREE = frozenset(
-    {"add", "blame", "commit", "diff", "log", "ls-files", "rev-parse", "show", "status"}
+    {
+        "add", "blame", "cat-file", "commit", "describe", "diff", "grep", "log",
+        "ls-files", "ls-tree", "merge-base", "reflog", "rev-list", "rev-parse",
+        "shortlog", "show", "status",
+    }
 )
+
+#: `--output=<file>` writes a file wherever git takes its diff options
+GIT_OUTPUT = "output"
+#: `git grep -O[<pager>]` runs a command on the matching files
+GIT_GREP_PAGER = "open-files-in-pager"
+#: `git reflog` forms that change the reflog rather than print it
+GIT_REFLOG_WRITES = frozenset({"write", "delete", "drop", "expire"})
 
 #: an output redirection and the target it opens. A file-descriptor prefix
 #: (`1>`, `2>`) and `&>` are redirections; `2>&1` and `>&2` duplicate a
@@ -298,6 +313,34 @@ def words_of(segment: str) -> list[str]:
         return segment.split()
 
 
+def _long_option(word: str, option: str, least: int) -> bool:
+    """Would git read `word` as `--<option>`, spelled out or abbreviated?"""
+    if not word.startswith("--"):
+        return False
+    name = word[2:].split("=", 1)[0]
+    return len(name) >= least and option.startswith(name)
+
+
+def git_write_form(words: list[str]) -> bool:
+    """Does this `GIT_NO_WORKTREE` stage carry a form that writes anyway?
+
+    Git accepts a unique prefix of a long option, so an abbreviation is read as
+    the option it could spell. That over-denies one a subcommand rejects, which
+    is the safe direction. Every word after the subcommand is scanned, `--` and
+    pattern arguments included, because a misread there under-denies.
+    """
+    sub, rest = words[1], words[2:]
+    if any(_long_option(w, GIT_OUTPUT, 3) for w in rest):
+        return True
+    if sub == "grep":
+        for w in rest:
+            if _long_option(w, GIT_GREP_PAGER, 2):
+                return True
+            if w.startswith("-") and not w.startswith("--") and "O" in w:
+                return True
+    return sub == "reflog" and any(w in GIT_REFLOG_WRITES for w in rest)
+
+
 def segment_writes(segment: str, *, restore_ok: bool = True) -> bool:
     """Does this one pipeline stage change anything on disk?"""
     if redirect_writes(segment):
@@ -310,7 +353,7 @@ def segment_writes(segment: str, *, restore_ok: bool = True) -> bool:
     head = os.path.basename(words[0])
     if head == "git":
         if len(words) > 1 and words[1] in GIT_NO_WORKTREE:
-            return False
+            return git_write_form(words)
         return not (restore_ok and is_object_restore(words))
     if head == "sed":
         return any(w == "-i" or w.startswith("-i") for w in words[1:])

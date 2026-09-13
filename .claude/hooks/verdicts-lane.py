@@ -277,6 +277,15 @@ def self_test() -> int:
                 _complaints(ROOT) is not None,
             )
         ),
+        "8 read-only git naming the lane passes, its write forms do not": all(
+            (
+                allowed(bash("git grep -n foo -- docs/gauntlet/verdicts/")),
+                allowed(bash("git grep -n 'docs/gauntlet/verdicts/' -- .claude/hooks")),
+                allowed(bash("git ls-tree HEAD docs/gauntlet/verdicts/")),
+                denied(bash("git grep -Ovim foo -- docs/gauntlet/verdicts/")),
+                denied(bash("git diff --output=docs/gauntlet/verdicts/x.txt")),
+            )
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
