@@ -1,0 +1,4 @@
+RED 1: "AssertionError: assert ('TEST CHECK ...ST CHECK', 19) == ('TEST CHECK ...EST CHECK', 5)" (At index 1 diff: 'test files:' != 'merge output: state/merge/demo.txt')
+RED 2: "AssertionError: assert set() == {'+def test_b_two():'}"
+RED 3: "AssertionError: assert set() == {'tests/test_...ts/test_b.py'}"
+RED 4: "AssertionError: assert ('no heading',) == ('test_alpha_fails',)"
