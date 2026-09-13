@@ -1,0 +1,164 @@
+slug: blind-readonly
+grounding: gauntlet-detective
+
+brief:
+> scripts/blind.sh test <path under tests/> comes back denied by .claude/hooks/tests-lane.py, because shell_shapes.py:360 returns `head not in READ_ONLY` and the blind.sh head is on no list, so a read-only suite run is classified as a lane write; that denial reaches the gauntlet-scrivener too, whose frontmatter wires the same hook. The fix is for the lane hooks to read scripts/blind.sh as read-only, and it takes the full chain — grounding round, plan, gauntlet-prosecutor, owner's word, then a kind: new spec block — because it changes a lane hook and is not tests-only. Landed so far on branch impl/blind-bash at 50ff923: .claude/hooks/blind-bash.py and scripts/blind.sh, self-test green and nine gates green, with the agent frontmatter deliberately not yet wired since wiring it hands the scrivener a shell whose suite run is denied.
+> the project will have a config file soon
+> [on folding the unwired `blind-bash.py --self-test` into this change] Fold into this one
+
+coverage, one line per brief sentence:
+- "scripts/blind.sh test <path under tests/> comes back denied ... whose frontmatter wires the same hook." — delivered: "What is wrong", every paragraph.
+- "The fix is for the lane hooks to read scripts/blind.sh as read-only ... because it changes a lane hook and is not tests-only." — delivered: the declared-entry element under "Which files get touched". The seam is the runner table rather than `READ_ONLY`, and "The seam, and what it widens" says why, what runner status carries, and which of the five lane hooks it reaches.
+- "Landed so far on branch impl/blind-bash at 50ff923 ... with the agent frontmatter deliberately not yet wired since wiring it hands the scrivener a shell whose suite run is denied." — delivered: "Caller-side delta", which lands the held wiring in this change.
+- "the project will have a config file soon" — delivered: the seam is config-driven rather than hard-coded, at "The entry is declared, not compiled in". No project config file exists at 50ff923, so the declaration lands in `hooks/blind-reads.json`, the sibling config `no-impl-reads.py:130-131` already reads, and migrates to the project config when it arrives.
+- "[on folding the unwired `blind-bash.py --self-test` into this change] Fold into this one" — delivered: the `check-gates.sh` element under "Which files get touched", which also takes the gate-count line in this repository rule sheet.
+
+## What is wrong
+
+`scripts/blind.sh test tests/<file>` is denied by `.claude/hooks/tests-lane.py`, and the denial is a misclassification rather than the lane rule working.
+
+The classifier is a closed allowlist of head words. `shell_shapes.py:360` ends `segment_writes` with `return head not in READ_ONLY`, and `READ_ONLY` at `:36-45` holds bare basenames of printing utilities — `"basename", "cat", "cksum", "column", "comm", "cut", "diff",` at `:38` through `"yq",` at `:43`. `os.path.basename("scripts/blind.sh")` is `blind.sh`, which is on no list, so the stage scores as a write.
+
+The one escape above that line is the runner table. `:351` reads `if is_runner(words):` and returns `False` for a suite run, and `is_runner` at `:262` is described at `:265` as `A closed table of whole invocations.` Its members are `pytest`, `python -m`, `node --test`, `npm|pnpm|yarn test`, `npx <runner>`, `cargo test` and `go test` — every one a bare basename, none a repo-local script. `scripts/blind.sh` is not in it, so the escape does not fire.
+
+With the stage scored a write, `lane_write_in` at `:396` matches the lane token in the argument and `tests-lane.py:94` returns its denial: `return _BASH if sh.lane_write_in(command, BASH_TESTS) else None`. The message the agent reads is `_BASH` at `tests-lane.py:67-71`, which begins `A shell write naming a tests/ path is denied: `.
+
+What the denied command runs is a branch of gates over the lane, not one run of a named file. `blind.sh:97` branches on `*.py`. The Python side is `blind.sh:98-100`: `run_gate pytest "$ROOT/.venv/bin/pytest" "$rel" -q -p no:cacheprovider`, `run_gate ruff "$ROOT/.venv/bin/ruff" check tests` and `run_gate black "$ROOT/.venv/bin/black" --check tests`, the last two over the whole lane rather than the named file. The other side is `:101-103`: `run_gate node node --import ./tests/js/support/vendor-resolve.js --test "$rel"` and `run_gate eslint npx eslint "$rel"`.
+
+Each gate runs under the sandbox at `blind.sh:57-67`, which binds `/` read-only — but `cmd_test` invokes it at `:89` as `sandbox --bind "$tree/tests" "$tree/tests"`, and `:56` says `Extra arguments bind a path back writable`, so the lane is the one writable path inside the run. `CHANGELOG.md:13` states the same shape: `with the filesystem read-only apart from the agent's own lane`.
+
+So the sandbox is not what keeps the lane unwritten, and the plan does not claim it is. What keeps it unwritten is the form of the gates: `ruff check` without `--fix`, `black --check` and `eslint` without `--fix` report and do not rewrite, and pytest is invoked with `-q -p no:cacheprovider` and `PYTHONDONTWRITEBYTECODE=1` at `blind.sh:90`, so it leaves neither a cache directory nor a `.pyc` behind. Two residues are real and both are stated rather than closed here: a test already committed in the lane can write inside the lane when it runs, because the lane is bound writable at `blind.sh:89`; and the `npx eslint` at `:103` can fetch a package, because `blind.sh:57-67` unshares pid but not the network. Neither is reachable by typing — the command carries no content of its own and no argument that is not a path — but the second means `test` on a non-`.py` argument is not offline, and the plan says so rather than calling the whole subcommand read-only.
+
+The denial reaches the two agents the script was written for. `.claude/agents/gauntlet-scrivener.md:15` wires `tests-lane.py` over a matcher that carries `Bash`, so the blind writer's only way to run the tests it just wrote comes back denied. That is why `blind-bash.py` is not yet wired into the frontmatter: `blind-bash.py:52` sets `ENTRY = "scripts/blind.sh"` and `:71` anchors the whole command text to it, so wiring it today would leave the scrivener holding one permitted command and a lane hook that denies it.
+
+## What the owner sees change
+
+`scripts/blind.sh test <path under the test directory>` runs. The lane hooks let it through, and the gates' output comes back instead of a denial.
+
+The tests lane's shell rule is redefined, and the plan states it outright: where `tests-lane.py:67-71` tells an agent `Restoring a test from a git object is the one shell shape that passes`, a second shape passes afterwards, and that message is not rewritten. The reason it is not rewritten is that the message speaks of shell *writes*, and a suite run has never been one: `pytest tests/<file>` passes `tests-lane.py` from every caller today, through the same `is_runner` escape at `shell_shapes.py:351`. This change adds a declared spelling to that escape; it does not open a new class.
+
+Nothing guards the second shape from the main agent's hand. `.claude/settings.json:3-21` wires `tests-lane.py` session-wide and `blind-bash.py` is wired from no frontmatter today, so after this change the main agent may run it too. What bounds that is the key rather than the caller: the admitted shape is exactly `scripts/blind.sh test <test path>`, so the main agent gains a sandboxed spelling of the `pytest tests/<file>` it may already run, and gains nothing outside the test directory.
+
+A hand-written shell write naming the lane — `rm`, `sed -i`, a redirect, a `cd` into it — is denied exactly as it is today, from every agent and from the main agent.
+
+The nine gates become ten. `scripts/gates/check-gates.sh:30-40` lists nine and `blind-bash.py:114` has a `--self-test` that none of them runs, so the hook that holds the blind agents' one command is the one hook this repo's own bar does not check. The owner's word on this was `Fold into this one`.
+
+## The entry is declared, not compiled in
+
+`docs/approved-specs.md:82` states a standing rule for the kit: `Nothing in hooks/ depends on anything outside hooks/. There is no allowlist to import, no budget to configure, no repo layout assumed.` `shell_shapes.py:9-10` gives the reason: `It is deliberately standalone. These hooks travel as a unit into other repos,`. A table entry naming `scripts/blind.sh`, with a path shape anchored at `tests/`, compiled into `shell_shapes.py`, breaks both — the module would carry one repository's layout into every repository it is copied to.
+
+So the entry is not compiled in. `shell_shapes.py` gains a loader for a sibling config and a table of *declared* runner invocations read from it, each declaration being an entry path, its fixed argument words, and the path prefix its one remaining argument must sit under. This repository declares `scripts/blind.sh`, `test`, and the test directory; a repository that copies `.claude/` and declares nothing gets the table it has today.
+
+The loader is not new. `no-impl-reads.py:130-131` already reads `blind-reads.json` beside it — `path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blind-reads.json")` — for exactly this kind of per-repo widening, and that file does not exist in this checkout today. The loader moves into `shell_shapes.py` and `no-impl-reads.py` calls it there, so one module reads the config and two use it.
+
+The project config the owner names — `the project will have a config file soon` — does not exist at 50ff923: the repository root carries `CHANGELOG.md`, `CLAUDE.md`, `LICENSE`, `README.md` and the `.claude/`, `docs/`, `scripts/`, `state/` and `tests/` directories, and no configuration file of any name. So the declaration lands in `hooks/blind-reads.json` and migrates when that file arrives. If it is added before implementation starts, the declaration goes there instead and this plan takes an amendment rather than a redraft.
+
+`docs/approved-specs.md:82` is overturned in one clause and is rewritten with this change: `There is no allowlist to import` stops being true of `shell_shapes.py` once it reads a sibling config, and it was already inexact for `no-impl-reads.py:130-131`. The other two clauses survive, and survive better than under a compiled-in entry: there is still no budget to configure, and with the layout declared rather than assumed, `no repo layout assumed` becomes true of `shell_shapes.py` in a way a hard-coded `tests/` would have made false.
+
+## The seam, and what it widens
+
+The change goes in the runner table at `shell_shapes.py:262`, not in `READ_ONLY` at `:36-45`. `READ_ONLY` is the wrong seam twice over: its members are bare basenames, so a `blind.sh` entry would admit any file of that name on any host, and its question is whether a head only ever prints, which is not what this script is — it runs gates. The runner table asks the question that fits: is this whole invocation a run of the project's suite.
+
+The key is the whole invocation, arity included: `words[0]` normalized and ending in the declared entry path, the declared argument words after it, exactly one argument after those, and that argument matching the declared path shape — `TESTPATH` at `blind-bash.py:64`, which moves into `shell_shapes.py` as the shape a declaration's prefix is expanded into. `blind-bash.py` imports it from there, so the one regular expression has one definition.
+
+The regular expression is not the whole key, and the plan says so rather than claiming the two sites cannot differ. `TESTPATH` at `blind-bash.py:64` ends `[A-Za-z0-9._/-]*`, which admits `.` and `/` and therefore admits `..`: `tests/a/../../docs/gauntlet/plans/y.txt` matches it. What refuses that today is not the shape but `blind-bash.py:90`, `if ".." in command:` inside `_allowed_command` at `:88-92`, and that check does not move with the constant. So the classifier takes its own traversal refusal: the declared entry's one argument is normalized with `os.path.normpath` and must still sit under the declared prefix after normalization, or the invocation is not a run. The two sites then refuse the same set for a different reason — `blind-bash.py:90` on the raw command text, the classifier on the normalized path — and that is the reading, rather than one shared definition.
+
+The loader constrains a declaration for the same reason. A prefix is normalized when it is read, and a declaration whose prefix resolves to or under any lane directory — `docs/gauntlet/plans`, `docs/gauntlet/specs`, `docs/gauntlet/verdicts`, `docs/gauntlet/reviews` — is dropped. Without that, a declaration alone would turn off the lane hook that guards it, and the rules below would rest on the content of a file rather than on the classifier.
+
+One standing rule covers this surface directly and is not overturned. `CLAUDE.md:31` reads `**The lane hooks stay on and unweakened.** They are the product, so disabling one to land a change ships the defect rather than hiding it. No matcher narrowed, no entry commented out, no `--self-test` left failing.` Every hook stays wired at the matcher it has today, no entry is removed, and the change adds four `--self-test` cases and a tenth gate rather than leaving one failing. What moves is what the classifier calls a write, for one declared invocation, under the two constraints above; a hook that denies a run of the suite is the bug in the hook that line's last sentence describes, fixed in the hook.
+
+Six files read the classification this change touches, five of them lane hooks, and each is named here with the rule it holds.
+
+`tests-lane.py:94` is the denial this change exists to lift, and the rule at `tests-lane.py:67-71` is the one discussed above. Overturned, deliberately, for the one declared shape.
+
+`plans-lane.py:73`, `specs-lane.py:69` and `verdicts-lane.py:95` each read `sh.lane_write_in(...)` and reach `is_runner` through `segment_writes` at `shell_shapes.py:351`. Their rules — one writer per lane, the plan gate's stated at `docs/plans.md:13` as `hooks/plans-lane.py denies every other hand at the tool call, so the presence of docs/gauntlet/plans/<slug>.txt is the evidence that those words passed the plan gate` — are **not** overturned, and the declared path prefix is what holds them. `scripts/blind.sh test docs/gauntlet/plans/x.txt` fails that prefix, so it is not a runner, so it stays a write, so each of those three denies it exactly as today. Without that constraint all three would stop denying it, which is why the declaration carries a prefix rather than an entry alone.
+
+The prefix holds those rules only with the normalization above, and the reach if it did not is total rather than partial. `segment_writes` at `shell_shapes.py:351` returns `False` for a runner and `lane_write_in` at `:396` skips a stage that does not write before it ever tests the lane pattern, so anything the declared shape admits is invisible to all five lane hooks at once. `scripts/blind.sh test tests/a/../../docs/gauntlet/plans/y.txt` matches the raw shape, so without the classifier's own `os.path.normpath` check `plans-lane.py:73` would return `None` and the one-writer rule at `docs/plans.md:13` would be overturned in silence. With it the argument normalizes outside the declared prefix, the invocation is not a run, and the denial stands.
+
+Who may write the declaration is the second half of that answer, and it is not guarded. No lane hook pattern covers `.claude/hooks/`, so the main agent may write `.claude/hooks/blind-reads.json` at any time; `plans-lane.py`, `specs-lane.py`, `tests-lane.py` and `verdicts-lane.py` each guard their own `docs/` lane and nothing else. This is why the two constraints above sit in the loader and the classifier rather than in the file: a declaration is data that widens, and every bound on what it can widen is code a declaration cannot edit. A declaration naming a lane directory is dropped, and one naming `tests/` widens exactly the lane `tests-lane.py` already lets a runner through.
+
+`no-impl-reads.py:351` reads `if sh.is_runner(words) or (head in runners and not inline): continue`, so a run's arguments are not walked for implementation paths. After this change a blind agent's `scripts/blind.sh test <path>` skips that walk where today it is walked. The skip is bounded by the same declaration: an argument outside the declared prefix is not a runner and is walked as before. `blind-bash.py:71` bounds it a second time for those two agents, admitting only `test <TESTPATH>`. This is why the frontmatter wiring lands in the same change: the skip and the anchored grammar are one rule.
+
+`reviews-lane.py:142` reads `if sh.command_writes(command, restore_ok=False)`, so a reviewer may run `scripts/blind.sh test <test path>` afterwards. A reviewer may already run `pytest`, so this adds a spelling and no capability.
+
+The runner enumeration is prose in three places, and all three move: `reviews-lane.py:44-52`, which enumerates the read-only runner forms as `pytest`, `python -m pytest`, `node --test`, `npm test`, `npx vitest`; `reviews-lane.py:104-105`, the same list inside `_REVIEWER_BASH`, which is the text a denied reviewer actually reads; and `shell_shapes.py:23`, the module docstring's account of the table. Each gains the declared form. None of the three may stay stale: a reviewer reads the second one at the moment it is denied, and the third is where the table's rule is stated.
+
+`no-impl-reads.py:44-51` says the common runners need no `runners` entry because `shell_shapes.is_runner` recognizes them by whole invocation. Its text changes only where it describes where the config is read, since the loader moves; the rule it states is not overturned.
+
+The edges of the key read as follows.
+
+- An absolute path ending `scripts/blind.sh`, a copy at `.claude/worktrees/<slug>-spec/scripts/blind.sh`, or `../scripts/blind.sh`: each a run. `blind-bash.py:71` matches from the start of the command text, so the blind agents are denied these spellings and keep the repo-relative one.
+- `bash scripts/blind.sh test <path>`: not a run. `words[0]` is the interpreter at `shell_shapes.py:273`, the suffix does not match, and the lane denial stands — which is also `blind-bash.py:71`'s reading, since a command word in front of the entry is not admitted.
+- `scripts/blind.sh test` with no path, or with two: not a run, by arity. The script itself refuses both at `blind.sh:70`.
+- A second argument outside the declared prefix — `docs/gauntlet/plans/x.txt`, `.claude/hooks/shell_shapes.py`, `/etc/passwd`: not a run. Each stays a write and each lane hook rules on it as it does today.
+- A second argument under the prefix that is not a `.py` file — `tests/js/x.test.js`: a run, and it takes the `blind.sh:101-103` branch, so the gates are `node --test` and `npx eslint` and the run is not offline. The classification is the same; what runs is not.
+- A second argument naming the test directory itself, or a directory under it: a run where the declared shape admits it, which it does for a name with no extension. The script then fails it at `blind.sh:79`, whose `[ -f "$tree/$rel" ]` test refuses anything that is not a regular file. The classifier is permissive here and the script is not.
+- A second argument under the prefix naming a file that does not exist: a run, refused the same way at `blind.sh:79`.
+- A second argument that starts under the prefix and walks out of it — `tests/a/../../docs/gauntlet/plans/y.txt`, `tests/../.claude/hooks/shell_shapes.py`: not a run. The raw shape admits both, since `TESTPATH` at `blind-bash.py:64` ends `[A-Za-z0-9._/-]*`; the classifier's own normalization refuses them, and for the two blind agents `blind-bash.py:90` refuses them a second time on the raw command text. Each stays a write and each lane hook rules on it as it does today.
+- `scripts/blind.sh status <slug>` and `show <commit> <slug>`: not runs, and not unreached either. They fall to `READ_ONLY`, score as writes, and name no lane — so `tests-lane.py`, `plans-lane.py`, `specs-lane.py` and `verdicts-lane.py` let them pass both today and after, while `reviews-lane.py:142` judges a reviewer's command with no lane path in it at all and denies both today and after. That denial is unchanged by this plan: a reviewer is not a blind agent and has no use for either subcommand.
+
+## Which files get touched, and roughly how
+
+`.claude/hooks/shell_shapes.py` takes the whole behavior change: the config loader moved in from `no-impl-reads.py:130-131`, the declared-runner table read from it, `TESTPATH` moved in from `blind-bash.py:64` as the shape a declared prefix expands into, the entry in `is_runner` at `shell_shapes.py:262` keyed as above, the normalization of a declared prefix and of the one argument, and the docstring's account of the table at `:20-24`. The inline-script disqualifier at `:271` still applies, and no argument words but the declared ones are admitted.
+
+`.claude/hooks/blind-reads.json` is added, declaring this repository's one entry. It does not exist today.
+
+`.claude/hooks/blind-bash.py` drops its local `TESTPATH` at `blind-bash.py:64` and imports it from `shell_shapes`, which it already imports at `blind-bash.py:49`. No change to what it admits.
+
+`.claude/hooks/no-impl-reads.py` calls the moved loader instead of its own, and its prose at `no-impl-reads.py:44-51` says where the config now lives.
+
+`.claude/hooks/tests-lane.py`, `plans-lane.py`, `specs-lane.py`, `verdicts-lane.py` take no code change. They call `lane_write_in` and inherit the new verdict through `segment_writes`.
+
+`.claude/hooks/reviews-lane.py` takes two prose changes, `reviews-lane.py:44-52` and `:104-105`.
+
+`scripts/gates/check-gates.sh` gains a tenth gate, the `--self-test` at `blind-bash.py:114`, in the array at `check-gates.sh:30-40`. `CLAUDE.md:17` — `Green means all nine gates pass, not just the first. One command runs them:` — takes the new count, and so does the line at `CHANGELOG.md:16`, which ends `which are now eight.`
+
+The test directory takes the pin, joining `tests/test_hook_wire.py`, which already holds this classification's pins: `tests/test_hook_wire.py:184` is `def test_runner_invocations_pass_the_lane_but_inline_scripts_do_not`, whose table at `:191-193` pins `python -m pytest tests/ -q`, `.venv/bin/pytest tests/t.py -q` and `node --test tests/t.test.js` as passing `tests-lane.py`, with the write side at `:132` and the inline-script side at `:275`. Those are the `existing:` evidence the spec block carries, under the approved block at `docs/gauntlet/specs/shell-shape-classification.txt`. The new pin is written by the `gauntlet-scrivener` from the new approved block.
+
+`.claude/hooks/tests-lane.py`, `plans-lane.py`, `specs-lane.py` and `verdicts-lane.py` each take one `--self-test` case: the declared shape passes in the tests lane, and the same command carrying a path under the hook's own lane is still denied in the other three.
+
+`docs/approved-specs.md` takes the rewritten clause at `docs/approved-specs.md:82`.
+
+`CHANGELOG.md` takes one entry under `[Unreleased]` at `CHANGELOG.md:5`, beside the entry at `CHANGELOG.md:13` that shipped `blind-bash.py` and `scripts/blind.sh`. A lane hook and a config file a consumer copies are both the product, so the change is a consumer-visible one.
+
+## Caller-side delta
+
+`.claude/agents/gauntlet-scrivener.md` and `.claude/agents/gauntlet-bailiff.md` gain the `blind-bash.py` hook entry in their frontmatter, over a `Bash` matcher, in this change. This is the wiring the brief says was held, and it lands here rather than afterwards because the `no-impl-reads.py:351` skip is only safe beside the anchored grammar at `blind-bash.py:71`.
+
+`docs/agents.md:11` and `:12` take the hook column for those two rows, since that table records what each agent is hooked with.
+
+A consumer copying `.claude/` gets one new file to fill in. An empty or absent `blind-reads.json` is the behavior they have today, so the delta is opt-in.
+
+## What it costs
+
+One spec block and one blind test-writing round, for a change that is a moved loader, a moved constant, a declared-entry table, one new config file, four self-test cases, three prose sites, one gate, two frontmatter entries and two roster cells. Larger than the hard-coded seam it replaces, and the standing rule at `docs/approved-specs.md:82` is what it buys.
+
+The config is read at hook time, once per tool call, by every lane hook rather than by `no-impl-reads.py` alone. A malformed `blind-reads.json` currently costs one agent its widening; afterwards it costs every lane its declared runners. The loader's existing failure mode — `except (OSError, ValueError):` at `no-impl-reads.py:135-136`, returning an empty config — is the safe direction for a lane, since an empty config denies rather than admits, and it stays as it is.
+
+The classifier now encodes which argument shapes a declared entry accepts, which is knowledge the script itself already holds at `blind.sh:79`. Two sites judge the same argument and they can disagree: the classifier admits a directory or a missing file that the script refuses. The disagreement is safe in this direction — the script is the stricter of the two — and it is stated rather than fixed, because making the classifier resolve paths on disk would put filesystem access in a pure shape-reading module.
+
+Left out deliberately: the two residues named under "What is wrong" — a committed test writing inside the writable lane bind, and `npx eslint` reaching the network on the non-`.py` branch — are stated and not closed. Closing either changes `scripts/blind.sh`, which is a different surface from the classifier this block is about.
+
+## Open questions
+
+None.
+
+--- reviewer ---
+READY
+
+a  PASS  carried: redefinition stated outright, not as a side effect: "The tests lane's shell rule is redefined, and the plan states it outright". Resolved against `tests-lane.py:67-71`, whose `_BASH` text the plan keeps and gives its reason for keeping; the fold of the unwired `--self-test` carries the owner's quoted word `Fold into this one`.
+b  PASS  all three repairs land and resolve. `CHANGELOG.md:16` ends `which are now eight.`; `no-impl-reads.py:135` is `except (OSError, ValueError):` and `:136` is `return {}`; the `ASSUMED` is gone and the sentence that replaces it matches my own `ls` of the repository root at 50ff923. One clause in it overstates without bearing weight: the root also carries `.gitignore`, so "no configuration file of any name" is exact only for a project config of the kind the owner names, which is the claim the declaration's placement rests on.
+c  PASS  carried: two moves, and my count matches the plan's file list: `config()` is defined at `no-impl-reads.py:129` and called once, at `:395`; `TESTPATH` is defined at `blind-bash.py:64` and used once, at `:67`. No other file under `.claude/`, `scripts/` or `tests/` names either symbol.
+d  PASS  carried: cause named upstream of the message: the runner escape at `shell_shapes.py:351` has no repo-local entry in the table at `:262`, so the stage falls to `return head not in READ_ONLY` at `:360` with `blind.sh` on no list; the `_BASH` denial at `tests-lane.py:67-71` is the appearance that follows.
+e  PASS  the new paragraph before "Six files read the classification this change touches" quotes `CLAUDE.md:31` word for word against the file and states plainly that it is not overturned, with the three things it forbids answered one by one — no matcher narrowed, no entry removed, four `--self-test` cases and a tenth gate added rather than one left failing. With `docs/approved-specs.md:82` overturned and rewritten, `docs/plans.md:13` argued unoverturned, and `docs/testing.md` carrying no rule over this surface, the rule list is now complete as far as I can read it.
+f  PASS  the traversal boundary is read at all three places it had to be: the claim that the two sites "cannot drift apart" is withdrawn to "the one regular expression has one definition"; the new paragraph names `blind-bash.py:90`, `if ".." in command:` inside `_allowed_command` at `:88-92`, confirms it does not move with the constant, and gives the classifier its own `os.path.normpath` refusal; and the new edges bullet reads `tests/a/../../docs/gauntlet/plans/y.txt` and `tests/../.claude/hooks/shell_shapes.py` as not runs. `os.path.normpath` is pure string work, so it does not contradict the cost paragraph's refusal to put filesystem access in the module.
+g  PASS  "Open questions" reads `None.` The question is dropped rather than passed along, and the residue it asked about is still stated under "Left out deliberately" with the surface a fix would touch.
+h  PASS  the counterexample is answered by mechanism, not by assertion. The new paragraph states the total reach — `segment_writes` at `shell_shapes.py:351` returns `False` for a runner and `lane_write_in` at `:396` skips a non-writing stage before testing the lane pattern — names the path I found, and holds `docs/plans.md:13` with the classifier's own normalization rather than with the prefix alone. The second paragraph answers who may write the declaration: I confirm no lane covers `.claude/hooks/`, the five `LANE` constants being `docs/gauntlet/plans` (`plans-lane.py:49`), `docs/gauntlet/specs` (`specs-lane.py:45`), `docs/gauntlet/verdicts` (`verdicts-lane.py:68`), `docs/gauntlet/reviews` (`reviews-lane.py:78`) and `tests` (`tests-lane.py:54`), and the loader's drop rule names the four that must never be declarable while `tests` is the lane a runner already passes.
+i  PASS  block present and quoted, five sentences and five coverage lines; the config line dropped its `ASSUMED:` tag with the body sentence and still names "The entry is declared, not compiled in". Every `delivered:` resolves to a named element; no `dropped:` line.
+j  N/A   carried: no architecture doc in this repo names a composition-root file; `docs/agents.md` is a roster of agents and `docs/approved-specs.md:82` states `hooks/`'s dependency rule without naming one file as the root.
+k  PASS  re-read against the two elements the repairs touched: the config sentence still lands as a declared seam, now with the loader's bound stated, and the fold sentence is untouched at `check-gates.sh:30-40` and `CLAUDE.md:17`. No element carries a condition its brief sentence does not state, and none of the repairs above narrowed one.
+
+notes
+1. `docs/gauntlet/reviews/blind-readonly.plan.1.txt` and `.2.txt` exist (filenames only; the lane denies me their contents). I ran from scratch as briefed and hold no findings from them, so anything they raised is in this plan only if I found it independently.
+2. Whether `npx eslint` at `blind.sh:103` actually reaches the network on a given run is live behavior and is not settled by reading.
+3. `python3 scripts/cite.py --check` is a write to this lane's reader and I did not run it; every citation in this round was resolved by opening the cited line.
