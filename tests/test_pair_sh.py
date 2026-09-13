@@ -194,3 +194,70 @@ def test_merge_routes_to_the_mechanical_check_only_for_a_tests_only_kind(
     _git(worktree, "add", "-A")
     _git(worktree, "commit", "-m", "excise test_x")
     assert _pair(repo, "merge", SLUG)[:1] == [expected]
+
+
+ALPHA_SUITE = (
+    "def test_alpha_passes():\n"
+    "    assert 2 + 2 == 4\n"
+    "\n"
+    "\n"
+    "def test_alpha_fails():\n"
+    "    assert 2 + 2 == 5\n"
+)
+BRAVO_SUITE = (
+    "def test_bravo_passes():\n"
+    "    assert 5 + 5 == 10\n"
+    "\n"
+    "\n"
+    "def test_bravo_fails():\n"
+    "    assert 5 + 5 == 11\n"
+)
+
+RED_TOKENS = (
+    "test_alpha_passes",
+    "test_alpha_fails",
+    "test_bravo_passes",
+    "test_bravo_fails",
+    "assert 2 + 2 == 5",
+    "assert 5 + 5 == 11",
+)
+
+
+def _red_text(tmp_path, suite):
+    """Drive open then red over a repo carrying `suite` as its only test file.
+
+    Returns the text of the repository's state/red/<slug>.txt, or the empty
+    string where no such file was written.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    (repo / "tests" / "test_a.py").unlink()
+    (repo / "tests" / "test_b.py").unlink()
+    (repo / "tests" / "test_suite.py").write_text(suite)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "single suite")
+    _pair(repo, "open", SLUG)
+    _venv_shim(_worktree(repo))
+    _pair(repo, "red", SLUG)
+    saved = repo / "state" / "red" / (SLUG + ".txt")
+    return saved.read_text() if saved.is_file() else ""
+
+
+@pytest.mark.parametrize(
+    "suite,expected",
+    [
+        (
+            ALPHA_SUITE,
+            {"test_alpha_passes", "test_alpha_fails", "assert 2 + 2 == 5"},
+        ),
+        (
+            BRAVO_SUITE,
+            {"test_bravo_passes", "test_bravo_fails", "assert 5 + 5 == 11"},
+        ),
+    ],
+    ids=["alpha-suite", "bravo-suite"],
+)
+def test_red_saves_output_naming_passing_and_failing_tests_of_the_suite_it_ran(
+    tmp_path, suite, expected
+):
+    red_text = _red_text(tmp_path, suite)
+    assert {token for token in RED_TOKENS if token in red_text} == expected
