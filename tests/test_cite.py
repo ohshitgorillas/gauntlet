@@ -1,8 +1,10 @@
 """Behavior tests for the citation resolver CLI."""
 
 import re
+import shutil
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -13,8 +15,7 @@ FIXTURES = "tests/support/fixtures/cite"
 ALPHA = FIXTURES + "/alpha.txt"
 BETA = FIXTURES + "/beta.txt"
 ABSENT = FIXTURES + "/nowhere.txt"
-SOLO_BASENAME = "cite_solo_fixture.txt"
-DUP_BASENAME = "cite_dup_fixture.txt"
+WORKTREE_NAME = "w1"
 
 STATUSES = ("MISSING", "RANGE", "AMBIGUOUS", "ORPHAN", "QUOTE", "CROSS-REPO")
 
@@ -112,17 +113,74 @@ def test_a_range_running_off_the_end_of_the_file_is_reported(
 
 
 # 3
+def _build_root(root, solo, dup):
+    """A root carrying the script, one `solo` file and two copies of `dup`."""
+    (root / "scripts").mkdir(parents=True)
+    shutil.copy(SCRIPT, root / "scripts" / "cite.py")
+    (root / "data" / "x").mkdir(parents=True)
+    (root / "data" / "y").mkdir(parents=True)
+    (root / "data" / solo).write_text("the only copy of this line\n")
+    (root / "data" / "x" / dup).write_text("the first copy of this line\n")
+    (root / "data" / "y" / dup).write_text("the second copy of this line\n")
+
+
+def _check_from(root, body):
+    """Run the copy of the script at `root` over a document written at `root`."""
+    (root / "plan.md").write_text(body)
+    done = subprocess.run(
+        [sys.executable, str(root / "scripts" / "cite.py"), "--check", "plan.md"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    sys.stderr.write(done.stderr)
+    return done
+
+
+def _paths_named(row, basename, root):
+    """Paths naming `basename` in `row`, each relative to `root` where beneath it."""
+    prefix = str(root) + "/"
+    named = []
+    for token in re.split(r"[\s,]+", row.strip()):
+        token = token.strip("`")
+        if "/" in token and token.endswith(basename):
+            named.append(token[len(prefix) :] if token.startswith(prefix) else token)
+    return sorted(named)
+
+
+def _rows_for(done, basename, root):
+    """Per row citing `basename`, its status tokens and the paths it names."""
+    return [
+        (_statuses_in(row), _paths_named(row, basename, root))
+        for row in done.stdout.splitlines()
+        if basename + ":1" in row
+    ]
+
+
 @pytest.mark.parametrize(
-    "citation,expected",
-    [
-        (SOLO_BASENAME + ":1", (0, [])),
-        (DUP_BASENAME + ":1", (1, ["AMBIGUOUS"])),
-    ],
-    ids=["basename-one-path-carries", "basename-two-paths-carry"],
+    "nested",
+    [False, True],
+    ids=["ordinary-root", "root-under-claude-worktrees"],
 )
-def test_a_basename_two_paths_carry_is_reported_ambiguous(tmp_path, citation, expected):
-    done = _check(tmp_path, "The helper lives at `" + citation + "` now.\n")
-    assert _outcome(done) == expected
+def test_a_root_under_claude_worktrees_resolves_the_same_rows_as_an_ordinary_one(
+    tmp_path, nested
+):
+    tag = uuid.uuid4().hex[:8]
+    solo, dup = "zq" + tag + "solo.txt", "zq" + tag + "dup.txt"
+    outer = tmp_path / "checkout"
+    inner = outer / ".claude" / "worktrees" / WORKTREE_NAME
+    _build_root(outer, solo, dup)
+    _build_root(inner, solo, dup)
+    root = inner if nested else outer
+
+    done = _check_from(
+        root, "Solo at `" + solo + ":1` and dup at `" + dup + ":1`.\n"
+    )
+
+    assert (_rows_for(done, solo, root), _rows_for(done, dup, root)) == (
+        [],
+        [(["AMBIGUOUS"], ["data/x/" + dup, "data/y/" + dup])],
+    )
 
 
 # 4
