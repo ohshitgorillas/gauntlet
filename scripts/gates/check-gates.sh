@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the eleven gates of this repository, one after another, at idle priority.
+# Run the thirteen gates of this repository, one after another, at idle priority.
 #
 # Each gate runs once. Its output is saved to state/gates/<gate>.txt and never
 # printed; what prints is one PASS or FAIL line per gate with its wall time.
@@ -42,6 +42,8 @@ gates=(
     "no-impl-reads|python3 .claude/hooks/no-impl-reads.py --self-test"
     "blind-bash|python3 .claude/hooks/blind-bash.py --self-test"
     "gauntlet-off|python3 .claude/hooks/gauntlet-off.py --self-test"
+    "bwrap-wrap|python3 .claude/hooks/bwrap-wrap.py --self-test"
+    "pair-passthrough|python3 .claude/hooks/pair-passthrough.py"
     "excision-diff|python3 scripts/excision-diff.py --self-test"
     "cite|python3 scripts/cite.py --self-test"
 )

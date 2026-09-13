@@ -1,0 +1,4 @@
+RED 1: "AssertionError: assert (None, False) == ('echo hi; cat /etc/hostname', False)" (and identically for the heredoc case: "assert (None, False) == (\"echo $(cat /etc/hostname) <<'X'\", False)")
+RED 2: "AssertionError: assert ((set(), False), (set(), False), (set(), False)) == ...\nE         At index 0 diff: (set(), False) != ({'bravo-spec', 'alpha-spec'}, True)"
+RED 3: "AssertionError: assert 'unwrapped' == 'written'" (author-at-the-root); "AssertionError: assert 'unwrapped' == 'refused'" (author-into-the-spec-lane, reviewer-at-the-root)
+RED 4: "AssertionError: assert 'passthrough' == 'wrapped'" (a-second-command-appended, a-directory-change-in-front, an-argument-of-the-wrong-shape)
