@@ -1,0 +1,52 @@
+slug: git-read-subcommands
+kind: new
+brief:
+> Below is a report from an investigative agent.
+> Develop and take a plan through phase 1.
+> The same bug hits more than git grep.
+> Each of these read-only git commands is also denied when it names tests/:
+> - ls-tree, cat-file, rev-list, shortlog, reflog, merge-base, describe
+> Suggested fix (not applied).
+> Add grep and the other read-only subcommands above to GIT_NO_WORKTREE, and add git grep cases to the check lists in each lane hook's --self-test.
+> Test changes go through a spec block and the scrivener.
+> It needs a CHANGELOG.md entry, because shell_shapes.py ships to consumers.
+> The plan: the configurable tests directory only affects which directory name gets matched (tests-lane.py:54-55, lane_pattern).
+> This bug is in whether a command counts as a write, which is separate.
+> It shouldn't be folded into that plan.
+> yes, expand the spec as suggested
+
+Surface under test: the wire surface of the PreToolUse lane hooks in .claude/hooks/. One JSON object on stdin carrying `tool_name`, `tool_input` and `cwd`, and, where a line says so, `agent_type`. The hook answers on stdout with either nothing at all, written SILENT below, which is the call being allowed, or a JSON object whose `hookSpecificOutput.permissionDecision` is `deny`, written DENY below. The hooks are invoked as `python3 .claude/hooks/<hook>.py` with the payload on stdin. Every payload carries `tool_name` `Bash`, `tool_input` `{"command": <the command>}` and cwd /home/atom/dev/gauntlet, and no `agent_type` key unless the line names one. Every `bite:` value below was measured at HEAD 4d28bda by a gauntlet-examiner, with a throwaway script that piped each payload into `python3 .claude/hooks/<hook>.py` from the checkout root and read stdout; all 41 invocations exited rc=0 with empty stderr.
+
+1. tests-lane.py answers SILENT for `git grep -n foo -- tests/`, for `git grep -n 'tests/' -- .claude/hooks`, for `git ls-tree HEAD tests/`, for `git cat-file -p HEAD:tests/test_hook_wire.py`, for `git rev-list HEAD -- tests/`, for `git shortlog -sn HEAD -- tests/`, for `git reflog show HEAD -- tests/`, for `git merge-base HEAD impl/tests/x` and for `git describe --match 'tests/*'`, and DENY for `git frobnicate -- tests/` and for `git grep foo -- tests/ > tests/x`.
+   kills: lets `git grep` through and no other read-only git subcommand, so the detective's `git ls-tree HEAD tests/` and `git cat-file -p HEAD:tests/test_hook_wire.py` are still refused by the lane that promises every read-only command naming `tests/` is allowed.
+   bite: DENY at each of the nine SILENT-side commands; DENY at `git frobnicate -- tests/`; DENY at `git grep foo -- tests/ > tests/x`.
+   existing: none. `grep -rn '"git \|(.git \|-- tests/\|--output\|agent_type=' tests/`, excluding the no-impl-reads git cases at `tests/test_hook_wire.py:24x-25x`, returns only two `RuntimeError("git " ...)` helper lines and the `write_payload` signature: no test sends a git command to any lane hook. The nearest test on this hook is `tests/test_hook_wire.py::TestsLaneShellShapes::test_writes_under_tests_are_denied_in_every_shell_shape`, a tests-lane.py Bash sweep carrying no git command.
+
+2. tests-lane.py answers DENY for `git diff --output=tests/x`, for `git log --output tests/x`, for `git diff --outp=tests/x`, for `git rev-list --output=tests/x HEAD`, for `git shortlog --output=tests/x HEAD`, for `git grep -Ovim foo -- tests/`, for `git grep -nO foo -- tests/`, for `git grep --open foo -- tests/` and for `git reflog delete refs/tests/x@{0}`, and SILENT for `git grep -o foo -- tests/`, for `git log --grep=expire -- tests/` and for `git diff --stat -- tests/`.
+   kills: counts a read-only git subcommand as a read in every form, so `git diff --output=tests/x` writes a file into the lane and is allowed, and once `grep` is admitted `git grep -Ovim foo -- tests/` runs a command against the lane and is allowed too.
+   bite: SILENT at `git diff --output=tests/x`; SILENT at `git log --output tests/x`; SILENT at `git diff --outp=tests/x`; DENY at `git rev-list --output=tests/x HEAD`, `git shortlog --output=tests/x HEAD`, `git grep -Ovim foo -- tests/`, `git grep -nO foo -- tests/`, `git grep --open foo -- tests/` and `git reflog delete refs/tests/x@{0}`; DENY at `git grep -o foo -- tests/`; SILENT at `git log --grep=expire -- tests/`; SILENT at `git diff --stat -- tests/`.
+   existing: none, same grep as line 1. No test sends `--output`, `-O` or a `reflog` subcommand to any hook.
+
+3. On payloads carrying no `agent_type` key, specs-lane.py, plans-lane.py, verdicts-lane.py and reviews-lane.py each answer SILENT for `git grep -n foo -- <lane>/` and for `git ls-tree HEAD <lane>/`, and DENY for `git diff --output=<lane>/x.txt`, where `<lane>` is `docs/gauntlet/specs` on specs-lane.py, `docs/gauntlet/plans` on plans-lane.py, `docs/gauntlet/verdicts` on verdicts-lane.py and `docs/gauntlet/reviews` on reviews-lane.py.
+   kills: fixes the read and write-form reading for the tests lane alone, so `git grep -n foo -- docs/gauntlet/specs/` is still refused and `git diff --output=docs/gauntlet/specs/x.txt` still types an approved spec file that no arbiter passed.
+   bite: on each of the four hooks, DENY at `git grep -n foo -- <lane>/`, DENY at `git ls-tree HEAD <lane>/`, SILENT at `git diff --output=<lane>/x.txt`.
+   existing: none, same grep as line 1. `tests/test_hook_wire.py::RedirectionsIntoTheOtherLanes::test_file_descriptor_redirection_into_a_lane_is_a_write` sends Bash payloads to specs-lane.py and reviews-lane.py, carrying a redirection and no git command.
+
+4. reviews-lane.py, on payloads carrying `agent_type` `gauntlet-arbiter`, answers SILENT for `git grep foo`, for `git ls-tree HEAD` and for `git log --oneline`, and DENY for `git grep foo -- docs/gauntlet/reviews/`, for `git reflog expire --all` and for `git diff --output=out.txt`.
+   kills: judges a reviewer's git command by subcommand name alone, so the arbiter's `git grep foo` is refused with no lane named while `git diff --output=out.txt` writes a file outside the reviewer's lane and is allowed.
+   bite: DENY at `git grep foo`; DENY at `git ls-tree HEAD`; SILENT at `git log --oneline`; DENY at `git grep foo -- docs/gauntlet/reviews/`; DENY at `git reflog expire --all`; SILENT at `git diff --output=out.txt`.
+   existing: none, same grep as line 1. No test sends a Bash payload carrying an `agent_type` key to reviews-lane.py; `tests/test_hook_wire.py::ReviewsLaneOnAnApprovedPlan::test_the_plan_reviewer_is_carved_out_where_the_spec_one_is_not` drives it with `Write` payloads only.
+--- reviewer ---
+READY
+discriminates: differential on tests-lane.py Bash sweep (`git grep -o foo -- tests/` SILENT beside `git grep -nO foo -- tests/` DENY; `git grep -n foo -- tests/` SILENT beside `git grep foo -- tests/ > tests/x` DENY), sweep with two distinct values carried to four other lanes and the arbiter caller
+note (m): brief sentence "add git grep cases to the check lists in each lane hook's --self-test" names a --self-test deliverable, not a tests/ behavior; no line can pin it and the gate does not hold on it. It is the owner's to confirm it lands with the change.
+note (t): framing fixes cwd as /home/atom/dev/gauntlet; the test must send the discovered main checkout root (REPO_CWD, tests/test_hook_wire.py:42), never that literal.
+1  AMENDED tests/test_hook_wire.py:126: add the nine read-only git commands as SILENT entries and `git frobnicate -- tests/` and `git grep foo -- tests/ > tests/x` as DENY entries to that test's expected sweep, which already holds tests-lane.py Bash reads as SILENT beside writes as DENY; kills (grep admitted alone) fails it at `git ls-tree HEAD tests/`; bite: DENY at all nine SILENT-side commands.
+2  AMENDED tests/test_hook_wire.py:126: add the nine write-form commands as DENY and `git grep -o foo -- tests/`, `git log --grep=expire -- tests/`, `git diff --stat -- tests/` as SILENT entries to the same sweep; separate from line 1 because admitting grep with flag reading but not ls-tree passes this and fails line 1; kills (every read subcommand read in every form) fails it at `git diff --output=tests/x`; bite: SILENT at `git diff --output=tests/x`, DENY at `git grep -o foo -- tests/`.
+3  AMENDED tests/test_hook_wire.py:359: add the twelve (hook, command) entries for specs-, plans-, verdicts- and reviews-lane.py to that test's no-agent_type (hook, command) -> decision sweep, the one existing Bash sweep over the other lanes; kills (tests lane fixed alone) fails it at `git grep -n foo -- docs/gauntlet/specs/` on specs-lane.py; bite: DENY at `git grep -n foo -- <lane>/`, SILENT at `git diff --output=<lane>/x.txt` on each hook.
+4  ADMITTED  reviews-lane.py, Bash payloads with agent_type gauntlet-arbiter, commands `git grep foo`, `git ls-tree HEAD`, `git log --oneline`, `git grep foo -- docs/gauntlet/reviews/`, `git reflog expire --all`, `git diff --output=out.txt` -> sweep {SILENT, SILENT, SILENT, DENY, DENY, DENY}; kills (reviewer's git judged by subcommand name alone) fails it at `git diff --output=out.txt` and `git grep foo`; bite: DENY at `git grep foo`, DENY at `git ls-tree HEAD`, SILENT at `git diff --output=out.txt`. existing: grep re-run, no Bash payload with agent_type reaches reviews-lane.py in tests/; tests/test_hook_wire.py::ReviewsLaneOnAnApprovedPlan::test_the_plan_reviewer_is_carved_out_where_the_spec_one_is_not sends Write payloads only.
+null stub: every hook answers SILENT to every payload.
+  satisfies: none   fails: 1 (at `git frobnicate -- tests/`), 2 (at `git diff --output=tests/x`), 3 (at `git diff --output=docs/gauntlet/specs/x.txt`), 4 (at `git reflog expire --all`)
+hard-coded stub: SILENT for any Bash command whose second word is one of the subcommands the lines name (grep, ls-tree, cat-file, rev-list, shortlog, reflog, merge-base, describe, log, diff), whatever its flags, redirection or agent_type; every other payload answered as HEAD answers.
+  satisfies: none   fails: 1 (at `git grep foo -- tests/ > tests/x`), 2 (at `git grep -Ovim foo -- tests/`), 3 (at `git diff --output=docs/gauntlet/plans/x.txt`), 4 (at `git grep foo -- docs/gauntlet/reviews/`)
+survives: 1
