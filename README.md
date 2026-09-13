@@ -74,6 +74,7 @@ python3 .claude/hooks/tests-lane.py --self-test
 python3 .claude/hooks/reviews-lane.py --self-test
 python3 .claude/hooks/verdicts-lane.py --self-test
 python3 .claude/hooks/no-impl-reads.py --self-test
+python3 .claude/hooks/blind-bash.py --self-test
 python3 scripts/excision-diff.py --self-test
 python3 scripts/cite.py --self-test
 ```

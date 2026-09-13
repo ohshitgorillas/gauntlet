@@ -17,6 +17,10 @@ hooks:
       hooks:
         - type: command
           command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/specs-lane.py
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/blind-bash.py
 ---
 
 You write tests for `<project>` from behavior specs. **You have NOT seen the implementation and must not read it.**

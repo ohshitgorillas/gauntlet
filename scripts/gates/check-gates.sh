@@ -35,6 +35,7 @@ gates=(
     "reviews-lane|python3 .claude/hooks/reviews-lane.py --self-test"
     "verdicts-lane|python3 .claude/hooks/verdicts-lane.py --self-test"
     "no-impl-reads|python3 .claude/hooks/no-impl-reads.py --self-test"
+    "blind-bash|python3 .claude/hooks/blind-bash.py --self-test"
     "excision-diff|python3 scripts/excision-diff.py --self-test"
     "cite|python3 scripts/cite.py --self-test"
 )

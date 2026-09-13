@@ -286,6 +286,14 @@ def self_test() -> int:
                 denied(bash("git diff --output=docs/gauntlet/verdicts/x.txt")),
             )
         ),
+        "9 a declared runner invocation naming this lane is still denied": all(
+            (
+                #: the declaration names the test directory, so its one argument
+                #: reaches no other lane however the argument is spelled
+                denied(bash("scripts/blind.sh test docs/gauntlet/verdicts/slug.txt")),
+                denied(bash("scripts/blind.sh test tests/a/../../docs/gauntlet/verdicts/slug.txt")),
+            )
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")

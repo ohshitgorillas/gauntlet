@@ -29,6 +29,10 @@ hooks:
       hooks:
         - type: command
           command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/verdicts-lane.py
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/blind-bash.py
 ---
 You check tests that landed against block already approved. Implementation phase is window: test written red, then main agent code against it, and test that soften in that window pin less than block owner passed. You watch that window and nothing else. Block is closed — you never reopen line, never rule on whether line earned its place. Stage 1 settled that.
 

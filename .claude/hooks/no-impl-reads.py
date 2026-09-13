@@ -53,6 +53,11 @@ the only way to tell `node --test` from `node -e`. An inline-script flag
 (`-e`, `-c`, `-p`, `--eval`, `--print`) disqualifies any command, configured
 name included.
 
+The file is read by `shell_shapes.config`, which also reads its
+`runner_invocations` key: the invocations this repo declares read-only for
+every lane hook, keyed on the whole invocation rather than on a name. This
+hook reads `allow` and `runners` from the same file and nothing else.
+
 Blocked for those agents:
 
   * `Read` of any path outside the allowlist
@@ -127,14 +132,13 @@ def repo_root(start: str) -> str | None:
 
 
 def config() -> dict:
-    """Per-repo widening, from `blind-reads.json` beside this file."""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blind-reads.json")
-    try:
-        with open(path, encoding="utf-8") as fh:
-            loaded = json.load(fh)
-    except (OSError, ValueError):
-        return {}
-    return loaded if isinstance(loaded, dict) else {}
+    """Per-repo widening, from `blind-reads.json` beside this file.
+
+    The reader lives in `shell_shapes`, which reads the same file for the
+    runner invocations a repo declares. One module reads the config and two
+    use it.
+    """
+    return sh.config()
 
 
 def _rules(conf: dict) -> tuple[tuple[str, ...], tuple[str, ...]]:

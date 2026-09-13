@@ -206,6 +206,24 @@ def self_test() -> int:
                 denied(bash("git diff --output=tests/x")),
             )
         ),
+        "7 the declared runner invocation is a read, its near spellings are not": all(
+            (
+                allowed(bash("scripts/blind.sh test tests/t.py")),
+                allowed(bash("scripts/blind.sh test .claude/worktrees/x-spec/tests/t.py")),
+                #: normalizes back under the declared prefix, so still a run
+                allowed(bash("scripts/blind.sh test tests/support/../t.py")),
+                #: a command word in front of the entry is not the entry
+                denied(bash("bash scripts/blind.sh test tests/t.py")),
+                #: the key is the whole invocation, so a write beside it stays one
+                denied(bash("rm tests/t.py && scripts/blind.sh test tests/t.py")),
+                #: and its arity, so a second path is not the declared shape
+                denied(bash("scripts/blind.sh test tests/a.py tests/b.py")),
+                #: an argument that opens under the prefix and walks out of it
+                denied(bash("scripts/blind.sh test tests/a/../../docs/gauntlet/plans/x.txt")),
+                #: an undeclared subcommand is not a run and falls to the path test
+                denied(bash("scripts/blind.sh status tests")),
+            )
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")

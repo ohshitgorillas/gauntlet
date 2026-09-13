@@ -1,0 +1,5 @@
+{
+  "runner_invocations": [
+    {"entry": "scripts/blind.sh", "args": ["test"], "prefix": "tests"}
+  ]
+}

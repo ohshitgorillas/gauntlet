@@ -24,10 +24,22 @@ table existed; every other entry names the argument that makes it a run
 An inline-script flag (`-e`, `-c`, `-p`, `--eval`, `--print`) is never a run,
 whatever the head word: that is the shape an agent reaches for to write a
 file with an interpreter the lane would otherwise wave through.
+
+A repo adds its own entries to that table in `blind-reads.json` beside this
+file, since a repo-local script is a path rather than a name and cannot be
+compiled in here. A declaration is an entry path, the fixed argument words
+after it, and the prefix its one remaining argument sits under, and it is
+keyed on the whole invocation and its arity like every other entry. Two
+bounds on a declaration are code rather than data: a prefix resolving to or
+under a lane directory is dropped, and the one argument is normalized before
+it is tested against the prefix. A repo that declares nothing gets the table
+above, which is the behavior it has without the file.
 """
 
 from __future__ import annotations
 
+import functools
+import json
 import os
 import re
 import shlex
@@ -86,6 +98,24 @@ NPX_RUNNERS = frozenset({"ava", "jest", "mocha", "playwright", "tap", "vitest"})
 
 #: modules `python -m` may run as a test runner
 PY_MODULES = frozenset({"pytest", "unittest"})
+
+#: a slug names one path segment and carries no traversal
+SLUG = r"[A-Za-z0-9][A-Za-z0-9._-]*"
+#: a spec worktree is the other place a blind agent's tests live, so a declared
+#: argument may carry that one prefix and no other: the writer runs the suite
+#: in the tree it wrote in
+TREE = rf"\.claude/worktrees/{SLUG}-spec/"
+
+#: the lane directories this kit's hooks guard. A declared prefix resolving to
+#: or under one is dropped when the config is read: a declaration naming a lane
+#: would turn off the hook that guards it, and every bound on what a
+#: declaration can widen is code rather than data sitting beside it.
+LANE_DIRS = (
+    "docs/gauntlet/plans",
+    "docs/gauntlet/specs",
+    "docs/gauntlet/" + "verdicts",
+    "docs/gauntlet/reviews",
+)
 
 #: git subcommands that never write the working tree in their reading forms; a
 #: commit message or a pathspec naming a lane is not a write to it. Membership
@@ -259,17 +289,115 @@ def has_inline_script(words: list[str]) -> bool:
     return False
 
 
+def path_shape(prefix: str) -> str:
+    """The regex source a declared prefix expands into.
+
+    Repo-relative, under `prefix`, optionally inside a spec worktree. The
+    trailing class admits `.` and `/`, so it admits `..` as well: the shape is
+    not the whole key, and `is_declared_run` normalizes what it matches.
+    """
+    return rf"(?:{TREE})?{re.escape(prefix)}/[A-Za-z0-9_][A-Za-z0-9._/-]*"
+
+
+#: the shape this repository's own declared entry takes, exported so that
+#: `blind-bash.py` reads the same regular expression the classifier does
+TESTPATH = path_shape("tests")
+
+
+def config() -> dict:
+    """Per-repo widening, from `blind-reads.json` beside this file.
+
+    An unreadable or malformed file is an empty config, which is the safe
+    direction for a lane: an empty config declares nothing and so denies.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blind-reads.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            loaded = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _under(path: str, parent: str) -> bool:
+    """Is `path` `parent` itself, or something beneath it? Both normalized."""
+    return path == parent or path.startswith(parent + "/")
+
+
+def declared_runners(conf: dict) -> tuple[tuple[str, tuple[str, ...], re.Pattern[str]], ...]:
+    """The repo's declared runner invocations, as (entry, argument words, shape).
+
+    A declaration names an entry path, the fixed argument words that follow it,
+    and the prefix its one remaining argument sits under. A malformed
+    declaration is dropped, and so is one whose prefix resolves to or under a
+    lane directory: a declaration is data, and a declaration that could name a
+    lane would turn off the hook that guards it.
+    """
+    out = []
+    for dec in conf.get("runner_invocations") or ():
+        if not isinstance(dec, dict):
+            continue
+        entry, args, prefix = dec.get("entry"), dec.get("args") or [], dec.get("prefix")
+        if not isinstance(entry, str) or not isinstance(prefix, str) or not entry or not prefix:
+            continue
+        if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
+            continue
+        prefix = os.path.normpath(prefix)
+        if os.path.isabs(prefix) or prefix == ".." or prefix.startswith("../"):
+            continue
+        if any(_under(prefix, lane) for lane in LANE_DIRS):
+            continue
+        out.append((os.path.normpath(entry), tuple(args), re.compile(path_shape(prefix) + r"\Z")))
+    return tuple(out)
+
+
+@functools.lru_cache(maxsize=1)
+def _declared() -> tuple[tuple[str, tuple[str, ...], re.Pattern[str]], ...]:
+    """The declarations, read once per process rather than once per stage."""
+    return declared_runners(config())
+
+
+def is_declared_run(words: list[str]) -> bool:
+    """Is this whole invocation one of the repo's declared runner invocations?
+
+    The key is the whole invocation, arity included: the head normalizes to the
+    declared entry or to a path ending in it, the declared argument words come
+    next, and exactly one argument follows them. That argument matches the
+    declared shape both as typed and after `os.path.normpath`, so an argument
+    that opens under the prefix and walks out of it is not a run.
+    """
+    if not words:
+        return False
+    head = os.path.normpath(words[0])
+    rest = words[1:]
+    for entry, args, shape in _declared():
+        if head != entry and not head.endswith("/" + entry):
+            continue
+        if len(rest) != len(args) + 1 or list(rest[: len(args)]) != list(args):
+            continue
+        arg = rest[-1]
+        if shape.match(arg) and shape.match(os.path.normpath(arg)):
+            return True
+    return False
+
+
 def is_runner(words: list[str]) -> bool:
     """Is this invocation a run of the project's suite, rather than a write?
 
     A closed table of whole invocations. `pytest` is the only head word
     accepted with arbitrary arguments; everything else names the argument that
     makes it a run. An inline-script flag disqualifies any of them.
+
+    The table the repo declares is read first and is whole invocations too: a
+    repo-local script is not a head word on any list, and asking whether a head
+    only ever prints is the wrong question for one that runs gates.
     """
     if not words:
         return False
     if has_inline_script(words):
         return False
+    if is_declared_run(words):
+        return True
     head = os.path.basename(words[0])
     rest = words[1:]
     first = rest[0] if rest else ""

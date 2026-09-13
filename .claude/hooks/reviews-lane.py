@@ -47,7 +47,8 @@ Allowed: every read-only command naming `docs/gauntlet/reviews/` for everyone bu
 those two agents, git commands that never write the working tree, `Glob` for
 anyone, and every write elsewhere by every non-reviewer. A reviewer's suite
 run counts as read-only in every form `shell_shapes.is_runner` recognizes —
-`pytest`, `python -m pytest`, `node --test`, `npm test`, `npx vitest` — and an
+`pytest`, `python -m pytest`, `node --test`, `npm test`, `npx vitest`, and the
+invocations this repo declares in `blind-reads.json` — and an
 interpreter handed an inline script (`-e`, `-c`, `--eval`) counts as a write
 in all of them, which is the distinction a head word cannot make.
 `docs/gauntlet/reviews/` is meant to be gitignored, so there is no git object to
@@ -102,7 +103,8 @@ _REVIEWER_BASH = (
     "for the gauntlet-arbiter or docs/gauntlet/plans/ for the gauntlet-prosecutor. "
     "Read-only shell passes: cat, grep, sed -n, and a suite run "
     "in any of its recognized forms (pytest, python -m pytest, node --test, "
-    "npm test, npx vitest). An interpreter given an inline script (-e, -c, "
+    "npm test, npx vitest, and the invocations this repo declares in "
+    "blind-reads.json). An interpreter given an inline script (-e, -c, "
     "--eval) is a write, whatever it does. (hooks/reviews-lane.py)"
 )
 _REVIEWER_READ = (

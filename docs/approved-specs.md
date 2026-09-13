@@ -79,7 +79,7 @@ The same `specs-lane.py` script is wired again from the `hooks:` frontmatter of 
 
 Copy the whole `hooks/` directory, not the one file. `specs-lane.py` imports `shell_shapes.py` from beside it, and it has three siblings that enforce the other half of the same rule: `plans-lane.py`, which holds this same one-directory-one-writer rule for the plan gate one stage earlier (`docs/gauntlet/plans/`, the `gauntlet-prosecutor` alone — rules in `plans.md`); `tests-lane.py`, which keeps every hand but the blind writer's off `tests/`; and `reviews-lane.py`, which keeps a reviewer's verdict a file the reviewer wrote. `reviews-lane.py` is the one that must know about both lanes: it confines each reviewer to `docs/gauntlet/reviews/`, so it carries the explicit carve-outs that let the `gauntlet-arbiter` write `docs/gauntlet/specs/` and the `gauntlet-prosecutor` write `docs/gauntlet/plans/`, each and nothing else besides. Ship them together or a reviewer is locked out of the folder reserved for it.
 
-Nothing in `hooks/` depends on anything outside `hooks/`. There is no allowlist to import, no budget to configure, no repo layout assumed.
+Nothing in `hooks/` imports anything outside `hooks/`. There is no allowlist to import, no budget to configure, and the one repo layout the hooks know is the one a repo writes down for itself: `blind-reads.json`, beside them, where a repo names the paths its own suite runner lives at and the prefix that runner's argument sits under. A repo that writes nothing there assumes nothing, which is why the file may be absent.
 
 Check them after wiring. Each prints one `PASS` or `FAIL` per line it exists to hold:
 

@@ -53,15 +53,15 @@ ENTRY = "scripts/blind.sh"
 
 #: a slug names a file inside a lane directory, so it is one path segment and
 #: carries no traversal: `..` and `/` are what the denial exists to refuse
-SLUG = r"[A-Za-z0-9][A-Za-z0-9._-]*"
+SLUG = sh.SLUG
 #: `HEAD`, or an abbreviated-to-full object name. A `:` is what turns a commit
 #: argument into a path argument, and no shape here admits one
 COMMIT = r"(?:HEAD|[0-9a-fA-F]{7,40})"
-#: repo-relative, under the test directory, no traversal. A spec worktree is
-#: the other place a blind agent's tests live, so the path may carry that one
-#: prefix and no other: the writer runs the suite in the tree it wrote in
-TREE = rf"\.claude/worktrees/{SLUG}-spec/"
-TESTPATH = rf"(?:{TREE})?tests/[A-Za-z0-9_][A-Za-z0-9._/-]*"
+#: repo-relative, under the test directory, no traversal. The classifier reads
+#: the same shape for the same entry, so it has one definition and lives there;
+#: what refuses traversal here is `_allowed_command` on the raw command text,
+#: and what refuses it there is normalization, which is why both still run
+TESTPATH = sh.TESTPATH
 
 _ARGS = (
     rf"test\s+{TESTPATH}",
