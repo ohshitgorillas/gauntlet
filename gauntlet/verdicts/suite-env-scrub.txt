@@ -1,0 +1,2 @@
+RED 1: assert hook_wire_module.hook_decision(probe_path, PROBE_PAYLOAD) == expected_report -- AssertionError: assert 'GAUNTLET=off|PROBE_CONTROL=kept' == 'GAUNTLET=<unset>|PROBE_CONTROL=kept' (and 'GAUNTLET=off|PROBE_CONTROL=second' == 'GAUNTLET=<unset>|PROBE_CONTROL=second')
+RED 2: assert blind_reads_module.payload_decision(ALLOW_LABEL, probe_path, PROBE_PAYLOAD) == expected_report -- AssertionError: assert 'GAUNTLET=off|PROBE_CONTROL=kept' == 'GAUNTLET=<unset>|PROBE_CONTROL=kept' (and 'GAUNTLET=off|PROBE_CONTROL=second' == 'GAUNTLET=<unset>|PROBE_CONTROL=second')
