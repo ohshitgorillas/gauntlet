@@ -1,0 +1,3 @@
+beta fixture line one
+beta fixture line two
+beta fixture line three

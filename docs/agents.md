@@ -1,6 +1,6 @@
 # The roster
 
-Six agents, and the whole system is the shape of what each one is not allowed to see or write.
+Seven agents, and the whole system is the shape of what each one is not allowed to see or write.
 
 | Agent | Sees the code | Writes | Hooks |
 | --- | --- | --- | --- |
@@ -9,13 +9,16 @@ Six agents, and the whole system is the shape of what each one is not allowed to
 | `gauntlet-examiner` | yes, all of it | throwaway scripts outside the tree | `specs-lane`, `tests-lane` |
 | `gauntlet-arbiter` | **no** | `docs/gauntlet/reviews/<slug>.<N>.txt`, `docs/gauntlet/specs/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
 | `gauntlet-scrivener` | **no** | `tests/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane` |
+| `gauntlet-juror` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `reviews-lane` |
 | the main agent | yes | everything else | all of them, session-wide |
 
 ## Who is blind, and why
 
-The `gauntlet-arbiter` and the `gauntlet-scrivener` are the two that never read the implementation. Everything else in the repo exists to keep that true.
+The `gauntlet-arbiter`, the `gauntlet-scrivener` and the `gauntlet-juror` are the three that never read the implementation. Everything else in the repo exists to keep that true.
 
-A reviewer that can read the code will rationalize a spec line that merely describes what the code already does — the line looks true, because it is, and it pins nothing. A test writer that can read the code writes a test that mirrors it: the test and the implementation share the same mistake, so it goes green on a wrong implementation and nobody sees.
+A reviewer that can read the code will rationalize a spec line that merely describes what the code already does — the line looks true, because it is, and it pins nothing. A test writer that can read the code writes a test that mirrors it: the test and the implementation share the same mistake, so it goes green on a wrong implementation and nobody sees. A certifier that can read the code reads a `GREEN` as the implementation already being right rather than as the test failing to bite, which is the one reading the red run exists to rule out.
+
+The certifier is also blind to the test it is judging in a second sense: it did not write it. The `gauntlet-scrivener` grading its own red run is the same conflict one stage down from an agent testing its own code, so the run output goes to a fresh agent that holds none of the reasons the test was written the way it was.
 
 Blindness costs something, so it is paid for. The `gauntlet-examiner` measures the values a blind reviewer cannot look up, and the `gauntlet-detective` finds the lines a plan needs to cite. Both can read everything. Neither issues a verdict, which is why letting them see is safe.
 
@@ -26,7 +29,8 @@ Blindness costs something, so it is paid for. The `gauntlet-examiner` measures t
 3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-examiner` measures it.
 4. The `gauntlet-arbiter` runs its checks blind and, on `READY` and only then, writes `docs/gauntlet/specs/<slug>.txt`.
 5. The `gauntlet-scrivener` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
-6. The tests run red. The main agent implements against them, and never edits them.
+6. The tests run red under `scripts/pair.sh red`, and a `gauntlet-juror` reads that saved output against the approved block and returns one verdict per line, blind.
+7. The main agent implements against the tests, and never edits them.
 
 ## `scripts/pair.sh`
 

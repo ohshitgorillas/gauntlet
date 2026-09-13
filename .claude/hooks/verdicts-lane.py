@@ -1,0 +1,289 @@
+#!/usr/bin/env python3
+"""PreToolUse hook: `docs/gauntlet/verdicts/` is the gauntlet-juror's lane.
+`Stop` hook, behind `--stop`: a red run with no verdict does not end a turn.
+
+Wire both session-wide from `.claude/settings.json`, so they bind the main
+agent and every subagent, and wire the lane again from the `hooks:` frontmatter
+of `.claude/agents/gauntlet-juror.md`.
+
+The red run is the one gate in the chain that used to have no artifact. Its
+verdict lived in a transcript, so nobody could check it after the session, and
+nothing said which hand issued it. The main agent has read the implementation:
+it is the one hand that must not rule on whether a test bit, and it was free to
+write the verdict, to paraphrase one, or to skip the round and report a pass.
+So the verdict is a tracked file, written by exactly one hand, and a turn that
+produced a red run and no verdict does not land.
+
+Denied:
+
+  * `Write`/`Edit`/`NotebookEdit` whose target is under a
+    `docs/gauntlet/verdicts/` directory, unless the caller's `agent_type` is
+    `gauntlet-juror`
+  * a `Bash` command that names a `docs/gauntlet/verdicts/` path and is not
+    read-only, except a restore from a named git object
+    (`git restore --source <rev>` or `git checkout <rev> --` onto the path),
+    which copies a commit and types nothing
+
+Allowed: every read of `docs/gauntlet/verdicts/`, by any agent and by the
+shell; every write anywhere else, the other lanes included.
+
+`agent_type` is present in the payload only for subagent calls; an absent key
+is the main agent, which is denied. If a build omits the key for subagents too,
+the gauntlet-juror is over-denied, which is the safe direction: no unruled
+verdict reaches the tree, and the denial names this file.
+
+The `--stop` half reads `state/red/`, where `scripts/pair.sh red` saves the run
+output. Every red file there wants a verdict file of the same slug, newer than
+it: `pair.sh` writes the run with `>`, so a second run overwrites the evidence
+in place, and a verdict older than the file it answers ruled on output no
+longer on disk. The comparison is the hook's rather than the juror's, which
+holds no `Bash` and could neither stat nor hash the run it ruled on, and which
+writes one verdict per line and nothing else into its file.
+
+A zero-byte red file is not a run to rule on — `pair.sh` redirects before the
+suite runs and appends `|| true`, so a crashed or killed run leaves one — and
+it fails with its own message rather than demanding a verdict on nothing.
+
+The root is resolved from this file's own path, the way
+`scripts/gates/check_md_trivia.py` does it, and neither from the cwd, which
+moves within a turn, nor from `CLAUDE_PROJECT_DIR`, which is the main checkout
+for one session and a worktree for another. Each checkout gates its own
+`state/red/`. A missing `state/red/` is not an unruled run: a consumer project
+that copies `.claude/` and never runs `pair.sh` is never blocked.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import shell_shapes as sh  # noqa: E402
+
+REVIEWER = "gauntlet-juror"
+WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
+LANE = "docs/gauntlet/verdicts"
+BASH_VERDICTS = sh.lane_pattern(LANE)
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+RED_DIR = "state/red"
+
+_LANE = (
+    "docs/gauntlet/verdicts/ is the gauntlet-juror's lane. The verdict on a red run "
+    "is written there by the juror that issued it, and by nothing else: it is the "
+    "only evidence anyone has that the run was certified and that a blind hand "
+    "certified it. Spawn a gauntlet-juror with the committed spec path and the path "
+    "`scripts/pair.sh red` printed. (hooks/verdicts-lane.py)"
+)
+_BASH = (
+    "A shell write naming a docs/gauntlet/verdicts/ path is denied: " + _LANE + " Restoring "
+    "a verdict from a git object is the one shell shape that passes: "
+    "`git restore --source <rev> -- docs/gauntlet/verdicts/<file>`."
+)
+
+
+def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
+    if not sh.path_in_lane(target, cwd, LANE):
+        return None
+    return None if agent == REVIEWER else _LANE
+
+
+def _bash_verdict(command: str) -> str | None:
+    return _BASH if sh.lane_write_in(command, BASH_VERDICTS) else None
+
+
+def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
+    """Why this call is refused, or None to let it through."""
+    cwd = payload.get("cwd") or os.getcwd()
+    agent = payload.get("agent_type") or ""
+    if name in WRITE_TOOLS:
+        target = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+        return _write_verdict(target, cwd, agent) if target else None
+    if name == "Bash":
+        return _bash_verdict(tool_input.get("command", ""))
+    return None
+
+
+def main() -> None:
+    try:
+        data = json.loads(sys.stdin.read())
+    except (ValueError, OSError):
+        return  # never block on our own failure
+    reason = _verdict(data.get("tool_name", ""), data.get("tool_input") or {}, data)
+    if reason is not None:
+        print(sh.deny(reason))
+
+
+#: one line per unruled or unrulable red run, keyed by what is wrong with it
+_EMPTY = "{slug}: state/red/{slug}.txt is empty. The run printed nothing, so there is "
+_EMPTY += "nothing to rule on. Re-run `scripts/pair.sh red {slug}`, or delete the file."
+_MISSING = "{slug}: no verdict. state/red/{slug}.txt is a red run nobody ruled on. Spawn "
+_MISSING += "a gauntlet-juror with docs/gauntlet/specs/{slug}.txt and state/red/{slug}.txt, "
+_MISSING += "or delete the red file if the slug was abandoned."
+_STALE = "{slug}: stale verdict. docs/gauntlet/verdicts/{slug}.txt is older than "
+_STALE += "state/red/{slug}.txt, so the run it ruled on has been overwritten since. Spawn "
+_STALE += "a fresh gauntlet-juror on the run now on disk."
+
+
+def _complaints(root: Path) -> list[str]:
+    """One line per red run this root cannot show a live verdict for."""
+    red_dir = root / RED_DIR
+    if not red_dir.is_dir():
+        return []  # no red run here; a consumer project that never runs pair.sh
+    out = []
+    for red in sorted(red_dir.glob("*.txt")):
+        slug = red.stem
+        try:
+            red_stat = red.stat()
+        except OSError:
+            continue
+        if red_stat.st_size == 0:
+            out.append(_EMPTY.format(slug=slug))
+            continue
+        verdict = root / LANE / f"{slug}.txt"
+        try:
+            verdict_stat = verdict.stat()
+        except OSError:
+            out.append(_MISSING.format(slug=slug))
+            continue
+        if verdict_stat.st_mtime_ns < red_stat.st_mtime_ns:
+            out.append(_STALE.format(slug=slug))
+    return out
+
+
+def stop(root: Path = ROOT) -> int:
+    complaints = _complaints(root)
+    if not complaints:
+        return 0
+    for line in complaints:
+        print(line, file=sys.stderr)
+    return 2
+
+
+def self_test() -> int:
+    """Pin the lane's four spec lines and the `--stop` gate's four states."""
+    import contextlib
+    import io
+    import tempfile
+    import time
+
+    root = "/repo"
+
+    def write(path: str, agent: str | None = None) -> str | None:
+        payload = {"cwd": root}
+        if agent:
+            payload["agent_type"] = agent
+        return _verdict("Edit", {"file_path": path}, payload)
+
+    def bash(cmd: str) -> str | None:
+        return _verdict("Bash", {"command": cmd}, {"cwd": root})
+
+    denied, allowed = (lambda v: isinstance(v, str)), (lambda v: v is None)
+
+    def tree(tmp: str, *, red: str | None, verdict: str | None, order: str = "red-first") -> Path:
+        """A checkout with one red run and at most one verdict, mtimes ordered."""
+        base = Path(tmp)
+        (base / RED_DIR).mkdir(parents=True, exist_ok=True)
+        (base / LANE).mkdir(parents=True, exist_ok=True)
+        writes = [(base / RED_DIR / "demo.txt", red), (base / LANE / "demo.txt", verdict)]
+        if order != "red-first":
+            writes.reverse()
+        for index, (path, body) in enumerate(writes):
+            if index:
+                time.sleep(0.01)
+            if body is not None:
+                path.write_text(body)
+        return base
+
+    def gate(**kw) -> int:
+        #: the exit code is the subject; the block's own message is line 6's
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()):
+            return stop(tree(tmp, **kw))
+
+    def slugs(**files) -> list[str]:
+        """The slugs `--stop` names, for a tree of `slug=(red, verdict)` pairs."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / RED_DIR).mkdir(parents=True)
+            (base / LANE).mkdir(parents=True)
+            for slug, (red, verdict) in files.items():
+                (base / RED_DIR / f"{slug}.txt").write_text(red)
+                time.sleep(0.01)
+                if verdict is not None:
+                    (base / LANE / f"{slug}.txt").write_text(verdict)
+            return [line.split(":", 1)[0] for line in _complaints(base)]
+
+    lines = {
+        "1 docs/gauntlet/verdicts/ closed to every agent but the gauntlet-juror": all(
+            (
+                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt")),
+                denied(write("docs/gauntlet/verdicts/demo.txt")),
+                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-arbiter")),
+                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-prosecutor")),
+                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-scrivener")),
+                #: an unprefixed same-named agent in the host project is not this one
+                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "juror")),
+                allowed(write(f"{root}/docs/gauntlet/verdicts/demo.txt", REVIEWER)),
+                #: the lane denies its own directory, and no other lane's
+                denied(write("/nogit/docs/gauntlet/verdicts")),
+                allowed(write(f"{root}/docs/gauntlet/reviews/demo.1.txt", "gauntlet-arbiter")),
+                allowed(write(f"{root}/docs/gauntlet/specs/demo.txt", "gauntlet-arbiter")),
+                allowed(write(f"{root}/state/verdicts/demo.txt")),
+                allowed(write(f"{root}/docs/testing.md")),
+            )
+        ),
+        "2 shell writes naming the lane denied, reads and object restores pass": all(
+            (
+                denied(bash("cat impl.py 1> docs/gauntlet/verdicts/demo.txt")),
+                denied(bash("echo RED > docs/gauntlet/verdicts/demo.txt")),
+                denied(bash("sed -i 's/RED/GREEN/' docs/gauntlet/verdicts/demo.txt")),
+                denied(bash("rm docs/gauntlet/verdicts/demo.txt")),
+                denied(bash("cat > docs/gauntlet/verdicts/demo.txt <<'EOF'\nRED 1\nEOF")),
+                allowed(bash("cat docs/gauntlet/verdicts/demo.txt")),
+                allowed(bash("grep -c RED docs/gauntlet/verdicts/demo.txt")),
+                allowed(bash("git restore --source abc1234 -- docs/gauntlet/verdicts/demo.txt")),
+            )
+        ),
+        "3 a red run with no verdict blocks the turn, a ruled one does not": all(
+            (
+                gate(red="1 failed", verdict=None) == 2,
+                gate(red="1 failed", verdict="RED 1: assert x") == 0,
+            )
+        ),
+        "4 a verdict older than the run it answers blocks the turn": all(
+            (
+                gate(red="1 failed", verdict="RED 1", order="verdict-first") == 2,
+                gate(red="1 failed", verdict="RED 1", order="red-first") == 0,
+            )
+        ),
+        "5 an empty red run blocks the turn, verdict or no verdict": all(
+            (
+                gate(red="", verdict="RED 1") == 2,
+                gate(red="x", verdict="RED 1") == 0,
+            )
+        ),
+        "6 every unruled slug is named, not the first": all(
+            (
+                slugs(alpha=("1 failed", None), bravo=("1 failed", "RED 1")) == ["alpha"],
+                slugs(alpha=("1 failed", None), bravo=("1 failed", None)) == ["alpha", "bravo"],
+            )
+        ),
+        "7 no state/red/ is not an unruled run": all(
+            (
+                stop(Path(tempfile.gettempdir()) / "gauntlet-no-such-checkout") == 0,
+                _complaints(ROOT) is not None,
+            )
+        ),
+    }
+    for label, ok in lines.items():
+        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
+    return 0 if all(lines.values()) else 1
+
+
+if __name__ == "__main__":
+    if "--self-test" in sys.argv:
+        sys.exit(self_test())
+    sys.exit(stop()) if "--stop" in sys.argv else main()

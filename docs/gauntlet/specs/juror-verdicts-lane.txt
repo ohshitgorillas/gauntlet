@@ -1,0 +1,64 @@
+slug: juror-verdicts-lane
+kind: new
+brief:
+> could part of this be offloaded to a hook?
+> agreed on the script, hook, and reduced model. gauntlet-stenographer?
+> gauntlet-jury?
+> juror?
+> write the agent file directly, take its hooks to the plan gate, I'll deal with the rest
+> sonnet, not haiku
+> `gauntlet/verdicts/`
+
+1. `.claude/hooks/verdicts-lane.py` fed a `Write` payload whose `file_path` is `docs/gauntlet/verdicts/demo.txt` answers `deny` with `agent_type` absent and with `agent_type` of `gauntlet-arbiter`, `gauntlet-prosecutor`, `gauntlet-testsmith` or `juror`, answers with an empty stdout for `gauntlet-juror`, and answers with an empty stdout for `agent_type` of `gauntlet-arbiter` writing `docs/gauntlet/reviews/demo.1.txt`.
+   kills: a lane keyed on the directory alone, which answers with an empty stdout for every caller, so the main agent, which has read the implementation, types its own verdict into the lane and nothing refuses it.
+   bite: null stub fails at `agent_type` absent (surface new). Null stub: `.claude/hooks/verdicts-lane.py` present, importable, its `main()` reading the payload and printing nothing, its `--stop` path exiting 0 with empty stderr. The stub is named because the file's absence exits 2 on its own and would answer lines 2 through 5 without a gate.
+   existing: none, `grep -rn "verdict" tests/` returns one hit, `tests/test_hook_wire.py:362`, a comment inside the reviews-lane redirection case.
+
+2. `.claude/hooks/verdicts-lane.py --stop` exits 2 where `state/red/demo.txt` is non-empty and `docs/gauntlet/verdicts/demo.txt` does not exist, and exits 0 where that verdict file exists with an `mtime` newer than the red file.
+   kills: a `--stop` half exiting 0 whenever it finds a red run at all, so a turn that ran `scripts/pair.sh red` and spawned no juror ends clean and the skipped round is a claim in a transcript.
+   bite: null stub fails at the non-empty red file with no verdict (surface new), the stub named on line 1.
+   existing: none, `grep -rn -e '--stop' -e 'state/red' tests/` returns nothing.
+
+3. `.claude/hooks/verdicts-lane.py --stop` exits 2 where `docs/gauntlet/verdicts/demo.txt` carries an `mtime` older than `state/red/demo.txt`, and exits 0 where the same two files carry the reverse order.
+   kills: a gate testing that the verdict file exists and nothing else, so a second `scripts/pair.sh red` overwrites `state/red/demo.txt` in place and the turn lands on a verdict that ruled on output no longer on disk.
+   bite: null stub fails at the older verdict file (surface new), the stub named on line 1.
+   existing: none, `grep -rn -e '--stop' -e 'state/red' tests/` returns nothing.
+
+4. `.claude/hooks/verdicts-lane.py --stop` exits 2 where `state/red/demo.txt` is zero bytes and `docs/gauntlet/verdicts/demo.txt` is newer than it, and exits 0 where the same red file carries one byte and the same verdict file is newer than it.
+   kills: a gate reading existence and `mtime` alone, which exits 0 on a run that crashed before printing anything, so a verdict on an empty file satisfies the turn.
+   bite: null stub fails at the zero-byte red file (surface new), the stub named on line 1.
+   existing: none, `grep -rn -e '--stop' -e 'state/red' tests/` returns nothing.
+
+5. `.claude/hooks/verdicts-lane.py --stop` writes to stderr the slug of every unruled red run and no other slug: `alpha` alone where `state/red/alpha.txt` lacks a verdict and `state/red/bravo.txt` has a newer one, and both `alpha` and `bravo` where neither has one.
+   kills: a gate returning on the first unruled slug it finds, so `bravo` stays invisible until `alpha` is ruled on and the turn is run again.
+   bite: null stub fails at the two unruled red files, where its stderr is empty (surface new), the stub named on line 1.
+   existing: none, `grep -rn -e '--stop' -e 'state/red' tests/` returns nothing.
+   past the fourth line: the `--stop` half answers on four conditions a gate can hold one at a time and miss together, and no one of them is readable off another's exit code. Lines 2, 3 and 4 each pin an exit code at a condition the other two pass; line 5 pins what the turn tells the owner when more than one slug is outstanding, which no exit code carries. Stating them in fewer means dropping a condition, since each names a different gate that satisfies the rest.
+
+6. `.claude/hooks/verdicts-lane.py` fed a `Bash` payload whose command is `cat impl.py 1> docs/gauntlet/verdicts/demo.txt` answers `deny`, and fed `cat docs/gauntlet/verdicts/demo.txt` answers with an empty stdout.
+   kills: a lane reading `Write` tool paths alone, so the shell redirection writes the verdict file the same agent was refused through `Write`.
+   bite: null stub fails at the redirection (surface new), the stub named on line 1.
+   existing: tests/test_hook_wire.py::RedirectionsIntoTheOtherLanes::test_file_descriptor_redirection_into_a_lane_is_a_write
+
+--- reviewer ---
+
+READY
+discriminates: sweep on `verdicts-lane.py --stop` (exit 2 / exit 0 at four distinct file states) and on the lane decision (deny / empty stdout across two directories and five callers)
+
+1  KEEP  `Write` of `docs/gauntlet/verdicts/demo.txt` with `agent_type` absent, `gauntlet-arbiter`, `gauntlet-prosecutor`, `gauntlet-testsmith`, `juror` -> deny; `gauntlet-juror` -> empty stdout; `gauntlet-arbiter` writing `docs/gauntlet/reviews/demo.1.txt` -> empty stdout; a lane keyed on the directory alone fails it at `agent_type` absent, and a blanket deny-unless-juror now fails it at the reviews path; null stub fails at `agent_type` absent
+2  KEEP  carried
+3  KEEP  carried
+4  KEEP  carried
+5  KEEP  carried
+6  DELTA tests/test_hook_wire.py:368: carried
+
+null stub: file present and importable, `main()` reads the payload and prints nothing, `--stop` exits 0 with empty stderr.
+  satisfies: none   fails: 1, 2, 3, 4, 5, 6
+hard-coded stub: answer `deny` for the exact payloads named, empty stdout otherwise, and for `--stop` read size and mtime, because lines 2, 3 and 4 give one slug three conflicting expectations no name-keyed table can hold.
+  satisfies: 6   fails: 1, 2, 3, 4, 5
+
+survives: 5
+
+note: line 1's stub reading changed with its text -- the added reviews-path entry means a table must key on the directory as well as on the exact caller name, which is the lane itself; the residual literal is the slug, and slug is not an axis the contract varies on.
+note: line 5 pins a slug set on stderr, not wording; the test that lands must assert the set of slugs, or rule 9 takes it.
+note: whether `state/red/` resolves from cwd or from the repo root is a fact in the hook, which I may not read; nothing in the block settles it. Owner's.

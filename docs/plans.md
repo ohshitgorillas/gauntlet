@@ -41,6 +41,24 @@ brief:
 - **What it costs** names the work the change forces, the tests it breaks, and what was deliberately left out, with the owner's own words where a scope instruction produced the cut.
 - **Open questions** is `None` or a numbered list. A question here reaches the owner; a question addressed to the reviewer is a steering tell and burns the round.
 
+## Citations
+
+A citation is a path and a line number inside backticks, and the backticks are what make it one: `docs/plans.md:37` is a citation, and the same characters in running prose are not. A number the prose names without them — "line 72 now says six" — is prose, and nothing resolves it.
+
+Five forms, and one of them carries no path:
+
+- a full citation, path and number: `` `docs/plans.md:37` ``;
+- a range, where the claim is about a construct spanning lines: `` `docs/plans.md:37-39` ``;
+- a bare continuation, a number alone: `` `:46` ``, which carries the path of the nearest preceding full citation in the same document;
+- a basename with no directory: `` `pair.sh:86` ``, resolved against the tree, and an error where more than one path in the tree carries that name;
+- a path outside the checkout: `` `/home/atom/dev/CLAUDE.md:12` ``, a legitimate citation from a plan in this repo to a file this repo does not contain.
+
+The continuation is the form a plan uses most, and it is the one that goes wrong silently: a run of `` `:46` ``-shaped numbers under a path the prose changed in between resolves against the wrong file and reports nothing. Where a paragraph moves to another file, the first citation under it is written in full.
+
+Where a sentence quotes the line it cites, the quote is the claim: the number must point at a line containing that text, and for a range, at one line of the span. A citation with no quotation beside it claims only that the line exists.
+
+`python3 scripts/cite.py --check <draft>` resolves all of this and exits 1 on a citation that does not. It reports a bare continuation and a cross-repo path whether they resolve or not, so a run over a clean draft prints rows rather than nothing. It says where a number landed; whether the line it landed on supports the sentence is the `gauntlet-prosecutor`'s check, and no run of the script stands in for it.
+
 ## Grounding
 
 The pointers a plan cites come from one `gauntlet-detective` round: every question in one brief, a `file:line` table back. The main agent does not read half the tree to write a plan, and the reviewer resolves the citations that come back.

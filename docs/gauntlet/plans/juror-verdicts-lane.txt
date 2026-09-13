@@ -1,0 +1,123 @@
+slug: juror-verdicts-lane
+grounding: gauntlet-detective
+
+brief:
+> could part of this be offloaded to a hook?
+  delivered: the whole of this plan. The hook takes the proof half — who signed the verdict, and whether the round happened at all.
+> agreed on the script, hook, and reduced model. gauntlet-stenographer?
+  delivered: the hook, here. dropped: the script, the parse in `scripts/pair.sh red`, scoped out by the fifth sentence. dropped: the name, withdrawn by the owner two sentences later.
+> gauntlet-jury?
+  dropped: withdrawn by the owner in the next sentence.
+> juror?
+  delivered: `.claude/agents/gauntlet-juror.md`, written before this plan.
+> write the agent file directly, take its hooks to the plan gate, I'll deal with the rest
+  delivered: the agent file is written and this plan covers its hooks. dropped: `docs/agents.md`, `README.md`, `CHANGELOG.md`, and backlog items 3 and 4, all "the rest" and all the owner's.
+> sonnet, not haiku
+  delivered: `model: sonnet` in the agent file. It overrides "reduced model" in the second sentence, so this plan assumes a model that can read a traceback and does not lean on the parse to carry the `ERROR`/`INVALID` split.
+> `gauntlet/verdicts/`
+  delivered: the verdict lane is `docs/gauntlet/verdicts/<slug>.txt`, tracked. It settles the escalated question against this plan's first draft, which proposed `state/verdicts/`. It forces no change to `no-impl-reads.py`, for the reason the "Which files get touched" section gives.
+
+## What is wrong
+
+The red run is the one gate in the chain with no artifact and no lane. Every other gate has both. `docs/gauntlet/plans/<slug>.txt` is written by `gauntlet-prosecutor` and denied to every other hand at `.claude/hooks/plans-lane.py:47` and `:49`; `docs/gauntlet/specs/<slug>.txt` is the same shape one stage later; `docs/gauntlet/reviews` is one lane at `.claude/hooks/reviews-lane.py:78`, shared by the two reviewers named at `:72-74`, each of which also owns exactly one approved-artifact lane and no other's — `SECOND_WRITE` at `:82`. The verdict on the red run has neither. It exists as lines in a transcript.
+
+Two defects follow, and they are different defects.
+
+The first is that nobody can check a verdict after the fact. `scripts/pair.sh:99` saves the run output to `state/red/$slug.txt`, so the evidence is on disk, but nothing on disk says what was ruled on it. A `RED 1-4` in a transcript is a claim by whoever typed it, and `docs/approved-specs.md` is the repo's own statement that a gate whose evidence is a transcript is not a gate.
+
+The second is that nothing constrains who issues it. The main agent has read the implementation. It is the one hand in the chain that must not rule on whether a test bit, and it is currently free to write the verdict, to paraphrase one, or to skip the round and report that it passed. `.claude/agents/gauntlet-juror.md` says the verdict is the juror's; a prompt is not what makes that true, which is the argument `.claude/hooks/no-impl-reads.py` is built on — the agent that must not peek is the same agent deciding whether it peeked.
+
+Outside `.claude/worktrees/`, the only mention of `state/verdicts` anywhere in the tree is `.claude/agents/gauntlet-juror.md:63`, in the agent file written before this plan. No hook, no wiring, no writer, and no `Stop` hook beyond the two markdown gates.
+
+## What the owner sees change
+
+A red run produces a file. `docs/gauntlet/verdicts/<slug>.txt` holds one verdict per behavior line and nothing else, tracked, so it is there to read after the session that produced it is gone and on a machine that never ran it — the same reason `docs/gauntlet/plans/` is tracked.
+
+Writing it is denied to every hand but `gauntlet-juror`, at the tool call, the way the three existing lanes deny theirs. A main agent that writes its own verdict gets the lane's denial and the message names the agent that may.
+
+A turn that ends with `state/red/<slug>.txt` present and no matching verdicts file is blocked, and the block says which slug was never ruled on. Skipping the round stops being a thing that is noticed later and becomes a thing that does not land.
+
+## Which files get touched, and roughly how
+
+**`.claude/hooks/verdicts-lane.py`, new.** Modeled on `plans-lane.py`, which is the closest existing shape: one writer, one directory, no per-agent carve-out. Its `REVIEWER`/`LANE` pair at `:47` and `:49` becomes `gauntlet-juror` and `docs/gauntlet/verdicts`; the deny path at `:95` and the `--self-test` dispatch at `:165` carry over unchanged in shape. The case dict at `:112-158` gains the cases this lane exists to hold: the writer allowed inside the lane, every other `agent_type` denied including the main agent and an unprefixed name, a write outside the lane allowed, and the shell shapes `tests-lane` already covers — a write behind a head word, an `fd` redirection, a write after a newline or `&`.
+
+The `Stop` half lives in the same file behind `--stop`, following `check_md_trivia.py --stop` at `.claude/settings.local.json:19`, which is the repo's only existing `Stop` precedent. One script per lane concept, two entry points, rather than a second file that would duplicate the path logic.
+
+**`.claude/settings.json`.** A `PreToolUse` block for the lane beside the four at `:9`, `:13`, `:17` and `:26`, and a `Stop` block for `--stop`. This file is the kit a consumer copies, which is why both wirings go here and not in `settings.local.json`: the gate is the product, and `settings.local.json` holds only what matters to this repo.
+
+**`.claude/agents/gauntlet-juror.md`.** A sixth entry in the `hooks:` frontmatter, which already carries five `PreToolUse` entries at `:6-27`. The session-wide wiring in `settings.json` already binds it; the frontmatter entry is what keeps the agent file readable as a statement of what binds it.
+
+**`.claude/hooks/no-impl-reads.py`: no change, and the tracked lane does not force one.** `:204` denies `docs/gauntlet` entire to every blind agent, so a juror that had to read its own lane would need a re-allow beside `GAUNTLET_SPECS` at `:202-203`. It does not have to. `.claude/agents/gauntlet-juror.md:63` gives it one action on that file — write it, then report the same lines back — and `:68` says its one write is the verdict file. The two files it reads are the committed spec under `docs/gauntlet/specs/`, re-allowed at `:202-203` already, and the red run under `state/`, in `DEFAULT_ALLOW` at `:81`. `no-impl-reads.py` is wired on the juror at `.claude/agents/gauntlet-juror.md:8-11`, matcher `Read|Grep|Glob|Bash`, so the `Write` into the lane is never tested by it in any case.
+
+So no carve-out, and no widening for the `gauntlet-arbiter` and the `gauntlet-testsmith` to inherit. An earlier draft of this plan proposed both.
+
+**`.claude/agents/gauntlet-juror.md:63`**, which still names `state/verdicts/<slug>.txt` as where the verdict goes, from before the owner ruled. This plan changes it to `docs/gauntlet/verdicts/<slug>.txt`. Left as it is, the juror follows its own instructions to a path the lane does not match, nothing denies the write, no file appears in the lane, and the `Stop` gate then blocks every turn for that slug until someone deletes the red run — a gate firing on its own writer's obedience.
+
+## Caller-side delta
+
+`docs/agents.md` gains a roster row that says the juror writes `docs/gauntlet/verdicts/<slug>.txt` rather than `nothing`, a fifth lane in its hook column, and a chain step. `README.md` names five subagents and a six-line `--self-test` list; both grow by one. `CHANGELOG.md` takes an `Added` entry under `[Unreleased]` — the lane hook is the product a consumer copies, so it is changelog material by this repo's own rule.
+
+The owner took these: "I'll deal with the rest". They are named here because a reviewer resolving this plan against the tree will find them stale, and a plan that does not say why is a plan hiding a gap.
+
+`tests/test_hook_wire.py` needs cases for the new lane. The main agent cannot write them — `.claude/settings.json:17` denies it in this repo as in any other — so they come through a spec block, the `gauntlet-arbiter` and the `gauntlet-testsmith`, after this plan lands.
+
+## What it costs
+
+A fifth lane hook, and a fifth `--self-test` on the bar in `CLAUDE.md`, which lists seven gates and would list eight. Every consumer of this repo re-copies `.claude/` and re-runs the list; `CHANGELOG.md` carried that same breaking note for `0.1.0`.
+
+A stale sentence in a file this plan does not touch. `.claude/hooks/no-impl-reads.py:29-31` explains the `docs/gauntlet/` denial as covering "three of the four kinds" of artifact that live there. A fifth directory lands and that arithmetic is wrong — comment only, no behavior, and the denial itself keeps working exactly as written.
+
+One tracked file per red run, in a fourth artifact directory under `docs/gauntlet/`. That is the cost the owner took when they answered the escalated question: the verdict is checkable on a machine that never ran the suite, and the repo carries a file per run forever to get it.
+
+The `Stop` gate keys on a file's existence, and six readings of that have to be settled in the first version rather than when each first bites.
+
+**Abandoned run.** A slug the owner dropped, a worktree cut and discarded: its red file sits there and blocks every turn until a verdict exists or the red file goes. The block names the file to delete, and deleting it is denied to nobody.
+
+**Re-run.** `scripts/pair.sh:100` writes `state/red/$slug.txt` with `>`, so a second `pair.sh red` overwrites the evidence in place while the first run's verdict file still exists and still satisfies the gate. The gate would pass on a verdict that ruled on output no longer on disk — the exact defect this plan opens with, reintroduced. So the gate compares the two rather than counting them, and it does the comparison itself: a verdict file whose `mtime` is older than the red file it answers fails the gate exactly as a missing verdict does, because the evidence has been rewritten since it was ruled on.
+
+The comparison is the hook's, not the juror's, and that is the point of putting it there. `.claude/agents/gauntlet-juror.md:63` says the verdict file holds "one verdict per line and nothing else in the file" and `:3` says "and nothing else"; keeping the run's identity out of the file leaves both sentences standing. It also has to be the hook's: `:4` gives the juror `Read, Grep, Glob, Write` and `:69` says it holds no `Bash`, so it can neither stat nor hash the file it ruled on. An earlier draft of this plan had the verdict file record an `mtime` or hash, which was a redefinition of the artifact that no owner sentence authorized and that its writer could not have carried out.
+
+`mtime` ordering is the whole of the test, so the one way to defeat it is to write a verdict and then restore an older red file over it. Nothing in the chain does that, and a hand that does is not one a `Stop` hook was going to stop.
+
+**Empty file.** `:100` redirects before the suite runs and appends `|| true`, so a crashed or killed run leaves a zero-byte `state/red/$slug.txt`. That is not a run to rule on. An empty red file is not a verdict the gate should demand; it fails with its own message, naming the run that produced nothing.
+
+**Many slugs.** The gate scans a `state/red/` directory rather than one path, so several unruled slugs block at once. It names every one of them, not the first.
+
+**Which `state/red/`.** `scripts/pair.sh:99` writes the file relative to the cwd `pair.sh` ran in, and this repo has agents working inside `.claude/worktrees/<slug>-spec` and `-impl`, which `shell_shapes.py:397-400` treats as roots by construction. The `--stop` half resolves its root from its own path, `Path(__file__).resolve().parent.parent.parent`, which is how the repo's one existing `Stop` hook does it at `scripts/gates/check_md_trivia.py:63`. Neither the cwd nor `CLAUDE_PROJECT_DIR`: the cwd moves within a turn, and `CLAUDE_PROJECT_DIR` is the main checkout for one session and the worktree itself for another, so keying on either makes the gate's subject depend on how the session was launched.
+
+Resolving from the script gives each checkout its own gate over its own `state/red/`. A session launched inside `.claude/worktrees/<slug>-spec` runs that tree's copy of the hook and is gated on that tree's directory; a session at the root that merely `cd`s into the worktree runs the root's copy and is gated on the root's. The gap this leaves is real and worth naming: a `pair.sh red` run from inside a worktree writes a red file the root's gate never sees. It is narrow — `scripts/pair.sh:98-99` is written to be run from the main checkout, and `cmd_red` at `:86` dies unless the worktree exists beneath it — and closing it properly is a `pair.sh` change, which the owner scoped out of this plan.
+
+**No `state/red/` at all.** Every turn in a consumer project that copies `.claude/` per `README.md:50` and never runs `pair.sh` has no such directory. A missing directory is not an unruled run: the gate returns silently and blocks nothing. It fires on a red file that exists, never on the absence of one, which is also what keeps it quiet for `kind: excision` and `kind: repair`.
+
+A tests-only change never reaches any of this. `README.md:44` says a `kind: excision` or `kind: repair` change has no red run, so `state/red/<slug>.txt` never appears for those two kinds and the gate stays silent. Nothing in `scripts/pair.sh` enforces that — `cmd_red` at `:82-102` has no `kind` guard, and only `cmd_merge` branches on kind, at `:113-118` — so the silence comes from the documented chain and not from the script. A `pair.sh red` run by hand on an excision slug would produce a red file and arm the gate against a change that owes no verdict.
+
+Deliberately left out: the parse in `scripts/pair.sh red`, and items 3 and 4 of the backlog. The owner scoped this to "its hooks".
+
+## Open questions
+
+The one question this plan escalated — untracked under `state/` or tracked under `docs/gauntlet/` — the owner answered `gauntlet/verdicts/`, and the tracked lane is what is drafted above. What remains are the things the brief agreed to and this plan does not deliver. Each is a scope call the owner has already made once; they are listed so that a plan approval is not read as agreement that they are done.
+
+1. The parse in `scripts/pair.sh red` — RED/GREEN/ERROR per nodeid, and the traceback top frame that splits `ERROR` from `INVALID`. The owner's second sentence agreed to it ("agreed on the script, hook, and reduced model"), and the fifth scoped this plan to the hooks. It is not in this plan and nothing here depends on it: with `model: sonnet` the juror reads the traceback itself. Confirm it is still wanted, separately. The same sentence left out the two backlog items the owner opened the session with — plan rechecks on changed lines only, with an amendment carrying a measured value from the impl tree, and the investigation-and-citation-resolution tool — and neither is touched here or blocked by anything here.
+2. `docs/agents.md` — the juror's roster row, its hook column, and the chain step. The row currently says the juror writes `nothing` and lists four hooks where the agent file wires five.
+3. `README.md` — "five subagents" at `:3`, the six-line `--self-test` list at `:53-58`, and `:50`, which names the four session-wide lanes and says `no-impl-reads.py` is wired from the `gauntlet-arbiter` and `gauntlet-testsmith` frontmatter alone. All three grow by one, and `:50` names a third blind agent.
+4. `CHANGELOG.md` — an `Added` entry under `[Unreleased]` for the lane hook and the `Stop` gate, which are the product a consumer copies.
+Items 2, 3 and 4 are the owner's by "I'll deal with the rest". Item 1 is work nobody has claimed.
+
+--- reviewer ---
+READY
+
+a  PASS  carried: the redefinition stays withdrawn. "What the owner sees change" keeps the artifact as `gauntlet-juror.md:63` and `:3` define it, the re-run comparison sits in the hook, and the one meaning this plan does change — the verdict path — takes the escape of the owner's quoted `gauntlet/verdicts/` in the `brief:` block.
+b  PASS  the last unresolved citation resolves: `README.md:50` is "Clone this repository and copy its `.claude/` directory ... into the target project", and it does name `plans-lane.py`, `specs-lane.py`, `tests-lane.py` and `reviews-lane.py` session-wide and `no-impl-reads.py` as wired from the `gauntlet-arbiter.md` and `gauntlet-testsmith.md` frontmatter alone, which `gauntlet-juror.md:8-11` makes stale. The new citations in the root paragraph resolve too: `check_md_trivia.py:63` is `ROOT = Path(__file__).resolve().parent.parent.parent`; `pair.sh:86` is `[ -d "$wt" ] || die "no spec worktree at $wt"` with `worktree_path()` at `:30` returning the relative `.claude/worktrees/$1-spec`, so a run from inside a worktree does die as the plan says; `:98-99` are `mkdir -p state/red` and `out=state/red/$slug.txt`. `grounding: gauntlet-detective` at line 2. Every earlier citation was opened in a previous round.
+c  PASS  carried: my count matches. The only mover is the verdict path and `grep -rn "state/verdicts"` finds exactly one site, `gauntlet-juror.md:63`, which the touched list names. `README.md:50` joins `:3` and `:53-58` as a third stale line, named under the owner's own "I'll deal with the rest" item.
+d  PASS  carried: cause named upstream of the symptom — the red run has no artifact and no lane, so the verdict is a claim in a transcript and the one hand that must not rule is free to write it.
+e  PASS  carried: no rule is overturned. `gauntlet-juror.md:63` and `:3` are quoted and left standing, `:4` and `:69` are respected by keeping the comparison in the hook, and the rules the plan touches elsewhere — `no-impl-reads.py:204`, the stale `:29-31` comment, the seven-gate bar in `CLAUDE.md` — are each named.
+f  PASS  six readings, and line 72 now says six. The root question is answered with a mechanism rather than a preference: resolution from the script's own path, the way `check_md_trivia.py:63` does it, with the reading stated both ways for a session launched in `.claude/worktrees/<slug>-spec` and for one that `cd`s in, and the residual gap — a `pair.sh red` run from inside a worktree writing a red file the root's gate never sees — named, bounded at `pair.sh:86` and `:98-99`, and left to the `pair.sh` work the owner scoped out.
+g  PASS  four open questions remain, each a `dropped:` line from the `brief:` block that check (i) requires to reach the owner, and the closing line says who holds each. None is answered elsewhere in the tree, none blocks this plan's work either way, so none escalates.
+h  PASS  the reach claims carry mechanism and hold on a one-hop trace. "It forces no change to `no-impl-reads.py`": the juror reads `docs/gauntlet/specs/` (`:202-203`) and `state/` (`:81`), its `Write` is not seen by that hook (`gauntlet-juror.md:8-11`), and nothing in the tree reads a path under `docs/gauntlet/verdicts/`. "A missing directory is not an unruled run" follows from the gate firing on an existing red file, and `pair.sh:98` is the only thing in the one-hop set that creates `state/red/`. "A tests-only change never reaches any of this" is bounded and the bound is correct — `cmd_red` at `:82-102` has no `kind` guard, `cmd_merge` branches at `:113-118`, and the silence is credited to `README.md:44` rather than to the script.
+i  PASS  carried: `brief:` block present, every quoted owner sentence carries a line, every `delivered:` resolves into the body, and each `dropped:` that names work not done reappears as an open question. The two `dropped:` lines naming a withdrawn name are the owner's own reversal that `docs/plans.md:36` requires the block to quote, delivered by the successor sentence.
+j  N/A   carried: this repo names no composition-root file in any architecture doc; the plan adds a new hook file rather than a member to an existing one.
+k  PASS  each `delivered:` reads as its sentence reads: `model: sonnet` at `gauntlet-juror.md:5`; the agent file on disk for "juror?"; hooks and wiring only for "take its hooks to the plan gate"; the lane plus `--stop` for "offloaded to a hook?"; `docs/gauntlet/verdicts/<slug>.txt` for "`gauntlet/verdicts/`", the artifact base being `docs/gauntlet` at `no-impl-reads.py:83`. Nothing this round added a condition to an element that its brief sentence does not state.
+
+notes
+1. Whether a blocked turn between `pair.sh red` and the juror's round is the shape the owner wants — it forces the run and the juror into one turn — is the owner's call.
+2. `mtime` ordering under `git restore` is live filesystem behavior rather than something the tree states; the plan's reading, that such a hand is not one a `Stop` hook was going to stop, is the one I would take.
