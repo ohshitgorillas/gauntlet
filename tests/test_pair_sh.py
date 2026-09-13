@@ -413,3 +413,83 @@ def test_merge_artifact_red_output_section_carries_the_red_run_on_disk(
 ):
     _, artifact = _merge(tmp_path, {"test_a.py": TEST_A_OTHER}, suite=suite)
     assert _red_section_marks(artifact) == expected
+
+
+SPEC_PATH = "gauntlet/specs/approved/" + SLUG + ".txt"
+
+BODY_V2 = BODY_NEW.replace(
+    "reports two for two widgets and three for three",
+    "reports four for four widgets and five for five",
+)
+BLOCK_V2 = _block(BODY_V2)
+SCRATCH_BLOCK = (
+    "slug: demo\n"
+    "kind: new\n"
+    "brief: none\n"
+    "\n"
+    "1. a scratch edit that was never committed anywhere\n"
+    "   kills: nothing\n"
+    "   bite: nothing\n"
+    "   existing: none\n"
+)
+
+
+def _restore(tmp_path, target):
+    """Drive `pair.sh restore` over two committed revisions of the demo block.
+
+    The first commit carries BLOCK_NEW, the second carries BLOCK_V2, and the
+    working tree is then overwritten with SCRATCH_BLOCK, which is committed
+    nowhere. `target` picks which revision to restore, "first" or "second".
+    Returns the stdout lines of the call, the repository root, and the
+    revision that was passed.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    first = _git(repo, "rev-parse", "HEAD")
+    (repo / SPEC_PATH).write_text(BLOCK_V2)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "second block")
+    second = _git(repo, "rev-parse", "HEAD")
+    rev = first if target == "first" else second
+    (repo / SPEC_PATH).write_text(SCRATCH_BLOCK)
+    return _pair(repo, "restore", SLUG, rev), repo, rev
+
+
+def _printed(lines, repo):
+    """Project `pair.sh restore` stdout onto (line count, third field, text).
+
+    The text is that of the file the second field names, read relative to the
+    repository root. Stdout that is not exactly one line, a line of fewer than
+    three fields, and a second field naming no file on disk each collapse to
+    empty strings rather than raising.
+    """
+    if len(lines) != 1:
+        return (len(lines), "", "")
+    fields = lines[0].split()
+    if len(fields) < 3:
+        return (1, "", "")
+    named = repo / fields[1]
+    return (1, fields[2], named.read_text() if named.is_file() else "")
+
+
+@pytest.mark.parametrize(
+    "target,expected",
+    [("first", BLOCK_NEW), ("second", BLOCK_V2)],
+    ids=["restore-the-first-revision", "restore-the-second-revision"],
+)
+def test_restore_puts_the_blocks_bytes_at_the_named_revision_back_on_disk(
+    tmp_path, target, expected
+):
+    _, repo, _ = _restore(tmp_path, target)
+    assert (repo / SPEC_PATH).read_text() == expected
+
+
+@pytest.mark.parametrize(
+    "target,expected",
+    [("first", BLOCK_NEW), ("second", BLOCK_V2)],
+    ids=["restore-the-first-revision", "restore-the-second-revision"],
+)
+def test_restore_prints_one_line_naming_the_path_it_wrote_and_the_revision(
+    tmp_path, target, expected
+):
+    lines, repo, rev = _restore(tmp_path, target)
+    assert _printed(lines, repo) == (1, rev, expected)
