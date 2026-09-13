@@ -32,7 +32,7 @@ Blindness costs something, so it is paid for. The `gauntlet-examiner` measures t
 5. The `gauntlet-scrivener` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
 6. The tests run red under `scripts/pair.sh red`, and a `gauntlet-juror` reads that saved output against the approved block and returns one verdict per line, blind.
 7. The main agent implements against the tests, and never edits them.
-8. After `scripts/pair.sh merge`, a `gauntlet-bailiff` reads the `TEST CHECK` brief the script printed against the committed block and returns `PIN`, `SOFT`, `MISSING` or `EXTRA` per behavior line, blind. It is the only round that holds test code, so rules 4, 6, 13 and 14 are checked there and nowhere else.
+8. After `scripts/pair.sh merge`, a `gauntlet-bailiff` reads the `TEST CHECK` brief the script printed, and the `state/merge/<slug>.txt` that brief names, against the committed block, and returns `PIN`, `SOFT`, `MISSING` or `EXTRA` per behavior line, blind. It is the only round that holds test code, so rules 4, 6, 13 and 14 are checked there and nowhere else.
 
 ## `scripts/pair.sh`
 
@@ -43,8 +43,10 @@ The script that moves a block between the reviewer, the writer and the tree. Thr
 | `pair.sh open <slug>` | `OPEN .claude/worktrees/<slug>-spec` | the approved spec's reviewer section is byte-identical to the newest `docs/gauntlet/reviews/<slug>.<N>.txt` |
 | `pair.sh open <slug>` | `MISMATCH docs/gauntlet/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
 | `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
-| `pair.sh merge <slug>` | `TEST CHECK <slug>` and the brief beneath it | `kind:` is `new`, `characterization` or `refactor` |
+| `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: state/merge/<slug>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor` |
 | `pair.sh merge <slug>` | the `scripts/excision-diff.py` verdict lines | `kind:` is `excision` or `repair` |
+
+The evidence `merge` used to print beneath that header now goes to the file the `merge output:` line names: `state/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- tests/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `state/red/<slug>.txt` is absent.
 
 `open` refuses on mismatch because the spec file is editable after the reviewer passed it, and the round file is not: the comparison is what makes the approved block the reviewed block rather than the latest one. `red` removes the whole-file excision targets, which the lane hook denies every agent, and leaves single-test targets to the writer's `Edit`. `merge` routes on `kind:` because the two tests-only kinds have no implementation phase, so the blind post-merge reviewer round has no window to watch and the mechanical check takes it.
 
