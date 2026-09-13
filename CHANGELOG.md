@@ -11,6 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - `scripts/cite.py`, a citation resolver for a plan draft. `--check` resolves every backticked `path:line` against the tree and exits 1 on one that does not, `--fix` fills a number from its quoted anchor where the anchor is unique in the file. A bare continuation and a path outside the checkout print a row whether or not they fail.
 
 **Breaking for existing installs:** re-copy `.claude/` and re-run the `--self-test` commands, which are now eight.
+
+### Changed
+- The `gauntlet-arbiter` returns `ADMITTED`, `AMENDED` or `STRICKEN` per behavior line, and its default verdict is `STRICKEN`.
+
 ### Fixed
 - `pair.sh red` runs the suite verbose, so the saved output names every test that passed as well as every test that failed.
 
