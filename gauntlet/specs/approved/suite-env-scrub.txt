@@ -1,0 +1,31 @@
+slug: suite-env-scrub
+kind: new
+brief:
+> so the self-tests stay honest
+
+surface: the two subprocess helpers of this repository's own suite — `hook_decision` in `tests/test_hook_wire.py` and `payload_decision` in `tests/test_blind_reads_declaration.py`. Each takes the script to run as an ordinary parameter (`hook_name`) and joins it onto a directory with `pathlib` — `HOOK_DIR / hook_name` in the first, `_COPIES[copy_label] / hook_name` in the second — so an absolute path passed as that parameter is the path that runs, and a caller reaches either helper with a script of its own without touching a global or patching anything. Both return raw stdout when stdout is not a hook answer, so the child's own report is the helper's return value. `payload_decision` takes `copy_label` as its first parameter; the calls below carry `ALLOW`.
+
+The probe script both lines run prints exactly one line, `GAUNTLET=<g>|PROBE_CONTROL=<p>`, where each field is the variable's value in the probe's own environment, or the literal string `<unset>` where the variable is absent from it.
+
+1. `hook_decision` in `tests/test_hook_wire.py`, called with an absolute path to that probe script, returns the mapping {caller environment `GAUNTLET=off PROBE_CONTROL=kept`: `GAUNTLET=<unset>|PROBE_CONTROL=kept`, caller environment `GAUNTLET=off PROBE_CONTROL=second`: `GAUNTLET=<unset>|PROBE_CONTROL=second`}.
+   kills: the helper left inheriting the caller's environment, which returns `GAUNTLET=off` at both caller values, so every `DENY` case in the file goes green in a bypassed session against a hook that denied nothing; a helper that answers a canned report for this script path, which returns `PROBE_CONTROL=kept` at both caller values and so cannot track the second; and a scrub done by handing the child a bare or near-empty environment, which returns `PROBE_CONTROL=<unset>` at both and drops `PATH` with it.
+   bite: at HEAD the call returns `GAUNTLET=off|PROBE_CONTROL=kept` at the first caller environment and `GAUNTLET=off|PROBE_CONTROL=second` at the second, each measured by `GAUNTLET=off PROBE_CONTROL=<value> .venv/bin/python <scratch driver>`, the driver loading the module by file path and calling `hook_decision` with the probe's absolute path.
+   existing: none, `grep -rn 'environ\|env=' tests/` returns hits in `tests/test_pair_sh.py` and `tests/test_excision_diff.py` only; no test drives either helper's child environment.
+
+2. `payload_decision` in `tests/test_blind_reads_declaration.py`, called with copy label `ALLOW` and an absolute path to that same probe script, returns the mapping {caller environment `GAUNTLET=off PROBE_CONTROL=kept`: `GAUNTLET=<unset>|PROBE_CONTROL=kept`, caller environment `GAUNTLET=off PROBE_CONTROL=second`: `GAUNTLET=<unset>|PROBE_CONTROL=second`}.
+   kills: the scrub applied to one file and not the other, which returns `GAUNTLET=off` here and leaves every declaration case in this file green under bypass; the scrub written into `hook_decision` at `tests/test_blind_reads_declaration.py:127`, the wrapper, rather than into `payload_decision` beneath it, which returns `GAUNTLET=off` for a payload sent straight to `payload_decision`; and the same canned report, which cannot track the second caller value.
+   bite: at HEAD the call returns `GAUNTLET=off|PROBE_CONTROL=kept` at the first caller environment and `GAUNTLET=off|PROBE_CONTROL=second` at the second, each measured by `GAUNTLET=off PROBE_CONTROL=<value> .venv/bin/python <scratch driver>`, the driver loading the module by file path, calling its `setUpModule()` to populate `_COPIES` as the suite does, then calling `payload_decision` with `ALLOW` and the probe's absolute path.
+   existing: none, same grep.
+
+--- reviewer ---
+READY
+discriminates: sweep on each helper's child environment - two caller values of `PROBE_CONTROL` against two distinct expected reports, with the `GAUNTLET` field held scrubbed across both
+
+1  ADMITTED  `hook_decision(<abs probe path>, payload)` under caller env `GAUNTLET=off PROBE_CONTROL=kept` and under `GAUNTLET=off PROBE_CONTROL=second` -> `GAUNTLET=<unset>|PROBE_CONTROL=kept` and `GAUNTLET=<unset>|PROBE_CONTROL=second`; inherited environment fails it at either caller env (returns `GAUNTLET=off`), a canned report fails it at the second (returns `PROBE_CONTROL=kept`), a bare environment fails it at both (returns `PROBE_CONTROL=<unset>`); bite: `GAUNTLET=off|PROBE_CONTROL=kept` and `GAUNTLET=off|PROBE_CONTROL=second` at HEAD.
+2  ADMITTED  `payload_decision(ALLOW, <abs probe path>, payload)` under the same two caller environments -> the same two reports; a scrub landed in `test_hook_wire.py` only, or in the `hook_decision` wrapper at tests/test_blind_reads_declaration.py:127 rather than in `payload_decision`, fails it at either caller env (returns `GAUNTLET=off`), and a canned report fails it at the second; bite: `GAUNTLET=off|PROBE_CONTROL=kept` and `GAUNTLET=off|PROBE_CONTROL=second` at HEAD.
+
+null stub: the helper builds no environment for the child, which inherits the caller's whole environment - HEAD's behavior.
+  satisfies: none   fails: 1, 2
+hard-coded stub: the helper skips `subprocess.run` and returns the fixed string `GAUNTLET=<unset>|PROBE_CONTROL=kept` for the probe path.
+  satisfies: none   fails: 1, 2
+survives: 2
