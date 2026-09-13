@@ -493,3 +493,150 @@ def test_restore_prints_one_line_naming_the_path_it_wrote_and_the_revision(
 ):
     lines, repo, rev = _restore(tmp_path, target)
     assert _printed(lines, repo) == (1, rev, expected)
+
+
+IMPL_FILE = "impl_work.txt"
+
+
+def _impl_checkout(repo):
+    """Run `pair.sh impl checkout <slug>` and return its stdout lines."""
+    return _pair(repo, "impl", "checkout", SLUG)
+
+
+def _named_dir(lines, repo):
+    """Resolve the second whitespace field of a one-line stdout to a directory.
+
+    The field is read relative to the repository root, which leaves an absolute
+    field unchanged. Returns None where stdout is not exactly one line, where
+    that line carries fewer than two fields, or where the field names no
+    directory on disk.
+    """
+    if len(lines) != 1:
+        return None
+    fields = lines[0].split()
+    if len(fields) < 2:
+        return None
+    named = repo / fields[1]
+    return named if named.is_dir() else None
+
+
+def _common_git_dir(path):
+    """Return the resolved shared git directory of the checkout at `path`.
+
+    A worktree of a repository and that repository report the same path here.
+    Returns None where `path` is no checkout at all.
+    """
+    try:
+        shared = _git(path, "rev-parse", "--git-common-dir")
+    except RuntimeError:
+        return None
+    return Path(path, shared).resolve()
+
+
+def _branch(path):
+    """Return the branch name checked out at `path`, or None where it is none."""
+    try:
+        return _git(path, "rev-parse", "--abbrev-ref", "HEAD")
+    except RuntimeError:
+        return None
+
+
+def _rev(repo, rev):
+    """Return the full object name `rev` resolves to in `repo`, or "" if none."""
+    try:
+        return _git(repo, "rev-parse", rev)
+    except RuntimeError:
+        return ""
+
+
+def _is_ancestor(repo, ancestor, descendant):
+    """Return whether `ancestor` is an ancestor commit of `descendant`."""
+    done = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=repo,
+        env=dict(ENV),
+        capture_output=True,
+        text=True,
+    )
+    return done.returncode == 0
+
+
+def _checkout_shape(lines, repo):
+    """Project `impl checkout` stdout onto what the path it names is.
+
+    Returns the number of stdout lines, whether the second field names a
+    checkout sharing this repository's git directory, and whether that checkout
+    is on the same branch as the caller. A field naming no checkout collapses
+    both flags to False rather than raising.
+    """
+    tree = _named_dir(lines, repo)
+    shared = None if tree is None else _common_git_dir(tree)
+    if shared is None:
+        return (len(lines), False, False)
+    return (len(lines), shared == _common_git_dir(repo), _branch(tree) == _branch(repo))
+
+
+def test_impl_checkout_names_a_worktree_of_this_repo_on_another_branch(tmp_path):
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    assert _checkout_shape(_impl_checkout(repo), repo) == (1, True, False)
+
+
+def _impl_tree_commits(tmp_path):
+    """Cut the impl tree, commit in it, then run `impl checkout` a second time.
+
+    Returns the commit the tree was cut at, the commit it carried just before
+    the second call, and the commit it carries after it. A first call naming no
+    directory collapses all three to distinct placeholders, so that neither the
+    equality nor the inequality the caller asserts can hold by accident.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    tree = _named_dir(_impl_checkout(repo), repo)
+    if tree is None:
+        return ("no branch point", "no commit before", "no commit after")
+    branch_point = _git(tree, "rev-parse", "HEAD")
+    (tree / IMPL_FILE).write_text("implementation in progress\n")
+    _git(tree, "add", "-A")
+    _git(tree, "commit", "-m", "impl work")
+    before = _git(tree, "rev-parse", "HEAD")
+    _impl_checkout(repo)
+    after = _git(tree, "rev-parse", "HEAD") if tree.is_dir() else "tree gone"
+    return (branch_point, before, after)
+
+
+def test_a_second_impl_checkout_leaves_the_tree_on_the_commit_it_was_on(tmp_path):
+    branch_point, before, after = _impl_tree_commits(tmp_path)
+    assert (after == before, after == branch_point) == (True, False)
+
+
+def _impl_merge_shape(tmp_path):
+    """Cut the impl tree, commit in it, then run `pair.sh impl merge <slug>`.
+
+    Returns the number of stdout lines, the second field of the line, whether
+    the commit its third field names has the pre-call tip of the impl tree as an
+    ancestor, and whether that commit is the primary checkout's HEAD after the
+    call. Stdout that is not one line of at least three fields collapses to
+    empty and False rather than raising.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    tree = _named_dir(_impl_checkout(repo), repo)
+    tip = "no impl tree"
+    if tree is not None:
+        (tree / IMPL_FILE).write_text("implementation to be merged\n")
+        _git(tree, "add", "-A")
+        _git(tree, "commit", "-m", "impl work")
+        tip = _git(tree, "rev-parse", "HEAD")
+    lines = _pair(repo, "impl", "merge", SLUG)
+    fields = lines[0].split() if len(lines) == 1 else []
+    if len(fields) < 3:
+        return (len(lines), "", False, False)
+    printed = _rev(repo, fields[2])
+    return (
+        len(lines),
+        fields[1],
+        _is_ancestor(repo, tip, fields[2]),
+        printed != "" and printed == _rev(repo, "HEAD"),
+    )
+
+
+def test_impl_merge_prints_the_slug_and_a_commit_holding_the_impl_tip(tmp_path):
+    assert _impl_merge_shape(tmp_path) == (1, SLUG, True, True)
