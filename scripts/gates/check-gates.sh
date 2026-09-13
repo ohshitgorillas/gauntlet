@@ -46,6 +46,7 @@ gates=(
     "pair-passthrough|python3 .claude/hooks/pair-passthrough.py"
     "excision-diff|python3 scripts/excision-diff.py --self-test"
     "cite|python3 scripts/cite.py --self-test"
+    "symbol-closure|python3 scripts/gates/symbol-closure.py --self-test"
 )
 
 failed=0
