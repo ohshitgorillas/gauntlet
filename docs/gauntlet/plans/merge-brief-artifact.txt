@@ -1,0 +1,94 @@
+slug: merge-brief-artifact
+grounding: gauntlet-detective
+
+brief:
+> The below is a report from an investigative agent. Proceed to stage 1.
+  delivered: this plan, on the report the owner pasted beneath that sentence. The report is an agent's prose, not the owner's, so its design — `state/merge/<slug>.txt`, a path in the brief — is treated here as a proposal to check rather than as an instruction, and one of its claims is corrected below.
+
+## What is wrong
+
+`scripts/pair.sh merge` hands the post-merge round its evidence by value. The `new | characterization | refactor` branch at `scripts/pair.sh:121-133` prints the test file names at `:127`, the whole `git diff <base> HEAD -- tests/` at `:129`, and the whole saved red log at `:131`, all to stdout.
+
+That stdout is read by the main agent, which needs none of it. `.claude/agents/gauntlet-bailiff.md:47` says "Brief is `TEST CHECK <slug>` through `END TEST CHECK`, verbatim as `scripts/pair.sh merge` printed it", and `:51` says "Brief carries spec commit, red commit, test files, `git diff <red> HEAD -- tests/`, and saved red output". So the main agent reads a full test diff plus a full red log into its own context for the sole purpose of copying it into a subagent brief. Carried, not used. Two contexts pay for one body of evidence, per merged block.
+
+The red log alone is the larger half and is already on disk: `state/red/cite-py-worktree-root.txt` is 7,925 bytes, `state/red/cite-py.txt` 6,161, `state/red/pair-sh-red-names-tests.txt` 3,310. The diff is unbounded — it is every test the block produced.
+
+The chain already knows the fix, one subcommand over. `cmd_red` writes the run to a file at `scripts/pair.sh:99` and `:102`, then echoes the path alone at `:103`.
+
+The juror is briefed with that path and nothing else. `.claude/agents/gauntlet-juror.md:42` is "The slug, the committed spec path, and the path `scripts/pair.sh red` printed." The main agent never reads a red log to brief a juror. It reads one to brief a bailiff, for no reason but that `merge` prints the body where `red` prints a path.
+
+## What the owner sees change
+
+`scripts/pair.sh merge` prints five lines on the three implementation kinds, not a screenful: the `TEST CHECK <slug>` header, the two commits, one path, and `END TEST CHECK`. The evidence moves to `state/merge/<slug>.txt`, which the bailiff reads itself.
+
+The bailiff's job, its blindness and its per-line verdicts do not move. It sees the same test names, the same diff and the same red output, by path instead of by paste.
+
+One thing the owner sees that is new: a round can now come back `NO EVIDENCE`, naming a merge-output path that is absent or zero bytes. A file that is present with content is ruled on, including one whose `red output:` section is empty because no red log was on disk — that brief is complete and re-running `merge` would reproduce it byte for byte, so returning `NO EVIDENCE` there would loop. Today the evidence travels inside the brief, so that state cannot arise; with a path it can, and the answer to it is to run `scripts/pair.sh merge <slug>` again and spawn a fresh bailiff, not to rule on the block.
+
+The main agent's context stops carrying one full test diff and one full red log per merged block, and the bailiff stops being briefed with a body the main agent has already read.
+
+## Which files get touched, and roughly how
+
+**`scripts/pair.sh:121-133`.** The branch writes `state/merge/$slug.txt` and prints a path. The file gets what stdout carries today: the `test files:` list from `:127`, the `diff:` body from `:129`, the `red output:` body from `:131`, under the same three head lines so nothing has to learn a new shape. Stdout keeps `echo "TEST CHECK $slug"` at `:123`, the two commit lines at `:124-125`, `echo "END TEST CHECK"` at `:132`, and gains one `merge output: state/merge/<slug>.txt` line in place of the three payload blocks. `mkdir -p state/merge` beside the `mkdir -p state/red` at `:98`. The name is the report's and this plan takes it: `state/merge/<slug>.txt` sits beside `state/red/<slug>.txt`, untracked by `.gitignore:3`, with no gate keying on it, so it costs nothing to rename later and nothing outside this change reads it.
+
+One behavior to repair rather than carry: `scripts/pair.sh:131` is `[ -f "$red" ] && cat "$red"`, an unguarded test under the `set -euo pipefail` at `scripts/pair.sh:17`. A merge with no red log on disk aborts `cmd_merge` there under errexit, so `echo "END TEST CHECK"` at `:132` never runs and the brief the main agent pastes is unterminated. The guard takes an explicit `|| true`. The new reading at that edge: exit 0, the path printed inside a terminated block, and the `red output:` section of `state/merge/<slug>.txt` empty.
+
+**`.claude/agents/gauntlet-bailiff.md:3`, `:47`, `:51`, `:68`, `:72`, `:74-76`, `:80-87`.** `:3` and `:47` keep the `TEST CHECK` block as the brief and the contempt rule keyed on sentences outside it; what changes is what the block contains. `:3` today ends "brief it with the `TEST CHECK` block the script printed, verbatim, and nothing else", and it keeps that sentence word for word: the block is still the whole brief, and the paths inside it are what the script printed. `:51` becomes the paths: spec commit, red commit, and the merge-output path. It also gains the unreadable-path sentence that "What it costs" states. `:72` says three tokens and says four; `:74-76` gains the `NO EVIDENCE` bullet; the output-format fence at `:80-87` takes the token in its verdict line, `:81`, which reads `READY | ANOTHER PASS | ESCALATE` today. The contempt format at `:89-96` does not move. `:68` says "you hold `git diff <red> HEAD -- tests/`" and becomes a sentence that says where that diff is read from. The `tools:` line already carries `Read, Grep, Glob, Bash` and does not move.
+
+That `:68` rewrite also fixes the rule pointers in the same sentence. It sends rules 4, 6, 13 and 14 to lines 13, 17, 60 and 62 of `docs/testing.md`, written as bare numbers; rule 4 is at `docs/testing.md:17`, rule 6 at `:21`, rule 13 at `:61` and rule 14 at `:63`. `docs/testing.md:13` is rule 2, "One assertion per test." So the bailiff's own sheet points at rule 2 where it means rule 4, and at a blank line where it means rule 13. The sentence is being rewritten either way, so the four numbers are corrected with it rather than left for a second round on the same line. It is the one thing here that is not about the brief shape.
+
+**`docs/agents.md:46`**, the stdout contract row, which says `TEST CHECK <slug>` and the brief beneath it. It says the same thing about a shorter brief.
+
+**`docs/agents.md:35`**, chain step 8, which says the bailiff "reads the `TEST CHECK` brief the script printed". It now also reads the file that brief names.
+
+**`CHANGELOG.md:11`.** The bailiff's `Added` entry sits under the `[Unreleased]` heading at `CHANGELOG.md:5` and already describes the brief the script prints. It is unreleased, so the entry is amended in the same commit as the change rather than a second entry contradicting it. No consumer has seen the old shape.
+
+## Caller-side delta
+
+`.claude/hooks/no-impl-reads.py:81` is `DEFAULT_ALLOW = ("docs/", "tests/", "state/")`, so the bailiff may read `state/merge/<slug>.txt` with no carve-out; that hook is wired on it at `.claude/agents/gauntlet-bailiff.md:11`. `.gitignore:3` is `state/`, so the artifact never lands in a commit, exactly as the red log does not.
+
+An approved, tracked block already governs this stdout, and it is not overturned. `docs/gauntlet/specs/pair-sh.txt:32-34` is behavior line 3, which pins "the first stdout line of" `scripts/pair.sh merge <slug>`: `OK tests/test_a.py::test_x` for a block whose `kind:` is `excision`, and `TEST CHECK <slug>` for one whose `kind:` is `new`. It pins the first line and nothing beneath it. `scripts/pair.sh:123` does not move, and the excision arm is not in the changed branch, so the line keeps holding exactly what it held.
+
+No lane hook changes. `state/` is nobody's approved-artifact lane, and this adds no writer to one.
+
+Nothing else reads `merge` stdout. `scripts/excision-diff.py` is the other branch and is untouched.
+
+## What it costs
+
+**A second untracked artifact directory,** `state/merge/`, one file per merged block, overwritten on a re-merge of the same slug the way `state/red/` is at `scripts/pair.sh:99`. No `Stop` gate keys on it, so a stale file blocks nothing.
+
+**Evidence by path has three readings a paste does not have,** and all three are new. `.gitignore:3` is `state/`, so the artifact exists only in the checkout that ran `merge`: a bailiff spawned against another tree, or after the file is cleaned, gets a path pointing at nothing. Empty is the second — the `red output:` section is empty whenever no red log was on disk, and a `merge` that wrote nothing at all leaves a zero-byte file. Stale is the third, above. Today none of these exist, because the body travels in the brief. `.claude/agents/gauntlet-bailiff.md:47` and the verdict section say nothing about an unreadable path, so the sheet gains a route for it, and the route is a fourth gate token rather than either of the two shapes already there. Its trigger is the file absent or zero bytes, and nothing else. A present file whose `red output:` section is empty is a complete brief and is ruled on: the red log was never on disk, re-running `merge` writes the same file again, and a token that fired there would loop the way contempt would. A missing body is not a softened test, and a round that guesses at one is worse than a round that did not happen.
+
+The contempt format is the wrong route and is not taken. `.claude/agents/gauntlet-bailiff.md:89-96` is one whole output, headed `CONTEMPT: LEADING`, and `:96` scopes its one-line `shape:` variant to "a brief that is not a `TEST CHECK` block". A well-formed block naming an absent file is neither leading nor malformed, so sending it there would redefine `CONTEMPT: LEADING` to mean a missing artifact as well as a leading brief, and `.claude/agents/gauntlet-bailiff.md:47` would then make it non-terminating: contempt burns the bailiff, the main agent sends the bare brief to a fresh one, and the fresh one reads the same missing path and returns the same contempt. `:89-96` does not move.
+
+So the gate verdict list grows by one. `.claude/agents/gauntlet-bailiff.md:72` is "First line of your output = one of three tokens, always printed, never hedged, never replaced by prose:" and becomes four, and a fourth bullet joins `READY`, `ANOTHER PASS` and `ESCALATE` at `:74-76`: `NO EVIDENCE`, first line, followed by one line naming the path, ruling on nothing. The output-format fence at `:80-87` takes the token in its verdict line, `:81`, which reads `READY | ANOTHER PASS | ESCALATE` today. It is not a verdict on the tests and burns nobody: the named repair is the main agent's, which re-runs `scripts/pair.sh merge <slug>` to write the artifact again and spawns a fresh bailiff on the new brief. That is what stops the re-spawn loop contempt would produce — the second bailiff is briefed against a file that now exists.
+
+**The tamper surface moves from a paste to a file,** and it is the surface the repo already accepted for the red log. `.claude/agents/gauntlet-juror.md:42-44` takes a path and rules `TAMPERING` on sentences outside the brief; the bailiff's contempt rule at `.claude/agents/gauntlet-bailiff.md:47` keys on sentences outside the block the same way. A hand that can edit `state/merge/<slug>.txt` between the merge and the round can already edit `state/red/<slug>.txt` between the red run and the juror. Nothing new is lost, and nothing new is guarded either.
+
+**The contract is stated in four places and they move together.** `scripts/pair.sh:121-133`, `.claude/agents/gauntlet-bailiff.md:47` and `:51`, `docs/agents.md:35` and `:46`, `CHANGELOG.md:11`. A partial landing is not a smaller change but a broken one: a bailiff briefed with the new five-line block while `.claude/agents/gauntlet-bailiff.md:47` and `:51` still describe the old one returns contempt, or asks for a body that is no longer printed.
+
+**A test pinning the new stdout does not exist and cannot be written here.** The one test on merge stdout is `tests/test_pair_sh.py:187-196`, parameterized over both kinds, and for `kind: new` it asserts only that the first line is `TEST CHECK demo`. That line does not move, so the change lands green with the new contract unpinned. The investigative report read this test as covering the excision branch alone; it covers both, and the correction does not change the conclusion, which is that nothing pins the blob. Pinning it needs an approved spec block and the `gauntlet-scrivener`: `tests/` is denied to the main agent by `.claude/settings.json:17` in this repo as in any other.
+
+Deliberately left out: nothing. The owner scoped nothing out, and the whole of the report's finding is planned above.
+
+## Open questions
+
+None.
+
+--- reviewer ---
+READY
+
+a  PASS  no existing named thing is redefined. The contempt format is named as the wrong route and left standing — "`:89-96` does not move", matching `.claude/agents/gauntlet-bailiff.md:89-96`, one output headed `CONTEMPT: LEADING` whose one-line `shape:` variant `:96` scopes to "a brief that is not a `TEST CHECK` block". The fourth gate token is stated outright as part of the change rather than arriving as a side effect, and `:74-76` keep `READY`, `ANOTHER PASS` and `ESCALATE` as they read. `:3`'s `description:` sentence is named as text read and kept word for word.
+b  PASS  every citation resolves and says what the plan says it says, read off the files: `scripts/pair.sh:17` `set -euo pipefail`, `:98-103` the red-log write and the path echo, `:121-133` the branch with `:131` `[ -f "$red" ] && cat "$red"` and `:132` `echo "END TEST CHECK"`; `.claude/agents/gauntlet-bailiff.md:11` the `no-impl-reads.py` command, `:47`, `:51`, `:68`, `:72` the "one of three tokens" sentence, `:74-76` the three bullets, `:80` the opening fence with `:81` `READY | ANOTHER PASS | ESCALATE`, `:89-96` the contempt format; `.claude/hooks/no-impl-reads.py:81` `DEFAULT_ALLOW = ("docs/", "tests/", "state/")`; `.gitignore:3` `state/`; `docs/testing.md:13`, `:17`, `:21`, `:61`, `:63`; `docs/gauntlet/specs/pair-sh.txt:32-34`; `docs/agents.md:35` and `:46`; `CHANGELOG.md:5` and `:11`. The last round's clash is gone: both places now read "takes the token in its verdict line, `:81`". `grounding: gauntlet-detective` is the second header line.
+c  PASS  nothing is split, extracted or moved. The branch keeps its name and its one caller, `cmd_merge` at `scripts/pair.sh:106`, and the payload changes destination inside it rather than changing hands.
+d  PASS  the cause is named upstream of the appearance: `merge` prints the body where `red` prints a path (`scripts/pair.sh:99-103` against `:127-131`), so the main agent carries evidence it only copies. The screenful is the symptom of that, not the fix's subject.
+e  PASS  every rule touched is named and none is overturned. `docs/gauntlet/specs/pair-sh.txt:32-34` pins the first stdout line only, and `scripts/pair.sh:123` does not move. `grep -rn "one of three tokens"` outside `docs/gauntlet/reviews/` returns only `.claude/agents/gauntlet-bailiff.md:72` and `.claude/agents/gauntlet-arbiter.md:152`, a sheet this plan does not touch; `docs/agents.md:66` and `docs/plans.md:68` govern the other two reviewers' tokens. `docs/agents.md:35`, `:46` and `CHANGELOG.md:11` name the per-line verdicts, which do not move, and are amended anyway. No lane hook changes, and `state/` is nobody's approved-artifact lane.
+f  PASS  the boundaries are read rather than assumed: absent, empty and stale each carry a reading, and the errexit edge at `scripts/pair.sh:131` carries one — exit 0, the path inside a terminated block, the `red output:` section empty. The trigger for the new token is bounded to absent or zero bytes, and the present-but-empty case is placed on the ruleable side of that line explicitly.
+g  PASS  "## Open questions" reads "None." Both questions of the first round were answered rather than passed along: the `:68` rule pointers are corrected in the sentence being rewritten, and the artifact name is stated as chosen with the reason it costs nothing to change.
+h  PASS  the reach claims carry mechanisms that hold one hop out. `state/` is readable to the blind agent at `.claude/hooks/no-impl-reads.py:81` and ignored at `.gitignore:3`; the only other reader of this surface is `tests/test_pair_sh.py:183`, which asserts the first line and nothing beneath it; the excision arm at `scripts/pair.sh:116-119` is a different case and is untouched. The loop claim holds at the edge it once failed on: re-running `scripts/pair.sh merge <slug>` writes the three head lines the branch bullet describes, so the file the second bailiff reads is not zero bytes.
+i  PASS  `brief:` block present with the owner's words quoted verbatim and one `delivered:` line, which resolves to this plan and to the treatment of the pasted report as a proposal to check. Nothing is dropped, and "Deliberately left out: nothing" says so.
+j  N/A   this repo names no composition-root file in its architecture doc, and the plan adds no method, attribute, property or import to one.
+k  N/A   the brief states no behavior — "Proceed to stage 1" over a pasted report — so there is no sentence to read an element against.
+
+notes:
+- The investigative report the `brief:` block answers was pasted into the main agent's session and is on no disk I can read. The plan's one claimed correction of it resolves at `tests/test_pair_sh.py:183`; nothing else in the plan rests on the report's text.
