@@ -119,6 +119,24 @@ def read_payload(file_path, cwd):
     }
 
 
+def ls_files(pathspec):
+    """Every tracked path a ``git ls-files`` of ``pathspec`` returns, as a list.
+
+    Listed from the tree the hooks under test sit in, so the enumeration is of
+    the checkout being judged rather than of whatever some other checkout holds.
+    Paths come back relative to that tree's root, which is how the payloads
+    below hang them under ``REPO_CWD``.
+    """
+    completed = subprocess.run(
+        ["git", "ls-files", "-z", *pathspec],
+        cwd=str(WORKTREE_ROOT),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [path for path in completed.stdout.split("\0") if path]
+
+
 def sweep(hook_name, cases, make_payload):
     """Run every case through the hook; return {case key: decision}."""
     return {key: hook_decision(hook_name, make_payload(key)) for key in cases}
@@ -313,13 +331,15 @@ class NoImplReadsShellShapes(unittest.TestCase):
             "git cat-file -p HEAD": DENY,
             "git status": SILENT,
             "git log --oneline": SILENT,
-            "git show HEAD:docs/gauntlet/specs/pair-sh.txt": SILENT,
-            # docs-gauntlet-base line 7.  A docs/gauntlet/ denial the
-            # revision-prefix stripping never reaches answers SILENT for the
-            # plan read and hands a blind agent an approved plan's file:line
-            # citations out of history, while the approved spec the same agent
-            # is spawned against stays readable.
-            "git show HEAD:docs/gauntlet/plans/demo.txt": DENY,
+            # gauntlet-dir-move line 7.  A gauntlet/ denial the revision-prefix
+            # stripping never reaches answers SILENT for the plan read and
+            # hands a blind agent an approved plan's file:line citations out of
+            # history, while the approved spec the same agent is spawned
+            # against stays readable and docs/ is swept the whole way down.
+            "git show HEAD:gauntlet/specs/approved/pair-sh.txt": SILENT,
+            "git show HEAD:gauntlet/plans/approved/demo.txt": DENY,
+            "grep -rn cite docs/": SILENT,
+            "find docs/ -name *.txt": SILENT,
         }
         actual = sweep(
             "no-impl-reads.py",
@@ -347,16 +367,24 @@ class NoImplReadsShellShapes(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_a_search_rooted_at_the_bare_gauntlet_directory_is_denied(self):
-        # docs-gauntlet-base line 3.  Grep tool surface, each path a directory
+        # gauntlet-dir-move line 4.  Grep tool surface, each path a directory
         # named with no trailing separator.  A denial written as a prefix test
-        # alone -- "docs/gauntlet" plus a separator -- never matches the bare
+        # alone -- "gauntlet" plus a separator -- never matches the bare
         # directory, so the one search that sweeps every approved plan at once
         # is the one it lets through, returning their citation lines to a blind
-        # agent; a search rooted at the approved specs stays allowed.
+        # agent.  A re-allowance tested on the stage directory returns the
+        # drafts beside the approved block, and one matching on the string
+        # takes the sibling approved-old and refuses the approved directory's
+        # own subdirectory.
         expected = {
-            str(REPO_CWD / "docs" / "gauntlet"): DENY,
-            str(REPO_CWD / "docs" / "gauntlet" / "plans"): DENY,
-            str(REPO_CWD / "docs" / "gauntlet" / "specs"): SILENT,
+            str(REPO_CWD / "gauntlet"): DENY,
+            str(REPO_CWD / "gauntlet" / "plans"): DENY,
+            str(REPO_CWD / "gauntlet" / "specs"): DENY,
+            str(REPO_CWD / "gauntlet" / "specs" / "drafts"): DENY,
+            str(REPO_CWD / "gauntlet" / "specs" / "approved-old"): DENY,
+            str(REPO_CWD / "gauntlet" / "specs" / "approved"): SILENT,
+            str(REPO_CWD / "gauntlet" / "specs" / "approved" / "sub"): SILENT,
+            str(REPO_CWD / "docs"): SILENT,
         }
         actual = sweep(
             "no-impl-reads.py",
@@ -374,15 +402,20 @@ class NoImplReadsShellShapes(unittest.TestCase):
             str(REPO_CWD / "src" / "docs" / "impl.py"): DENY,
             str(REPO_CWD / "src" / "tests" / "impl.py"): DENY,
             str(REPO_CWD / "docs" / "testing.md"): SILENT,
-            # docs-gauntlet-base line 2.  The docs/gauntlet/ denial sits under
-            # the docs/ allowance and above a re-allowance of the approved
-            # specs.  Tested the other way round it answers DENY for the very
-            # path the blind gauntlet-scrivener is spawned against and reads
-            # from its worktree, while plans, reviews and drafts stay shut.
-            str(REPO_CWD / "docs" / "gauntlet" / "specs" / "demo.txt"): SILENT,
-            str(REPO_CWD / "docs" / "gauntlet" / "plans" / "demo.txt"): DENY,
-            str(REPO_CWD / "docs" / "gauntlet" / "reviews" / "demo.plan.4.txt"): DENY,
-            str(REPO_CWD / "docs" / "gauntlet" / "drafts" / "plans" / "demo.txt"): DENY,
+            # gauntlet-dir-move line 3.  The gauntlet/ denial carries one
+            # re-allowance, and it is rooted at the approved specs rather than
+            # at the stage directory above them: rebased one level up it hands
+            # the blind writer the unreviewed draft beside the block, and
+            # written as a string test it takes the sibling approved-old and
+            # refuses the approved block's own subdirectory.
+            str(REPO_CWD / "gauntlet" / "specs" / "approved" / "demo.txt"): SILENT,
+            str(REPO_CWD / "gauntlet" / "specs" / "approved" / "sub" / "x.txt"): SILENT,
+            str(REPO_CWD / "gauntlet" / "specs" / "approved-old" / "x.txt"): DENY,
+            str(REPO_CWD / "gauntlet" / "plans" / "approved" / "demo.txt"): DENY,
+            str(REPO_CWD / "gauntlet" / "reviews" / "demo.plan.4.txt"): DENY,
+            str(REPO_CWD / "gauntlet" / "plans" / "drafts" / "demo.txt"): DENY,
+            str(REPO_CWD / "gauntlet" / "specs" / "drafts" / "demo.txt"): DENY,
+            str(REPO_CWD / "gauntlet" / "verdicts" / "demo.txt"): DENY,
         }
         actual = sweep(
             "no-impl-reads.py",
@@ -392,46 +425,119 @@ class NoImplReadsShellShapes(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
-class SpecsLaneWithoutGitRoot(unittest.TestCase):
-    """specs-lane.py, the lane that owns specs/approved/."""
+class NoImplReadsOverTheTrackedTree(unittest.TestCase):
+    """no-impl-reads.py, over every tracked path of two listings."""
 
     maxDiff = None
 
-    def test_approved_spec_directory_is_in_lane_without_a_git_root(self):
-        # Spec line 4.  No `.git` sits at or above /nogit.  A lane whose
-        # in-lane test fails one path component short treats the approved-spec
-        # directory itself as outside its own lane, so the write that creates
-        # that directory in a fresh checkout goes to any agent that asks --
-        # while a draft spec, genuinely outside the lane, stays allowed.
-        expected = {
-            "/nogit/docs/gauntlet/specs": DENY,
-            "/nogit/docs/gauntlet/specs/s.txt": DENY,
-            "/nogit/docs/gauntlet/drafts/specs/s.txt": SILENT,
+    def test_the_denied_set_is_the_gauntlet_tree_less_the_approved_specs(self):
+        # gauntlet-dir-move line 5.  One Read payload per tracked path of each
+        # listing; the answer asserted is which of them come back DENY.  A base
+        # constant left at docs/gauntlet alongside the move leaves a denied
+        # subtree nested inside an allowed docs/ -- the nesting the move exists
+        # to remove -- and shows up as a nonempty denied set over the first
+        # listing; a base moved with no re-allowance under it denies the very
+        # approved block the blind agent is spawned against, and shows up as a
+        # denied set over the second listing that reaches inside
+        # gauntlet/specs/approved/.
+        listings = {
+            "docs/ tests/ state/": ["docs/", "tests/", "state/"],
+            "gauntlet/": ["gauntlet/"],
         }
+        expected = {
+            "docs/ tests/ state/": set(),
+            "gauntlet/": {
+                path
+                for path in ls_files(listings["gauntlet/"])
+                if not path.startswith("gauntlet/specs/approved/")
+            },
+        }
+        actual = {
+            label: {
+                path
+                for path in ls_files(pathspec)
+                if hook_decision(
+                    "no-impl-reads.py", read_payload(REPO_CWD / path, REPO_CWD)
+                )
+                == DENY
+            }
+            for label, pathspec in listings.items()
+        }
+        self.assertEqual(actual, expected)
+
+
+class SpecsLaneCallers(unittest.TestCase):
+    """specs-lane.py, the lane that owns writes under the approved specs."""
+
+    maxDiff = None
+
+    def test_only_the_spec_reviewer_may_write_an_approved_block(self):
+        # gauntlet-dir-move line 2.  One tool, one path, one cwd: only the
+        # caller varies.  A lane constant left at the old specs path answers
+        # SILENT for the main agent at the new one, so a block no arbiter
+        # passed reaches the folder the blind writer works from.
+        expected = {
+            None: DENY,
+            "gauntlet-prosecutor": DENY,
+            "gauntlet-arbiter": SILENT,
+        }
+        block = REPO_CWD / "gauntlet" / "specs" / "approved" / "demo.txt"
         actual = sweep(
             "specs-lane.py",
             expected,
-            lambda file_path: write_payload(file_path, NOGIT_CWD),
+            lambda agent_type: write_payload(block, REPO_CWD, agent_type),
         )
         self.assertEqual(actual, expected)
 
 
+class LanesWithoutGitRoot(unittest.TestCase):
+    """specs-lane.py and plans-lane.py, where no `.git` sits above the cwd."""
+
+    maxDiff = None
+
+    def test_approved_directories_are_in_lane_without_a_git_root(self):
+        # gauntlet-dir-move line 9.  No `.git` sits at or above /nogit and no
+        # payload carries an agent_type.  A lane resolved through the repo root
+        # alone answers SILENT where there is none, so the write that creates
+        # the approved directory in a fresh checkout goes to any agent that
+        # asks; a lane rebased to the stage directory rather than to the
+        # approved one inside it answers DENY for the main agent's own draft,
+        # which now sits under that stage rather than beside it.
+        expected = {
+            ("specs-lane.py", "/nogit/gauntlet/specs/approved"): DENY,
+            ("specs-lane.py", "/nogit/gauntlet/specs/approved/s.txt"): DENY,
+            ("specs-lane.py", "/nogit/gauntlet/specs/drafts/s.txt"): SILENT,
+            ("plans-lane.py", "/nogit/gauntlet/plans/approved/p.txt"): DENY,
+            ("plans-lane.py", "/nogit/gauntlet/plans/drafts/p.txt"): SILENT,
+        }
+        actual = {
+            (hook_name, file_path): hook_decision(
+                hook_name, write_payload(file_path, NOGIT_CWD)
+            )
+            for hook_name, file_path in expected
+        }
+        self.assertEqual(actual, expected)
+
+
 class RedirectionsIntoTheOtherLanes(unittest.TestCase):
-    """specs-lane.py and reviews-lane.py, on the same redirection shape."""
+    """specs-, reviews- and verdicts-lane.py, on the same redirection shape."""
 
     maxDiff = None
 
     def test_file_descriptor_redirection_into_a_lane_is_a_write(self):
-        # fail-open-bypasses line 1, the two lanes the tests-lane table cannot
-        # hold.  The same `1>` that writes a test writes an approved spec block
-        # and a review verdict, so a lane reading a redirection only when no
-        # file descriptor precedes it fails open on all three.  The
-        # reviews-lane payload carries no `agent_type` key: with one, that hook
-        # refuses a reviewer's metered shell whatever the command classifies
-        # as, and the redirection would be pinning nothing.
+        # gauntlet-dir-move line 10, the three lanes the tests-lane table
+        # cannot hold.  No payload carries an `agent_type` key: with one, the
+        # reviews-lane hook refuses a reviewer's metered shell whatever the
+        # command classifies as, and the redirection would be pinning nothing.
+        # A lane constant left at the old path answers SILENT for all three
+        # redirections, so an approved block, a reviewer round and a juror's
+        # verdict are each written by a shell redirect that names no lane the
+        # hook knows -- while reading the same verdict file stays allowed.
         expected = {
-            ("specs-lane.py", "cat impl.py 1> docs/gauntlet/specs/s.txt"): DENY,
-            ("reviews-lane.py", "cat impl.py 1> docs/gauntlet/reviews/s.9.txt"): DENY,
+            ("specs-lane.py", "cat impl.py 1> gauntlet/specs/approved/s.txt"): DENY,
+            ("reviews-lane.py", "cat impl.py 1> gauntlet/reviews/s.9.txt"): DENY,
+            ("verdicts-lane.py", "cat impl.py 1> gauntlet/verdicts/demo.txt"): DENY,
+            ("verdicts-lane.py", "cat gauntlet/verdicts/demo.txt"): SILENT,
         }
         actual = {
             (hook_name, command): hook_decision(
@@ -448,15 +554,16 @@ class GitSubcommandsInTheOtherLanes(unittest.TestCase):
     maxDiff = None
 
     def test_git_reads_pass_and_git_output_writes_are_denied_in_each_lane(self):
-        # git-read-subcommands line 3.  No `agent_type` key on any payload.  A
-        # fix made for the tests lane alone still refuses `git grep` over an
-        # approved spec directory and still lets `git diff --output=` type a
-        # file into it.
+        # gauntlet-dir-move line 11.  No `agent_type` key on any payload.  Lane
+        # constants moved in the `Write` road alone still let
+        # `git diff --output=gauntlet/specs/approved/x.txt` type an approved
+        # spec file that no arbiter passed, and still refuse `git grep` over
+        # the same directory.
         lanes = {
-            "specs-lane.py": "docs/gauntlet/specs",
-            "plans-lane.py": "docs/gauntlet/plans",
-            "verdicts-lane.py": "docs/gauntlet/verdicts",
-            "reviews-lane.py": "docs/gauntlet/reviews",
+            "specs-lane.py": "gauntlet/specs/approved",
+            "plans-lane.py": "gauntlet/plans/approved",
+            "verdicts-lane.py": "gauntlet/verdicts",
+            "reviews-lane.py": "gauntlet/reviews",
         }
         expected = {}
         for hook_name, lane in lanes.items():
@@ -478,12 +585,12 @@ class PlansLaneCallers(unittest.TestCase):
     maxDiff = None
 
     def test_only_the_plan_reviewer_may_write_an_approved_plan(self):
-        # docs-gauntlet-base line 1.  One tool, one path, one cwd: only the
+        # gauntlet-dir-move line 1.  One tool, one path, one cwd: only the
         # caller varies, and `prosecutor` sits beside `gauntlet-prosecutor` so
-        # both sides of the boundary are in the same sweep.  A lane written on
-        # the directory alone admits any caller that asks, answering SILENT for
-        # the gauntlet-arbiter, and an approved plan can then be typed by a
-        # hand that never held the plan gate.
+        # both sides of the boundary are in the same sweep.  A lane constant
+        # left at the old plans path answers SILENT for every caller at the new
+        # one, and an approved plan is then typed by a hand that did not hold
+        # the plan gate.
         expected = {
             None: DENY,
             "gauntlet-arbiter": DENY,
@@ -491,7 +598,7 @@ class PlansLaneCallers(unittest.TestCase):
             "prosecutor": DENY,
             "gauntlet-prosecutor": SILENT,
         }
-        plan = REPO_CWD / "docs" / "gauntlet" / "plans" / "demo.txt"
+        plan = REPO_CWD / "gauntlet" / "plans" / "approved" / "demo.txt"
         actual = sweep(
             "plans-lane.py",
             expected,
@@ -506,15 +613,15 @@ class ReviewsLaneOnAnApprovedPlan(unittest.TestCase):
     maxDiff = None
 
     def test_the_plan_reviewer_is_carved_out_where_the_spec_one_is_not(self):
-        # docs-gauntlet-base line 4.  Same tool, same path, same cwd, two
-        # reviewers.  A carve-out written on the directory rather than on the
-        # agent answers SILENT for the gauntlet-arbiter too, so the spec
-        # reviewer may write an approved plan that no plan reviewer passed.
+        # gauntlet-dir-move line 8.  Same tool, same path, same cwd, two
+        # reviewers.  A reviewer carve-out left at the old plans path answers
+        # DENY for the gauntlet-prosecutor too, so the one agent that may write
+        # an approved plan is locked out of its own lane.
         expected = {
             "gauntlet-prosecutor": SILENT,
             "gauntlet-arbiter": DENY,
         }
-        plan = REPO_CWD / "docs" / "gauntlet" / "plans" / "demo.txt"
+        plan = REPO_CWD / "gauntlet" / "plans" / "approved" / "demo.txt"
         actual = sweep(
             "reviews-lane.py",
             expected,
@@ -529,16 +636,18 @@ class ReviewsLaneArbiterGit(unittest.TestCase):
     maxDiff = None
 
     def test_the_arbiters_git_commands_are_judged_by_form_not_name(self):
-        # git-read-subcommands line 4.  Every payload carries `agent_type`
+        # gauntlet-dir-move line 14.  Every payload carries `agent_type`
         # gauntlet-arbiter.  Judged by subcommand name alone, `git grep foo`
         # is refused with no lane named while `git diff --output=out.txt`
         # writes a file and is allowed; `grep` sits on both sides of this
-        # sweep, and `git diff --output=` is refused off the lane path too.
+        # sweep, and with the reviewer's lane constant left at the old reviews
+        # path the arbiter's `git grep foo -- gauntlet/reviews/` reads the
+        # rounds it may not read and is allowed.
         expected = {
             "git grep foo": SILENT,
             "git ls-tree HEAD": SILENT,
             "git log --oneline": SILENT,
-            "git grep foo -- docs/gauntlet/reviews/": DENY,
+            "git grep foo -- gauntlet/reviews/": DENY,
             "git reflog expire --all": DENY,
             "git diff --output=out.txt": DENY,
         }
