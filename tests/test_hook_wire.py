@@ -73,9 +73,15 @@ def hook_decision(hook_name, payload):
     return specific.get("permissionDecision") or stdout
 
 
-def bash_payload(command, cwd):
-    """A PreToolUse payload for a Bash call."""
-    return {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
+def bash_payload(command, cwd, agent_type=None):
+    """A PreToolUse payload for a Bash call.
+
+    ``agent_type`` as in ``write_payload``: ``None`` leaves the key off.
+    """
+    payload = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
+    if agent_type is not None:
+        payload["agent_type"] = agent_type
+    return payload
 
 
 def write_payload(file_path, cwd, agent_type=None):
@@ -193,6 +199,65 @@ class TestsLaneShellShapes(unittest.TestCase):
             # into writes, and the lane refuses its own red run.
             "pytest -p no:cacheprovider tests/": SILENT,
             "pytest -c pytest.ini tests/": SILENT,
+        }
+        actual = sweep(
+            "tests-lane.py",
+            expected,
+            lambda command: bash_payload(command, REPO_CWD),
+        )
+        self.assertEqual(actual, expected)
+
+
+class TestsLaneGitSubcommands(unittest.TestCase):
+    """tests-lane.py, on git commands that name tests/."""
+
+    maxDiff = None
+
+    def test_read_only_git_subcommands_naming_tests_pass_the_lane(self):
+        # git-read-subcommands line 1.  A lane that admits `git grep` and no
+        # other read-only git subcommand still refuses `git ls-tree HEAD tests/`
+        # and `git cat-file -p HEAD:tests/...`.  An unknown subcommand stays a
+        # write, and a redirection into tests/ stays a write even behind the
+        # very subcommand admitted as a read.
+        expected = {
+            "git grep -n foo -- tests/": SILENT,
+            "git grep -n 'tests/' -- .claude/hooks": SILENT,
+            "git ls-tree HEAD tests/": SILENT,
+            "git cat-file -p HEAD:tests/test_hook_wire.py": SILENT,
+            "git rev-list HEAD -- tests/": SILENT,
+            "git shortlog -sn HEAD -- tests/": SILENT,
+            "git reflog show HEAD -- tests/": SILENT,
+            "git merge-base HEAD impl/tests/x": SILENT,
+            "git describe --match 'tests/*'": SILENT,
+            "git frobnicate -- tests/": DENY,
+            "git grep foo -- tests/ > tests/x": DENY,
+        }
+        actual = sweep(
+            "tests-lane.py",
+            expected,
+            lambda command: bash_payload(command, REPO_CWD),
+        )
+        self.assertEqual(actual, expected)
+
+    def test_write_forms_of_read_only_git_subcommands_are_denied(self):
+        # git-read-subcommands line 2.  A lane that counts a read-only git
+        # subcommand as a read in every form lets `git diff --output=tests/x`
+        # write into the lane and `git grep -O` run a command against it.
+        # `-o` beside `-O`, `--grep=` beside `--output=`, and `--stat` keep the
+        # reading of flags from collapsing into "any flag is a write".
+        expected = {
+            "git diff --output=tests/x": DENY,
+            "git log --output tests/x": DENY,
+            "git diff --outp=tests/x": DENY,
+            "git rev-list --output=tests/x HEAD": DENY,
+            "git shortlog --output=tests/x HEAD": DENY,
+            "git grep -Ovim foo -- tests/": DENY,
+            "git grep -nO foo -- tests/": DENY,
+            "git grep --open foo -- tests/": DENY,
+            "git reflog delete refs/tests/x@{0}": DENY,
+            "git grep -o foo -- tests/": SILENT,
+            "git log --grep=expire -- tests/": SILENT,
+            "git diff --stat -- tests/": SILENT,
         }
         actual = sweep(
             "tests-lane.py",
@@ -377,6 +442,36 @@ class RedirectionsIntoTheOtherLanes(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
+class GitSubcommandsInTheOtherLanes(unittest.TestCase):
+    """specs-, plans-, verdicts- and reviews-lane.py, on git commands."""
+
+    maxDiff = None
+
+    def test_git_reads_pass_and_git_output_writes_are_denied_in_each_lane(self):
+        # git-read-subcommands line 3.  No `agent_type` key on any payload.  A
+        # fix made for the tests lane alone still refuses `git grep` over an
+        # approved spec directory and still lets `git diff --output=` type a
+        # file into it.
+        lanes = {
+            "specs-lane.py": "docs/gauntlet/specs",
+            "plans-lane.py": "docs/gauntlet/plans",
+            "verdicts-lane.py": "docs/gauntlet/verdicts",
+            "reviews-lane.py": "docs/gauntlet/reviews",
+        }
+        expected = {}
+        for hook_name, lane in lanes.items():
+            expected[(hook_name, f"git grep -n foo -- {lane}/")] = SILENT
+            expected[(hook_name, f"git ls-tree HEAD {lane}/")] = SILENT
+            expected[(hook_name, f"git diff --output={lane}/x.txt")] = DENY
+        actual = {
+            (hook_name, command): hook_decision(
+                hook_name, bash_payload(command, REPO_CWD)
+            )
+            for hook_name, command in expected
+        }
+        self.assertEqual(actual, expected)
+
+
 class PlansLaneCallers(unittest.TestCase):
     """plans-lane.py, the lane that owns writes under docs/gauntlet/plans/."""
 
@@ -424,6 +519,33 @@ class ReviewsLaneOnAnApprovedPlan(unittest.TestCase):
             "reviews-lane.py",
             expected,
             lambda agent_type: write_payload(plan, REPO_CWD, agent_type),
+        )
+        self.assertEqual(actual, expected)
+
+
+class ReviewsLaneArbiterGit(unittest.TestCase):
+    """reviews-lane.py, on the spec reviewer's git commands."""
+
+    maxDiff = None
+
+    def test_the_arbiters_git_commands_are_judged_by_form_not_name(self):
+        # git-read-subcommands line 4.  Every payload carries `agent_type`
+        # gauntlet-arbiter.  Judged by subcommand name alone, `git grep foo`
+        # is refused with no lane named while `git diff --output=out.txt`
+        # writes a file and is allowed; `grep` sits on both sides of this
+        # sweep, and `git diff --output=` is refused off the lane path too.
+        expected = {
+            "git grep foo": SILENT,
+            "git ls-tree HEAD": SILENT,
+            "git log --oneline": SILENT,
+            "git grep foo -- docs/gauntlet/reviews/": DENY,
+            "git reflog expire --all": DENY,
+            "git diff --output=out.txt": DENY,
+        }
+        actual = sweep(
+            "reviews-lane.py",
+            expected,
+            lambda command: bash_payload(command, REPO_CWD, "gauntlet-arbiter"),
         )
         self.assertEqual(actual, expected)
 
