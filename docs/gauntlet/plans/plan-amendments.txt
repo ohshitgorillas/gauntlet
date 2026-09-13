@@ -1,0 +1,113 @@
+slug: plan-amendments
+grounding: gauntlet-detective
+
+brief:
+> edit: plan rechecks run changed lines only
+> Amendment path
+> Main agent + command
+> docs: commit, no stage 2
+> Narrow — amendment round only
+> I AM EXTREMELY FUCKING ANNOYED WITH THIS LINE OF QUESTIONING. I WILL NOT ACCEPT FURTHER BULLSHIT QUESTIONS THAT SHOULD NOT HAVE BEEN MY PROBLEM TO BEGIN WITH.
+
+  Lines 2 through 5 of the brief are labels of options the owner selected in multiple-choice questions put by the main agent, not sentences the owner typed. The option text beneath each label was the main agent's own words and is not quoted here. Line 6 is typed, and the sentences above it are what the main agent may put to the owner and no more.
+
+  delivered: the amendment round under "What the owner sees change", whose scope rule is that checks run on the amended lines and nothing else.
+  delivered: the same section, which is the amendment path itself — an approved plan takes a measured value from the implementation tree without a fresh gate run.
+  delivered: the main agent measures, under "What the owner sees change", with the command and its output carried so the reviewer re-runs it.
+  delivered: under "What it costs", the change lands as a `docs:` commit and takes no stage 2.
+  delivered: line 1 as line 5 narrows it — the scope rule under "What the owner sees change", and the "Deliberately left out" paragraph under "What it costs", which records that the pre-`READY` recheck stays at changed sentences.
+  delivered: "Open questions", which reads "None." The rulings at lines 3 through 5 are the last thing this plan puts to the owner, and the round it proposes returns to a reviewer rather than to the owner.
+
+## What is wrong
+
+An approved plan is frozen the moment it lands. `docs/plans.md:10` gives the artifact as written by `gauntlet-prosecutor` "on `READY`, and only then".
+
+The owner's approval is what opens the next stage, at `docs/plans.md:72`. Nothing in that document says what happens to the plan file afterwards.
+
+The value that goes stale is a measured one. A plan is written before implementation, so its readings — a call-site count under check (c), a boundary reading under check (f), anything carrying `ASSUMED` under check (b) — are taken against the tree as it stood at drafting. Implementation is where the real number arrives, and `.claude/agents/gauntlet-prosecutor.md:59` admits `ASSUMED` only for a reason that is "metered action, live experiment, or owner decision", which is to say for exactly the readings that implementation later settles.
+
+Today that leaves two moves, and both are wrong. Leaving the plan as it stands puts a number on disk that the tree contradicts, in the one artifact a later stage reads instead of inheriting from a conversation. Redrafting it costs a full gate run and a second approval word over text the owner already read: `README.md:45` says "One word opens one artifact as it stands", so a redraft is a new artifact and every check runs again.
+
+The scope rule that would make the cheap move legal already exists and stops short of this case. `.claude/agents/gauntlet-prosecutor.md:43` says the checks "run on the changed sentences and the citations they carry, and on nothing else", with every untouched check printing `carried`. That rule governs rounds before `READY` only — `:39` frames it as re-review inside a drafting run, and `:47` makes `READY` the terminal act that writes the plan file.
+
+The backlog line the owner opened an earlier session with names both halves together, at `docs/gauntlet/plans/juror-verdicts-lane.txt:100`: "plan rechecks on changed lines only, with an amendment carrying a measured value from the impl tree".
+
+## What the owner sees change
+
+A new round kind, the amendment round, runs after approval and during implementation.
+
+The main agent returns to a `gauntlet-prosecutor` with three things: the slug, each amended line named by its first words with its new text, and the measured value with the command that produced it and that command's output. Nothing else — the plan body is on disk and the reviewer reads it there.
+
+The main agent is what takes the measurement, and the command is what makes that safe. `.claude/agents/gauntlet-prosecutor.md:29` holds that the main agent is not a reliable narrator, so the amendment carries a command the reviewer re-runs rather than a number the reviewer trusts. A measured value with no command that reproduces it is not an amendment.
+
+The reviewer may be a fresh one, and this is what makes the round cheap rather than a re-run under another name. `.claude/agents/gauntlet-prosecutor.md:47` has the approved file carry "`--- reviewer ---` divider and your whole output verbatim beneath it", and `:25` already admits "approved plans under `docs/gauntlet/plans/`" to its reading list. So a reviewer that holds none of the original round can still read every previous verdict, from the plan file, without touching the reviews directory — which `:45` denies it "by `Read`, `Grep` or shell".
+
+Checks run on the amended lines and their citations, and on nothing else. Every other check prints `carried` with the verdict from the most recent `--- reviewer ---` block, quoted as that block has it. The reversal sentence at `:43` still applies: a new finding on unchanged text stays legal and costs one scoped round.
+
+On `READY` the reviewer rewrites `docs/gauntlet/plans/<slug>.txt`: the amended plan body, then every reviewer block in order, oldest first, each under its own `--- reviewer ---` divider. A slug amended twice carries three blocks, and a reviewer reading the file for carried verdicts takes the last one. The owner reading the file sees what the amendment changed and what carried across it.
+
+An amendment whose measured value changes no plan line is not a round. The reviewer is not spawned, the file is not rewritten, and the main agent records the reading in its own report. A round exists where a line changes, and nowhere else.
+
+The amended plan then waits for the owner, on the same terms as the first one. `docs/approved-specs.md:50` states it for the sibling artifact — "A rewritten file is a new artifact, so the owner's approval of the one before it does not carry" — and `README.md:45` states it for this one. A rewritten plan takes its own approval word before implementation continues on it.
+
+A verdict other than `READY` writes nothing, and the approved file on disk is the one that stands.
+
+An amendment round does not count toward whatever round leash the consuming project sets on the plan gate. This repository defines no such leash: the eight-round stop is named at `.claude/agents/gauntlet-prosecutor.md:88` and nowhere else, as the exemption an `ESCALATE: QUESTION` round takes. An amendment arrives from the implementation tree rather than from a plan that cannot settle.
+
+## Which files get touched, and roughly how
+
+`docs/plans.md` — a new section after "The gate", stating the amendment round: what the main agent returns, that the main agent measures and the command travels with the value, that the reviewer reads the previous verdicts from the plan file rather than from the reviews directory, that scope is the amended lines, that `READY` rewrites the file with every reviewer block in order, that an amendment changing no line is no round, that the rewritten plan takes a new approval word, and that the round is outside any round leash. This document owns the rule; everything else cites it.
+
+`.claude/agents/gauntlet-prosecutor.md` — the re-review passage at `.claude/agents/gauntlet-prosecutor.md:39-43` gains the amendment round as a second entry point, with the `--- reviewer ---` block named as the source of carried verdicts, and the write rule at `.claude/agents/gauntlet-prosecutor.md:47` gains the rewrite shape. Caveman register, matching the file.
+
+`README.md` — one sentence in workflow step 4 at `README.md:25` naming the amendment round, and one in the approval-word section at `:37-49` saying an amendment to an approved plan takes its own word. The existing sentence at `:45` is not rewritten.
+
+`CHANGELOG.md` — one entry under `[Unreleased]` at `CHANGELOG.md:5`. A consumer copying `.claude/` gets a prosecutor that accepts a round it did not accept before.
+
+No hook changes, and this is a resolved claim rather than an intention. `.claude/hooks/plans-lane.py:66-69` gates a write on two facts only, the path being in the lane and the agent being `REVIEWER`, which `:47` fixes as `gauntlet-prosecutor`; `:82` routes `Write`, `Edit` and `NotebookEdit` through that same function, so a rewrite of an existing approved plan is already permitted to the reviewer and already denied to everyone else. The lane needs nothing added for this round to be writable.
+
+`docs/approved-specs.md` is not touched, and the next section says what that costs.
+
+## Caller-side delta
+
+`docs/agents.md:7` needs no change: the row already lists `docs/gauntlet/plans/<slug>.txt` among what `gauntlet-prosecutor` writes, and the amendment round adds no path and no hook to that row.
+
+`scripts/pair.sh` needs no change: it references `docs/gauntlet/plans/` nowhere, operating on `docs/gauntlet/specs/` alone, so no stage script reads or rewrites a plan.
+
+## What it costs
+
+The work is prose in four files and no code.
+
+Three rules in force are touched, and one of them is overturned. `docs/approved-specs.md:48` says of the spec gate that "An approved file is amended the same way it was created: the revised block goes back to a `gauntlet-arbiter`, and the reviewer that returns `READY` rewrites the file", and `docs/plans.md:13` binds the plan lane to that document by name. This plan overturns "amended the same way it was created" for plans and for plans only: a plan amendment is a scoped round, a spec amendment stays a full re-review. `docs/approved-specs.md` keeps its rule and takes no sentence, and the departure is stated in the new `docs/plans.md` section, where the plan gate's own rule lives.
+
+`docs/approved-specs.md:50` is the second, and it is not overturned but adopted: the rewritten plan takes its own approval word, on the same reasoning as the rewritten spec file.
+
+`docs/approved-specs.md:38` is the third. The approved spec shape carries one `--- reviewer ---` block, and all three files now in `docs/gauntlet/plans/` carry exactly one. An amended plan carries more, oldest first. The spec shape is unchanged and the two artifacts stop being the same shape, which is the price of the scoped round: the carried verdicts have to be readable from the plan file, because the reviewer cannot read `docs/gauntlet/reviews/` at all.
+
+It buys a round that can go wrong in a way the current chain cannot: an amendment is a write over the artifact the owner approved. The mitigation is the older reviewer blocks staying in the file rather than being replaced, so the text the first approval covered is still readable beneath the amendment.
+
+No test covers it, and none covers its neighbours either. `test_hook_wire.py:385` tests that only the plan reviewer may write an approved plan, which is the hook behavior this change deliberately leaves alone; no test in the repository reads `docs/plans.md` or any file under `.claude/agents/`. The change lands as a `docs:` commit and takes no stage 2, on the owner's line 4: a spec block here would have to invent a shape check over prose, and the precedent it costs is that the gauntlet's own rule prose changes outside the gauntlet.
+
+Deliberately left out, on the owner's line 5: the pre-`READY` recheck stays at changed sentences, at `.claude/agents/gauntlet-prosecutor.md:43`, and the changed-sentences rule is not written into `docs/plans.md` as its own rule. The new section states the amendment round's scope only.
+
+## Open questions
+
+None.
+
+--- reviewer ---
+READY
+
+a  PASS  carried: the changed sentences strengthen the escape rather than weaken it: draft line 80 states outright that this plan overturns `docs/approved-specs.md:48` for plans and for plans only, and draft line 84 states outright that the two approved artifacts stop being the same shape. Both are the change being proposed, named as such, not a side effect of it. `docs/plans.md:10` and `.claude/agents/gauntlet-prosecutor.md:47` still read as they read — the write is still on `READY` and nowhere else.
+b  PASS  carried: the repair is on the line: draft line 26 now quotes "metered action, live experiment, or owner decision", which is the text of `.claude/agents/gauntlet-prosecutor.md:59`. The new citations resolve and say what the plan says: `docs/approved-specs.md:50` carries "A rewritten file is a new artifact, so the owner's approval of the one before it does not carry" (draft line 50), `:48` carries "An approved file is amended the same way it was created: the revised block goes back to a `gauntlet-arbiter`, and the reviewer that returns `READY` rewrites the file" (draft line 80), `:38` is the one-block approved shape and the three files in `docs/gauntlet/plans/` do each carry exactly one divider (draft line 84), `.claude/agents/gauntlet-prosecutor.md:88` names the eight-round stop as the `ESCALATE: QUESTION` exemption (draft line 54), `:29` is the unreliable-narrator passage (draft line 40), and `.claude/hooks/reviews-lane.py:131-137` bears out "the reviewer cannot read `docs/gauntlet/reviews/` at all". `grounding: gauntlet-detective` still stands with files cited outside the touched list.
+c  N/A   carried: nothing is split, extracted or moved; the plan adds a round and prose. The two no-change claims in its Caller-side delta are reach claims and are checked under (h).
+d  PASS  carried: draft line 26 changed only in its quotation; the cause still sits upstream of the appearance — readings taken against the tree at drafting, `ASSUMED` admitted for exactly what implementation settles — and the stale number is stated as what follows from that.
+e  PASS  carried: the repair is taken and every touched rule is named. Draft line 80 names `docs/approved-specs.md:48` and `docs/plans.md:13` and says plainly that "amended the same way it was created" is overturned for plans alone, with the spec amendment left a full re-review and `docs/approved-specs.md` taking no sentence; draft line 82 names `:50` as adopted rather than overturned; draft line 84 names `:38` and says the two shapes diverge and why. Draft line 68 carries the same statement into "Which files get touched".
+f  PASS  carried: both boundaries have a reading. Draft line 46 gives the N-amendment case — "every reviewer block in order, oldest first", three blocks after a second amendment, carried verdicts taken from the last — and draft line 44 agrees with it ("the most recent `--- reviewer ---` block"). Draft line 48 gives the empty amendment: not a round, no reviewer, no rewrite, the reading recorded in the main agent's own report.
+g  PASS  carried: "Open questions" reads "None." Q1 and Q4 are written as rule prose — draft line 50 for the approval word, citing `docs/approved-specs.md:50` beside `README.md:45`, and draft line 54 for the round leash, naming `.claude/agents/gauntlet-prosecutor.md:88` as the only place the phrase occurs here. Q2 and Q3 carry the owner's rulings at brief lines 3 and 4 and are delivered at draft lines 40 and 88. Nothing in the changed text is a question the plan owes the owner, and the section is not padded.
+h  PASS  carried: the new reach claims hold on the trace. "`docs/approved-specs.md` is not touched" (draft line 68) and "The spec shape is unchanged" (draft line 84): the only consumers of a `--- reviewer ---` divider are `scripts/pair.sh:34` and `scripts/excision-diff.py:63`, both of which run on `docs/gauntlet/specs/` (`scripts/pair.sh:29`), so a plan file with more than one divider reaches neither, and nothing under `tests/` parses an approved plan. The round-1 grep bound over `gauntlet/plans` is unchanged by the new text: `docs/agents.md:7` and `:29`, both lane hooks, `tests/test_hook_wire.py:381-385` and `CHANGELOG.md:30` all keep reading true under a write that still happens only on `READY`.
+i  PASS  both named repairs are on the lines, and they are the only text that moved. The owner's line 6 now carries the last line of the block, `delivered: "Open questions", which reads "None."`, and "Open questions" does read "None." at the end of the plan. The former `dropped:` line is gone: brief line 1 as line 5 narrows it is now `delivered:`, naming the scope rule under "What the owner sees change" and the "Deliberately left out" paragraph under "What it costs", both of which are in the body. No `dropped:` line remains, so nothing is owed to open questions, and every one of the six brief lines carries a line.
+j  N/A   carried: this repository names no composition-root file; the check is an unfilled template placeholder at `.claude/agents/gauntlet-prosecutor.md:75`, and the plan touches no such file.
+k  PASS  the two new `delivered:` lines read as their sentences read. Brief line 1 under line 5's narrowing — "plan rechecks run changed lines only", "Narrow — amendment round only" — against a scope rule that runs the checks on the amended lines and nothing else, with the pre-`READY` recheck recorded as left at changed sentences: the element carries no condition the owner's two lines do not state, and leaves out no case they still cover. Brief line 6 against "Open questions: None.": the plan puts no further question to the owner, and the round it proposes returns to a reviewer. The four `delivered:` lines above them are unchanged and carried.
+
+notes
+1. Brief lines 2 through 5 are option labels the main agent wrote and the owner selected, as the block says. Only the owner can settle whether a selected label is their sentence; the plan discloses it, which is as far as anything I can read goes.

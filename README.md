@@ -22,7 +22,7 @@ The workflow enforced by Gauntlet is, as its name implies, quite brutal:
 1. You supply an agent with a brief: the problem to solve or feature to add.
 2. The main agent sends its grounding questions, all of them, to one `gauntlet-detective`, which returns a `file:line` table and nothing else.
 3. The main agent drafts a plan on those pointers and provides it to a `gauntlet-prosecutor`.
-4. The `gauntlet-prosecutor` checks the drafted plan for mistakes, errors, inconsistencies, and resolves the plan's citations against the tree to return a pass or fail per check. It may also return a refusal to rule if the main agent is caught trying to game its context or evades a posed question. Any questions the agents cannot answer are escalated to you, who then approves the plan only on a pass. On `READY`, it writes the approved plan to `docs/gauntlet/plans/`, a folder only it can write to, so a later stage reads the plan from disk rather than inheriting it — the shape is in `docs/plans.md`.
+4. The `gauntlet-prosecutor` checks the drafted plan for mistakes, errors, inconsistencies, and resolves the plan's citations against the tree to return a pass or fail per check. It may also return a refusal to rule if the main agent is caught trying to game its context or evades a posed question. Any questions the agents cannot answer are escalated to you, who then approves the plan only on a pass. On `READY`, it writes the approved plan to `docs/gauntlet/plans/`, a folder only it can write to, so a later stage reads the plan from disk rather than inheriting it — the shape is in `docs/plans.md`. Where implementation later settles a value the plan estimated, the plan takes an amendment round rather than a redraft: the amendment carries the command that produced the value, the checks re-run on the amended lines alone, and the reviewer rewrites the file.
 5. The main agent drafts a testing spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-examiner` measures it.
 6. The main agent supplies its spec block to a `gauntlet-arbiter`.
 7. The `gauntlet-arbiter` runs its checks blind: it cannot read the implementation. It evaluates the spec block based on its merits alone and returns verdicts per test proposal. It may also outright refuse the prompt on steering or evasion attempts by the main agent. On `READY`, it sends the approved specs to `docs/gauntlet/specs/`, a folder only it can write to.
@@ -43,6 +43,8 @@ A message whose first line is exactly `approved` opens the gate it answers. A me
 The word anywhere but that first line is not approval — mid-sentence, inside a quotation, inside a pasted block. Neither is "looks good", "yep", "ship it", or silence. A paste that happens to contain the word cannot open a gate, because position, not judgment, is what the main agent checks.
 
 One word opens one artifact as it stands. A plan or a block redrafted after it was approved needs a new one, or an approval slides forward over text you never read. An amendment you supply is your own words and carries itself; a redraft the main agent makes on top of it does not.
+
+An amendment round on an approved plan rewrites the file, so the rewritten plan takes its own word before implementation continues on it. The reviewer blocks beneath it are kept in order, so the text your first word covered is still there to read.
 
 Anything ambiguous holds. The cost of that default is one more line from you, which is cheaper than a stage entered on a sentence that only read like consent.
 

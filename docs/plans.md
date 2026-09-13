@@ -70,3 +70,25 @@ The pointers a plan cites come from one `gauntlet-detective` round: every questi
 The owner reads the plan only on `READY`. Rounds before that are between the main agent and the reviewer, and they are cheap; a plan passed carelessly costs the owner directly.
 
 On `READY` the plan waits for the owner. Approval is a message whose first line is exactly `approved`, or exactly `approved with revision` with the amendments below it. Anything else holds.
+
+## Amending an approved plan
+
+An approved plan takes an amendment where implementation settles a value the plan could only estimate: a call-site count, a boundary reading, anything the plan carried as `ASSUMED`. The amendment is a round rather than a redraft, and the amended lines are what moves.
+
+This departs from `docs/approved-specs.md:48`, which has an approved spec amended the same way it was created. A spec amendment is still a full re-review. A plan amendment is scoped, and the scope is stated here because the plan gate's rule lives here.
+
+The main agent returns to a `gauntlet-prosecutor` with three things: the slug, each amended line named by its first words with its new text, and the measured value with the command that produced it and that command's output. Nothing else — the plan body is on disk and the reviewer reads it there.
+
+The main agent takes the measurement, and the command is what makes that safe. The reviewer re-runs the command rather than trusting the number, so a measured value with no command that reproduces it is not an amendment.
+
+The reviewer may be a fresh one. The approved file carries every previous verdict beneath its `--- reviewer ---` divider, and an approved plan is something a `gauntlet-prosecutor` may read, so a reviewer holding none of the original round still reads what that round carried — from the plan file, never from `docs/gauntlet/reviews/`, which it cannot read at all.
+
+Checks run on the amended lines and the citations they carry, and on nothing else. Every other check prints `carried` with its verdict from the most recent `--- reviewer ---` block. A new finding on unchanged text stays legal and costs one scoped round.
+
+On `READY` the reviewer rewrites `docs/gauntlet/plans/<slug>.txt`: the amended plan body, then every reviewer block in order, oldest first, each under its own divider. A slug amended twice carries three blocks, and the carried verdicts are read from the last. Any other verdict writes nothing, and the file on disk is the one that stands.
+
+An amendment whose measured value changes no plan line is not a round. No reviewer is spawned and no file is rewritten, and the main agent records the reading in its own report.
+
+A rewritten plan is a new artifact, so the owner's approval of the one before it does not carry, which is the rule `docs/approved-specs.md:50` states for the spec file. `approved` is given again against the plan as it now stands, before implementation continues on it.
+
+An amendment round does not count toward whatever round leash a project sets on this gate. It arrives from the implementation tree rather than from a plan that cannot settle.
