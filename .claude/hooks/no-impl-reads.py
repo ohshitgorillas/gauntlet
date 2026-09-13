@@ -394,6 +394,8 @@ def _verdict(name: str, tool_input: dict, root: str | None, cwd: str, conf: dict
 
 
 def main() -> None:
+    if sh.bypassed():
+        return  # GAUNTLET=off: the owner's switch, read at the entry point only
     try:
         data = json.loads(sys.stdin.read())
     except (ValueError, OSError):

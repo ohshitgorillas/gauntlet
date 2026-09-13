@@ -14,13 +14,13 @@ An entry lands under `[Unreleased]` in the same commit as the change it describe
 
 ## The gates
 
-Green means all ten gates pass, not just the first. One command runs them:
+Green means all eleven gates pass, not just the first. One command runs them:
 
 ```
 scripts/gates/check-gates.sh
 ```
 
-It runs `pytest` on `tests/` and the `--self-test` of `plans-lane.py`, `specs-lane.py`, `tests-lane.py`, `reviews-lane.py`, `verdicts-lane.py`, `no-impl-reads.py`, `blind-bash.py`, `excision-diff.py` and `cite.py`, one after another under `nice -n 19 ionice -c3`. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
+It runs `pytest` on `tests/` and the `--self-test` of `plans-lane.py`, `specs-lane.py`, `tests-lane.py`, `reviews-lane.py`, `verdicts-lane.py`, `no-impl-reads.py`, `blind-bash.py`, `gauntlet-off.py`, `excision-diff.py` and `cite.py`, one after another under `nice -n 19 ionice -c3`. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
 
 Each `--self-test` prints one `PASS` or `FAIL` per rule that script exists to hold, and they cover cases the suite does not. A hook change that passes `pytest` and fails its own `--self-test` is exactly what this bar catches.
 
@@ -29,6 +29,8 @@ No linter is installed here. `ruff`, `black` and `eslint` appear in the agent de
 Inside a `.claude/worktrees/*` tree, run that tree's own `scripts/gates/check-gates.sh`. It sets `PYTHONPATH` to the tree it sits in, because without it the suite tests the parent checkout and tells you nothing about the tree you are in.
 
 **The lane hooks stay on and unweakened.** They are the product, so disabling one to land a change ships the defect rather than hiding it. No matcher narrowed, no entry commented out, no `--self-test` left failing. A hook that fires where it should not is a bug to fix in the hook, reported as one.
+
+`GAUNTLET=off` does not touch that rule, and the distinction is the whole of it. The switch is the owner's, thrown on the shell that launches the session, good for that session and recorded nowhere on disk. Weakening a hook in the tree is still forbidden, a `--self-test` left failing is still a defect, and neither becomes legal because an off switch exists. An agent may not propose the switch, set it, or suggest the owner set it — that rule has no exception, and `gauntlet-off.py --bash` denies a `GAUNTLET=` assignment and a nested `claude` invocation to keep the switch out of reach of the session it governs.
 
 ## Markdown
 
@@ -45,7 +47,7 @@ Both gates are this repository's own, which is why they sit in `scripts/gates/` 
 
 ## `tests/` is not yours
 
-`.claude/settings.json:5-17` wires `specs-lane.py`, `plans-lane.py` and `tests-lane.py` session-wide, so they bind a session working **on** this repo exactly as they bind one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `gauntlet-scrivener`, like any other.
+`.claude/settings.json:5-17` wires `specs-lane.py`, `plans-lane.py` and `tests-lane.py` session-wide, so they bind a session working **on** this repo exactly as they bind one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `gauntlet-scrivener`, like any other. Under `GAUNTLET=off` the enforcement lapses and the write is allowed; the discipline does not lapse with it, because a test that changes outside an approved spec block is an unpinned test whoever was watching.
 
 ## Commits
 

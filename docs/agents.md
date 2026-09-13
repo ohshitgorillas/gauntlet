@@ -13,9 +13,17 @@ Eight agents, and the whole system is the shape of what each one is not allowed 
 | `gauntlet-juror` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `reviews-lane` |
 | the main agent | yes | everything else | all of them, session-wide |
 
+## The switch
+
+"All of them, session-wide" holds for a session with the gauntlet on, which is every session the owner does not start with `GAUNTLET=off claude`. That variable silences the seven lane hooks and the `Stop` gate for one session, so the owner can work outside the chain — repairing a lane file, demoing the kit, working on the hooks themselves — without weakening a hook in the tree. It is not an agent and takes no row: it belongs to the hand that launches the session, an agent inside one may never propose it, set it, or suggest the owner set it, and `gauntlet-off.py --bash` denies a `GAUNTLET=` assignment and a nested `claude` invocation so the session cannot reach it.
+
+One statement here covers every sentence in this file that says a hook denies something, including `pair.sh red` below. Each is a statement about a session with the gauntlet on.
+
 ## Who is blind, and why
 
 The `gauntlet-arbiter`, the `gauntlet-scrivener`, the `gauntlet-juror` and the `gauntlet-bailiff` are the four that never read the implementation. Everything else in the repo exists to keep that true.
+
+Under `GAUNTLET=off` it is not true. `no-impl-reads.py` and `blind-bash.py` are two of the seven hooks the switch silences, so a `gauntlet-arbiter` or a `gauntlet-scrivener` spawned in a bypassed session can read the implementation and can run any shell command, and nothing denies it. Blindness is the property the whole chain rests on, so a spec block or a test produced in such a session is worth what an unblind agent's work is worth, and it lands in a tracked file that looks like any other. A session with the gauntlet off should not run the chain.
 
 A reviewer that can read the code will rationalize a spec line that merely describes what the code already does — the line looks true, because it is, and it pins nothing. A test writer that can read the code writes a test that mirrors it: the test and the implementation share the same mistake, so it goes green on a wrong implementation and nobody sees. A certifier that can read the code reads a `GREEN` as the implementation already being right rather than as the test failing to bite, which is the one reading the red run exists to rule out. A post-merge checker that can read the code reads a softened assertion as matching what the code turned out to do, which is exactly the change it is there to catch.
 

@@ -6,7 +6,7 @@
 
 One directory, one writer.
 
-- **`gauntlet/specs/approved/<slug>.txt` is written by the `gauntlet-arbiter` and by no one else.** Not the main agent, not the `gauntlet-scrivener`, not the person driving the session through an agent. `hooks/specs-lane.py` denies every other hand at the tool call.
+- **`gauntlet/specs/approved/<slug>.txt` is written by the `gauntlet-arbiter` and by no one else.** Not the main agent, not the `gauntlet-scrivener`, not the person driving the session through an agent. `hooks/specs-lane.py` denies every other hand at the tool call, in any session the owner has not started with `GAUNTLET=off`.
 - **A file appears there only when that reviewer's gate verdict is `READY`.** The reviewer writes the block it just passed, verbatim, with its own per-line verdicts beneath it. An `ANOTHER PASS` or `ESCALATE` round writes nothing.
 - **The `gauntlet-scrivener` reads from there and refuses a spec path anywhere else.** The path being under `gauntlet/specs/approved/` is the writer's proof that the behavior it is about to pin survived review; a draft handed to it directly is a spec that skipped the gate.
 - **Reads are open.** Any agent, and the shell, may read the folder. The lane governs writing.
@@ -19,6 +19,8 @@ The `gauntlet-scrivener` is blind on purpose: a test written by the agent that w
 So if the main agent can write the spec file, the blindness buys nothing. The main agent states the behavior it already implemented, drops it in the folder, and the writer faithfully pins the mistake. Review becomes a step that happened somewhere in the transcript rather than a fact on disk.
 
 Making the folder the reviewer's alone turns approval into evidence. The presence of `gauntlet/specs/approved/<slug>.txt` means one specific agent, which never read the implementation and whose default verdict is `STRICKEN`, decided those lines earn the tests they will produce. Nothing else can put that file there, so nothing else can claim it.
+
+That proof is a proof about sessions run under the chain. `GAUNTLET=off` silences the lane, and a file written into it by any hand is afterwards indistinguishable from one the reviewer wrote — which is the honest reading for anyone who cannot tell how a given file got there, and the reason a session with the gauntlet off should not run the chain.
 
 ## What the reviewer writes
 
@@ -93,4 +95,6 @@ python3 .claude/hooks/no-impl-reads.py --self-test
 
 ## Failure modes it accepts
 
-The hook keys off the caller's `agent_type`, which is present only on subagent calls. An absent key reads as the main agent and is denied. If a build omits the key for subagents too, the `gauntlet-arbiter` is denied along with everyone else: the lane fails closed, no unreviewed spec reaches the writer, and the denial message names the file to fix.
+The hook keys off the caller's `agent_type`, which is present only on subagent calls. An absent key reads as the main agent and is denied. If a build omits the key for subagents too, the `gauntlet-arbiter` is denied along with everyone else: the lane fails closed, no unreviewed spec reaches the writer, and the denial message names the file to fix. That is the disposition a session with the gauntlet on gets.
+
+The one failure mode accepted by choice rather than tolerated is the owner's switch. Under `GAUNTLET=off` the lane fails open, deliberately, on an environment variable, and an unreviewed spec does reach the writer. The switch belongs to the hand that launches the session; inside a running session it is denied, and no agent may propose it. `CLAUDE.md` carries the rule, `README.md` carries it for a consumer copying `.claude/`.

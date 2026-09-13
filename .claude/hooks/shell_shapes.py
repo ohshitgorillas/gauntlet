@@ -34,6 +34,13 @@ bounds on a declaration are code rather than data: a prefix resolving to or
 under a lane directory is dropped, and the one argument is normalized before
 it is tested against the prefix. A repo that declares nothing gets the table
 above, which is the behavior it has without the file.
+
+The owner's off switch lives here too, as `bypassed()`. This module is the one
+place all seven hooks already share, so the switch is defined once and each
+hook reads it rather than each hook parsing an environment of its own. It reads
+`os.environ` and never a hook payload: the payload is the one input an agent
+controls, and a switch honouring a payload key would be a bypass any subagent
+could forge in a tool call.
 """
 
 from __future__ import annotations
@@ -608,6 +615,20 @@ def path_in_lane(target: str, cwd: str, lane: str) -> bool:
         parts[i : i + len(lane_parts)] == lane_parts
         for i in range(len(parts) - len(lane_parts) + 1)
     )
+
+
+def bypassed() -> bool:
+    """Whether the owner started this session with the gauntlet off.
+
+    `GAUNTLET=off claude`, and nothing else. The comparison is against the
+    exact value `off` after strip and lowercase, so an unset, empty or
+    misspelled variable leaves the gauntlet on, which is the safe direction.
+
+    Read only at the top of a hook's `main()`, never inside a `_verdict()`: a
+    self-test calls `_verdict()` directly, and a switch reachable from there
+    would make the self-tests pass vacuously in a bypassed environment.
+    """
+    return os.environ.get("GAUNTLET", "").strip().lower() == "off"
 
 
 def deny(reason: str) -> str:

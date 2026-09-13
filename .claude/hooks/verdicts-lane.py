@@ -108,6 +108,8 @@ def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
 
 
 def main() -> None:
+    if sh.bypassed():
+        return  # GAUNTLET=off: the owner's switch, read at the entry point only
     try:
         data = json.loads(sys.stdin.read())
     except (ValueError, OSError):
@@ -303,4 +305,10 @@ def self_test() -> int:
 if __name__ == "__main__":
     if "--self-test" in sys.argv:
         sys.exit(self_test())
-    sys.exit(stop()) if "--stop" in sys.argv else main()
+    # The `--stop` guard sits here rather than inside `stop()`, because
+    # `self_test()` calls `stop()` directly for four of its lines and a guard
+    # inside it would pass those four vacuously under `GAUNTLET=off`. The
+    # `--self-test` branch above is reached first and is never gated at all.
+    if "--stop" in sys.argv:
+        sys.exit(0 if sh.bypassed() else stop())
+    main()

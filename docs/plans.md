@@ -10,7 +10,7 @@ A plan is what the owner approves before any behavior is specified. It is prose,
 | `gauntlet/plans/approved/<slug>.txt` | `gauntlet-prosecutor` | on `READY`, and only then | yes |
 | `gauntlet/reviews/<slug>.plan.<N>.txt` | `gauntlet-prosecutor` | every round that carries checks | no |
 
-One directory, one writer, the same rule `docs/approved-specs.md` states for the spec gate one stage later. `hooks/plans-lane.py` denies every other hand at the tool call, so the presence of `gauntlet/plans/approved/<slug>.txt` is the evidence that those words passed the plan gate — not a claim in a transcript.
+One directory, one writer, the same rule `docs/approved-specs.md` states for the spec gate one stage later. `hooks/plans-lane.py` denies every other hand at the tool call, so the presence of `gauntlet/plans/approved/<slug>.txt` is the evidence that those words passed the plan gate — not a claim in a transcript. Under `GAUNTLET=off` the lane is silent and any hand can write that file, so the evidence is evidence about a session run under the chain; `docs/approved-specs.md` states the same bound for the spec lane.
 
 The approved plan is tracked because a later stage reads it from disk. That is the whole point of the artifact: a fresh agent picking the chain up at implementation reads the plan it is implementing rather than inheriting it from a conversation that may not exist any more.
 

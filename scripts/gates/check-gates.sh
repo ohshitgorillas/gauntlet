@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Run the nine gates of this repository, one after another, at idle priority.
+# Run the eleven gates of this repository, one after another, at idle priority.
 #
 # Each gate runs once. Its output is saved to state/gates/<gate>.txt and never
 # printed; what prints is one PASS or FAIL line per gate with its wall time.
 # A gate passes on exit status 0. The script exits 1 if any gate failed.
+#
+# Each gate runs with GAUNTLET scrubbed from its environment, so the report is
+# about the hooks as they are wired rather than about however the launching
+# session happened to be started. A green report produced inside a bypassed
+# session would otherwise be a report about nothing.
 #
 # Works from the main checkout and from a .claude/worktrees/* tree: the suite
 # runs with PYTHONPATH set to the tree the script sits in, and a tree without
@@ -36,6 +41,7 @@ gates=(
     "verdicts-lane|python3 .claude/hooks/verdicts-lane.py --self-test"
     "no-impl-reads|python3 .claude/hooks/no-impl-reads.py --self-test"
     "blind-bash|python3 .claude/hooks/blind-bash.py --self-test"
+    "gauntlet-off|python3 .claude/hooks/gauntlet-off.py --self-test"
     "excision-diff|python3 scripts/excision-diff.py --self-test"
     "cite|python3 scripts/cite.py --self-test"
 )
@@ -45,7 +51,7 @@ for entry in "${gates[@]}"; do
     name=${entry%%|*}
     read -ra cmd <<<"${entry#*|}"
     start=$EPOCHREALTIME
-    nice -n 19 ionice -c3 "${cmd[@]}" >"$out/$name.txt" 2>&1
+    env -u GAUNTLET nice -n 19 ionice -c3 "${cmd[@]}" >"$out/$name.txt" 2>&1
     status=$?
     secs=$(awk -v a="$start" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.1f", b - a }')
     if ((status == 0)); then
