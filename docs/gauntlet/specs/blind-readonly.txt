@@ -26,7 +26,6 @@ The payload families below are not typed. A fixture generates a listing: names i
    existing: none, `grep -rn 'blind.sh' tests/` returned no output.
 
 --- reviewer ---
-
 READY
 discriminates: sweep on the lane hook wire surface - one payload family generated at run time, two distinct expected answers (DENY under BARE, SILENT under TESTS) split by whether the generated name sits under the declared prefix, with the BARE/TESTS differential taken over the whole family
 
