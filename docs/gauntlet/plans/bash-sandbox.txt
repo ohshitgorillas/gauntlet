@@ -1,0 +1,172 @@
+slug: bash-sandbox
+grounding: gauntlet-detective
+
+brief:
+> Goal: no hook reads Bash command text.
+  delivered: the whole plan. Two mechanisms replace the classifier — a closed set of whole-string anchored matches for the shapes that must run unwrapped, and an unread wrap for everything else — and `shell_shapes.py` loses its command half under "Which files get touched".
+> 1. Blind agents get no free Bash.
+  delivered: the `blind-bash.py` and `scripts/blind.sh` entries under "Which files get touched", and the two `tools:` lines that lose `Bash`.
+> - gauntlet-juror and gauntlet-arbiter have no Bash at all.
+  delivered: `.claude/agents/gauntlet-juror.md:4` and `.claude/agents/gauntlet-arbiter.md:4` lose `Bash`, and the juror's `Bash` hook matchers go with it.
+> - gauntlet-scrivener and gauntlet-bailiff get only blind.sh test|status|show.
+  delivered: `scripts/blind.sh` with those three subcommands, and `blind-bash.py` denying every other command to those two agents.
+> - The hook checks the command name exactly, plus strict patterns on the slug and commit arguments.
+  delivered: the `blind-bash.py` entry. `test` takes a test file path rather than a slug, because `.claude/agents/gauntlet-scrivener.md:75` runs the suite against a named file; the argument grammar is per subcommand and stated there.
+> - blind.sh test covers pytest, node --test and ruff.
+  delivered: `scripts/blind.sh test`. It carries `black` and `eslint` beside them, because `.claude/agents/gauntlet-scrivener.md:102` names five commands and a subcommand covering three of them leaves the scrivener needing a shell for the other two, which is the thing this brief line removes.
+> - This deletes the Bash branch of no-impl-reads.py.
+  delivered: the `no-impl-reads.py` cut under "Which files get touched". The branch opens at `.claude/hooks/no-impl-reads.py:325`.
+> 2. Everyone else's Bash runs in bwrap. A PreToolUse hook wraps the command through updatedInput without reading it. agent_type picks the profile.
+  delivered: `.claude/hooks/bwrap-wrap.py`. One shape is carved out ahead of it and named: `scripts/pair.sh`, which must run unwrapped per brief line 22, and which a second fixed-shape hook matches whole-string. That carve-out is stated rather than assumed, because a wrapper that decided for itself which commands to skip would be a classifier again.
+> - Default: everything read-only. Writable: the repo, own /tmp, ~/.cache.
+  delivered: the default profile under "What the owner sees change".
+> - Read-only again inside the repo, in every checkout: lane dirs, state/red, state/merge, .claude/, scripts/, .git/hooks, .git/config.
+  delivered: the same paragraph. `.git/objects` and `.git/refs` stay writable under this list as written, which is the narrower guarantee recorded under "Open questions".
+> - Also read-only: ~/.gitconfig.
+  delivered: the same paragraph.
+> - Masked: /run/user, which closes the proven systemd-run escape.
+  delivered: the same paragraph. `--unshare-pid` is taken alongside the mask as defense in depth, on the reading the element below carries.
+> - Worktrees: .claude/worktrees itself is read-only, with each existing tree bound back writable. Only pair.sh open makes new trees. Trees are listed again on every call.
+  delivered: the re-listing wrapper under "Which files get touched", with its zero-worktree and removed-tree cases named.
+> - Reviewers: whole filesystem read-only, plus a tmpfs over docs/gauntlet/reviews/.
+  delivered: the reviewer profile under "What the owner sees change".
+> - This deletes most of shell_shapes.py.
+  delivered: the `shell_shapes.py` cut, which removes `:36` through `:396` and keeps `:429` through `:497`.
+> 3. pair.sh takes every git step that writes lane files.
+  delivered: the four new subcommands under "Which files get touched".
+> - Subcommands: open, red, merge, restore, impl checkout, impl merge, close.
+  delivered: the same entry, with the stdout contract for each of the four new ones, since `docs/agents.md:39` makes that stdout contract.
+> - The hook matches these commands exactly, and they run outside the sandbox.
+  delivered: `.claude/hooks/pair-passthrough.py` under "Which files get touched".
+> - Inside, pair.sh runs pytest in its own bwrap, and git with core.hooksPath=/dev/null and no filters.
+  delivered: the `scripts/pair.sh` entry.
+> 4. Path hooks shrink.
+  delivered: the lane-hook fold and the `no-impl-reads.py` allowlist narrowing.
+> - Five lane hooks become one table of dir to writer.
+  delivered: the fold entry, with the two cases that do not fit a plain table named.
+> - realpath replaces abspath.
+  delivered: `.claude/hooks/shell_shapes.py:455` and `:477`.
+> - Blind allowlist: dirs only protected writers fill, plus docs/testing.md.
+  delivered: the narrowing of the blind allowlist, in the no-impl-reads entry below, at `.claude/hooks/no-impl-reads.py:81`. `state/` narrows to `state/red/` and `state/merge/` rather than going, since those two are filled only by `scripts/pair.sh` and are what the `gauntlet-bailiff` is spawned to read.
+
+## What is wrong
+
+Every lane hook decides a `Bash` call by reading the command string. `shell_shapes.py` is the reader: `segments` at `.claude/hooks/shell_shapes.py:201`, `words_of` at `:309`, `has_inline_script` at `:241`, `is_runner` at `:262`, `git_write_form` at `:324`, `segment_writes` at `:344`, `command_writes` at `:363`, `lane_write_in` at `:396`. Four hundred of its 497 lines exist to answer one question about a string: does this command write.
+
+That question is undecidable on a string, and the repository's own history is the evidence. `docs/gauntlet/specs/shell-shape-classification.txt`, `docs/gauntlet/specs/fail-open-bypasses.txt` and `docs/gauntlet/specs/git-read-subcommands.txt` are three approved blocks, each closing a class of command the classifier read wrong. The last one landed at commit `5494faa` and covered eight git subcommands; `--output` and `git grep -O` came with it. Each round adds a member to a list and leaves the next spelling open: an env prefix, a here-document, a command substitution, a shell function, a `find -exec`, an `xargs`. A classifier that must enumerate the shapes of a Turing-complete language is behind by construction.
+
+This plan was itself denied by that classifier while being written. A heredoc writing this draft to `docs/gauntlet/drafts/plans/` was refused by `reviews-lane.py`, because the prose quoting the owner's brief contains the characters of the reviewers' lane path. `.claude/hooks/shell_shapes.py:422` searches the heredoc body for the lane pattern, so prose about a lane, inside a document being written somewhere else entirely, is a write to that lane.
+
+The blind agents are where the classifier costs most, because there it is the only thing standing between a blind agent and the implementation. `.claude/hooks/no-impl-reads.py:325` opens a branch that walks stages, tracks `cd`, lets a runner through at `:351`, and judges each remaining word by `readable` at `:165`. Two of its escapes are structural. A recognized runner passes without its arguments being read at all, so any interpreter the config names reads whatever it likes. And `cd` tracking gives up on `cd -` and `cd ~...` at `:347`, falling back to the session cwd, which is a guess rather than a fact.
+
+The sandbox escape is not hypothetical on this host. `/run/user/1000` carries `bus` and `systemd`, so a command that reaches the session D-Bus can ask `systemd --user` to start a unit, and that unit runs outside anything the calling process was confined by. Nothing in `.claude/hooks/` mentions `/run/user`, and no string classifier can, because the escape is a socket rather than a spelling.
+
+The blindness wiring also disagrees with the agents that depend on it. `.claude/agents/gauntlet-juror.md:4` gives the juror no `Bash`, and `:73` states the reason in the agent's own words. Yet `.claude/agents/gauntlet-juror.md:8` still wires `no-impl-reads.py` at a `Bash` matcher, and five more lane hooks beneath it, for a tool the agent does not hold. The `gauntlet-arbiter` holds `Bash` at `.claude/agents/gauntlet-arbiter.md:4` and its body names no command it needs one for.
+
+The other two blind agents need a fixed set of shapes between them. The `gauntlet-scrivener` runs `git status --porcelain` at `.claude/agents/gauntlet-scrivener.md:60`, the suite at `:75` and `:76`, and five mechanical gates at `:102`. The `gauntlet-bailiff` runs one `git show` of a committed spec at `.claude/agents/gauntlet-bailiff.md:53`. All fixed, all parameterized by a file path, a slug or a commit — and to serve them the repo carries a general-purpose shell classifier.
+
+`scripts/pair.sh` already owns every git step that writes a lane file, but only for three of them: `cmd_open` at `scripts/pair.sh:65`, `cmd_red` at `:82`, `cmd_merge` at `:106`, dispatched at `:146`. The steps it does not own — restoring a lane file from an object, cutting and merging the implementation tree, removing a worktree — are typed as raw git by the main agent, which is why `docs/approved-specs.md:52` has to carve `git restore --source` out of the classifier by hand.
+
+## What the owner sees change
+
+No hook reads a `Bash` command string to decide what it does. A command either matches one of a closed set of whole-string patterns and runs unwrapped, or it is wrapped unread and runs inside `bwrap`.
+
+For the four blind agents, `Bash` stops being a general tool. The `gauntlet-juror` and the `gauntlet-arbiter` lose it entirely, matching what `.claude/agents/gauntlet-juror.md:73` already says. The `gauntlet-scrivener` and the `gauntlet-bailiff` keep one command, `scripts/blind.sh`, with the subcommands `test`, `status` and `show`. A blind agent typing anything else is denied by name, not by analysis, and the denial cannot be spelled around.
+
+For every other agent and for the main agent, `Bash` keeps its full surface and loses its reach. The command the agent typed is the command that runs; what changes is what the filesystem looks like from inside it. Everything is readable. Writable is the repository, the session's own scratch directory, and `~/.cache`. Read-only again inside the repository: every lane directory in every checkout, `state/red`, `state/merge`, `.claude/`, `scripts/`, `.git/hooks` and `.git/config`. `~/.gitconfig` is read-only. `/run/user` is masked with an empty tmpfs, which closes the D-Bus route to `systemd --user`.
+
+A write the sandbox refuses reads as an ordinary filesystem error rather than as a hook denial with a paragraph of prose. That is a real loss of explanation, and it is priced under "What it costs".
+
+`scripts/pair.sh` grows from three subcommands to seven: `open`, `red`, `merge`, `restore`, `impl checkout`, `impl merge`, `close`. These run unwrapped, matched whole-string, and they are the only route by which a lane file changes on disk.
+
+The lane hooks keep denying `Write`, `Edit` and `NotebookEdit` by path, and the reviewer read-block keeps firing on `Read` and `Grep`. What they lose is their `Bash` branch, and five files become one table of directory to writer.
+
+## Which files get touched, and roughly how
+
+**`.claude/hooks/bwrap-wrap.py`, new.** A `PreToolUse` hook on `Bash` that returns `updatedInput` with the command wrapped in a `bwrap` invocation and never inspects the string. `ASSUMED`, that Claude Code honours `updatedInput` from a `PreToolUse` hook: the reading is that the installed 2.1.270 binary carries the key in its permission-decision paths. `grep -aoc updatedInput /home/atom/.local/share/claude/versions/2.1.270` returns 401, and `grep -ao 'updatedInput[^"]\{0,80\}' <same> | sort -u | wc -l` returns 270 distinct 80-character shapes carrying it. That is the presence of the field, not a demonstration of the contract, and it is the assumption the whole approach rests on: a build that ignores `updatedInput` runs every command unwrapped with no error. Implementation settles it against a live hook, and an amendment carries the reading. `bubblewrap` 0.12.0 is at `/usr/bin/bwrap` on this host. The profile is chosen by `agent_type`, the same payload field the lane hooks read at `.claude/hooks/plans-lane.py:79` and its four siblings. Three profiles: default; reviewer, whole filesystem read-only plus a tmpfs over the reviewers' own lane; and passthrough for the two blind agents. The blind agents reach this hook like everyone else — `README.md:68` has the session-wide hooks bind every subagent, and `blind-bash.py` denies their other commands without stopping the one it allows — so they get a third profile, passthrough, selected by the same `agent_type` field. `scripts/blind.sh` runs its own `bwrap`, and wrapping a wrapper gains nothing while costing a nested mount setup on the one command those agents have. `--unshare-pid` is taken, and what it buys is narrower than it looks. `bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /run/user --die-with-parent sh -c 'touch /proc/<outer pid>/cwd/probe'` returns `touch: cannot touch '/proc/428192/cwd/probe-a': Permission denied`; the same command with `--unshare-pid` returns `No such file or directory`. The route out through an outer process's `/proc` entry is closed either way, because that process is outside the sandbox's user-namespace mapping. `--unshare-pid` removes the entry rather than denying it, which is defense in depth against a future kernel or mapping that would make the denial a permission rather than an absence. The wrapper re-lists `.claude/worktrees/*` on every call and binds each existing tree back writable, because the directory itself is read-only and a tree cut since the last call must still be writable. Two cases fall out of that re-listing and are stated rather than left to the reader: no worktrees at all, where the bind list is empty and the wrap still runs; and a tree removed between calls, where a stale bind would fail the `bwrap` invocation outright, so the list is built from what exists at call time and never cached.
+
+**`.claude/hooks/pair-passthrough.py`, new.** The carve-out brief line 22 names. `scripts/pair.sh` writes lane files by design, so it must run unwrapped, and something has to decide that. It is a `PreToolUse` hook on `Bash`, ordered before `bwrap-wrap.py`, matching the whole command against one anchored pattern per subcommand with a strict slug argument; on a match it marks the call unwrapped, and on anything else it is silent. This is the same class of mechanism as `blind-bash.py` — a closed set of anchored whole-string patterns, with nothing to extend as new commands appear — and not the class this plan deletes, which walks a command apart and judges its pieces. Naming it as its own file is the point: a `bwrap-wrap.py` that decided for itself which commands to skip would be a classifier again, under a new name.
+
+**`.claude/hooks/blind-bash.py`, new.** A `PreToolUse` hook on `Bash` wired only from the `gauntlet-scrivener` and `gauntlet-bailiff` frontmatter. It matches the command against fixed patterns anchored at `scripts/blind.sh`, with an argument grammar per subcommand: a repo-relative test file path for `test`, a slug for `status`, a commit and a slug for `show`. Everything else is denied.
+
+**`scripts/blind.sh`, new.** Three subcommands. `test` runs the suite and the five mechanical gates `.claude/agents/gauntlet-scrivener.md:102` names — `.venv/bin/pytest`, `node --import ./tests/js/support/vendor-resolve.js --test`, `.venv/bin/ruff check tests`, `.venv/bin/black --check tests` and `npx eslint` — against the test file it was given. `status` is the `git status --porcelain docs/gauntlet/specs/` of `.claude/agents/gauntlet-scrivener.md:60`. `show` is the `git show` of a committed spec at `.claude/agents/gauntlet-bailiff.md:53`. It runs inside `bwrap`, with the repository writable only where the agent's lane hook already allows a write.
+
+It does **not** mask the implementation. A test run needs the code it tests on disk: `tests/test_hook_wire.py:20-21` points `HOOK_DIR` at this repository's own `.claude/hooks/`, so a mask there turns the suite into a collect error, which `.claude/agents/gauntlet-arbiter.md:128` says separates nothing. The blindness that holds through `blind.sh` is the blindness that holds today — the agent cannot read the implementation, because `no-impl-reads.py` denies its `Read`, `Grep` and `Glob`, and it cannot type a command that prints it, because `blind-bash.py` allows only these three. The residual hazard is unchanged by this plan and named here because a reviewer will find it: a test file the scrivener writes can itself open the implementation and print it into the run output. That is true today, with the scrivener running pytest under the classifier, and nothing in this plan makes it worse or better.
+
+**`.claude/hooks/no-impl-reads.py`, cut and narrowed.** The Bash branch opened at `.claude/hooks/no-impl-reads.py:325` goes, with `_unrooted_sweep`, `_git_prints_content`, `_git_candidates` and `_candidates`. The `Read`, `Grep` and `Glob` branches at `.claude/hooks/no-impl-reads.py:372` stay, and `readable` at `:165` stays with them. `DEFAULT_ALLOW` at `.claude/hooks/no-impl-reads.py:81` names three subtrees today; brief line 49 narrows it to the directories only a protected writer fills, plus `docs/testing.md`. `state/` is not dropped but narrowed to `state/red/` and `state/merge/`, which `scripts/pair.sh:98` and `:123` are the only writers of: the `gauntlet-bailiff` is told to read `state/merge/<slug>.txt` itself at `.claude/agents/gauntlet-bailiff.md:51`, and `docs/agents.md:35` makes that file the whole evidence of its round, so a bare `state/` drop would deny a blind agent the only thing it is spawned to read. `docs/` shrinks to the spec lane and `docs/testing.md`, and `tests/` stays because the `gauntlet-bailiff` reads test code at `.claude/agents/gauntlet-bailiff.md:53`. The `blind-reads.json` widening read at `.claude/hooks/no-impl-reads.py:131` stays as the mechanism it is; no such file exists in this repository, and `config()` returns `{}` when it is absent, so the narrowing lands on the defaults with nothing overriding them here. The file's `--self-test` loses its Bash cases and gains the narrowed allowlist's.
+
+**`.claude/hooks/shell_shapes.py`, cut to the path half.** Everything from `READ_ONLY` at `.claude/hooks/shell_shapes.py:36` through `lane_write_in` at `:396` goes. What stays is `checkout_root` at `:429`, `root_by_name` at `:440`, `split_root` at `:453`, `under` at `:462`, `path_in_lane` at `:468` and `deny` at `:485`. `os.path.abspath` at `:455` and `:477` becomes `os.path.realpath`, so a symlink into a lane resolves to the lane.
+
+**The five lane hooks, folded into one.** `.claude/hooks/plans-lane.py`, `specs-lane.py`, `tests-lane.py`, `reviews-lane.py` and `verdicts-lane.py` carry the same shape with a different constant pair: `LANE` and `REVIEWER` at `.claude/hooks/plans-lane.py:47`, `.claude/hooks/specs-lane.py:43`, `.claude/hooks/verdicts-lane.py:66`, `WRITER` and `LANE` at `.claude/hooks/tests-lane.py:52`, and `LANE` at `.claude/hooks/reviews-lane.py:78` with its two second-lane carve-outs. One hook holds the table. Each file's `_bash_verdict` goes, since no hook reads a command any more. Three cases do not fit a plain directory-to-writer row and are carried as fields on it: the spec-tree check at `.claude/hooks/tests-lane.py:74`, the reviewer read-block at `.claude/hooks/reviews-lane.py:131`, and the two second lanes at `.claude/hooks/reviews-lane.py:79-80`.
+
+**`scripts/pair.sh`, four new subcommands, each with its stdout stated** — `docs/agents.md:39` makes stdout the contract, so a subcommand without one is unfinished. `restore <slug> <rev>` takes the `git restore --source` step that `docs/approved-specs.md:52` carves out of the classifier by hand today, and prints `RESTORED <path> <rev>`. `impl checkout <slug>` cuts the implementation tree and prints `IMPL <path>`, matching the `OPEN <path>` of `cmd_open` at `scripts/pair.sh:65`. `impl merge <slug>` merges it and prints `MERGED <slug> <commit>`. `close <slug>` removes a worktree and prints `CLOSED <path>`, or `REFUSED <path> <reason>` where the tree has uncommitted work, since a `close` that discards a red run silently is worse than no subcommand. The dispatcher at `scripts/pair.sh:146` grows to match, and the suite run at `scripts/pair.sh:102` runs in its own `bwrap` rather than bare. Nested `bwrap` works on this host: `bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid sh -c 'bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid true; echo nested-rc=$?'` prints `nested-rc=0`. Every git call in the script takes `-c core.hooksPath=/dev/null` and disables filters, so a repository hook or a clean/smudge filter inside a worktree cannot run as the outer process.
+
+**`.claude/settings.json`.** Two `PreToolUse` matcher blocks today, at `.claude/settings.json:5` and `:26`, carrying five lane-hook entries between them; `reviews-lane.py` alone sits under `Write|Edit|NotebookEdit|Bash|Read|Grep`, because it is the one with a read-block. After the fold: one entry for the folded hook under `Write|Edit|NotebookEdit|Read|Grep` — keeping `Read|Grep` is what lets the reviewer read-block at `.claude/hooks/reviews-lane.py:131` still fire — plus `pair-passthrough.py` and `bwrap-wrap.py` under `Bash`, in that order. No lane hook is wired on `Bash` any more.
+
+**The seven agent definitions**, every one of them. `.claude/agents/gauntlet-juror.md:4` and `.claude/agents/gauntlet-arbiter.md:4` lose `Bash`; the juror's hook entries opening at `:6` lose their `Bash` matchers. `.claude/agents/gauntlet-scrivener.md` and `.claude/agents/gauntlet-bailiff.md` gain `blind-bash.py` and have their command instructions at `.claude/agents/gauntlet-scrivener.md:60`, `:75`, `:76`, `:102` and `.claude/agents/gauntlet-bailiff.md:53` rewritten to `scripts/blind.sh`. `.claude/agents/gauntlet-detective.md:58` names `git grep`, `git log -S` and `find`, all of which keep working inside the sandbox; its hook list and the `gauntlet-prosecutor`'s and `gauntlet-examiner`'s change with the fold, since the five hooks they name become one.
+
+**Docs.** `README.md:68` and `docs/approved-specs.md:76` name the hook wiring and change. `docs/agents.md:5` opens the roster table, whose `Hooks` column names the five lane hooks per agent, and `:39` opens the `pair.sh` table, now seven rows. `CLAUDE.md:31` says of the lane hooks "No matcher narrowed, no entry commented out, no `--self-test` left failing" — this plan narrows every lane hook's matcher by removing `Bash` from it, so that sentence takes an edit in the same change, naming the replacement mechanism rather than dropping the rule. `CHANGELOG.md` takes an entry under `[Unreleased]`: `.claude/`, `scripts/` and the documented block shapes are what a consumer copies, and every one of them changes.
+
+## Caller-side delta
+
+A consumer copying `.claude/` gets a hard dependency on `bwrap`. That is new: `docs/approved-specs.md:82` says nothing in `hooks/` depends on anything outside `hooks/`. After this change `bwrap-wrap.py` depends on a binary being installed, and `blind-bash.py`, `pair-passthrough.py` and the blind agents depend on `scripts/blind.sh` and `scripts/pair.sh`, both outside `.claude/`. Those dependencies are stated in `README.md` and `docs/approved-specs.md`, and `bwrap-wrap.py` fails closed with a named reason when the binary is absent.
+
+The `--self-test` list changes. `README.md:76` and `docs/approved-specs.md:91` list them; the five lane hooks become one and `no-impl-reads.py` keeps its own, so the list shrinks and the "nine gates" count at `CLAUDE.md:17` moves with it. `scripts/gates/check-gates.sh` is the one place the list is executed.
+
+`tests/test_hook_wire.py` and `tests/test_pair_sh.py` are the tests this breaks, and they are not the main agent's to edit. Each goes through a spec block and the `gauntlet-scrivener`, under the rule at `CLAUDE.md:48`.
+
+## What it costs
+
+The work is four spec blocks and one plan, not one change. The blind-agent half (brief 1), the sandbox half (brief 2), `pair.sh` (brief 3) and the path-hook fold (brief 4) each land on their own, in that order, because each later one rests on the earlier: the sandbox is what makes the blind agents' loss of general `Bash` survivable, and the path-hook fold is only safe once nothing reads a command any more.
+
+Tests die in bulk. Of the 15 tests in `tests/test_hook_wire.py`, the ones pinning Bash classification are at `tests/test_hook_wire.py:132`, `:184`, `:216`, `:242`, `:275`, `:300`, `:331`, `:424`, `:450` and `:531` — ten, by the grounding round's table. Those pin behavior this plan deletes, so each is a line in a `motion: strike` block, and three approved specs on disk — `docs/gauntlet/specs/shell-shape-classification.txt`, `docs/gauntlet/specs/fail-open-bypasses.txt` and `docs/gauntlet/specs/git-read-subcommands.txt` — describe behavior that will no longer exist. The blocks that replace them pin the mount table instead: a write to a read-only bind fails, a read of a masked path fails, a blind agent's non-`blind.sh` command is denied by name.
+
+`CLAUDE.md:31` is overturned deliberately, not quietly. Every lane hook's `Bash` matcher goes, which is the narrowing that sentence forbids. The rule's reason survives — a hook is not disabled to land a change — and the sentence is rewritten to say that a lane's shell half is held by the sandbox rather than by a matcher. An owner who reads that rewrite as a weakening should say so, because nothing in the tree will.
+
+The denial message is the other real loss. Today `.claude/hooks/tests-lane.py:57` opens a prose explanation of why a write to `tests/` is refused and what the legitimate route is, and that message is what teaches an agent the rule. Inside the sandbox the same attempt returns an errno. The `Write` and `Edit` paths keep their prose, so the explanation survives for the tool an agent should be using; a shell write loses it.
+
+Performance: every `Bash` call gains a `bwrap` process and a mount-table setup. `ASSUMED`, unmeasured: the bind list is proportional to the number of worktrees, which is small.
+
+Deliberately left out: the sandbox does not confine the `Read`, `Write`, `Edit`, `Grep` or `Glob` tools, which do not go through a shell. Those stay with the path hooks, which is why the path half of `shell_shapes.py` survives.
+
+## Open questions
+
+None. Four were raised and the owner declined to rule on them, so each is settled here on the main agent's own assumption and named as one.
+
+1. **The native sandbox is expected off, stated in documentation and not detected in code.** Claude Code ships its own `bwrap` sandbox for `Bash`; it cannot select a profile per `agent_type`, so `bwrap-wrap.py` exists regardless, and with both on one sandbox nests inside the other. `README.md` and `bwrap-wrap.py`'s own denial text say the kit expects it off. `ASSUMED`: a consumer who leaves it on gets a nested sandbox and no warning, because `.claude/settings.json` carries no sandbox key for anything in the tree to read. The alternative, a detection path, has no in-tree way to be tested, which is why it is not taken.
+
+2. **The bare errno is accepted.** A write the sandbox refuses returns a filesystem error and nothing else. Recovering the lane's prose means deciding which lane a failed command was about, which is command-string reading under another name and against this plan's stated goal. The teaching message at `.claude/hooks/tests-lane.py:57` still reaches every agent that writes through `Write` or `Edit`, which is the tool such an agent should be using; a shell write loses it.
+
+3. **The git route stays open, deliberately and on the record.** `.git/objects` and `.git/refs` stay writable inside the sandbox, so an agent can commit a change to a lane file and a later `pair.sh` step outside the sandbox checks it out. Read-only `.git/config` and `.git/hooks` do not close this. Closing it means the whole `.git` read-only and every ordinary `git commit` routed through `pair.sh`, which grows that script well past the seven subcommands this plan sizes and past what the brief asks for. So the lane gate after this change holds against `Write`, against `Edit` and against a shell write, and not against a commit. That is a narrower guarantee than the one the lane hooks make today, and a later change closes it.
+
+4. **The host metering is accepted, unmeasured.** `~/.claude/hooks/command-burst-guard.py` is wired at user scope and classifies a `Bash` call by its command text, metering on any doubt, and `/srv/CLAUDE.md:120` makes that budget bind here. Whether the guard sees the typed command or the wrapped one is hook ordering, and nothing in either file settles it. The owner's ruling is to accept it. `ASSUMED`: if the guard sees the wrapped command, every `Bash` call in every project under `~/dev` meters.
+
+--- reviewer ---
+READY
+
+a  PASS  carried: The redefinition is still stated outright as the change proposed, now at line 72 ("No hook reads a `Bash` command string to decide what it does"), and line 82 states plainly what the lane hooks keep and what they lose. Resolved against `.claude/hooks/reviews-lane.py:76-80` and `docs/agents.md:5-14`: no other named thing changes meaning in silence.
+
+b  PASS  The stale clause is gone. The `delivered:` line under brief line 27 now reads "`--unshare-pid` is taken alongside the mask as defense in depth, on the reading the element below carries", which is what the `bwrap-wrap.py` element says: the `/proc` route is closed either way and the flag removes the entry rather than denying it. Round 3's other three sub-findings stay resolved — both `updatedInput` counts reproduce (401 and 270), `.claude/agents/gauntlet-arbiter.md:128` is the bite check the plan says it is, and both `bwrap` readings carry their command and output.
+
+c  PASS  carried: Line 104 now matches what I count in `.claude/settings.json`: two matcher blocks at `:5` and `:26`, five lane-hook entries, `reviews-lane.py` alone under the block carrying `Read|Grep`, and the folded hook wired `Write|Edit|NotebookEdit|Read|Grep` so the read-block at `.claude/hooks/reviews-lane.py:131` still fires. Line 106 states seven agent definitions and names the fold's reach into the three that only carry hook lists.
+
+d  PASS  carried: Cause named upstream of the symptom list at lines 54-56, unchanged in substance, and line 58 now cites the line that actually denied this draft. Resolved against the three approved blocks on disk and commit `5494faa`.
+
+e  PASS  carried: `CLAUDE.md:31` is quoted at line 108 and given its own paragraph at line 124 naming it as overturned deliberately; I read `CLAUDE.md:31` and the quotation is exact. `docs/agents.md:39` makes stdout contract, and line 102 gives each of the four new subcommands its stdout, including the `REFUSED` case.
+
+f  PASS  carried: `scripts/blind.sh test` now covers all five commands `.claude/agents/gauntlet-scrivener.md:102` names, which is what that line says; the argument grammar is stated per subcommand at line 90 (file path, slug, commit and slug); the zero-worktree and removed-tree boundaries of the re-listing wrapper are both given at line 86.
+
+g  PASS  carried: "Open questions" reads `None`. The four are settled on the main agent's own assumption and each is named as one, which is what `/home/atom/dev/CLAUDE.md:107` prescribes where the owner does not rule. None is a question a free read would have answered: `.claude/settings.json` carries no sandbox key (item 1), and for item 4 the readable half is stated correctly — `~/.claude/hooks/command-burst-guard.py:304` classifies by command text and `~/.claude/hooks/free_bash.py:454` biases to metering — leaving only hook ordering, which no file settles.
+
+h  PASS  carried: Both counterexamples are answered. The allowlist narrows to `state/red/` and `state/merge/` rather than dropping `state/`, and the element cites the writers I read — `scripts/pair.sh:98` is `mkdir -p state/red` and `:123` is `mkdir -p state/merge` — against `.claude/agents/gauntlet-bailiff.md:51` ("Read that file yourself") and `docs/agents.md:35`. The claim that the blind agents never reach the wrapper is withdrawn rather than defended: line 86 now cites `README.md:68` for the session-wide hooks binding every subagent and gives those two agents a third profile. One hop from the changed symbols finds nothing else arriving at a surface the plan calls untouched.
+
+i  PASS  Every brief sentence carries a `delivered:` line that resolves to a named element in the body, and the one line that had drifted from its element now defers to it. One cosmetic mismatch, not a finding: line 46 says the fold entry names two cases that do not fit a plain table and line 100 names three.
+
+j  N/A  carried: This repository names no composition-root file in any architecture doc; the kit is hooks, agent definitions and scripts, each with its own owner, and the plan adds nothing to a single assembling file.
+
+k  PASS  carried: Brief line 49's element no longer leaves out `state/red/` and `state/merge/`; the `delivered:` line names them and the element at line 96 keeps them for the reason the sentence gives. Every other `delivered:` element reads as its sentence reads, including brief line 15, where covering five commands rather than three adds no condition the sentence lacks and carries its reason on the brief line.
+
+Notes:
+- The two `bwrap` outputs quoted at lines 86 and 102 I did not re-run: this round and the last were told not to run `bwrap`. They carry command and output, which is the escape the check allows, and implementation settles them.
+- Whether a second `PreToolUse` hook sees the `updatedInput` of the first — what the metering of item 4 and the ordering of `pair-passthrough.py` before `bwrap-wrap.py` both rest on — is settled only by a live hook. It is `ASSUMED` in the plan, and an amendment carries the reading.
+- The plan sizes itself as four spec blocks in a stated order. That ordering is the owner's to accept or change; nothing in the tree constrains it.
