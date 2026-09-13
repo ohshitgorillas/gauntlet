@@ -1,0 +1,42 @@
+slug: blind-bash
+kind: new
+
+brief:
+> - gauntlet-scrivener and gauntlet-bailiff get only blind.sh test|status|show.
+> - The hook checks the command name exactly, plus strict patterns on the slug and commit arguments.
+
+1. For a Bash call from the `gauntlet-scrivener` or the `gauntlet-bailiff`, `.claude/hooks/blind-bash.py` answers `deny` unless the whole command text is one `scripts/blind.sh` call. `scripts/blind.sh status demo` is silent; the same call with a second command appended, with a command in front of it, or with an environment assignment in front of it is denied.
+   kills: a hook that searches the command for `scripts/blind.sh` rather than matching the whole string allows `scripts/blind.sh status demo; cat .claude/hooks/shell_shapes.py`, which prints a hook's source to an agent whose `Read` of that same file is denied.
+   bite: null stub fails at `scripts/blind.sh status demo; cat .claude/hooks/shell_shapes.py` (surface new); `ls .claude/hooks/blind-bash.py` returns `No such file or directory`.
+   existing: none, `grep -rn 'blind.sh\|blind-bash' tests/` returned no output.
+
+2. Each subcommand admits only its own argument shape, and a call is denied on one argument alone with the subcommand name unchanged. `scripts/blind.sh test tests/test_hook_wire.py` is silent and `scripts/blind.sh test .claude/hooks/no-impl-reads.py` is denied. `scripts/blind.sh status demo` is silent and `scripts/blind.sh status demo extra` is denied. `scripts/blind.sh show 5494faa demo` is silent; `scripts/blind.sh show 5494faa ../plans/bash-sandbox` is denied on the slug argument, and `scripts/blind.sh show HEAD:docs/gauntlet/plans/bash-sandbox demo` is denied on the commit argument.
+   kills: a hook that takes whatever word follows `show` as the slug allows `scripts/blind.sh show 5494faa ../plans/bash-sandbox`, and one that takes whatever word sits in the commit position allows `scripts/blind.sh show HEAD:docs/gauntlet/plans/bash-sandbox demo`; either hands a blind agent an approved plan's citations, which is the read `no-impl-reads.py` denies it by every other route.
+   bite: null stub fails at `scripts/blind.sh show HEAD:docs/gauntlet/plans/bash-sandbox demo` (surface new); `ls scripts/blind.sh` returns `No such file or directory`.
+   existing: none, `grep -rn 'blind.sh\|blind-bash' tests/` returned no output.
+
+3. The hook fails closed on the caller key. `scripts/blind.sh status demo` is silent for `agent_type` `gauntlet-scrivener` and for `gauntlet-bailiff`, and denied for a payload carrying no `agent_type` at all and for one naming any other agent.
+   kills: a hook that reads an absent `agent_type` as "no blind agent here, nothing to enforce" and answers silent returns the full shell to a caller whose key the build did not supply, which is the failure mode `docs/approved-specs.md:96` states the other lanes fail closed on.
+   bite: null stub fails at a payload with no `agent_type` (surface new).
+   existing: none, `grep -rn 'blind.sh\|blind-bash' tests/` returned no output.
+
+--- reviewer ---
+READY
+discriminates: sweep on the blind-bash.py deny/silent answer (deny and silent both appear on inputs differing by one token in every line)
+
+1  ADMITTED  carried
+2  ADMITTED  `scripts/blind.sh show 5494faa demo` -> silent, `scripts/blind.sh show 5494faa ../plans/bash-sandbox` -> deny, `scripts/blind.sh show HEAD:docs/gauntlet/plans/bash-sandbox demo` -> deny, with the matching silent/deny pairs for `test` and `status`; a hook taking whatever word follows `show` as the slug fails it at `../plans/bash-sandbox`, and one taking whatever word sits in the commit position fails it at `HEAD:docs/gauntlet/plans/bash-sandbox`; bite: null stub fails at `scripts/blind.sh show HEAD:docs/gauntlet/plans/bash-sandbox demo`
+3  ADMITTED  carried
+
+round-1 repair: taken as named. The brief's "strict patterns on the slug and commit arguments" now has both halves pinned by a denial, the commit case folded into line 2's table with the subcommand and slug held fixed, so no fourth line and the cap is untouched.
+
+null stub: blind-bash.py absent, so every Bash call from every agent gets no answer on stdout (silent).
+  satisfies: none   fails: 1, 2, 3
+hard-coded stub: a table keyed on the exact command strings and agent_type values the block names, answering deny for the listed denials and silent for the listed allowances.
+  satisfies: none   fails: 1, 2, 3 -- each line pairs deny and silent on inputs differing by one token (a trailing `; cat ...`, the argument after `show`, the argument in the commit position, the presence of the agent_type key), so a table reproducing the split has to encode the predicates the feature exists for: whole-string equality, per-argument shape, caller-key presence.
+
+survives: 3
+
+notes for the owner, carried from round 1, gate not held on either:
+- line 3's deny half for a named non-blind agent goes past the brief, which speaks only of what the two blind agents get. It contradicts nothing there, so it stands, but it pins blind.sh as denied to the main agent too; if that is not wanted, the fourth case of line 3 is the one to drop.
+- line 1's "a command in front of it" and "an environment assignment in front of it" carry no literal; they are admitted as named shell shapes and the scrivener picks a literal for each.
