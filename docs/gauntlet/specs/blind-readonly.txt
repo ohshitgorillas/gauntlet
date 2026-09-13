@@ -1,0 +1,48 @@
+slug: blind-readonly
+kind: new
+
+brief:
+> scripts/blind.sh test <path under tests/> comes back denied by .claude/hooks/tests-lane.py, because shell_shapes.py:360 returns `head not in READ_ONLY` and the blind.sh head is on no list, so a read-only suite run is classified as a lane write; that denial reaches the gauntlet-scrivener too, whose frontmatter wires the same hook. The fix is for the lane hooks to read scripts/blind.sh as read-only, and it takes the full chain — grounding round, plan, gauntlet-prosecutor, owner's word, then a kind: new spec block — because it changes a lane hook and is not tests-only. Landed so far on branch impl/blind-bash at 50ff923: .claude/hooks/blind-bash.py and scripts/blind.sh, self-test green and nine gates green, with the agent frontmatter deliberately not yet wired since wiring it hands the scrivener a shell whose suite run is denied.
+> the project will have a config file soon
+> [on folding the unwired `blind-bash.py --self-test` into this change] Fold into this one
+
+Surface under test: the wire surface of the PreToolUse lane hooks in .claude/hooks/. One JSON object on stdin carrying `tool_name`, `tool_input` and `cwd`, and the hook answers on stdout with either nothing at all, written SILENT below, which is the call being allowed, or a JSON object whose `hookSpecificOutput.permissionDecision` is `deny`, written DENY below. The hooks are invoked as `python3 <hook dir>/<hook>.py` with the payload on stdin and `cwd` set to the root of this checkout. A second variable is the hook directory's own sibling configuration file `blind-reads.json`, which a payload cannot carry: each line below runs one family of payloads against two copies of `.claude/hooks/` that differ only in that file, and its outcome is the set of payloads whose answer differs between the two copies, written "the changed set" below. `BARE` is a copy carrying no `blind-reads.json`; `TESTS` is a copy carrying one that declares the entry path `scripts/blind.sh`, the fixed argument word `test` and the path prefix `tests`; `PLANS` is a copy carrying one that declares that same entry path and argument word against the path prefix `docs/gauntlet/plans`.
+
+1. Over the five payloads `tests-lane.py` + `scripts/blind.sh test tests/test_hook_wire.py`, `tests-lane.py` + `scripts/blind.sh test tests/test_pair_sh.py`, `tests-lane.py` + `bash scripts/blind.sh test tests/test_hook_wire.py`, `tests-lane.py` + `rm tests/t.py && scripts/blind.sh test tests/t.py` and `tests-lane.py` + `scripts/blind.sh test tests/a.py tests/b.py`, the changed set between `BARE` and `TESTS` is the first two payloads, each answering DENY under `BARE` and SILENT under `TESTS`.
+   kills: an implementation that admits the declared entry wherever it appears in the stage, rather than keying the whole invocation and its arity, puts `rm tests/t.py && scripts/blind.sh test tests/t.py` in the changed set too, so an agent that may not edit a test deletes one under a spelling the lane answers nothing to.
+   bite: DENY at all five payloads under `BARE` and DENY at all five under `TESTS`, so the changed set is empty at HEAD where this line names two payloads in it. Measured by feeding each payload to `python3 <copy>/tests-lane.py` on stdin as `{"tool_name":"Bash","tool_input":{"command":<command>},"cwd":"/home/atom/dev/gauntlet"}`.
+   existing: tests/test_hook_wire.py::test_runner_invocations_pass_the_lane_but_inline_scripts_do_not — its dict is one hook directory, pinned at tests/test_hook_wire.py:20-21, so the `BARE` half of this line is cases in that dict and the changed set between two copies is not something that dict can carry.
+
+2. Over the five payloads `tests-lane.py` + `scripts/blind.sh test tests/test_hook_wire.py`, `tests-lane.py` + `scripts/blind.sh test tests/test_pair_sh.py`, `plans-lane.py` + `scripts/blind.sh test docs/gauntlet/plans/blind-readonly.txt`, `specs-lane.py` + `scripts/blind.sh test docs/gauntlet/specs/blind-bash.txt` and `verdicts-lane.py` + `scripts/blind.sh test docs/gauntlet/verdicts/blind-bash.txt`, the changed set between `BARE` and `TESTS` is the first two payloads, each answering DENY under `BARE` and SILENT under `TESTS`.
+   kills: an implementation keyed on the entry path and its fixed argument words alone, with no constraint on the one remaining argument, puts the `plans-lane.py` payload in the changed set, so one declaration turns off the lane that holds the plan gate's one-writer rule for every command spelled with that entry.
+   bite: DENY at all five payloads under `BARE` and DENY at all five under `TESTS`, so the changed set is empty at HEAD where this line names two payloads in it. Same payload shape and measurement as line 1, each payload against its own named hook.
+   existing: none, `grep -rn 'blind.sh' tests/` returned no output.
+
+3. Over the three payloads `tests-lane.py` + `scripts/blind.sh test tests/support/../test_hook_wire.py`, `tests-lane.py` + `scripts/blind.sh test tests/support/../test_cite.py` and `plans-lane.py` + `scripts/blind.sh test tests/a/../../docs/gauntlet/plans/blind-readonly.txt`, the changed set between `BARE` and `TESTS` is the first two payloads, each answering DENY under `BARE` and SILENT under `TESTS`.
+   kills: an implementation that tests the declared prefix against the raw argument text puts `scripts/blind.sh test tests/a/../../docs/gauntlet/plans/blind-readonly.txt` in the changed set, so an argument that opens under the declared prefix and walks out of it reaches an approved plan through the spelling line 2 keeps out.
+   bite: DENY at all three payloads under `BARE` and DENY at all three under `TESTS`, so the changed set is empty at HEAD where this line names two payloads in it. Same payload shape and measurement as line 1.
+   existing: none, `grep -rn 'blind.sh' tests/` returned no output.
+
+4. Over the three payloads `tests-lane.py` + `scripts/blind.sh test tests/test_hook_wire.py`, `tests-lane.py` + `scripts/blind.sh test tests/test_pair_sh.py` and `plans-lane.py` + `scripts/blind.sh test docs/gauntlet/plans/blind-readonly.txt`, the changed set between `BARE` and `PLANS` is empty, where the changed set between `BARE` and `TESTS` over those same three payloads is the first two payloads.
+   kills: an implementation that honours whatever prefix a declaration names puts the `plans-lane.py` payload in the `PLANS` changed set, so a declaration file that no lane hook guards turns off the lane that guards the plan gate by naming its directory.
+   bite: DENY at all three payloads under `BARE`, under `TESTS` and under `PLANS`, so both changed sets are empty at HEAD where this line names two payloads in the second. Same payload shape and measurement as line 1.
+   existing: none, `grep -rn 'blind-reads' tests/` returned no output.
+
+--- reviewer ---
+READY
+discriminates: differential on the lane-hook decision - one payload family against two hook-directory copies differing only in the sibling declaration file, with two distinct expected answers inside each family.
+
+The round-2 finding is answered and withdrawn: every nonempty changed set now carries two distinct paths under the declared prefix, sharing nothing but that prefix, and line 3's two payloads are two different files rather than one file in two spellings. The repair I named is the repair taken, and the bites were re-measured over the enlarged families.
+
+1  ADMITTED  five tests-lane payloads against BARE and TESTS -> changed set is the two `scripts/blind.sh test tests/<file>` payloads; the stage-position implementation fails it by putting `rm tests/t.py && scripts/blind.sh test tests/t.py` in that set; bite: changed set empty at HEAD, DENY at all five under both copies.
+2  ADMITTED  five payloads across tests-, plans-, specs- and verdicts-lane against BARE and TESTS -> changed set is the two tests-lane payloads; the entry-and-word-keyed implementation fails it by putting the plans-lane payload in that set; bite: changed set empty at HEAD, DENY at all five under both copies.
+3  ADMITTED  three payloads carrying `..` segments against BARE and TESTS -> changed set is the two payloads that normalize under `tests`; the raw-text prefix implementation fails it by putting `tests/a/../../docs/gauntlet/plans/blind-readonly.txt` in that set; bite: changed set empty at HEAD, DENY at all three under both copies.
+4  ADMITTED  three payloads against BARE/PLANS and BARE/TESTS -> PLANS changed set empty beside a TESTS changed set of two; the implementation that honours whatever prefix a declaration names fails it by putting the plans-lane payload in the PLANS set; bite: both sets empty at HEAD, DENY at all three under all three copies.
+
+null stub: no lane hook reads any sibling declaration, so the copies answer identically and every changed set is empty.
+  satisfies: none   fails: 1, 2, 3, 4
+hard-coded stub: a table keyed on the command text and the hook name, returning the answers this block names and reading no file.
+  satisfies: none   fails: 1, 2, 3, 4
+survives: 4
+
+One residual, not a gate: no finite block excludes an implementation that enumerates the three argument paths named here instead of matching the prefix. Two rounds narrowed the stub from a file-blind table to that enumeration, and holding for more would be a gate no block of this shape can pass. Mutation or a later line over a generated family is where that one goes, not another round here.
