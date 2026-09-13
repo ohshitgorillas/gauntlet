@@ -1,0 +1,99 @@
+slug: symbol-closure
+kind: new
+brief:
+> Add scripts/gates/symbol-closure.py: an AST scan of tests/ that takes symbol names and returns the test files that import or reference them, one transitive hop through tests/support, file granularity and no arity analysis, with a --self-test and an entry in scripts/gates/check-gates.sh.
+> the block should pin the closure's behavior and not the gate wiring
+
+surface: `scripts/gates/symbol-closure.py`, invoked as
+`printf '%s\n' <symbol>... | scripts/gates/symbol-closure.py --symbols-stdin <anchor>`.
+The symbols arrive on stdin, one per line. The one argument is an anchor path, and the
+directory it sits in is the scan root; every `*.py` file under that root is read. Output
+is one path per line on stdout, sorted, each path written relative to the parent of the
+scan root, and the exit code is 0 whether the set is empty or not. It is a fact reporter,
+not a gate.
+
+Each line below builds its own tree outside the checkout and anchors on
+`<abs>/tests/__init__.py`, an empty file. The command and the symbol set are identical
+across a line's two runs and only the contents of the tree differ, so the two expected
+outputs are two observations of one invocation.
+
+1. For the symbol set `alpha` over a tree whose `tests/test_one.py` reads
+   `from pkg import alpha` and calls `alpha()`, run twice: where `tests/test_two.py`
+   reads `import beta` and calls `beta()`, stdout is `tests/test_one.py`; where that same
+   `tests/test_two.py` instead calls `alpha()` and imports nothing at all, stdout is
+   `tests/test_one.py` then `tests/test_two.py`.
+   kills: collects the names in `Import` and `ImportFrom` statements and nothing else, so
+     a test file that takes the symbol in as a fixture argument and calls it by bare name
+     never reaches the closure the reviewer is handed
+   bite: null stub fails at both runs (surface new) — a script whose scan returns the
+     empty set prints nothing, and the first run expects `tests/test_one.py`
+   existing: none, `grep -rln "symbol_closure\|symbol-closure" tests/` prints nothing and
+     exits 1
+
+2. For the symbol set `alpha` over a tree whose `tests/support/helper.py` reads
+   `from pkg import alpha`, calls `alpha()` and defines `build_thing()`, and whose
+   `tests/test_uses_helper.py` reads `from support.helper import build_thing`, run twice:
+   where `tests/test_far.py` reads `from test_uses_helper import other_thing`, stdout is
+   `tests/support/helper.py` then `tests/test_uses_helper.py`; where that same
+   `tests/test_far.py` instead reads `from support.helper import build_thing`, stdout is
+   `tests/support/helper.py` then `tests/test_far.py` then `tests/test_uses_helper.py`.
+   kills: takes the reference graph to a fixpoint rather than one hop, so a test file
+     whose only tie is a name imported from another test file lands in the closure and
+     the block is made to name a file the change does not reach
+   bite: null stub fails at both runs (surface new) — the empty set prints nothing, and
+     the first run expects two paths
+   existing: none, `grep -rln "closure" tests/` prints nothing and exits 1
+
+3. For the symbol set `alpha` over a tree whose `tests/test_one.py` reads
+   `from pkg import alpha` and calls `alpha()`, run twice: where `tests/test_collide.py`
+   imports nothing, defines `def alpha(x, y)` at module level and calls `alpha(1, 2, 3)`,
+   stdout is `tests/test_collide.py` then `tests/test_one.py`; where that same
+   `tests/test_collide.py` spells the function and its call `gamma` throughout, stdout is
+   `tests/test_one.py`.
+   kills: resolves each name against the binding in scope and drops the hit where the
+     name is bound in the file itself, so the collisions the reviewer most needs named
+     are the ones that stop arriving
+   bite: null stub fails at both runs (surface new) — the empty set prints nothing, and
+     the first run expects two paths
+   existing: none, `grep -rln "ast.parse" tests/` prints nothing and exits 1
+   past the earlier lines: line 1 pins that a bare reference counts where the name is
+     imported somewhere in the tree. The implementation that resolves names to bindings
+     passes line 1 and fails this one, and file granularity with no arity analysis is the
+     bound the `existing:` field is built on: a hit is the file, not the call site.
+
+4. For the symbol set `alpha` over a tree whose `tests/test_good.py` reads
+   `from pkg import alpha` and calls `alpha()`, run twice: where `tests/test_broken.py`
+   holds the text `def f(:` and does not parse, stdout is `tests/test_good.py`; where
+   that same `tests/test_broken.py` holds `from pkg import alpha` and calls `alpha()`,
+   stdout is `tests/test_broken.py` then `tests/test_good.py`.
+   kills: lets the parse error out of the walk, so one unparseable file anywhere under
+     the scan root costs the reviewer the whole closure and the block reaches `READY`
+     having been told nothing
+   bite: null stub fails at both runs (surface new) — the empty set prints nothing, and
+     the first run expects `tests/test_good.py`
+   existing: none, `grep -rln "SyntaxError" tests/` prints nothing and exits 1
+   past the earlier lines: lines 1 to 3 hand the scan a tree every file of which parses,
+     and each is satisfied by an implementation that aborts the walk on the first parse
+     error. This line is the one input the reviewer's own repo can grow without warning,
+     and the outcome it pins is that the rest of the scan still reports.
+
+--- reviewer ---
+READY
+discriminates: differential on the closure's stdout path set - each line runs one command and one symbol set over two trees whose file names are identical and whose file contents differ, so the two outputs are two observations of one surface
+
+1  ADMITTED  symbol set `alpha`, tree with tests/test_one.py importing and calling alpha, run twice with tests/test_two.py first importing/calling beta and then calling alpha with no import -> stdout `tests/test_one.py`, then `tests/test_one.py` + `tests/test_two.py`; the Import/ImportFrom-only collector fails it at the second run, where it still prints only tests/test_one.py; bite: null stub fails at the first run, which expects tests/test_one.py
+2  ADMITTED  symbol set `alpha`, tests/support/helper.py importing alpha and defining build_thing, tests/test_uses_helper.py importing build_thing, run twice with tests/test_far.py first importing other_thing from test_uses_helper and then importing build_thing from support.helper -> stdout two paths, then three; the fixpoint collector fails it at the first run, where it adds tests/test_far.py; bite: null stub fails at the first run, which expects two paths
+3  ADMITTED  symbol set `alpha`, tests/test_one.py importing and calling alpha, run twice with tests/test_collide.py first defining `def alpha(x, y)` and calling `alpha(1, 2, 3)` with no import and then spelled gamma throughout -> stdout `tests/test_collide.py` + `tests/test_one.py`, then `tests/test_one.py`; the binding-resolving collector fails it at the first run, where it drops tests/test_collide.py; bite: null stub fails at the first run, which expects two paths
+4  ADMITTED  symbol set `alpha`, tests/test_good.py importing and calling alpha, run twice with tests/test_broken.py first holding the unparseable text `def f(:` and then importing and calling alpha -> stdout `tests/test_good.py`, then `tests/test_broken.py` + `tests/test_good.py`; the walk that lets SyntaxError out fails it at the first run, where it produces no path set at all; bite: null stub fails at the first run, which expects tests/test_good.py
+
+null stub: the script exists and its exports are present, the scan returns the empty set, nothing is printed and the exit code is 0.
+  satisfies: none   fails: 1, 2, 3, 4
+hard-coded stub: the script keys on the anchor path and the set of `*.py` file names under the scan root and prints the path list each line names for it.
+  satisfies: none   fails: 1, 2, 3, 4 - within every line both runs present the same file names under the same anchor and differ only in file contents, so the two expected outputs of each line are one key with two answers
+
+survives: 4
+
+notes, no verdict rests on them:
+- checks (b) and (l): greps run here confirm the field. `grep -rln closure tests/`, `grep -rln symbol tests/` and `grep -rln SyntaxError tests/` each print nothing; tests/ holds only __init__.py, support/fixtures, test_bwrap_wrap.py, test_cite.py, test_excision_diff.py and test_pair_sh.py, and no file under it touches an AST scan of test sources.
+- check (m), block level: the brief also asks for a --self-test and an entry in scripts/gates/check-gates.sh. The owner's second sentence - "the block should pin the closure's behavior and not the gate wiring" - excludes both from this block, so neither is an outstanding brief behavior.
+- the four lines sit at the cap, so the "past the earlier lines" paragraphs on 3 and 4 were not required; they are read as sibling arguments under (d) and they hold.
