@@ -5,6 +5,9 @@ Versioning: [SemVer](https://semver.org/), 0.x during pre-release.
 
 ## [Unreleased]
 
+### Fixed
+- `pair.sh red` runs the suite verbose, so the saved output names every test that passed as well as every test that failed.
+
 ## [0.1.0] - 2026-09-10
 
 ### Added
