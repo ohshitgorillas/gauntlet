@@ -1,0 +1,126 @@
+slug: git-read-subcommands
+grounding: gauntlet-detective
+
+brief:
+> Below is a report from an investigative agent.
+  delivered: the report is the input this plan is drafted from; its findings are what "What is wrong" restates with citations.
+> Develop and take a plan through phase 1.
+  delivered: this plan, drafted for the `gauntlet-prosecutor` and held for the owner's word on `READY`.
+> The same bug hits more than git grep.
+  delivered: the eight-subcommand addition to `GIT_NO_WORKTREE` under "Which files get touched", which adds the other subcommands beside `grep` so the fix covers each of them rather than `git grep` alone.
+> Each of these read-only git commands is also denied when it names tests/:
+> - ls-tree, cat-file, rev-list, shortlog, reflog, merge-base, describe
+  delivered: all seven join `GIT_NO_WORKTREE` beside `grep`, under "Which files get touched". The report's words "read-only git commands" are the scope: `rev-list`, `shortlog` and `reflog` each have a writing form, and those forms count as writes under the same section.
+> Suggested fix (not applied).
+  delivered: nothing is applied before the owner's `approved` on this plan.
+> Add grep and the other read-only subcommands above to GIT_NO_WORKTREE, and add git grep cases to the check lists in each lane hook's --self-test.
+  delivered: the `shell_shapes.py` change, which adds `grep` and the seven subcommands the report lists, each counted as a read only in its read-only form; and the `--self-test` cases in all five lane hooks, under "Which files get touched".
+> Test changes go through a spec block and the scrivener.
+  delivered: `tests/test_hook_wire.py` is named under "Caller-side delta" as work for a spec block, the `gauntlet-arbiter` and the `gauntlet-scrivener` after this plan; the main agent writes nothing under `tests/`.
+> It needs a CHANGELOG.md entry, because shell_shapes.py ships to consumers.
+  delivered: the `CHANGELOG.md` entry under "Which files get touched".
+> The plan: the configurable tests directory only affects which directory name gets matched (tests-lane.py:54-55, lane_pattern).
+  delivered: this plan does not touch `LANE`, `BASH_TESTS` or `lane_pattern`.
+> This bug is in whether a command counts as a write, which is separate.
+  delivered: this plan changes only whether a stage counts as a write, in `segment_writes`.
+> It shouldn't be folded into that plan.
+  delivered: this plan is its own slug, and "Deliberately left out" names the configurable tests directory.
+> yes, expand the spec as suggested
+  delivered: the owner's ruling that the `--output` write rule covers the existing members `diff`, `log` and `show`. The rule in "Which files get touched" applies to every member of `GIT_NO_WORKTREE`, and the self-test and changelog lines carry the `diff` case.
+
+## What is wrong
+
+Every lane hook decides a Bash command in two steps. `lane_write_in` at `.claude/hooks/shell_shapes.py:353` walks the stages, skips any stage `segment_writes` calls a read (`:375`), and denies a writing stage whose text matches the lane pattern anywhere (`:377`). The lane hooks call it at `.claude/hooks/tests-lane.py:94`, `.claude/hooks/specs-lane.py:69`, `.claude/hooks/plans-lane.py:73`, `.claude/hooks/verdicts-lane.py:95` and `.claude/hooks/reviews-lane.py:145`.
+
+The first step is wrong for git. `segment_writes` at `.claude/hooks/shell_shapes.py:311-314` counts a git stage as a read only when `words[1]` is in `GIT_NO_WORKTREE`, and `GIT_NO_WORKTREE` at `:90-92` holds `add blame commit diff log ls-files rev-parse show status`. Every other subcommand, `grep` included, is a write unless it is an object restore. So `git grep -n foo -- tests/` is a writing stage that names the lane, and it is denied. The pattern text alone is enough: `git grep -n "'tests/'" -- .claude/hooks` names no lane directory as a path and is denied the same way, because `:377` matches the whole stage text. Plain `grep` and `rg` pass because they are in `READ_ONLY` at `:36`.
+
+That breaks a promise in force. `.claude/hooks/tests-lane.py:25` says "Allowed: every read-only command naming `tests/`", and `CLAUDE.md:37` says "A hook that fires where it should not is a bug to fix in the hook, reported as one."
+
+Two places feel it beyond the lane test. `.claude/hooks/reviews-lane.py:142-143` denies a reviewer any command `command_writes` classifies as a write, so a reviewer's `git grep foo` is refused with no lane named at all. `.claude/agents/gauntlet-detective.md:58` tells the detective to use `git grep`, and it is refused whenever the question names a lane directory.
+
+The two git lists also disagree on three read-only subcommands. `GIT_METADATA` at `.claude/hooks/shell_shapes.py:72-78` holds `describe`, `merge-base` and `rev-list`; `GIT_NO_WORKTREE` does not. The comment at `:70` calls `GIT_NO_WORKTREE` the "same judgment asked from the write side", so the disagreement is a defect in the write list, not a design.
+
+Not every subcommand in the fix is read-only in every form, and three of the existing members are not either.
+
+- `--output` writes a file for `diff`, `log` and `show`. `/usr/share/doc/git/diff-options.adoc:139` documents `--output=<file>` as "Output to a specific file instead of stdout.". The files `/usr/share/doc/git/git-log.adoc:139` and `/usr/share/doc/git/git-show.adoc:55` each include that file.
+- `ASSUMED`, reason: metered action, since each command writes a file. On git 2.55.0, `git rev-list --output=x HEAD -1` created an empty `x` in the checkout root (removed). With `--output=<scratchpad>/<name>` on each subcommand, a file appeared for `shortlog`, `reflog` and `diff`, and none for `ls-tree`, `cat-file`, `describe`, `merge-base` and `grep`. `git diff HEAD~1 --output <file>` with a space also wrote. `git rev-list -1 --outp=<file> HEAD` wrote nothing.
+- `git grep -O` runs a command. `/usr/share/doc/git/git-grep.adoc:176` documents `-O[<pager>]` and `--open-files-in-pager[=<pager>]` as "Open the matching files in the pager", and `:180` says the pager argument "must be stuck to the option". `/usr/share/doc/git/gitcli.adoc:191` says commands on the enhanced option parser accept a unique prefix of a long option "as if it is fully spelled out".
+- `reflog` has writing forms. `/usr/share/doc/git/git-reflog.adoc:15-19` lists `write`, `delete`, `drop` and `expire` beside the reading forms `show`, `list` and `exists` at `:12-14`.
+
+No handling of `--output` or `-O` exists anywhere under `.claude/hooks/`, per the grounding round.
+
+## What the owner sees change
+
+A read-only git command stops being refused for mentioning a lane. `git grep`, `git ls-tree`, `git cat-file`, `git rev-list`, `git shortlog`, `git reflog`, `git merge-base` and `git describe` pass every lane hook the way `grep` and `git log` already do, whether the lane is in the pathspec or in the pattern. A reviewer can run `git grep` again, and the detective's own instruction to use it works.
+
+One write shape that passes today stops passing. `git diff --output=tests/x`, `git log --output=...` and `git show --output=...` write a file into a lane while their subcommand is on the read list, so they are allowed now; after this change a git stage carrying `--output` counts as a write. `git grep -O<cmd>`, denied today only because `grep` is off the read list, stays denied after `grep` joins it. This half is wider than the report's list; the owner ruled it in for `diff`, `log` and `show` with "yes, expand the spec as suggested". It is also what the lane hooks already promise: `.claude/hooks/tests-lane.py:20` denies "a `Bash` command that writes and that names a `tests/` path", and `.claude/hooks/specs-lane.py:18-19`, `.claude/hooks/plans-lane.py:22-23` and `.claude/hooks/verdicts-lane.py:22-23` deny a command that names the lane path and is not read-only.
+
+Nothing else moves. A redirection is still a write (`.claude/hooks/shell_shapes.py:303`), an object restore still passes (`docs/approved-specs.md:52`), and a reviewer naming `docs/gauntlet/reviews/` in any command is still refused at `.claude/hooks/reviews-lane.py:144`.
+
+## Which files get touched, and roughly how
+
+**`.claude/hooks/shell_shapes.py`.** This is a stated redefinition of what membership in `GIT_NO_WORKTREE` means: today a member is a read in every form; after this change a member is a read unless the stage carries a write form. Three edits.
+
+- `GIT_NO_WORKTREE` gains `cat-file`, `describe`, `grep`, `ls-tree`, `merge-base`, `reflog`, `rev-list` and `shortlog`. The comment at `.claude/hooks/shell_shapes.py:88-89` is rewritten to say membership is conditional on the write forms below, and the comment at `:69-71` is corrected to place `GIT_NO_WORKTREE` below it rather than above, and to name the members the two lists now share.
+- A new check, called from the git branch of `segment_writes` at `:311-314` before any member is returned as a read, counts the stage as a write in three cases. First, for every member: any word after the subcommand is `--output`, starts with `--output=`, or is a long option whose name is a prefix of `output` of three letters or more. Second, when the subcommand is `grep`: a word is a short-flag bundle containing `O`, or a long option whose name is a prefix of `open-files-in-pager` of two letters or more. Third, when the subcommand is `reflog`: any word after it is `write`, `delete`, `drop` or `expire`, wherever it stands, so an option placed before the reflog subcommand does not hide it. The prefix readings cover git's abbreviated long options; they over-deny an abbreviation a given subcommand rejects, which is the safe direction.
+- `is_object_restore` and the `restore_ok` path are untouched.
+
+**The five lane hooks' `--self-test` tables:** `.claude/hooks/tests-lane.py:119-203`, `.claude/hooks/specs-lane.py:94-159`, `.claude/hooks/plans-lane.py:98-161`, `.claude/hooks/verdicts-lane.py:166-283` and `.claude/hooks/reviews-lane.py:172-250`. Each gains one named rule line with the same shape of cases: `git grep` naming the hook's lane in the pathspec, and in the pattern, allowed; one more of the new read-only subcommands naming the lane allowed; `git grep -O<cmd>` naming the lane denied; `git diff --output=<lane>/x` denied. `reviews-lane.py` additionally gains reviewer cases, because only its reviewer path at `.claude/hooks/reviews-lane.py:142` denies a write that names no lane: `git grep foo` with no lane named allowed, `git grep foo -- docs/gauntlet/reviews/` still denied, and `git reflog expire --all` denied. `git reflog expire --all` names no lane, so it goes in no other table: `lane_write_in` allows it at `.claude/hooks/shell_shapes.py:377` in the other four hooks, before and after this change. `no-impl-reads.py` is not a lane hook and reads neither `GIT_NO_WORKTREE` nor `segment_writes` (grounding round, questions 1 and 3), so its table is unchanged.
+
+**`CHANGELOG.md`.** An entry under `### Fixed` at `CHANGELOG.md:24`: read-only git subcommands no longer count as writes in the lane hooks, and `--output`, `git grep -O` and the writing `reflog` forms now do.
+
+## Caller-side delta
+
+No interface, path or name changes. `segment_writes`, `command_writes` and `lane_write_in` keep their signatures, and the only reader of `GIT_NO_WORKTREE` is `.claude/hooks/shell_shapes.py:312`. `.claude/agents/gauntlet-detective.md:58` needs no edit; it starts working.
+
+`tests/test_hook_wire.py` should gain wire-level cases for the same inputs. The main agent cannot write them, so they come through a spec block, the `gauntlet-arbiter` and the `gauntlet-scrivener` after this plan is approved.
+
+## What it costs
+
+One module and five self-test tables, plus a changelog line. Consumers re-copy `.claude/hooks/`, which `docs/approved-specs.md:80` already requires be copied whole.
+
+Tests broken: none expected. The grounding round found no test under `tests/` that sends a git command to a lane hook; the one git test, `tests/test_hook_wire.py:235`, drives `no-impl-reads.py`, whose git decision at `.claude/hooks/no-impl-reads.py:282-294` reads `GIT_METADATA`, which this plan does not change.
+
+Rules touched, none overturned:
+
+- `.claude/hooks/tests-lane.py:25`, which this restores, and `CLAUDE.md:37`, which this follows.
+- `.claude/hooks/reviews-lane.py:46-47`, "git commands that never write the working tree" allowed. Not overturned: the rule is what this change makes true, since a reviewer's `git grep` becomes allowed and a git stage carrying `--output`, which writes, becomes refused.
+- The lane deny rules at `.claude/hooks/tests-lane.py:20`, `.claude/hooks/specs-lane.py:18-19`, `.claude/hooks/plans-lane.py:22-23` and `.claude/hooks/verdicts-lane.py:22-23`. Not overturned: the `--output` half enforces them where they go unenforced today.
+- `docs/gauntlet/specs/fail-open-bypasses.txt:29`, which pins `git cat-file -p HEAD` as DENY on `no-impl-reads.py`. Not overturned: that DENY is decided by `GIT_METADATA` at `.claude/hooks/no-impl-reads.py:294`, which does not change. Adding `cat-file` to `GIT_NO_WORKTREE` says it writes nothing; it does not say it prints nothing, and the comment rewrite at `.claude/hooks/shell_shapes.py:69-71` says the two lists answer different questions.
+- `docs/approved-specs.md:52` on object restores, whose path is untouched, and `docs/approved-specs.md:80` on shipping the hooks together.
+- The `tests/` rule in `CLAUDE.md`, followed by routing wire tests through a spec block.
+- The comment at `.claude/hooks/shell_shapes.py:69-71`, corrected rather than overturned.
+
+State at the edges:
+
+- A bare `git`, or a git stage whose `words[1]` is a global option (`git -C dir grep`, `git --no-pager grep`, `git -c k=v grep`), still counts as a write, because `.claude/hooks/shell_shapes.py:312` reads `words[1]`. That over-denies. Left out on purpose: `no-impl-reads.py:262` has a global-option skip, but skipping `-c` on the write side would pass `git -c core.pager=<cmd> grep -O`, so moving it is its own design and not this fix.
+- `git grep` with no pattern, a plain pattern containing a lane path, or a pathspec naming a lane: reads after this change.
+- A pattern or message word that looks like a write form over-denies. The scan reads every word after the subcommand and does not stop at `--`, `-e` or `-f`, so `git grep -e -O -- tests/`, `git grep -- --output tests/` and `git commit -m "--output=tests/x"` count as writes and are denied where they name a lane. `git log --grep=expire` is not caught, because the reflog case applies only when the subcommand is `reflog`. Stopping the scan at `--` and at pattern arguments would narrow this and is left out, because a misread there under-denies.
+- A pattern containing `>` is a redirection to `REDIRECT` at `.claude/hooks/shell_shapes.py:98`, which matches inside quotes, so `git grep -n "a>b" -- tests/` is denied by `:303` before the git branch is reached. That is today's behavior for plain `grep` too, and this change does not touch it.
+- `git reflog show expire`, a ref literally named `expire`, counts as a write. Over-denies.
+- A stage piped or chained with a real write (`git grep foo -- tests/ > tests/x`, `git grep foo && rm tests/t.py`): still denied, by the redirection at `.claude/hooks/shell_shapes.py:303` and by the writing stage.
+- `cd tests && git grep foo`: a read in the lane; allowed, like `cd tests && cat t.py`.
+- For a reviewer, `restore_ok=False` at `.claude/hooks/reviews-lane.py:142` only affects the object-restore branch, which this change does not reach.
+- `git cat-file --textconv` and `--filters` run drivers named in repository config, not on the command line. Left counted as a read.
+
+Deliberately left out: the configurable tests directory, per the brief; the global-option skip above; stopping the write-form scan at `--`; any change to `GIT_METADATA` or `no-impl-reads.py`.
+
+## Open questions
+
+None.
+--- reviewer ---
+READY
+a  PASS  carried: Redefinition stated outright as the proposed change: "This is a stated redefinition of what membership in `GIT_NO_WORKTREE` means". I checked `GIT_NO_WORKTREE` at `.claude/hooks/shell_shapes.py:88-92`, and its only reader is `:312` (grep over .claude, scripts, tests, docs). Allowed shapes for reviewers at `.claude/hooks/reviews-lane.py:46-47` keep their meaning.
+b  PASS  carried: All four repairs resolve as stated. `/usr/share/doc/git/diff-options.adoc:139` reads "Output to a specific file instead of stdout." and sits outside every conditional block (`:134-136` closes before it, `:148` opens after it). `git-log.adoc:139` and `git-show.adoc:55` include that file. `git-grep.adoc:176` reads "Open the matching files in the pager" under `-O[<pager>]` at `:174`, and `:180` says "must be stuck to the option". `gitcli.adoc:191` reads "prefix of a long option as if it is fully spelled out". `git-reflog.adoc:15-19` lists write/delete/drop/expire, and `:12-14` lists show/list/exists. The remaining `ASSUMED` bullet covers only measurements that write a file, which is metered. The new lane citations `tests-lane.py:20`, `specs-lane.py:18-19`, `plans-lane.py:22-23` and `verdicts-lane.py:22-23` each land on the "a `Bash` command that ... names ..." deny bullet.
+c  N/A   carried: Nothing is split, extracted or moved, and no signature changes. I confirmed by grep that `.claude/hooks/shell_shapes.py:312` is the only reader of `GIT_NO_WORKTREE`.
+d  PASS  carried: Cause named upstream of the denial: membership in the list at `.claude/hooks/shell_shapes.py:311-314`. The denial follows through `:375-377`, which denies a stage classed as a write when its text matches the lane pattern.
+e  PASS  carried: Every rule touched is named, and none is overturned. `reviews-lane.py:46-47`: the plan's reason holds, since `--output` writes a file and the reviewer allowance covers only git that never writes. The four lane deny rules are enforced, not overturned. `fail-open-bypasses.txt:29` is decided at `no-impl-reads.py:294` on `GIT_METADATA`, which stays unchanged. The round-1 items are restated one per bullet.
+f  PASS  carried: Readings are now given at each edge I named. Write-form words in a pattern or message are stated as over-denials, with the scan's extent: it does not stop at `--`, `-e` or `-f`. The `>` pattern case is attributed to `REDIRECT` at `shell_shapes.py:98` through `:303`, which is also today's behavior for plain `grep`. The reflog case matches any word after `reflog`, with `git reflog show expire` stated as an over-denial. `git reflog expire --all` is placed in reviews-lane's reviewer cases only, because it names no lane and so passes `lane_write_in` (`shell_shapes.py:377-383`) in the other four hooks.
+g  PASS  carried: Open questions reads "None." The `--output` rule for existing members now rests on the hooks' own deny rules (`tests-lane.py:20`, `specs-lane.py:18-19`, `plans-lane.py:22-23`, `verdicts-lane.py:22-23`) and on the quoted owner line.
+h  PASS  carried: I ran the trace inside the bound. `GIT_NO_WORKTREE` → `shell_shapes.py:312`. `segment_writes` → `:322` and `:375`. `command_writes` → `reviews-lane.py:142`. `lane_write_in` → `tests-lane.py:94`, `specs-lane.py:69`, `plans-lane.py:73`, `verdicts-lane.py:95`, `reviews-lane.py:145`. `no-impl-reads.py` imports `shell_shapes` but reaches none of these (grep), and its git decision is `:294` on `GIT_METADATA`. Its own `:186` counts it apart from "the lane hooks". Git cases in the suite are `tests/test_hook_wire.py:243-257`, and all go to no-impl-reads. The existing self-test git cases (`tests-lane.py:163-165`, `specs-lane.py:138-141`, `plans-lane.py:141-144`, `verdicts-lane.py:247`, `reviews-lane.py:213`) carry no write-form word. The detective is not in `REVIEWERS` (`reviews-lane.py:72-74`), so only a named lane refuses it, which matches the plan. Nothing reaches what the plan calls untouched.
+i  PASS  The previous repair was taken. "> The same bug hits more than git grep." is now its own quote line with its own `delivered:` line, and that line names the eight-subcommand addition to `GIT_NO_WORKTREE`, which the first bullet under "Which files get touched" contains. "> Each of these read-only git commands is also denied when it names tests/:" keeps its list and `delivered:` line. Every brief sentence has exactly one line, every `delivered:` line resolves to an element of the plan, and there is no `dropped:` line.
+j  N/A   carried: This repository names no composition-root file in any architecture doc (grep for "composition root" across `docs/`, `README.md` and the prosecutor definition finds nothing). The check has no surface here.
+k  PASS  The new `delivered:` line for "The same bug hits more than git grep." names the addition of `cat-file`, `describe`, `grep`, `ls-tree`, `merge-base`, `reflog`, `rev-list` and `shortlog`. That extends the fix past `grep` to every subcommand the report lists, and it adds no condition that the sentence does not state. The rest of the previous reading stands. All seven listed subcommands are in the same bullet beside `grep`. Membership that holds only in read-only forms matches the report's own words, "read-only git commands". "yes, expand the spec as suggested" is delivered by the first case of the new check, "for every member", which carries no added condition.
+
+Notes:
+- The main agent quotes "yes, expand the spec as suggested" as owner input. I cannot see the owner's message, so I cannot confirm that it is verbatim or that "as suggested" means the `--output` extension. The extension stands without it, on the hook deny rules cited under (g).
