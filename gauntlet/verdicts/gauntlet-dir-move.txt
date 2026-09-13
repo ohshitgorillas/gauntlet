@@ -1,0 +1,14 @@
+RED 1: AssertionError: {None: '', 'gauntlet-arbiter': '', 'gauntlet-scri[51 chars]: ''} != {None: 'deny', 'gauntlet-arbiter': 'deny', 'gaunt[67 chars]: ''}
+RED 2: AssertionError: {None: '', 'gauntlet-prosecutor': '', 'gauntlet-arbiter': ''} != {None: 'deny', 'gauntlet-prosecutor': 'deny', 'gauntlet-arbiter': ''}
+RED 3: AssertionError: {'/ho[204 chars]t': 'deny', '/home/atom/dev/gauntlet/gauntlet/[428 chars]eny'} != {'/ho[204 chars]t': '', '/home/atom/dev/gauntlet/gauntlet/spec[420 chars]eny'}
+RED 4: AssertionError: {'/ho[307 chars]d': 'deny', '/home/atom/dev/gauntlet/gauntlet/[59 chars]: ''} != {'/ho[307 chars]d': '', '/home/atom/dev/gauntlet/gauntlet/spec[51 chars]: ''}
+RED 5: AssertionError: {'doc[14 chars]e/': {'docs/gauntlet/plans/juror-verdicts-lane[665 chars]et()} != {'doc[14 chars]e/': set(), 'gauntlet/': set()}
+RED 6: AssertionError: {'gau[28 chars]t': '', 'gauntlet/reviews/demo.1.txt': '', 'ga[31 chars]: ''} != {'gau[28 chars]t': 'deny', 'gauntlet/reviews/demo.1.txt': 'de[39 chars]: ''}
+RED 7: AssertionError: {'git[249 chars]t': 'deny', 'git show HEAD:gauntlet/plans/appr[75 chars]: ''} != {'git[249 chars]t': '', 'git show HEAD:gauntlet/plans/approved[71 chars]: ''}
+RED 8: AssertionError: {'gauntlet-prosecutor': 'deny', 'gauntlet-arbiter': 'deny'} != {'gauntlet-prosecutor': '', 'gauntlet-arbiter': 'deny'}
+RED 9: AssertionError: {('sp[45 chars]'): '', ('specs-lane.py', '/nogit/gauntlet/spe[204 chars]: ''} != {('sp[45 chars]'): 'deny', ('specs-lane.py', '/nogit/gauntlet[216 chars]: ''}
+RED 10: AssertionError: {('sp[59 chars]'): '', ('reviews-lane.py', 'cat impl.py 1> ga[155 chars]: ''} != {('sp[59 chars]'): 'deny', ('reviews-lane.py', 'cat impl.py 1[167 chars]: ''}
+RED 11: AssertionError: {('sp[200 chars]'): '', ('plans-lane.py', 'git grep -n foo -- [568 chars]: ''} != {('sp[200 chars]'): 'deny', ('plans-lane.py', 'git grep -n foo[584 chars]eny'}
+RED 12: AssertionError: assert [] == ['OPEN .claud...es/demo-spec']
+GREEN 13 (expected)
+RED 14: AssertionError: {'git[98 chars]/': '', 'git reflog expire --all': 'deny', 'gi[28 chars]eny'} != {'git[98 chars]/': 'deny', 'git reflog expire --all': 'deny',[32 chars]eny'}
