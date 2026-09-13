@@ -104,7 +104,7 @@ cmd_red() {
 }
 
 cmd_merge() {
-	local slug=$1 spec kind base red
+	local slug=$1 spec kind base red out
 	spec=$(spec_path "$slug")
 	[ -f "$spec" ] || die "no approved spec at $spec"
 
@@ -120,15 +120,24 @@ cmd_merge() {
 		;;
 	*)
 		red=state/red/$slug.txt
+		mkdir -p state/merge
+		out=state/merge/$slug.txt
+		#: evidence by path, not by paste: the main agent only carries the
+		#: brief, and the gauntlet-bailiff reads this file itself
+		{
+			echo "test files:"
+			git diff --name-only "$base" HEAD -- tests/
+			echo "diff:"
+			git diff "$base" HEAD -- tests/
+			echo "red output:"
+			#: no red log on disk is a complete brief with an empty section,
+			#: not an errexit abort that leaves the block unterminated
+			[ -f "$red" ] && cat "$red" || true
+		} >"$out"
 		echo "TEST CHECK $slug"
 		echo "spec commit: $(git rev-parse HEAD:"$spec" 2>/dev/null || echo unknown)"
 		echo "red commit: $(git rev-parse "spec/$slug")"
-		echo "test files:"
-		git diff --name-only "$base" HEAD -- tests/
-		echo "diff:"
-		git diff "$base" HEAD -- tests/
-		echo "red output:"
-		[ -f "$red" ] && cat "$red"
+		echo "merge output: $out"
 		echo "END TEST CHECK"
 		;;
 	esac
