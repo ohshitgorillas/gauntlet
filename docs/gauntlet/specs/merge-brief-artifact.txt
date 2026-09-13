@@ -1,0 +1,68 @@
+slug: merge-brief-artifact
+kind: new
+brief:
+> Proceed to stage 2 on merge-brief-artifact, whose approved plan is at docs/gauntlet/plans/merge-brief-artifact.txt. Its implementation is already written and gate-green at /tmp/claude-1000/-home-atom-dev-gauntlet/4cd2add6-1b1d-4413-b33e-41882e550e48/scratchpad/stage7-premature.patch — apply it at step 7, once the red run is certified, rather than writing it again.
+
+surface: `scripts/pair.sh`, invoked as `scripts/pair.sh merge <slug>` over a block
+whose `kind:` is `new`; its stdout and the file it leaves at
+`state/merge/<slug>.txt`.
+
+1. The stdout of `scripts/pair.sh merge <slug>` over a `kind: new` block is five
+   lines, whose first is `TEST CHECK <slug>`, whose fourth is
+   `merge output: state/merge/<slug>.txt` and whose last is `END TEST CHECK`, both
+   for a merge that changed one test file and for a merge that changed two with a
+   different red log on disk.
+   kills: prints the diff and red-log bodies beneath those lines, so stdout grows
+     with the evidence the merge found
+   bite: at HEAD the stdout of `scripts/pair.sh merge demo` over a two-file fixture
+     merge with a red log on disk carries `+def test_b_two():` under `diff:` and
+     `tests/test_b.py::test_b_two FAILED` under `red output:`, and carries no
+     `merge output:` line
+   existing: tests/test_pair_sh.py::test_merge_routes_to_the_mechanical_check_only_for_a_tests_only_kind
+
+2. The `diff:` section of `state/merge/<slug>.txt` carries the fixture line
+   `+def test_b_two():` after a merge whose test diff adds that test, and carries
+   `+def test_a_other():` after a merge whose test diff adds that one instead.
+   kills: writes the three headings and no bodies, so the file the reviewer is sent
+     to names evidence it does not carry
+   bite: no file exists at `state/merge/demo.txt` after `scripts/pair.sh merge demo`
+     over that two-file fixture merge (surface new)
+   existing: none, `grep -rn "state/merge" tests/` -> no match
+
+3. The `test files:` section of `state/merge/<slug>.txt` names `tests/test_a.py` and
+   `tests/test_b.py` after a merge that changed both, and names `tests/test_a.py`
+   alone after a merge that changed that file only.
+   kills: lists every test file in the tree rather than the ones the merge changed
+   bite: no file exists at `state/merge/demo.txt` after `scripts/pair.sh merge demo`
+     over that two-file fixture merge (surface new)
+   existing: none, `grep -rn "state/merge" tests/` -> no match
+
+4. The `red output:` section of `state/merge/<slug>.txt` carries `test_alpha_fails`
+   where the red run on disk ran the alpha suite, carries `test_bravo_fails` where
+   it ran the bravo suite, and is empty where `state/red/<slug>.txt` is absent.
+   kills: writes a canned section rather than the saved log, so the reviewer reads
+     a red run that is not the one this block produced
+   bite: no file exists at `state/merge/demo.txt` after `scripts/pair.sh merge demo`
+     with `state/red/demo.txt` present, and none after the same merge with it absent
+     (surface new)
+   existing: none, `grep -rn "state/merge" tests/` -> no match
+
+--- reviewer ---
+READY
+discriminates: sweep on the `diff:`, `test files:` and `red output:` sections of state/merge/<slug>.txt - two or three distinct expected values on each surface, from two or three inputs (lines 2, 3, 4)
+
+round 2 findings, settled: repair 1 and repair 2 are both repaired as named. Line 1 now asserts only the three literals docs/agents.md:46 carries plus the count of five, so the copy defect is gone, and it lands as a change to tests/test_pair_sh.py::test_merge_routes_to_the_mechanical_check_only_for_a_tests_only_kind rather than as a new test - the route repair 1 named. Line 2's second input now compares a positive value out of its own fixture.
+
+1  AMENDED tests/test_pair_sh.py:187: that test's stdout assertion widens from the first line alone to the five-line shape, with `TEST CHECK demo` first, `merge output: state/merge/demo.txt` fourth and `END TEST CHECK` last, over a one-file merge and a two-file merge.
+2  ADMITTED  a merge whose test diff adds test_b_two -> `diff:` carries `+def test_b_two():`, a merge whose test diff adds test_a_other -> `diff:` carries `+def test_a_other():`; "writes the three headings and no bodies" fails it at both inputs, where the section is empty; bite: null stub fails at the two-file merge, where no state/merge/demo.txt exists.
+3  ADMITTED  carried - a merge changing tests/test_a.py and tests/test_b.py -> `test files:` names both, a merge changing tests/test_a.py alone -> names it alone; "lists every test file in the tree" fails it at the one-file merge; bite: null stub fails at the two-file merge, where no state/merge/demo.txt exists.
+4  ADMITTED  carried - red run on disk ran the alpha suite -> `red output:` carries `test_alpha_fails`, ran the bravo suite -> carries `test_bravo_fails`, no state/red/demo.txt -> section empty; "writes a canned section rather than the saved log" fails it at whichever suite the canned text is not; bite: null stub fails at all three inputs, where no state/merge/demo.txt exists.
+
+null stub: `pair.sh merge <slug>` keeps HEAD's stdout, writes no state/merge/ file, exits 0.
+  satisfies: none   fails: 1, 2, 3, 4
+hard-coded stub: print five fixed lines ending `merge output: state/merge/demo.txt` and `END TEST CHECK`, and write a file carrying the three headings with fixed bodies beneath them, reading no diff and no log.
+  satisfies: 1   fails: 2, 3, 4 - each names two or three inputs whose expected values differ, and the run is handed only the slug, so telling them apart is the work itself. Line 1 buys no new test: it is an amendment to an existing assertion, and the three new tests this block pays for are the three the stub fails.
+
+survives: 3
+
+note, on a fact this reviewer may not read: the owner's contract for this work is quoted from docs/gauntlet/plans/merge-brief-artifact.txt, which hooks/no-impl-reads.py denies this reviewer, and the block's own `brief:` is a process instruction that states no behavior. Check (m) therefore ran against a quotation rather than against a file this reviewer opened. The owner confirms the five-line stdout and the three-section artifact are what was asked for, or this block pins the wrong contract faithfully.
