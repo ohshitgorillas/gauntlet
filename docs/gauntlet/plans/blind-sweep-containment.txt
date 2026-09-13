@@ -1,0 +1,118 @@
+slug: blind-sweep-containment
+grounding: gauntlet-detective
+
+brief:
+> Two defects it surfaced are unfixed and each takes its own chain, since both change the product a consumer copies
+> delivered: this plan changes `.claude/hooks/no-impl-reads.py` alone and leaves `scripts/pair.sh` to its own chain.
+> no-impl-reads.py denies a blind agent Read of docs/gauntlet/plans/*.txt but allows a Bash grep rooted at docs/, which sweeps the same files and prints the implementation citations they quote.
+> delivered: a recursive read rooted at a directory that contains the denied subtree is denied, on the shell road and on the `Grep`/`Glob` road both.
+> The second is the more serious — it is a hole in the blindness guarantee the whole chain rests on.
+> delivered: the guarantee is restated as containment rather than as a test on one path, which is what makes it hold on every content reader the hook sees.
+
+## What is wrong
+
+`.claude/hooks/no-impl-reads.py` denies a blind agent every path under `docs/gauntlet/` except `docs/gauntlet/specs/`, because the plans, the drafts and the reviewer rounds quote implementation citations: `.claude/hooks/no-impl-reads.py:208` is the denial, and the docstring states the reason at `:30-31` — "of the four kinds quote implementation citations".
+
+The denial is a test on one path. `readable()` at `:169` resolves a single target, tests it against `GAUNTLET_SPECS`, then against `GAUNTLET_BASE` at `:208`, then against the allow list at `:212`. A path that is an *ancestor* of the denied subtree passes every one of those tests, because `docs/` is an allow-list entry at `:86`.
+
+Both reading surfaces score paths with that one test. The Bash stage does it at `:368` — "if any(not readable(w, root, here, allow) for w in _candidates(words))". `_verdict()` does it for the search tools at `:382` — "return None if readable(target, root, cwd, allow) else _WHY" — where a `Grep` or `Glob` carrying a path is readable-tested and nothing asks what the search will walk into. Neither surface asks the containment question, and the one containment rule that exists, `_unrooted_sweep()` at `:259`, fires only when every candidate is `.` or `..` — "return all(w.rstrip(os.sep) in UNROOTED for w in _candidates(words))" at `:263` — so a root of `docs/` takes a command out of that test rather than into it.
+
+Measured against HEAD (`9cbabc3`), feeding each command to the hook on stdin as a `Bash` tool call:
+
+```
+grep -rn cite docs/       -> ALLOW
+find docs/ -name "*.txt"  -> ALLOW
+git grep -n impl -- docs/ -> ALLOW
+rg impl docs              -> deny
+ls -R docs                -> deny
+grep -rn x .              -> deny
+```
+
+The three allows each print the content of the plans, the drafts and the reviewer rounds under `docs/gauntlet/` — the files `Read` is denied at `:208`. `Grep` with `path` set to `docs` or `docs/` is allowed by the same reasoning at `:382`, and returns the same lines with no shell involved. The blindness guarantee is path-shaped, and a sweep is not a path.
+
+The two shell denials are accidental rather than load-bearing: `docs` without a trailing slash carries no `/` and no extension, so `_candidates()` at `:225` does not see it as a path at all, the candidate list comes back empty, and `all()` over an empty list makes `_unrooted_sweep()` true. The same command spelled `rg impl docs/` is allowed. A guarantee that turns on a trailing slash is not a guarantee.
+
+Reach today. `no-impl-reads.py` is wired on four agents — `.claude/agents/gauntlet-juror.md:11`, `.claude/agents/gauntlet-scrivener.md:11`, `.claude/agents/gauntlet-arbiter.md:11`, `.claude/agents/gauntlet-bailiff.md:11`. On the shell road the `gauntlet-scrivener` and the `gauntlet-bailiff` also run `blind-bash.py` (`.claude/agents/gauntlet-scrivener.md:23`, `.claude/agents/gauntlet-bailiff.md:35`), whose one-command grammar refuses a `grep` outright, so shell exposure is the `gauntlet-arbiter` alone. The `Grep` road has no such cover: `blind-bash.py` is wired on the `Bash` matcher only, so `Grep(path="docs")` reaches the plans from all four agents, the `gauntlet-juror` included, which holds no Bash tool at all. The `Grep` hole is the wider of the two.
+
+## What the owner sees change
+
+A blind agent's recursive read that would print content out of a directory containing a denied subtree comes back denied, naming the subtree it would have walked into. That is one rule on two surfaces: `grep -rn x docs/`, `find docs -name '*.txt'` and `git grep -n x -- docs/` are refused, and so is `Grep(path="docs")`. A search rooted at `docs/gauntlet/specs/`, at the test directory, or at a named file still passes, and the refusal says to root deeper.
+
+`Glob` is not touched. It returns filenames and no content, the ground `.claude/hooks/reviews-lane.py:77` already states — "`Glob` returns names only and is not one" of the content tools — and `.claude/agents/gauntlet-arbiter.md:56` mandates one every round that carries verdicts, whose only working spelling at HEAD is rooted at the ancestor: "Glob `docs/gauntlet/reviews/<slug>.[0-9]*.txt` first". Containment on `Glob` would deny an agent the round number it is required to compute.
+
+Nothing else moves. A non-recursive read is judged exactly as it is today, a runner invocation is untouched, and an agent that never sweeps sees no change.
+
+## Which files get touched, and roughly how
+
+`.claude/hooks/no-impl-reads.py`. One containment helper beside `_unrooted_sweep()` at `.claude/hooks/no-impl-reads.py:259`, which answers: does this root resolve to a directory that has the denied subtree inside it? Denied subtrees are the ones `readable()` already knows — `GAUNTLET_BASE` at `:88` minus `GAUNTLET_SPECS` at `:90` — and the helper anchors a root the way `readable()` does at `:192-196` — "base = sh.root_by_name(resolved) or root" — so a worktree root is relative to its own tree. With no repo base the helper denies, the direction `readable()` takes at `:197-198` and the direction the docstring states at `:18-21`.
+
+Three call sites. `_verdict()` at `:378-382` calls it for `Grep`, which is recursive by construction and prints lines; `Glob` keeps the judgement it has today, for the reason above. `_bash_verdict()` at `:329` calls it for a command `_reads_recursively()` (`:238`) says walks a tree. The git branch at `:359-367` calls it inside the `_git_prints_content()` arm at `:363`, rather than by head word or for every git command: `_reads_recursively()` keys on the head word, which for every git command is `git`, so `git grep` and `git show <rev>:<dir>` are sweeps the head word cannot tell apart, while `git log --oneline -- docs/` prints metadata and is allowed at HEAD. `git ls-files docs/gauntlet/plans/` stays allowed too, returning names and no lines, which is the line this plan draws for `Glob`. The arm that already separates the two is the one to hang containment on, and it needs no subcommand list of its own. `.claude/agents/gauntlet-bailiff.md:57` — "`git show <spec-commit>:docs/gauntlet/specs/<slug>.txt`" — prints content and survives, since its root resolves inside `docs/gauntlet/specs/`.
+
+A root is an operand, whether or not it carries a trailing slash. `_candidates()` at `.claude/hooks/no-impl-reads.py:225` keys on a `/` or an extension, which is why `find docs` has no candidate at all today; for a recursive command the roots are taken by operand position instead, lexically, with no filesystem probe: for the grep family and `rg` the first non-flag word is the pattern and every later one is a root, unless `-e`, `-f`, `--regexp` or `--file` has already supplied the pattern, in which case no operand is the pattern and every non-flag word is a root; for `find`, `tree` and `ls` every non-flag word is a root. Without that second clause `grep -rn -e cite docs/` has `docs/` promoted to pattern, carries no root, and goes through containment untested — as do `grep -rn -f patterns.txt docs/`, `grep -rne cite docs/` and `rg -e cite docs/`. `grep -rn docs tests/` therefore has one root, `tests/`, and passes — the pattern is not a root because of where it sits, not because of what it names.
+
+A value-taking option is skipped with its value (`-e`, `-f`, `--regexp`, `--file`, `-m`, `--include`, `--exclude`), and the two spellings are not the same skip: an attached value consumes no further word — `--include=*.txt` and `-m3` are one word and one skip — and only a separated one consumes the word after it. Read the other way, `grep -rn --include=*.txt cite docs/` eats `cite`, `docs/` becomes the pattern, no root is left and the sweep goes through, which is an under-denial at exactly the edge this rule exists for. Where a word cannot be placed the helper treats it as a root and denies. That is the fail-closed direction the docstring states at `:18-21`, and it over-denies rather than under-denies.
+
+A new refusal string beside `_UNROOTED` at `:117`, naming the subtree walked into. `_UNROOTED` itself at `:118` stops advising `docs/` as a root — it advises `docs/gauntlet/specs/` and the test directory — since under this change `docs/` is exactly the root that is refused, and advice that names a denied root is worse than no advice.
+
+The module docstring bullet list at `:66-69`, which today names only the unrooted sweep, and the allowlist paragraph at `:17-38`.
+
+Self-test cases in `self_test()` (`:418-562`), beside the existing recursive cases at `:475-484` and the `docs/gauntlet` denial cases at `:515-536`. The `--self-test` is one of the ten gates, so the new rule prints its own `PASS` line.
+
+`CHANGELOG.md`, one entry under `[Unreleased]` / `Fixed`, in the same commit as the change.
+
+The pinned cases land in this repository's test lane, written by the `gauntlet-scrivener` from the approved block. Not mine to write, and no file is named here.
+
+## What this overturns
+
+Three rules in force say `grep -rn secret docs/` is allowed, and this change denies it. They are overturned deliberately, and each takes the delta the chain requires.
+
+- `docs/gauntlet/specs/shell-shape-classification.txt:59`, line 5 of that approved block — "`grep -rn secret docs/` -> SILENT". The line is re-specified in the block this plan leads to, so the approved text that carries `SILENT` is replaced rather than contradicted in silence.
+- `tests/test_hook_wire.py:340` in `test_unrooted_recursive_search_is_denied`, which asserts "grep -rn secret docs/": SILENT. It changes through the approved block and the `gauntlet-scrivener`, never by hand.
+- `.claude/hooks/no-impl-reads.py:481`, case 5 of the hook's own `--self-test` — `allowed(bash("grep -rn secret docs/"))`.
+
+The rule those three state — a rooted search is not a sweep — is not wrong; it is under-specified. A root inside the allowlist that contains a denied subtree was never considered when they were written.
+
+## Caller-side delta
+
+None in this repository. No agent definition changes, no hook is re-wired, `blind-reads.json` gains no key — the denied subtree is the hook's own constant, not repo data, and `.claude/hooks/no-impl-reads.py:37` is explicit that no `blind-reads.json` entry may re-open the gauntlet base.
+
+A consumer copying `.claude/` gets a stricter hook with no action on their side.
+
+## What it costs
+
+The `gauntlet-arbiter` loses `grep -rn x docs/`, and all four wired agents lose `Grep(path="docs")`. Each roots at `docs/gauntlet/specs/`, at the test directory, or at a named docs file instead. That is the intended loss.
+
+A `find docs` that only lists names is refused with the rest of the shell road, where `Glob` is not. The split is the tool, not the intent: a shell name-lister carries its own options for printing content — `find docs -exec cat {} +` — and the `Glob` tool has none. On the shell road the hook keeps the direction it already takes with git, where `_git_prints_content()` at `:286` rules on the same question, and its docstring at `:289-290` says "an unrecognized subcommand is treated as content".
+
+The accepted leak is slug names through `Glob`: a reviewer that globs `docs/gauntlet/reviews/` learns which slugs have rounds. Names are not citations, and the same slugs are readable in `docs/gauntlet/specs/` already.
+
+A lexical operand grammar is what costs here. It is guessing at a shell, and a spelling it cannot place is denied rather than allowed, so an arbiter meets a refusal on an exotic invocation and roots deeper.
+
+`docs/` stays on `DEFAULT_ALLOW` at `:86`. Narrowing it instead would deny the non-recursive reads of `docs/testing.md` and the rest that a blind agent is meant to have.
+
+Three in-force rules are overturned, listed above, each costing a re-specified line and a delta to the writer.
+
+Left out: the `scripts/pair.sh` blob-SHA defect, which the owner's brief puts on its own chain — "each takes its own chain".
+
+## Open questions
+
+None.
+
+--- reviewer ---
+READY
+
+a  PASS  The redefinition is stated outright as the change proposed, in "What the owner sees change" and per-rule in "What this overturns", not arrived at as a side effect: "A blind agent's recursive read that would print content out of a directory containing a denied subtree comes back denied".
+b  PASS  Every load-bearing citation resolves against the tree, read line by line rather than inferred: `:208`, `:212`, `:225`, `:238`, `:259`, `:263` and `:368` and `:382` with their quotes exact; `:86`, `:88`, `:90`, `:117-118`, `:169`, `:192` carrying "base = sh.root_by_name(resolved) or root", `:18-21` carrying "it fails closed: an unlisted path is denied", `:286` with "an unrecognized subcommand is treated as content" at `:290`, `:363` the `_git_prints_content()` arm, `:359-367` the git branch, `:378-382` the search-tool branch, `:418-562`, `:475-484`, `:515-536`; `.claude/agents/gauntlet-juror.md:11`, `gauntlet-scrivener.md:11` and `:23`, `gauntlet-arbiter.md:11` and `:56`, `gauntlet-bailiff.md:11`, `:35` and `:57`; `.claude/hooks/reviews-lane.py:77`; `docs/gauntlet/specs/shell-shape-classification.txt:59`; `tests/test_hook_wire.py:340`. No claim carries `ASSUMED`. The six-row ALLOW/deny table is the one thing I could not reproduce by running the hook — my own lane refuses to execute it — so every row was resolved instead against `_candidates()`, `_unrooted_sweep()`, `readable()` and `_bash_verdict()`, and every row holds as printed, including the reason the plan gives for the two accidental denials. `grounding: gauntlet-detective` is present and covers the files cited outside the touched list.
+c  N/A   Nothing is split, extracted or moved: one helper is added inside `.claude/hooks/no-impl-reads.py` and called from three sites in the same file. No name changes path or spelling, so there is no call-site count to take.
+d  PASS  The cause is named upstream of the appearance and the appearance follows from it: `readable()` at `:169` resolves one path, `docs/` is an allow entry at `:86`, and both reading surfaces — `:368` and `:382` — score a sweep by that one test, so a root that is an ancestor of the denied subtree passes.
+e  PASS  Every rule this touches is named and its overturning stated. `docs/gauntlet/specs/shell-shape-classification.txt:59` — "`grep -rn secret docs/` -> SILENT" — re-specified in the block this plan leads to; `tests/test_hook_wire.py:340`, changed through that block and the `gauntlet-scrivener`; `.claude/hooks/no-impl-reads.py:481`, case 5 of the hook's own self-test; and the `_UNROOTED` advice at `:118`, which stops naming `docs/` as a root. The docstring bullets at `:66-69` are carried too.
+f  PASS  The relation is read at its boundaries: a root with and without a trailing slash; a root inside a worktree, anchored through `sh.root_by_name` as `readable()` does at `:192`; no repo base, where the helper denies; `docs/gauntlet/specs/` and `tests/` as roots that pass; an option value attached and separated; an option that supplies the pattern, where no operand is the pattern and every non-flag word is a root; a word that cannot be placed, treated as a root and denied; git metadata against git content at `:363`; and `Glob` against `Grep`. The two under-denials the grammar could have carried, `grep -rn --include=*.txt cite docs/` and `grep -rn -e cite docs/`, are written into the plan as the cases the two clauses exist for.
+g  PASS  Open questions reads `None`, and it is not padding: the question this plan carried is decided in "What it costs" on the fail-closed direction the hook states at `:18-21` and applies at `:286-290`, which is where the answer already lived.
+h  PASS  Both escapes taken. The mechanism is named for each reach claim — containment runs only for a recursive reader, only inside the content arm on the git branch, and not at all for `Glob` — and the trace over direct callers of the changed branches finds nothing arriving at a surface the plan calls unmoved: a runner short-circuits at `:353-354`, a non-recursive read never reaches the helper, `git log --oneline -- docs/` and `git ls-files docs/gauntlet/plans/` keep their metadata allowance, the arbiter's mandated `<N>` Glob at `.claude/agents/gauntlet-arbiter.md:56` survives on the ground `.claude/hooks/reviews-lane.py:77` states, and the bailiff's `git show <spec-commit>:docs/gauntlet/specs/<slug>.txt` at `:57` resolves inside the re-allowed subtree. The losses that do land — `grep -rn x docs/` for the arbiter, `Grep(path="docs")` for all four agents, the shell name-listers — are booked in "What it costs".
+i  PASS  The brief is quoted verbatim under `brief:`, each of its three sentences carries one `delivered:` line, and each resolves to a named element: the single touched hook plus "Left out" for `scripts/pair.sh`; the containment helper and its call sites on both roads; the restatement of the guarantee as containment. No `dropped:` line, and nothing in the brief is silently absent.
+j  N/A   This repository's docs name no composition-root file. `docs/agents.md` is a roster of agents and hooks, not a construction site, and the changed file is a PreToolUse hook that constructs nothing.
+k  PASS  Each `delivered:` line read against its sentence on the sentence's plain meaning. "allows a Bash grep rooted at docs/, which sweeps the same files and prints the implementation citations they quote" is delivered by a grammar that now takes `grep -rn cite docs/`, `grep -rn -e cite docs/` and `grep -rn --include=*.txt cite docs/` alike, and the narrowing to content readers is the owner's own words, since names are not citations. "a hole in the blindness guarantee the whole chain rests on" is delivered on both reading surfaces rather than on the shell alone. "each takes its own chain" is delivered by the one touched hook and the `scripts/pair.sh` cut, quoted where the cut is made.
+
+notes:
+1. How often a blind agent meets a shell spelling the lexical grammar cannot place is live behavior, not a fact in the tree. The plan books the direction — such a spelling is denied and the agent roots deeper — and whether that bar is acceptable in daily use is the owner's call, not mine.
+2. No metered or load-bearing action ran in any round of this review: `cat`, `sed -n`, `grep`, `ls` and `wc` only, nothing backgrounded, no process started that could outlive its command, so there are no PIDs to account for. No performance anomaly arose, so no `uptime` step was owed or skipped.
