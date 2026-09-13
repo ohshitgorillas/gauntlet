@@ -1,0 +1,31 @@
+slug: pair-sh-restore
+kind: new
+brief:
+> Next is brief 3, pair.sh gaining restore, impl checkout, impl merge and close, then brief 4, the five lane hooks folding into one table and losing Bash, which is the change that wires the wrapper.
+> `restore <slug> <rev>` takes the `git restore --source` step that `docs/approved-specs.md:52` carves out of the classifier by hand today, and prints `RESTORED <path> <rev>`.
+
+1. After `pair.sh restore <slug> <rev>`, the bytes of `gauntlet/specs/approved/<slug>.txt` equal the bytes of `git show <rev>:gauntlet/specs/approved/<slug>.txt`, whatever the file held before the call.
+   kills: a `restore` that prints its line and leaves the working-tree block untouched, so a stale spec reaches the blind writer while the transcript says it was reverted.
+   bite: HEAD prints `usage: pair.sh open|red|merge <slug>` on stderr and exits 2, leaving the file untouched. `scripts/pair.sh restore foo abc123; echo rc=$?` -> `usage: pair.sh open|red|merge <slug>` / `rc=2`.
+   existing: none, `grep -rn restore tests/` -> no match
+
+2. The stdout of `pair.sh restore <slug> <rev>` is one line whose second field is a path and whose third field is `<rev>`, and the bytes of the file at that path equal the bytes of that path at `<rev>` after the call.
+   kills: a `restore` that prints `RESTORED` for one path while writing another, or prints the marker having written nothing, so a caller reading stdout cannot tell which block is now on disk.
+   bite: HEAD prints nothing on stdout at this input; the usage line goes to stderr and it exits 2. `scripts/pair.sh restore foo abc123 2>/dev/null; echo rc=$?` -> `rc=2` with empty stdout.
+   existing: none, `grep -rn restore tests/` -> no match
+
+--- reviewer ---
+READY
+discriminates: differential on gauntlet/specs/approved/<slug>.txt (lines 1 and 2 each relate an observation after the call to the bytes at <rev>)
+
+1  ADMITTED  carried: `pair.sh restore <slug> <rev>` -> the bytes of `gauntlet/specs/approved/<slug>.txt` equal the bytes of `git show <rev>:gauntlet/specs/approved/<slug>.txt`; a restore that prints its line and leaves the working-tree block untouched fails it at any slug whose file differs from `<rev>`; bite: HEAD prints `usage: pair.sh open|red|merge <slug>` and exits 2 leaving the file untouched, null stub fails at `restore foo <rev>` with a locally edited file.
+2  ADMITTED  `pair.sh restore <slug> <rev>` -> one stdout line whose second field is a path and third field is `<rev>`, where that path's bytes after the call equal its bytes at `<rev>`; a restore that prints the marker for one path while writing another fails it at a slug whose file differs from `<rev>`; bite: HEAD prints nothing on stdout and exits 2 at `restore foo abc123`, null stub fails there.
+3  STRICKEN  stub: the hard-coded stub satisfies it - a `restore)` arm that does nothing and exits 0 gives exit 0 at exactly this input.
+
+null stub: pair.sh unchanged from HEAD - no `restore` subcommand, the argument falls through to the usage line on stderr, exits 2, touches no file.
+  satisfies: none   fails: 1, 2, 3
+hard-coded stub: a `restore)` arm that exits 0 and echoes a fixed `RESTORED` line, writing no file.
+  satisfies: 3   fails: 1, 2
+survives: 2
+
+note for the owner, not a line: the wrong-revision safety property (a bad `<rev>` must not truncate or delete the approved block) is unpinned by this block, as the main agent states. Nothing here prevents a `restore` that empties the file on a bad revision.
