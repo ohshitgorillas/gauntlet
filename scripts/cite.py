@@ -173,7 +173,9 @@ def candidates(name):
     """Every path in the checkout carrying that basename."""
     hits = []
     for path in ROOT.rglob(name):
-        parts = path.parts
+        #: relative to ROOT, so a directory name above the checkout decides
+        #: nothing: a root that is itself a worktree searches its own tree
+        parts = path.relative_to(ROOT).parts
         if any(part in SKIP for part in parts):
             continue
         if "worktrees" in parts:
