@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `docs/gauntlet/verdicts/` is the gauntlet-juror's lane.
+"""PreToolUse hook: `gauntlet/verdicts/` is the gauntlet-juror's lane.
 `Stop` hook, behind `--stop`: a red run with no verdict does not end a turn.
 
 Wire both session-wide from `.claude/settings.json`, so they bind the main
@@ -17,14 +17,14 @@ produced a red run and no verdict does not land.
 Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under a
-    `docs/gauntlet/verdicts/` directory, unless the caller's `agent_type` is
+    `gauntlet/verdicts/` directory, unless the caller's `agent_type` is
     `gauntlet-juror`
-  * a `Bash` command that names a `docs/gauntlet/verdicts/` path and is not
+  * a `Bash` command that names a `gauntlet/verdicts/` path and is not
     read-only, except a restore from a named git object
     (`git restore --source <rev>` or `git checkout <rev> --` onto the path),
     which copies a commit and types nothing
 
-Allowed: every read of `docs/gauntlet/verdicts/`, by any agent and by the
+Allowed: every read of `gauntlet/verdicts/`, by any agent and by the
 shell; every write anywhere else, the other lanes included.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
@@ -65,23 +65,23 @@ import shell_shapes as sh  # noqa: E402
 
 REVIEWER = "gauntlet-juror"
 WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
-LANE = "docs/gauntlet/verdicts"
+LANE = "gauntlet/verdicts"
 BASH_VERDICTS = sh.lane_pattern(LANE)
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 RED_DIR = "state/red"
 
 _LANE = (
-    "docs/gauntlet/verdicts/ is the gauntlet-juror's lane. The verdict on a red run "
+    "gauntlet/verdicts/ is the gauntlet-juror's lane. The verdict on a red run "
     "is written there by the juror that issued it, and by nothing else: it is the "
     "only evidence anyone has that the run was certified and that a blind hand "
     "certified it. Spawn a gauntlet-juror with the committed spec path and the path "
     "`scripts/pair.sh red` printed. (hooks/verdicts-lane.py)"
 )
 _BASH = (
-    "A shell write naming a docs/gauntlet/verdicts/ path is denied: " + _LANE + " Restoring "
+    "A shell write naming a gauntlet/verdicts/ path is denied: " + _LANE + " Restoring "
     "a verdict from a git object is the one shell shape that passes: "
-    "`git restore --source <rev> -- docs/gauntlet/verdicts/<file>`."
+    "`git restore --source <rev> -- gauntlet/verdicts/<file>`."
 )
 
 
@@ -121,9 +121,9 @@ def main() -> None:
 _EMPTY = "{slug}: state/red/{slug}.txt is empty. The run printed nothing, so there is "
 _EMPTY += "nothing to rule on. Re-run `scripts/pair.sh red {slug}`, or delete the file."
 _MISSING = "{slug}: no verdict. state/red/{slug}.txt is a red run nobody ruled on. Spawn "
-_MISSING += "a gauntlet-juror with docs/gauntlet/specs/{slug}.txt and state/red/{slug}.txt, "
+_MISSING += "a gauntlet-juror with gauntlet/specs/approved/{slug}.txt and state/red/{slug}.txt, "
 _MISSING += "or delete the red file if the slug was abandoned."
-_STALE = "{slug}: stale verdict. docs/gauntlet/verdicts/{slug}.txt is older than "
+_STALE = "{slug}: stale verdict. gauntlet/verdicts/{slug}.txt is older than "
 _STALE += "state/red/{slug}.txt, so the run it ruled on has been overwritten since. Spawn "
 _STALE += "a fresh gauntlet-juror on the run now on disk."
 
@@ -217,34 +217,34 @@ def self_test() -> int:
             return [line.split(":", 1)[0] for line in _complaints(base)]
 
     lines = {
-        "1 docs/gauntlet/verdicts/ closed to every agent but the gauntlet-juror": all(
+        "1 gauntlet/verdicts/ closed to every agent but the gauntlet-juror": all(
             (
-                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt")),
-                denied(write("docs/gauntlet/verdicts/demo.txt")),
-                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-arbiter")),
-                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-prosecutor")),
-                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-scrivener")),
+                denied(write(f"{root}/gauntlet/verdicts/demo.txt")),
+                denied(write("gauntlet/verdicts/demo.txt")),
+                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "gauntlet-arbiter")),
+                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "gauntlet-prosecutor")),
+                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "gauntlet-scrivener")),
                 #: an unprefixed same-named agent in the host project is not this one
-                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "juror")),
-                allowed(write(f"{root}/docs/gauntlet/verdicts/demo.txt", REVIEWER)),
+                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "juror")),
+                allowed(write(f"{root}/gauntlet/verdicts/demo.txt", REVIEWER)),
                 #: the lane denies its own directory, and no other lane's
-                denied(write("/nogit/docs/gauntlet/verdicts")),
-                allowed(write(f"{root}/docs/gauntlet/reviews/demo.1.txt", "gauntlet-arbiter")),
-                allowed(write(f"{root}/docs/gauntlet/specs/demo.txt", "gauntlet-arbiter")),
+                denied(write("/nogit/gauntlet/verdicts")),
+                allowed(write(f"{root}/gauntlet/reviews/demo.1.txt", "gauntlet-arbiter")),
+                allowed(write(f"{root}/gauntlet/specs/approved/demo.txt", "gauntlet-arbiter")),
                 allowed(write(f"{root}/state/verdicts/demo.txt")),
                 allowed(write(f"{root}/docs/testing.md")),
             )
         ),
         "2 shell writes naming the lane denied, reads and object restores pass": all(
             (
-                denied(bash("cat impl.py 1> docs/gauntlet/verdicts/demo.txt")),
-                denied(bash("echo RED > docs/gauntlet/verdicts/demo.txt")),
-                denied(bash("sed -i 's/RED/GREEN/' docs/gauntlet/verdicts/demo.txt")),
-                denied(bash("rm docs/gauntlet/verdicts/demo.txt")),
-                denied(bash("cat > docs/gauntlet/verdicts/demo.txt <<'EOF'\nRED 1\nEOF")),
-                allowed(bash("cat docs/gauntlet/verdicts/demo.txt")),
-                allowed(bash("grep -c RED docs/gauntlet/verdicts/demo.txt")),
-                allowed(bash("git restore --source abc1234 -- docs/gauntlet/verdicts/demo.txt")),
+                denied(bash("cat impl.py 1> gauntlet/verdicts/demo.txt")),
+                denied(bash("echo RED > gauntlet/verdicts/demo.txt")),
+                denied(bash("sed -i 's/RED/GREEN/' gauntlet/verdicts/demo.txt")),
+                denied(bash("rm gauntlet/verdicts/demo.txt")),
+                denied(bash("cat > gauntlet/verdicts/demo.txt <<'EOF'\nRED 1\nEOF")),
+                allowed(bash("cat gauntlet/verdicts/demo.txt")),
+                allowed(bash("grep -c RED gauntlet/verdicts/demo.txt")),
+                allowed(bash("git restore --source abc1234 -- gauntlet/verdicts/demo.txt")),
             )
         ),
         "3 a red run with no verdict blocks the turn, a ruled one does not": all(
@@ -279,19 +279,19 @@ def self_test() -> int:
         ),
         "8 read-only git naming the lane passes, its write forms do not": all(
             (
-                allowed(bash("git grep -n foo -- docs/gauntlet/verdicts/")),
-                allowed(bash("git grep -n 'docs/gauntlet/verdicts/' -- .claude/hooks")),
-                allowed(bash("git ls-tree HEAD docs/gauntlet/verdicts/")),
-                denied(bash("git grep -Ovim foo -- docs/gauntlet/verdicts/")),
-                denied(bash("git diff --output=docs/gauntlet/verdicts/x.txt")),
+                allowed(bash("git grep -n foo -- gauntlet/verdicts/")),
+                allowed(bash("git grep -n 'gauntlet/verdicts/' -- .claude/hooks")),
+                allowed(bash("git ls-tree HEAD gauntlet/verdicts/")),
+                denied(bash("git grep -Ovim foo -- gauntlet/verdicts/")),
+                denied(bash("git diff --output=gauntlet/verdicts/x.txt")),
             )
         ),
         "9 a declared runner invocation naming this lane is still denied": all(
             (
                 #: the declaration names the test directory, so its one argument
                 #: reaches no other lane however the argument is spelled
-                denied(bash("scripts/blind.sh test docs/gauntlet/verdicts/slug.txt")),
-                denied(bash("scripts/blind.sh test tests/a/../../docs/gauntlet/verdicts/slug.txt")),
+                denied(bash("scripts/blind.sh test gauntlet/verdicts/slug.txt")),
+                denied(bash("scripts/blind.sh test tests/a/../../gauntlet/verdicts/slug.txt")),
             )
         ),
     }

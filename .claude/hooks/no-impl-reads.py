@@ -26,16 +26,18 @@ never the repository's source: it holds the red run a blind writer must
 certify. Denying it moved the certification to the main agent, which is the
 inversion this hook exists to prevent.
 
-`docs/gauntlet/` is the exception carved inside `docs/`, and it is a denial,
-not a widening. Everything the gauntlet's agents write lives there, and three
-of the four kinds quote implementation citations: an approved plan resolves
+`gauntlet/` is a base of its own at the repo root, and it is a denial, not a
+widening. Everything the gauntlet's agents write lives there, and three of the
+four kinds quote implementation citations: an approved plan resolves
 `file:line` into the source, a draft does so unreviewed, and a reviewer round
-quotes the plan back. So the base is denied entire, with `docs/gauntlet/specs/`
+quotes the plan back. So the base is denied entire, with `gauntlet/specs/approved/`
 re-allowed as the one subtree a blind agent works from — the approved spec
-block, which is the whole of what it is given. Both tests run before the allow
-list below, so a fifth artifact directory added later is blind-safe until
-someone deliberately opens it, and no `blind-reads.json` entry can re-open the
-plans, the drafts or the rounds.
+block, which is the whole of what it is given. No denied subtree nests inside
+an allowed one: `docs/`, `tests/` and `state/` are allowed the whole way down,
+and the one re-allowed leaf sits inside the denied base, which is the harmless
+direction. Both tests run before the allow list below, so a fifth artifact
+directory added later is blind-safe until someone deliberately opens it, and no
+`blind-reads.json` entry can re-open the plans, the drafts or the rounds.
 
 Extend the list per repo with `blind-reads.json` beside this file:
 
@@ -83,11 +85,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 #: repo-relative paths a blind agent may read; a trailing `/` means the subtree
-DEFAULT_ALLOW = ("docs/", "tests/", "state/")
-#: the gauntlet's own artifact base, denied entire inside the allowed `docs/`
-GAUNTLET_BASE = "docs/gauntlet"
+DEFAULT_ALLOW = ("docs/", "tests/", "state/", "gauntlet/specs/approved/")
+#: the gauntlet's own artifact base at the repo root, denied entire
+GAUNTLET_BASE = "gauntlet"
 #: the one subtree of it a blind agent works from: the approved spec block
-GAUNTLET_SPECS = "docs/gauntlet/specs"
+GAUNTLET_SPECS = "gauntlet/specs/approved"
 #: repo-root files a blind agent may read, by extension
 DEFAULT_ROOT_FILES = (".md", ".txt", ".pdf")
 
@@ -105,17 +107,17 @@ SERVED = re.compile(
 
 _WHY = (
     "Blind agent: the implementation is out of bounds. Work from the approved spec "
-    "block at docs/gauntlet/specs/, the rest of docs/, and tests/. If the spec does "
+    "block at gauntlet/specs/approved/, the rest of docs/, and tests/. If the spec does "
     "not say what the behavior is, report that gap instead of reading the code to "
     "find out. If this path is genuinely a spec source, add it to the allow list in "
-    "hooks/blind-reads.json — except under docs/gauntlet/, which is the gauntlet's "
-    "own artifact base: docs/gauntlet/specs/ is the only part of it that is yours, "
+    "hooks/blind-reads.json — except under gauntlet/, which is the gauntlet's "
+    "own artifact base: gauntlet/specs/approved/ is the only part of it that is yours, "
     "and no allow-list entry reaches the plans, the drafts or the reviewer rounds, "
     "which quote implementation citations. A spec source belongs in "
-    "docs/gauntlet/specs/. (hooks/no-impl-reads.py)"
+    "gauntlet/specs/approved/. (hooks/no-impl-reads.py)"
 )
 _UNROOTED = (
-    "Give Grep/Glob an explicit path (tests/, docs/, docs/gauntlet/specs/): an "
+    "Give Grep/Glob an explicit path (tests/, docs/, gauntlet/specs/approved/): an "
     "unrooted search sweeps the whole tree and prints its source. " + _WHY
 )
 
@@ -196,13 +198,16 @@ def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) ->
             return False
     else:
         rel = resolved.lstrip(os.sep)
-    #: the gauntlet's own base, inside the allowed `docs/`, in the one order that
-    #: works. The approved spec is tested first and is readable; the base is
-    #: tested second and is denied; the allow list runs last. Reversing the first
-    #: two refuses the blind writer the block it is spawned against, and putting
-    #: either behind the allow list lets `docs/` — or a `blind-reads.json` entry —
-    #: hand over the plans, the drafts and the rounds, every one of which carries
-    #: implementation citations.
+    #: the gauntlet's own base, in the one order that works. The approved spec is
+    #: tested first and is readable; the base is tested second and is denied; the
+    #: allow list runs last. Reversing the first two refuses the blind writer the
+    #: block it is spawned against, and putting either behind the allow list lets
+    #: a `blind-reads.json` entry hand over the plans, the drafts and the rounds,
+    #: every one of which carries implementation citations. The matching
+    #: `DEFAULT_ALLOW` entry is therefore unreachable here, and is kept because
+    #: the invariant self-test computes over that list: it is what makes the
+    #: deliberate leaf visible to the case, which catches a later hand that
+    #: rebases one of the two without the other.
     if _under(rel, GAUNTLET_SPECS):
         return True
     if _under(rel, GAUNTLET_BASE):
@@ -301,7 +306,7 @@ def _git_prints_content(words: list[str]) -> bool:
 def _git_candidates(words: list[str]) -> list[str]:
     """The path-shaped words of a git command, with any `<rev>:` prefix removed.
 
-    `git show HEAD:docs/gauntlet/specs/<slug>.txt` is the supported way for a blind
+    `git show HEAD:gauntlet/specs/approved/<slug>.txt` is the supported way for a blind
     agent to read an allowlisted spec out of history. Scored literally, the revision
     prefix makes that path a filename that exists nowhere, so the read the
     escape hatch exists for was refused.
@@ -415,6 +420,34 @@ def main() -> None:
     )
 
 
+def _no_denied_nesting() -> bool:
+    """Is every allowed root free of a denied subtree beneath it?
+
+    The invariant the layout exists to hold, computed rather than asserted by
+    hand: a denied tree inside an allowed one is readable by a sweep rooted at
+    the ancestor while its contents are denied one by one, which is the hole
+    the `docs/gauntlet/` nesting opened. The other direction — the re-allowed
+    leaf inside the denied base — is harmless and is excluded here.
+
+    It reads the real `blind-reads.json` beside this file, not a hand-built
+    config, so a repo that adds `gauntlet/` or an ancestor of it to its own
+    allow list fails this case rather than silently re-opening the base.
+    """
+    entries = list(DEFAULT_ALLOW) + list(config().get("allow", ()))
+    for entry in entries:
+        root = entry.rstrip("/")
+        if not root:
+            continue
+        #: the denied base sits at or under this allowed root
+        if _under(GAUNTLET_BASE, root):
+            return False
+        #: the root sits inside the denied base, on a branch that is not the
+        #: one re-allowed leaf, so everything it names is denied to a read
+        if _under(root, GAUNTLET_BASE) and not _under(root, GAUNTLET_SPECS):
+            return False
+    return True
+
+
 def self_test() -> int:
     """Pin the spec lines of the blind-read allowlist."""
     root = "/repo"
@@ -436,7 +469,7 @@ def self_test() -> int:
             (
                 allowed(read(f"{root}/docs/testing.md")),
                 allowed(read(f"{root}/tests/test_lane.py")),
-                allowed(read(f"{root}/docs/gauntlet/specs/slug.txt")),
+                allowed(read(f"{root}/gauntlet/specs/approved/slug.txt")),
                 allowed(read(f"{root}/README.md")),
                 denied(read(f"{root}/src/core/manager.py")),
                 denied(read(f"{root}/app/main.py")),
@@ -493,7 +526,7 @@ def self_test() -> int:
         ),
         "7 a blind agent's own worktree is anchored at that worktree": all(
             (
-                allowed(read(f"{tree}/docs/gauntlet/specs/demo.txt")),
+                allowed(read(f"{tree}/gauntlet/specs/approved/demo.txt")),
                 allowed(read(f"{tree}/tests/test_demo.py")),
                 allowed(call("Grep", {"pattern": "x", "path": f"{tree}/tests"})),
                 #: the worktree carries its own copy of these, and neither is a
@@ -512,26 +545,33 @@ def self_test() -> int:
                 denied(read(f"{root}/src/state/manager.py")),
             )
         ),
-        "9 the gauntlet's base is denied inside docs/, its specs re-allowed": all(
+        "9 the gauntlet's base is denied, its approved specs re-allowed": all(
             (
-                allowed(read(f"{root}/docs/gauntlet/specs/demo.txt")),
-                denied(read(f"{root}/docs/gauntlet/plans/demo.txt")),
-                denied(read(f"{root}/docs/gauntlet/reviews/demo.plan.4.txt")),
-                denied(read(f"{root}/docs/gauntlet/drafts/plans/demo.txt")),
-                denied(read(f"{root}/docs/gauntlet/drafts/specs/demo.txt")),
+                allowed(read(f"{root}/gauntlet/specs/approved/demo.txt")),
+                denied(read(f"{root}/gauntlet/plans/approved/demo.txt")),
+                denied(read(f"{root}/gauntlet/reviews/demo.plan.4.txt")),
+                denied(read(f"{root}/gauntlet/plans/drafts/demo.txt")),
+                denied(read(f"{root}/gauntlet/specs/drafts/demo.txt")),
                 #: the bare directory is the one search that returns everything
                 #: in it, and it is not `<dir>/` + something
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/docs/gauntlet"})),
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/docs/gauntlet/plans"})),
-                allowed(call("Grep", {"pattern": "x", "path": f"{root}/docs/gauntlet/specs"})),
+                denied(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet"})),
+                denied(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/plans/approved"})),
+                allowed(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/specs/approved"})),
+                #: the leaf is the approved directory, not the stage above it:
+                #: the drafts sit beside it under the same parent
+                denied(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/specs"})),
+                denied(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/specs/drafts"})),
+                #: a path boundary, not a string prefix
+                allowed(read(f"{root}/gauntlet/specs/approved/sub/x.txt")),
+                denied(read(f"{root}/gauntlet/specs/approved-old/x.txt")),
                 #: the rest of docs/ is untouched, and so is the same name nested
                 #: under the source tree
                 allowed(read(f"{root}/docs/testing.md")),
                 allowed(read(f"{root}/docs/plans.md")),
-                denied(read(f"{root}/src/docs/gauntlet/specs/demo.txt")),
+                denied(read(f"{root}/src/gauntlet/specs/approved/demo.txt")),
                 #: the git-object read a blind agent is told to make
-                allowed(bash("git show HEAD:docs/gauntlet/specs/demo.txt")),
-                denied(bash("git show HEAD:docs/gauntlet/plans/demo.txt")),
+                allowed(bash("git show HEAD:gauntlet/specs/approved/demo.txt")),
+                denied(bash("git show HEAD:gauntlet/plans/approved/demo.txt")),
             )
         ),
         "10 no blind-reads.json entry re-opens the base": all(
@@ -539,10 +579,10 @@ def self_test() -> int:
                 denied(
                     _verdict(
                         "Read",
-                        {"file_path": f"{root}/docs/gauntlet/plans/demo.txt"},
+                        {"file_path": f"{root}/gauntlet/plans/approved/demo.txt"},
                         root,
                         root,
-                        {"allow": ["docs/gauntlet/plans/", "docs/gauntlet/"]},
+                        {"allow": ["gauntlet/plans/approved/", "gauntlet/"]},
                     )
                 ),
                 allowed(
@@ -556,6 +596,7 @@ def self_test() -> int:
                 ),
             )
         ),
+        "11 no denied subtree nests inside an allowed one": _no_denied_nesting(),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")

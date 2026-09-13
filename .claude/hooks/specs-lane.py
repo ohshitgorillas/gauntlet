@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `docs/gauntlet/specs/` is the gauntlet-arbiter's lane.
+"""PreToolUse hook: `gauntlet/specs/approved/` is the gauntlet-arbiter's lane.
 
 Wire it session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
@@ -13,16 +13,16 @@ So the file is written by exactly one hand, the one that holds the gate.
 
 Denied:
 
-  * `Write`/`Edit`/`NotebookEdit` whose target is under a `docs/gauntlet/specs/`
+  * `Write`/`Edit`/`NotebookEdit` whose target is under a `gauntlet/specs/approved/`
     directory, unless the caller's `agent_type` is `gauntlet-arbiter`
-  * a `Bash` command that names a `docs/gauntlet/specs/` path and is not
+  * a `Bash` command that names a `gauntlet/specs/approved/` path and is not
     read-only, except a restore from a named git object
     (`git restore --source <rev>` or `git checkout <rev> --` onto the path),
     which copies a commit and types nothing
 
-Allowed: every read of `docs/gauntlet/specs/`, by any agent and by the shell;
+Allowed: every read of `gauntlet/specs/approved/`, by any agent and by the shell;
 every write anywhere else, including a draft spec under
-`docs/gauntlet/drafts/specs/`.
+`gauntlet/specs/drafts/`.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
 is the main agent, which is denied. If a build omits the key for subagents
@@ -42,20 +42,20 @@ import shell_shapes as sh  # noqa: E402
 
 REVIEWER = "gauntlet-arbiter"
 WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
-LANE = "docs/gauntlet/specs"
+LANE = "gauntlet/specs/approved"
 BASH_APPROVED = sh.lane_pattern(LANE)
 
 _LANE = (
-    "docs/gauntlet/specs/ is the gauntlet-arbiter's lane. An approved spec is "
+    "gauntlet/specs/approved/ is the gauntlet-arbiter's lane. An approved spec is "
     "written there by the reviewer that approved it, and by nothing else: it is "
     "the only evidence the blind gauntlet-scrivener has that the behavior it is about "
-    "to pin was reviewed. Draft under docs/gauntlet/drafts/specs/ and send the draft "
+    "to pin was reviewed. Draft under gauntlet/specs/drafts/ and send the draft "
     "to the gauntlet-arbiter. (hooks/specs-lane.py)"
 )
 _BASH = (
-    "A shell write naming a docs/gauntlet/specs/ path is denied: " + _LANE + " Restoring "
+    "A shell write naming a gauntlet/specs/approved/ path is denied: " + _LANE + " Restoring "
     "an approved spec from a git object is the one shell shape that passes: "
-    "`git restore --source <rev> -- docs/gauntlet/specs/<file>`."
+    "`git restore --source <rev> -- gauntlet/specs/approved/<file>`."
 )
 
 
@@ -106,40 +106,40 @@ def self_test() -> int:
 
     denied, allowed = (lambda v: isinstance(v, str)), (lambda v: v is None)
     lines = {
-        "1 docs/gauntlet/specs/ closed to every agent but the gauntlet-arbiter": all(
+        "1 gauntlet/specs/approved/ closed to every agent but the gauntlet-arbiter": all(
             (
-                denied(write(f"{root}/docs/gauntlet/specs/slug.txt")),
-                denied(write("docs/gauntlet/specs/slug.txt")),
-                denied(write(f"{root}/docs/gauntlet/specs/slug.txt", "gauntlet-scrivener")),
-                denied(write(f"{root}/docs/gauntlet/specs/slug.txt", "cavecrew-builder")),
+                denied(write(f"{root}/gauntlet/specs/approved/slug.txt")),
+                denied(write("gauntlet/specs/approved/slug.txt")),
+                denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "gauntlet-scrivener")),
+                denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "cavecrew-builder")),
                 #: an unprefixed same-named agent in the host project is not this one
-                denied(write(f"{root}/docs/gauntlet/specs/slug.txt", "arbiter")),
-                allowed(write(f"{root}/docs/gauntlet/specs/slug.txt", REVIEWER)),
+                denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "arbiter")),
+                allowed(write(f"{root}/gauntlet/specs/approved/slug.txt", REVIEWER)),
             )
         ),
         "2 every other path stays open, drafts included": all(
             (
-                allowed(write(f"{root}/docs/gauntlet/drafts/specs/slug.txt")),
-                allowed(write(f"{root}/docs/gauntlet/plans/slug.txt")),
+                allowed(write(f"{root}/gauntlet/specs/drafts/slug.txt")),
+                allowed(write(f"{root}/gauntlet/plans/approved/slug.txt")),
                 allowed(write(f"{root}/tests/specs/t.py")),
                 allowed(write(f"{root}/docs/lane.txt", "gauntlet-scrivener")),
             )
         ),
         "3 shell writes naming the lane denied, reads and object restores pass": all(
             (
-                denied(bash("sed -i 's/a/b/' docs/gauntlet/specs/slug.txt")),
-                denied(bash("echo x > docs/gauntlet/specs/slug.txt")),
-                denied(bash("cat draft.txt > docs/gauntlet/specs/slug.txt")),
-                denied(bash("cp draft.txt docs/gauntlet/specs/slug.txt")),
-                denied(bash("rm docs/gauntlet/specs/slug.txt")),
-                denied(bash("cat > docs/gauntlet/specs/slug.txt <<'EOF'\nkind: new\nEOF")),
-                allowed(bash("cat docs/gauntlet/specs/slug.txt")),
-                allowed(bash("grep -n 'kills:' docs/gauntlet/specs/slug.txt")),
-                allowed(bash("git status --porcelain docs/gauntlet/specs/")),
-                allowed(bash("git restore --source abc1234 -- docs/gauntlet/specs/slug.txt")),
-                allowed(bash("git checkout abc1234 -- docs/gauntlet/specs/slug.txt")),
-                allowed(bash("git commit -m 'spec: approved docs/gauntlet/specs/slug.txt'")),
-                allowed(bash("rm -rf build/ && cat docs/gauntlet/specs/slug.txt")),
+                denied(bash("sed -i 's/a/b/' gauntlet/specs/approved/slug.txt")),
+                denied(bash("echo x > gauntlet/specs/approved/slug.txt")),
+                denied(bash("cat draft.txt > gauntlet/specs/approved/slug.txt")),
+                denied(bash("cp draft.txt gauntlet/specs/approved/slug.txt")),
+                denied(bash("rm gauntlet/specs/approved/slug.txt")),
+                denied(bash("cat > gauntlet/specs/approved/slug.txt <<'EOF'\nkind: new\nEOF")),
+                allowed(bash("cat gauntlet/specs/approved/slug.txt")),
+                allowed(bash("grep -n 'kills:' gauntlet/specs/approved/slug.txt")),
+                allowed(bash("git status --porcelain gauntlet/specs/approved/")),
+                allowed(bash("git restore --source abc1234 -- gauntlet/specs/approved/slug.txt")),
+                allowed(bash("git checkout abc1234 -- gauntlet/specs/approved/slug.txt")),
+                allowed(bash("git commit -m 'spec: approved gauntlet/specs/approved/slug.txt'")),
+                allowed(bash("rm -rf build/ && cat gauntlet/specs/approved/slug.txt")),
             )
         ),
         "4 the lane directory itself is in the lane, checkout or not": all(
@@ -147,27 +147,27 @@ def self_test() -> int:
                 #: outside any checkout the path is read off its own segments, and
                 #: the last segment is one of them: the write that creates the
                 #: directory is the lane's first write, not its exception
-                denied(write("/nogit/docs/gauntlet/specs")),
-                denied(write("/nogit/docs/gauntlet/specs/slug.txt")),
-                allowed(write("/nogit/docs/gauntlet/drafts/specs/slug.txt")),
-                allowed(write(f"{root}/docs/gauntlet/specs", REVIEWER)),
+                denied(write("/nogit/gauntlet/specs/approved")),
+                denied(write("/nogit/gauntlet/specs/approved/slug.txt")),
+                allowed(write("/nogit/gauntlet/specs/drafts/slug.txt")),
+                allowed(write(f"{root}/gauntlet/specs/approved", REVIEWER)),
             )
         ),
         "5 read-only git naming the lane passes, its write forms do not": all(
             (
-                allowed(bash("git grep -n foo -- docs/gauntlet/specs/")),
-                allowed(bash("git grep -n 'docs/gauntlet/specs/' -- .claude/hooks")),
-                allowed(bash("git ls-tree HEAD docs/gauntlet/specs/")),
-                denied(bash("git grep -Ovim foo -- docs/gauntlet/specs/")),
-                denied(bash("git diff --output=docs/gauntlet/specs/x.txt")),
+                allowed(bash("git grep -n foo -- gauntlet/specs/approved/")),
+                allowed(bash("git grep -n 'gauntlet/specs/approved/' -- .claude/hooks")),
+                allowed(bash("git ls-tree HEAD gauntlet/specs/approved/")),
+                denied(bash("git grep -Ovim foo -- gauntlet/specs/approved/")),
+                denied(bash("git diff --output=gauntlet/specs/approved/x.txt")),
             )
         ),
         "6 a declared runner invocation naming this lane is still denied": all(
             (
                 #: the declaration names the test directory, so its one argument
                 #: reaches no other lane however the argument is spelled
-                denied(bash("scripts/blind.sh test docs/gauntlet/specs/slug.txt")),
-                denied(bash("scripts/blind.sh test tests/a/../../docs/gauntlet/specs/slug.txt")),
+                denied(bash("scripts/blind.sh test gauntlet/specs/approved/slug.txt")),
+                denied(bash("scripts/blind.sh test tests/a/../../gauntlet/specs/approved/slug.txt")),
             )
         ),
     }

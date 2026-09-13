@@ -111,14 +111,14 @@ cmd_status() {
 	[ $# -eq 1 ] || usage
 	local tree
 	tree=$(tree_for_slug "$1")
-	sandbox env -C "$tree" git status --porcelain "docs/gauntlet/specs/$1.txt"
+	sandbox env -C "$tree" git status --porcelain "gauntlet/specs/approved/$1.txt"
 }
 
 cmd_show() {
 	[ $# -eq 2 ] || usage
 	local tree
 	tree=$(tree_for_slug "$2")
-	sandbox env -C "$tree" git show "$1:docs/gauntlet/specs/$2.txt"
+	sandbox env -C "$tree" git show "$1:gauntlet/specs/approved/$2.txt"
 }
 
 [ $# -ge 1 ] || usage

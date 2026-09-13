@@ -1,8 +1,9 @@
 __pycache__/
 *.pyc
 state/
-docs/gauntlet/reviews/
-docs/gauntlet/drafts/
+gauntlet/reviews/
+gauntlet/plans/drafts/
+gauntlet/specs/drafts/
 *.swp
 .claude/worktrees/
 .venv/

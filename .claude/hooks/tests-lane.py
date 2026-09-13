@@ -219,7 +219,7 @@ def self_test() -> int:
                 #: and its arity, so a second path is not the declared shape
                 denied(bash("scripts/blind.sh test tests/a.py tests/b.py")),
                 #: an argument that opens under the prefix and walks out of it
-                denied(bash("scripts/blind.sh test tests/a/../../docs/gauntlet/plans/x.txt")),
+                denied(bash("scripts/blind.sh test tests/a/../../gauntlet/plans/approved/x.txt")),
                 #: an undeclared subcommand is not a run and falls to the path test
                 denied(bash("scripts/blind.sh status tests")),
             )

@@ -117,7 +117,7 @@ def self_test() -> int:
     hook = "no-impl-reads.py"
     here = ".claude/hooks/"
     wire = "tests/test_hook_wire.py"
-    plan = "docs/gauntlet/plans/bash-sandbox"
+    plan = "gauntlet/plans/approved/bash-sandbox"
 
     def bash(cmd: str, agent: str | None = "gauntlet-scrivener") -> str | None:
         payload = {"cwd": "/repo"}

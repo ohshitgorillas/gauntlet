@@ -111,10 +111,10 @@ TREE = rf"\.claude/worktrees/{SLUG}-spec/"
 #: would turn off the hook that guards it, and every bound on what a
 #: declaration can widen is code rather than data sitting beside it.
 LANE_DIRS = (
-    "docs/gauntlet/plans",
-    "docs/gauntlet/specs",
-    "docs/gauntlet/" + "verdicts",
-    "docs/gauntlet/reviews",
+    "gauntlet/plans/approved",
+    "gauntlet/specs/approved",
+    "gauntlet/" + "verdicts",
+    "gauntlet/reviews",
 )
 
 #: git subcommands that never write the working tree in their reading forms; a
