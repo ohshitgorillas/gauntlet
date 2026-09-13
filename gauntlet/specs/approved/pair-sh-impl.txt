@@ -1,0 +1,35 @@
+slug: pair-sh-impl
+kind: new
+brief:
+> Next is the impl checkout and impl merge block of brief 3 in gauntlet/plans/approved/bash-sandbox.txt.
+> `impl checkout <slug>` cuts the implementation tree and prints `IMPL <path>`, matching the `OPEN <path>` of `cmd_open` at `scripts/pair.sh:65`. `impl merge <slug>` merges it and prints `MERGED <slug> <commit>`.
+
+1. The stdout of `pair.sh impl checkout <slug>` is one line whose second field is a path, and that path is a git worktree of this repository checked out on a branch other than the one the caller was on.
+   kills: an `impl checkout` that prints its line and cuts no worktree, so the main agent implements in the primary checkout while the transcript says it is in a cut tree.
+   bite: HEAD prints `usage: pair.sh open|red|merge <slug> | restore <slug> <rev>` on stderr, nothing on stdout, and exits 2. `scripts/pair.sh impl checkout foo; echo rc=$?` -> that usage line / `rc=2`.
+   existing: none, `grep -rn "impl checkout|impl merge|IMPL |MERGED " tests/` -> no match
+
+2. After a second `pair.sh impl checkout <slug>`, the commit checked out at the path the first call named on stdout equals the commit checked out there before the second call.
+   kills: a second `impl checkout` that re-cuts the tree an implementation is already in progress in, resetting it to the branch point and discarding the work in it.
+   bite: HEAD names no path at the first call, so there is nothing on disk for the second to reset. `scripts/pair.sh impl checkout foo; scripts/pair.sh impl checkout foo; echo rc=$?` -> the usage line twice on stderr / `rc=2`.
+   existing: none, `grep -rn "impl checkout|impl merge|IMPL |MERGED " tests/` -> no match
+
+3. The stdout of `pair.sh impl merge <slug>` is one line whose second field is `<slug>` and whose third field is a commit that has the pre-call tip of the implementation tree as an ancestor and is the HEAD of the primary checkout after the call.
+   kills: an `impl merge` that prints its line having merged nothing, so the implementation the tests were run against never reaches the branch the block lands on while a caller reading stdout records a revision that does not hold it.
+   bite: HEAD prints nothing on stdout, prints the usage line on stderr, exits 2, and moves no ref. `git rev-parse HEAD` -> `0da4e76b05eaf4f7305be2d5e6d7c3f1a7b60081` before and after `scripts/pair.sh impl merge foo`.
+   existing: none, `grep -rn "impl checkout|impl merge|IMPL |MERGED " tests/` -> no match
+
+--- reviewer ---
+READY
+discriminates: differential on the printed merge commit vs the pre-call impl tip (line 3), and on the impl tree's checked-out commit across a second checkout (line 2)
+
+1  carried ADMITTED  `pair.sh impl checkout <slug>` -> stdout field two is a path that is a worktree of this repo on a branch other than the caller's; an `impl checkout` that prints the line and cuts no worktree fails it at that input; bite: HEAD prints usage on stderr, empty stdout, rc=2
+2  ADMITTED  second `pair.sh impl checkout <slug>` -> the commit checked out at the path call one named is the commit that was there before call two; a second checkout that re-cuts the tree back to the branch point fails it at that input; null stub fails at the first call, which names no path
+3  carried ADMITTED  `pair.sh impl merge <slug>` -> stdout field two is `<slug>` and field three is a commit having the pre-call impl tip as ancestor and equal to post-call primary HEAD; a merge that prints its line having merged nothing fails it at that input; bite: HEAD leaves `git rev-parse HEAD` at 0da4e76b05eaf4f7305be2d5e6d7c3f1a7b60081 across the call and prints nothing on stdout
+
+null stub: `impl` is unrecognized - usage to stderr, empty stdout, rc=2, no worktree cut, no ref moved.
+  satisfies: none   fails: 1, 2, 3
+hard-coded stub: on `impl checkout` print `IMPL /tmp/impl-<slug>` and exit 0; on `impl merge` print `MERGED <slug> $(git rev-parse HEAD)` and exit 0; cut nothing, merge nothing.
+  satisfies: none   fails: 1, 2, 3
+
+survives: 3
