@@ -34,6 +34,20 @@ The workflow enforced by Gauntlet is, as its name implies, quite brutal:
 13. Once the test suite is green against implementation, the change merges.
 14. A `gauntlet-bailiff`, blind and spawned fresh, checks the landed tests against the approved block; a test that no longer matches gets restored from the red commit, or the spec goes back to the main agent. It holds none of the reasons the block was passed, so a softened assertion cannot reach it as permission.
 
+## The approval word
+
+Three points in the chain stop for you: the plan, on `READY` from the `gauntlet-prosecutor`; the spec block, on `READY` from the `gauntlet-arbiter`; and the start of implementation. Each is opened by one word and nothing else.
+
+A message whose first line is exactly `approved` opens the gate it answers. A message whose first line is exactly `approved with revision` opens it too, and everything below that line is an amendment the main agent applies before the work starts. Case is ignored, spelling is not: a misspelling is not the word.
+
+The word anywhere but that first line is not approval — mid-sentence, inside a quotation, inside a pasted block. Neither is "looks good", "yep", "ship it", or silence. A paste that happens to contain the word cannot open a gate, because position, not judgment, is what the main agent checks.
+
+One word opens one artifact as it stands. A plan or a block redrafted after it was approved needs a new one, or an approval slides forward over text you never read. An amendment you supply is your own words and carries itself; a redraft the main agent makes on top of it does not.
+
+Anything ambiguous holds. The cost of that default is one more line from you, which is cheaper than a stage entered on a sentence that only read like consent.
+
+No hook enforces this, the same gap `docs/exemptions.md` states for the `EXEMPT` register: the word arrives in a message, and a `PreToolUse` matcher sees tool calls. The rule is what the main agent holds, not what the tree makes impossible.
+
 ## The tests-only lane
 
 A change confined to `tests/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not fourteen:

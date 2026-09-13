@@ -47,6 +47,8 @@ discriminates: <differential | anchor+edges | sweep> on <surface>
 
 An approved file is amended the same way it was created: the revised block goes back to a `gauntlet-arbiter`, and the reviewer that returns `READY` rewrites the file. A test changes only because the line it pins changed, and a line changes only in that folder.
 
+A rewritten file is a new artifact, so the owner's approval of the one before it does not carry: `approved` is given again against the file as it now stands.
+
 Reverting is the exception the shell keeps: `git restore --source <rev> -- docs/gauntlet/specs/<file>` passes the hook, because it copies a commit rather than typing a spec.
 
 ## Wiring

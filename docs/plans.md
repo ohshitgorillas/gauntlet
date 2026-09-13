@@ -68,3 +68,5 @@ The pointers a plan cites come from one `gauntlet-detective` round: every questi
 `gauntlet-prosecutor` reads the plan prose and resolves its citations. Its gate token is one of `READY`, `ANOTHER PASS`, `ESCALATE` or `ESCALATE: QUESTION`, and the default on every check is the failing one. `PASS` and `FAIL` are per-check tokens beneath the gate line, never the gate itself.
 
 The owner reads the plan only on `READY`. Rounds before that are between the main agent and the reviewer, and they are cheap; a plan passed carelessly costs the owner directly.
+
+On `READY` the plan waits for the owner. Approval is a message whose first line is exactly `approved`, or exactly `approved with revision` with the amendments below it. Anything else holds.
