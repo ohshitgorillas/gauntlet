@@ -56,14 +56,20 @@ REPO_CWD = _main_checkout_root()
 SILENT = ""
 DENY = "deny"
 
-# The three copies of the hook directory.  BARE carries no declaration at all;
-# TESTS and PLANS carry one that differs only in the value of `prefix`.
+# The copies of the hook directory.  BARE carries no declaration at all; TESTS
+# and PLANS carry one that differs only in the value of `prefix`; ALLOW carries
+# a declaration of the other kind entirely, one repo-supplied `allow` entry.
 BARE = "BARE"
 TESTS = "TESTS"
 PLANS = "PLANS"
+ALLOW = "ALLOW"
 
 TESTS_LANE_PREFIX = "tests"
-PLANS_LANE_PREFIX = "docs/gauntlet/plans"
+PLANS_LANE_PREFIX = "gauntlet/plans/approved"
+
+# The whole content of the ALLOW copy's declaration: one entry, the gauntlet
+# artifact base.
+ALLOW_TEXT = json.dumps({"allow": ["gauntlet/"]})
 
 # The entry path and the fixed argument words that follow it.
 ENTRY = "scripts/blind.sh"
@@ -94,22 +100,23 @@ def declaration_text(prefix):
 
 
 def setUpModule():
-    """Make the three copies of the hook directory, once for the file."""
+    """Make the copies of the hook directory, once for the file."""
     global _TMPDIR
     _TMPDIR = tempfile.TemporaryDirectory(prefix="blind-reads-hook-copies-")
     root = Path(_TMPDIR.name)
-    for label, prefix in (
+    for label, text in (
         (BARE, None),
-        (TESTS, TESTS_LANE_PREFIX),
-        (PLANS, PLANS_LANE_PREFIX),
+        (TESTS, declaration_text(TESTS_LANE_PREFIX)),
+        (PLANS, declaration_text(PLANS_LANE_PREFIX)),
+        (ALLOW, ALLOW_TEXT),
     ):
         destination = root / label
         shutil.copytree(HOOK_DIR, destination)
         sibling = destination / DECLARATION_NAME
-        if prefix is None:
+        if text is None:
             sibling.unlink(missing_ok=True)
         else:
-            sibling.write_text(declaration_text(prefix))
+            sibling.write_text(text)
         _COPIES[label] = destination
 
 
@@ -118,17 +125,34 @@ def tearDownModule():
 
 
 def hook_decision(copy_label, hook_name, command):
-    """Feed one Bash payload to one hook in one copy; return its decision.
+    """Feed one Bash payload to one hook in one copy; return its decision."""
+    return payload_decision(
+        copy_label,
+        hook_name,
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+            "cwd": str(REPO_CWD),
+        },
+    )
+
+
+def read_payload(file_path):
+    """A PreToolUse payload for a Read call, at the checkout root."""
+    return {
+        "tool_name": "Read",
+        "tool_input": {"file_path": str(file_path)},
+        "cwd": str(REPO_CWD),
+    }
+
+
+def payload_decision(copy_label, hook_name, payload):
+    """Feed one payload to one hook in one copy; return its decision.
 
     Returns ``SILENT`` for empty stdout, the ``permissionDecision`` value when
     stdout is a hook answer, and the raw stdout otherwise so that an
     unrecognised answer shows up in the failure rather than being swallowed.
     """
-    payload = {
-        "tool_name": "Bash",
-        "tool_input": {"command": command},
-        "cwd": str(REPO_CWD),
-    }
     completed = subprocess.run(
         [sys.executable, str(_COPIES[copy_label] / hook_name)],
         input=json.dumps(payload),
@@ -175,9 +199,9 @@ def generate_listing():
     return [
         ("tests/test_{0}.py".format(_token()), True),
         ("tests/unit_{0}/test_{1}.py".format(_token(), _token()), True),
-        ("docs/gauntlet/plans/{0}.txt".format(_token()), False),
-        ("docs/gauntlet/specs/{0}.txt".format(_token()), False),
-        ("docs/gauntlet/verdicts/{0}.txt".format(_token()), False),
+        ("gauntlet/plans/approved/{0}.txt".format(_token()), False),
+        ("gauntlet/specs/approved/{0}.txt".format(_token()), False),
+        ("gauntlet/verdicts/{0}.txt".format(_token()), False),
         (".claude/hooks/{0}.py".format(_token()), False),
     ]
 
@@ -269,6 +293,33 @@ class BlindRunnerDeclarationAcrossTheLanes(unittest.TestCase):
                     differential(bare, hook_decision(TESTS, hook_name, command)),
                     differential(bare, hook_decision(PLANS, hook_name, command)),
                 )
+        self.assertEqual(actual, expected)
+
+
+class BlindReadsAllowEntryOverTheGauntletBase(unittest.TestCase):
+    """no-impl-reads.py, under a declaration that allows the gauntlet base."""
+
+    maxDiff = None
+
+    def test_a_repo_supplied_allow_entry_reopens_only_the_approved_specs(self):
+        # gauntlet-dir-move line 6.  The declaration is the whole variable: one
+        # `allow` entry naming the artifact base itself.  Blindness resting on
+        # that base merely being absent from the hook's own default allowance
+        # lets this one entry re-open the plans and the reviewer rounds, so the
+        # blind agent reads an approved plan's implementation citations; the
+        # approved specs stay readable either way, which is why they are the
+        # SILENT half of this sweep rather than its whole.
+        expected = {
+            "gauntlet/plans/approved/demo.txt": DENY,
+            "gauntlet/reviews/demo.1.txt": DENY,
+            "gauntlet/specs/approved/demo.txt": SILENT,
+        }
+        actual = {
+            name: payload_decision(
+                ALLOW, "no-impl-reads.py", read_payload(REPO_CWD / name)
+            )
+            for name in expected
+        }
         self.assertEqual(actual, expected)
 
 
