@@ -1,0 +1,48 @@
+slug: bwrap-wrap
+kind: new
+
+brief:
+> 2. Everyone else's Bash runs in bwrap. A PreToolUse hook wraps the command through updatedInput without reading it. agent_type picks the profile.
+> - Worktrees: .claude/worktrees itself is read-only, with each existing tree bound back writable. Only pair.sh open makes new trees. Trees are listed again on every call.
+> - Reviewers: whole filesystem read-only, plus a tmpfs over gauntlet/reviews/.
+> - The hook matches these commands exactly, and they run outside the sandbox.
+
+1. For a Bash call from any agent but the two blind ones, `.claude/hooks/bwrap-wrap.py` answers with an `updatedInput` whose command is a `bwrap` invocation carrying the caller's command text unaltered, whatever that text is. A payload whose command is `echo hi; cat /etc/hostname` and one whose command is `echo $(cat /etc/hostname) <<'X'` both come back wrapped, and the caller's text appears in the replacement byte for byte.
+   kills: a hook that parses the command to decide how to wrap it — quoting it per shape, refusing a heredoc, rejecting a command substitution — denies or mangles the two commands above, the way `.claude/hooks/shell_shapes.py:422` denies a heredoc whose body quotes a lane path.
+   bite: null stub fails at `echo hi; cat /etc/hostname` (surface new); `ls .claude/hooks/bwrap-wrap.py` returns `No such file or directory`.
+   existing: none, `grep -rn 'bwrap' tests/` returned no output.
+
+2. The worktree binds are built from what exists at call time. With two trees under `.claude/worktrees/`, the invocation binds `.claude/worktrees` read-only and both trees writable; with none, it binds no tree and still wraps; a tree removed between two calls appears in the first invocation and in neither the second nor as a stale bind.
+   kills: a hook that caches the tree list, or that binds a fixed `.claude/worktrees/*` glob expanded once, fails the `bwrap` invocation outright the first time a tree is removed, so every Bash call in the session errors until the session restarts.
+   bite: null stub fails at two trees present (surface new).
+   existing: none, `grep -rn 'bwrap' tests/` returned no output.
+
+3. What a write reaches under the returned invocation, executed, depends on the path it names and on the `agent_type` that asked. With one command text and the returned command run: under `gauntlet-prosecutor`, `printf x > probe.txt` at the repository root writes the file and `printf x > gauntlet/specs/approved/probe.txt` fails; under `gauntlet-arbiter`, `printf x > probe.txt` at the repository root fails too.
+   kills: a table that binds the repository writable and stops there lets a shell write `gauntlet/specs/approved/<slug>.txt`, which is the write `specs-lane.py` exists to deny and which the lane hooks stop reading commands to catch under this change; a hook that returns one profile for every caller gives a reviewer a writable checkout of the code it was spawned to judge.
+   bite: null stub fails at all three inputs, since no invocation is returned to execute (surface new).
+   existing: none, `grep -rn 'bwrap' tests/` returned no output.
+
+4. A whole command that is exactly one `scripts/pair.sh` subcommand call with that subcommand's argument shape comes back from `.claude/hooks/bwrap-wrap.py` with no `updatedInput`, and anything else comes back wrapped. `scripts/pair.sh red demo` gets no `updatedInput`; the same call with `; rm -rf state` appended, `cd /tmp && scripts/pair.sh red demo`, and `scripts/pair.sh red ../../etc` each come back wrapped.
+   kills: a carve-out that searches the command for `scripts/pair.sh` rather than matching the whole string returns no `updatedInput` for the appended-command case, and that command then runs outside the sandbox, which is the one place in this design where a command does.
+   bite: null stub fails at `scripts/pair.sh red demo; rm -rf state`, where it returns no `updatedInput` and the line demands a wrapped command (surface new); `ls .claude/hooks/bwrap-wrap.py` returns `No such file or directory`.
+   existing: none, `grep -rn 'pair-passthrough' tests/` returned no output.
+
+--- reviewer ---
+READY
+discriminates: differential on a write executed under the returned invocation, across path and `agent_type` (line 3), plus sweep on the worktree binds (line 2)
+
+prior finding, return read:
+- line 4 (k, bite named a non-separating input): repaired. The field now names `scripts/pair.sh red demo; rm -rf state`, where the null stub returns no `updatedInput` against a line that demands a wrapped command, and the `ls` half names `bwrap-wrap.py`. Withdrawn. All earlier findings were discharged in prior rounds.
+
+1  ADMITTED  carried
+2  ADMITTED  carried
+3  ADMITTED  carried
+4  ADMITTED  `scripts/pair.sh red demo` -> no `updatedInput`, three near-miss command texts -> wrapped; a predicate searching for `scripts/pair.sh` rather than matching the whole string fails it at the appended-command input; bite: null stub fails at `scripts/pair.sh red demo; rm -rf state`
+
+null stub: no `bwrap-wrap.py` on disk, so every payload comes back with no `updatedInput`, no deny and no invocation to execute.
+  satisfies: none   fails: 1, 2, 3, 4
+hard-coded stub: one canned `bwrap ... -- bash -c <literal command text>` per (`agent_type`, command text) pair named in the block, filesystem never consulted, no `updatedInput` for the four `pair.sh` strings given.
+  satisfies: none   fails: 1, 2, 3, 4
+survives: 4
+
+note for the owner, resting on files I may not read: lines 2 and 3 need the harness to execute a real `bwrap` and to create and remove trees under `.claude/worktrees/`. Whether `bwrap` is present on the gate host is a fact in the implementation and the gate scripts I cannot open; it does not hold the gate.
