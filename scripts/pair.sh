@@ -6,6 +6,8 @@
 #   pair.sh red <slug>     run the suite there, and remove whole-file targets
 #   pair.sh merge <slug>   merge the spec branch, then check what landed
 #   pair.sh restore <slug> <rev>   put the approved block back as it was at <rev>
+#   pair.sh impl checkout <slug>   cut the implementation tree, or name the cut one
+#   pair.sh impl merge <slug>      merge the implementation tree back
 #
 # The stdout of each is contract, and docs/agents.md carries the table. A
 # blind writer reads these literals there, never here.
@@ -29,6 +31,7 @@ die() {
 
 spec_path() { echo "gauntlet/specs/approved/$1.txt"; }
 worktree_path() { echo ".claude/worktrees/$1-spec"; }
+impl_path() { echo ".claude/worktrees/$1-impl"; }
 
 #: everything below the divider is the reviewer's own output, verbatim
 reviewer_section() {
@@ -155,14 +158,47 @@ cmd_restore() {
 	echo "RESTORED $spec $rev"
 }
 
+#: the implementation tree, cut beside the spec tree and merged back from it.
+#: a second checkout of a slug already cut is the same tree, not a fresh one:
+#: re-cutting would discard the implementation in progress in it
+cmd_impl_checkout() {
+	local slug=$1 impl
+	impl=$(impl_path "$slug")
+	if [ ! -d "$impl" ]; then
+		git worktree add "$impl" -b "impl/$slug" >/dev/null
+	fi
+	echo "IMPL $impl"
+}
+
+cmd_impl_merge() {
+	local slug=$1 impl
+	impl=$(impl_path "$slug")
+	[ -d "$impl" ] || die "no implementation worktree at $impl"
+	git merge --no-edit -q "impl/$slug"
+	echo "MERGED $slug $(git rev-parse HEAD)"
+}
+
+cmd_impl() {
+	local verb=$1 slug=$2
+	[ -n "$slug" ] || die "usage: pair.sh impl checkout|merge <slug>"
+	case $verb in
+	checkout) cmd_impl_checkout "$slug" ;;
+	merge) cmd_impl_merge "$slug" ;;
+	*) die "usage: pair.sh impl checkout|merge <slug>" ;;
+	esac
+}
+
+USAGE="usage: pair.sh open|red|merge <slug> | restore <slug> <rev> | impl checkout|merge <slug>"
+
 main() {
-	[ $# -ge 2 ] || die "usage: pair.sh open|red|merge <slug> | restore <slug> <rev>"
+	[ $# -ge 2 ] || die "$USAGE"
 	case $1 in
 	open) cmd_open "$2" ;;
 	restore) cmd_restore "$2" "${3-}" ;;
 	red) cmd_red "$2" ;;
 	merge) cmd_merge "$2" ;;
-	*) die "usage: pair.sh open|red|merge <slug> | restore <slug> <rev>" ;;
+	impl) cmd_impl "$2" "${3-}" ;;
+	*) die "$USAGE" ;;
 	esac
 }
 

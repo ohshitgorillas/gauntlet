@@ -44,7 +44,7 @@ Blindness costs something, so it is paid for. The `gauntlet-examiner` measures t
 
 ## `scripts/pair.sh`
 
-The script that moves a block between the reviewer, the writer and the tree. Three subcommands, and their stdout is contract:
+The script that moves a block between the reviewer, the writer and the tree. Its subcommands, and their stdout is contract:
 
 | Invocation | stdout | when |
 | --- | --- | --- |
@@ -54,6 +54,8 @@ The script that moves a block between the reviewer, the writer and the tree. Thr
 | `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: state/merge/<slug>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor` |
 | `pair.sh merge <slug>` | the `scripts/excision-diff.py` verdict lines | `kind:` is `excision` or `repair` |
 | `pair.sh restore <slug> <rev>` | `RESTORED gauntlet/specs/approved/<slug>.txt <rev>` | the approved block on disk is the block as it stood at `<rev>` |
+| `pair.sh impl checkout <slug>` | `IMPL .claude/worktrees/<slug>-impl` | the implementation tree is cut on `impl/<slug>`, or already was and is left on the commit it is on |
+| `pair.sh impl merge <slug>` | `MERGED <slug> <commit>` | `impl/<slug>` is merged and `<commit>` is the primary checkout's HEAD, holding the implementation tree's tip as an ancestor |
 
 The evidence `merge` used to print beneath that header now goes to the file the `merge output:` line names: `state/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- tests/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `state/red/<slug>.txt` is absent.
 
