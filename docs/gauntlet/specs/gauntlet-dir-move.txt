@@ -1,0 +1,110 @@
+slug: gauntlet-dir-move
+kind: refactor
+brief:
+> Target layout. gauntlet/plans/approved, gauntlet/plans/drafts, gauntlet/specs/approved, gauntlet/specs/drafts, and gauntlet/reviews, gauntlet/verdicts flat — those two have no draft stage, and an empty approved/ under them would be invented symmetry.
+> Allowlist. gauntlet/specs/approved/ is the one entry a blind agent gets. docs/, tests/ and state/ go back to allowed the whole way down, carve-out removed.
+> Open decision for the plan to make. Whether to keep an explicit denial of gauntlet/ with gauntlet/specs/approved/ re-allowed. Dropping it lets GAUNTLET_BASE, GAUNTLET_SPECS and the two ordered special-case tests in readable() go, but loses the docstring guarantee that no blind-reads.json entry can re-open the plans, the drafts or the rounds. Both shapes satisfy the invariant.
+> Invariant to pin. No denied subtree nests inside an allowed one. An allowed leaf inside a denied tree is the harmless direction. Wants a --self-test case over DEFAULT_ALLOW and any blind-reads.json entries, not a lexical shell grammar.
+> just move the old files
+> no one cares about reading old plans
+
+surface: the five `PreToolUse` lane hooks and `no-impl-reads.py` in `.claude/hooks/`, invoked as Claude Code invokes them — one JSON object on stdin carrying `tool_name`, `tool_input`, `cwd` and, for a subagent call, `agent_type` — answering on stdout with either nothing (`SILENT`) or a JSON object whose `hookSpecificOutput.permissionDecision` is `deny` (`DENY`); a second variable for one line is the hook directory's own sibling `blind-reads.json`, which a payload cannot carry, so that line runs its payloads against a copy of the whole `.claude/hooks/` directory differing only in that file; plus `scripts/pair.sh open <slug>` and its stdout.
+
+The approved block `docs-gauntlet-base` is overturned entire by these lines: every one of its eight behavior lines pins a path under `docs/gauntlet/`, which is the nesting this change removes. The inputs of `juror-verdicts-lane` lines 1 and 6, of `git-read-subcommands` lines 3 and 4 and the `PLANS` copy of `blind-readonly` move with them and are re-specified here.
+
+1. `plans-lane.py`, given a `Write` payload whose `file_path` is `<root>/gauntlet/plans/approved/demo.txt` and whose `cwd` is `<root>`, answers the mapping {no `agent_type` key: DENY, `gauntlet-arbiter`: DENY, `gauntlet-scrivener`: DENY, `prosecutor`: DENY, `gauntlet-prosecutor`: SILENT}.
+   kills: the lane constant left at the old plans path, which answers SILENT for every caller at the new one, so an approved plan is typed by a hand that did not hold the plan gate.
+   bite: all five payloads answer SILENT at HEAD, each measured by piping its payload into `python3 .claude/hooks/plans-lane.py`.
+   existing: tests/test_hook_wire.py::PlansLaneCallers::test_only_the_plan_reviewer_may_write_an_approved_plan
+
+2. `specs-lane.py`, given a `Write` payload whose `file_path` is `<root>/gauntlet/specs/approved/demo.txt` and whose `cwd` is `<root>`, answers the mapping {no `agent_type` key: DENY, `gauntlet-prosecutor`: DENY, `gauntlet-arbiter`: SILENT}.
+   kills: the same lane constant left at the old specs path, which answers SILENT for the main agent at the new one, so a block no arbiter passed reaches the folder the blind writer works from.
+   bite: all three payloads answer SILENT at HEAD, each measured by piping its payload into `python3 .claude/hooks/specs-lane.py`.
+   existing: none, `grep -rn "gauntlet-arbiter" tests/` returns hits in tests/test_hook_wire.py at the reviews lane and the no-impl-reads cases only; no test drives specs-lane.py with an `agent_type` key.
+
+3. `no-impl-reads.py`, given `Read` payloads whose `cwd` is `<root>`, answers the mapping {`<root>/gauntlet/specs/approved/demo.txt`: SILENT, `<root>/gauntlet/specs/approved/sub/x.txt`: SILENT, `<root>/gauntlet/specs/approved-old/x.txt`: DENY, `<root>/gauntlet/plans/approved/demo.txt`: DENY, `<root>/gauntlet/reviews/demo.plan.4.txt`: DENY, `<root>/gauntlet/plans/drafts/demo.txt`: DENY, `<root>/gauntlet/specs/drafts/demo.txt`: DENY, `<root>/gauntlet/verdicts/demo.txt`: DENY}.
+   kills: the re-allowance rebased to the stage directory `gauntlet/specs` rather than to `gauntlet/specs/approved`, which answers SILENT for the unreviewed spec draft beside it and hands the blind writer a block no arbiter passed; and a re-allowance testing the string rather than the path boundary, which answers SILENT for the sibling `gauntlet/specs/approved-old/` and DENY for the approved block's own subdirectory.
+   bite: all eight answer DENY at HEAD, each measured by piping its payload into `python3 .claude/hooks/no-impl-reads.py`.
+   existing: tests/test_hook_wire.py::NoImplReadsShellShapes::test_allowlisted_directories_are_anchored_at_the_repo_root
+
+4. `no-impl-reads.py`, given `Grep` payloads whose `cwd` is `<root>` and whose `path` names a directory with no trailing separator, answers the mapping {`<root>/gauntlet`: DENY, `<root>/gauntlet/plans`: DENY, `<root>/gauntlet/specs`: DENY, `<root>/gauntlet/specs/drafts`: DENY, `<root>/gauntlet/specs/approved-old`: DENY, `<root>/gauntlet/specs/approved`: SILENT, `<root>/gauntlet/specs/approved/sub`: SILENT, `<root>/docs`: SILENT}.
+   kills: a re-allowance tested on the parent of the approved directory, which answers SILENT for a sweep rooted at `gauntlet/specs` and returns the drafts beside it; a denial matching `rel.startswith("gauntlet" + os.sep)` and not `rel == "gauntlet"`, which answers SILENT for a search rooted at the bare base and returns every approved plan's citation lines; and a re-allowance matching on the string, which takes the sibling `approved-old` and refuses the approved directory's own subdirectory.
+   bite: the seven `gauntlet` payloads answer DENY at HEAD and `<root>/docs` answers SILENT, each measured by piping its payload into `python3 .claude/hooks/no-impl-reads.py`.
+   existing: tests/test_hook_wire.py::NoImplReadsShellShapes::test_a_search_rooted_at_the_bare_gauntlet_directory_is_denied
+
+5. `no-impl-reads.py`, given one `Read` payload per path a `git ls-files` of the directory returns, each with `cwd` `<root>`, answers DENY at the set of paths that is empty over `git ls-files docs/ tests/ state/` and is every path `git ls-files gauntlet/` returns except those under `gauntlet/specs/approved/` over `git ls-files gauntlet/`.
+   kills: a base constant left at `docs/gauntlet` alongside the move, so the artifacts sit at the new paths while `docs/` still carries a denied subtree — the nesting the move exists to remove, surviving the move — and a base moved with no re-allowance under it, which denies the approved block the blind agent is spawned against.
+   bite: over `git ls-files docs/ tests/ state/` the denied set at HEAD is 15 of the 33 paths, the first three `docs/gauntlet/plans/bash-sandbox.txt`, `docs/gauntlet/plans/blind-readonly.txt` and `docs/gauntlet/plans/blind-sweep-containment.txt`; over `git ls-files gauntlet/` it is empty of an empty listing, since that directory does not exist at HEAD. Each payload measured by piping it into `python3 .claude/hooks/no-impl-reads.py`.
+   existing: none, `grep -rn "ls-files" tests/` returns no match; no test enumerates the tree.
+
+6. `no-impl-reads.py` in a copy of `.claude/hooks/` whose `blind-reads.json` is exactly `{"allow": ["gauntlet/"]}`, given `Read` payloads whose `cwd` is `<root>`, answers the mapping {`<root>/gauntlet/plans/approved/demo.txt`: DENY, `<root>/gauntlet/reviews/demo.1.txt`: DENY, `<root>/gauntlet/specs/approved/demo.txt`: SILENT}.
+   kills: blindness resting on the base merely being absent from `DEFAULT_ALLOW`, with the two ordered tests dropped, so one repo-supplied `allow` entry re-opens the plans, the drafts and the reviewer rounds — the guarantee the hook's own docstring states, which no payload-only line reaches.
+   bite: all three answer SILENT at HEAD under that copy, each measured by piping its payload into `python3 <copy>/no-impl-reads.py` with the copy made by `cp -r` of the hook directory and its `blind-reads.json` replaced.
+   existing: none, `grep -rn "blind-reads" tests/test_hook_wire.py` returns no match; tests/test_blind_reads_declaration.py builds copies but declares `runner_invocations`, never `allow`.
+
+7. `no-impl-reads.py`, given `Bash` payloads whose `cwd` is `<root>`, answers the mapping {`git show HEAD:gauntlet/specs/approved/pair-sh.txt`: SILENT, `git show HEAD:gauntlet/plans/approved/demo.txt`: DENY, `grep -rn cite docs/`: SILENT, `find docs/ -name *.txt`: SILENT}.
+   kills: a base denial the revision-prefix stripping never reaches, which answers SILENT for the plan read and hands a blind agent an approved plan's `file:line` citations out of history.
+   bite: the two `git show` payloads answer DENY at HEAD and the two sweeps answer SILENT, each measured by piping its payload into `python3 .claude/hooks/no-impl-reads.py`.
+   existing: tests/test_hook_wire.py::NoImplReadsShellShapes::test_git_subcommands_that_print_content_need_an_allowlisted_path
+
+8. `reviews-lane.py`, given a `Write` payload whose `file_path` is `<root>/gauntlet/plans/approved/demo.txt` and whose `cwd` is `<root>`, answers the mapping {`gauntlet-prosecutor`: SILENT, `gauntlet-arbiter`: DENY}.
+   kills: the reviewer carve-out left at the old plans path, which answers DENY for the `gauntlet-prosecutor` too, so the one agent that may write an approved plan is locked out of its own lane.
+   bite: both answer DENY at HEAD, each measured by piping its payload into `python3 .claude/hooks/reviews-lane.py`.
+   existing: tests/test_hook_wire.py::ReviewsLaneOnAnApprovedPlan::test_the_plan_reviewer_is_carved_out_where_the_spec_one_is_not
+
+9. Given `Write` payloads whose `cwd` is `/nogit`, where no `.git` sits at or above it, and which carry no `agent_type` key, the two lane hooks answer the mapping {`specs-lane.py` on `/nogit/gauntlet/specs/approved`: DENY, `specs-lane.py` on `/nogit/gauntlet/specs/approved/s.txt`: DENY, `specs-lane.py` on `/nogit/gauntlet/specs/drafts/s.txt`: SILENT, `plans-lane.py` on `/nogit/gauntlet/plans/approved/p.txt`: DENY, `plans-lane.py` on `/nogit/gauntlet/plans/drafts/p.txt`: SILENT}.
+   kills: a lane resolved through the repo root alone, which answers SILENT where there is none, so the write that creates the approved directory in a fresh checkout goes to any agent that asks; and a lane rebased to the stage directory rather than to the approved one inside it, which answers DENY for the main agent's own draft now that the draft sits under the stage rather than beside it.
+   bite: all five answer SILENT at HEAD, each measured by piping its payload into the hook named beside it.
+   existing: tests/test_hook_wire.py::SpecsLaneWithoutGitRoot::test_approved_spec_directory_is_in_lane_without_a_git_root
+
+10. Given `Bash` payloads whose `cwd` is `<root>` and which carry no `agent_type` key, the three lane hooks answer the mapping {`specs-lane.py` on `cat impl.py 1> gauntlet/specs/approved/s.txt`: DENY, `reviews-lane.py` on `cat impl.py 1> gauntlet/reviews/s.9.txt`: DENY, `verdicts-lane.py` on `cat impl.py 1> gauntlet/verdicts/demo.txt`: DENY}, and `verdicts-lane.py` answers SILENT on `cat gauntlet/verdicts/demo.txt`.
+    kills: a lane constant left at the old path, which answers SILENT for all three redirections, so an approved block, a reviewer round and a juror's verdict are each written by a shell redirect that names no lane the hook knows.
+    bite: all four answer SILENT at HEAD, each measured by piping its payload into the hook named beside it.
+    existing: tests/test_hook_wire.py::RedirectionsIntoTheOtherLanes::test_file_descriptor_redirection_into_a_lane_is_a_write
+
+11. On `Bash` payloads carrying no `agent_type` key and a `cwd` of `<root>`, `specs-lane.py`, `plans-lane.py`, `verdicts-lane.py` and `reviews-lane.py` each answer SILENT for `git grep -n foo -- <lane>/` and for `git ls-tree HEAD <lane>/`, and DENY for `git diff --output=<lane>/x.txt`, where `<lane>` is `gauntlet/specs/approved` on `specs-lane.py`, `gauntlet/plans/approved` on `plans-lane.py`, `gauntlet/verdicts` on `verdicts-lane.py` and `gauntlet/reviews` on `reviews-lane.py`.
+    kills: lane constants moved in the `Write` road alone, so `git diff --output=gauntlet/specs/approved/x.txt` types an approved spec file that no arbiter passed.
+    bite: on each of the four hooks all three payloads answer SILENT at HEAD, each measured by piping its payload into the hook named beside it.
+    existing: tests/test_hook_wire.py::GitSubcommandsInTheOtherLanes::test_git_reads_pass_and_git_output_writes_are_denied_in_each_lane
+
+12. `scripts/pair.sh open demo` prints the mapping {reviewer section byte-identical to the newest round file: `OPEN .claude/worktrees/demo-spec`; the two texts differ: `MISMATCH gauntlet/reviews/demo.1.txt`} as its first line, against a fixture repository whose approved block is at `gauntlet/specs/approved/demo.txt` and whose round file is at `gauntlet/reviews/demo.1.txt`.
+    kills: `spec_path` and the round glob left at the old paths, so `open` reports a mismatch against a round file the chain no longer writes and finds no approved block where the reviewer put one.
+    bite: prints `MISMATCH docs/gauntlet/reviews/demo.1.txt` at HEAD, measured with `.venv/bin/python -m pytest tests/test_pair_sh.py::test_open_reports_mismatch_only_where_the_round_file_text_differs -q`, which returns `2 passed in 0.03s` against that literal at tests/test_pair_sh.py:150.
+    existing: tests/test_pair_sh.py::test_open_reports_mismatch_only_where_the_round_file_text_differs
+
+13. Over the grid of the family `<hook> + scripts/blind.sh test <name>`, one payload per generated name against each of `tests-lane.py`, `plans-lane.py`, `specs-lane.py` and `verdicts-lane.py`, crossed with the copies `BARE`, `TESTS` and `PLANS`, where `TESTS` is a copy of `.claude/hooks/` whose `blind-reads.json` is exactly `{"runner_invocations": [{"entry": "scripts/blind.sh", "args": ["test"], "prefix": "tests"}]}` and `PLANS` is that same text with the value of `prefix` replaced by `gauntlet/plans/approved`: the changed set between `BARE` and `TESTS` is exactly the `tests-lane.py` payloads whose name sits under `tests`, each answering DENY under `BARE` and SILENT under `TESTS`, and the changed set between `BARE` and `PLANS` is empty.
+    kills: `LANE_DIRS` left at the old lane paths, so a declaration whose `prefix` names the new plans lane is under no lane the drop knows, is honoured, and turns off the lane that holds the plan gate's one-writer rule for every command spelled with that entry; the two halves fail to different implementations, since one whose drop takes every prefix empties the first changed set too.
+    bite: at HEAD the `BARE`/`TESTS` changed set is exactly the `tests-lane.py` under-`tests` payloads, and the `BARE`/`PLANS` changed set is empty — empty at HEAD because that prefix names no lane HEAD knows and the payloads under it are SILENT under `BARE` already, where this line asks for it to stay empty once that prefix is a lane. Measured by feeding each payload to `python3 <copy>/<hook>` on stdin as a `tool_name` of `Bash`, a `tool_input` whose `command` is the payload's command, and a `cwd` of the checkout root the copies were made from.
+    existing: tests/test_blind_reads_declaration.py::BlindRunnerDeclarationAcrossTheLanes::test_the_declaration_opens_its_own_lane_only_at_its_own_prefix
+
+14. `reviews-lane.py`, on `Bash` payloads carrying `agent_type` `gauntlet-arbiter` and a `cwd` of `<root>`, answers SILENT for `git grep foo`, for `git ls-tree HEAD` and for `git log --oneline`, and DENY for `git grep foo -- gauntlet/reviews/`, for `git reflog expire --all` and for `git diff --output=out.txt`.
+    kills: the reviewer's lane constant left at the old reviews path, so the arbiter's `git grep foo -- gauntlet/reviews/` reads the rounds it may not read and is allowed.
+    bite: SILENT at `git grep foo`; SILENT at `git ls-tree HEAD`; SILENT at `git log --oneline`; SILENT at `git grep foo -- gauntlet/reviews/`; DENY at `git reflog expire --all`; DENY at `git diff --output=out.txt`. Each measured by piping its payload into `python3 .claude/hooks/reviews-lane.py`.
+    existing: tests/test_hook_wire.py::ReviewsLaneArbiterGit::test_the_arbiters_git_commands_are_judged_by_form_not_name
+
+--- reviewer ---
+READY
+discriminates: differential on no-impl-reads.py's denied set over two listings of the same surface (line 5), sweep with two distinct values on the lane hooks' path-to-decision answer (lines 3, 4, 9), differential on the BARE/TESTS and BARE/PLANS changed sets (line 13), differential on pair.sh stdout (line 12)
+
+1  AMENDED tests/test_hook_wire.py:486-495: the plan path literal in PlansLaneCallers becomes gauntlet/plans/approved/demo.txt; the five-caller sweep, gauntlet-scrivener included, is otherwise unchanged.
+2  ADMITTED  Write of <root>/gauntlet/specs/approved/demo.txt at cwd <root> -> {no agent_type: DENY, gauntlet-prosecutor: DENY, gauntlet-arbiter: SILENT}; a lane constant left at the old specs path answers SILENT for the no-agent_type payload and fails it; bite: all three answer SILENT at HEAD. existing: none confirmed — grep of tests/ for gauntlet-arbiter returns only tests/test_hook_wire.py:489, :515 and :548, none of them a specs-lane payload.
+3  AMENDED tests/test_hook_wire.py:368-390: the four docs/gauntlet Read literals become the eight gauntlet/... literals, the approved/sub and approved-old near-miss pair among them; the src/docs and src/tests cases stay.
+4  AMENDED tests/test_hook_wire.py:349-365: the three Grep directory literals become the eight this line names, SILENT moving from the stage directory to gauntlet/specs/approved and its subdirectory, approved-old denied beside it.
+5  ADMITTED  one Read payload per path of two listings at cwd <root> -> denied set empty over `git ls-files docs/ tests/ state/`, and every path of `git ls-files gauntlet/` except those under gauntlet/specs/approved/; a base constant left at docs/gauntlet fails it at docs/gauntlet/plans/bash-sandbox.txt, which stays denied under an allowed docs/; bite: 15 of 33 paths denied at HEAD over the first listing. existing: none confirmed — grep of tests/ for ls-files returns no match.
+6  ADMITTED  carried. Read payloads under a hooks copy whose blind-reads.json is {"allow": ["gauntlet/"]} -> {plans/approved/demo.txt: DENY, reviews/demo.1.txt: DENY, specs/approved/demo.txt: SILENT}; an implementation that honours a repo-supplied allow entry answers SILENT at the plan path and fails it; bite: all three answer SILENT at HEAD under that copy. My round-1 note is withdrawn on the citation supplied: docs/gauntlet/plans/gauntlet-dir-move.txt:60 "The explicit denial is kept", so the line pins the side the approved plan ruled.
+7  AMENDED tests/test_hook_wire.py:300-330: carried.
+8  AMENDED tests/test_hook_wire.py:508-522: carried.
+9  AMENDED tests/test_hook_wire.py:406-410: the mapping in SpecsLaneWithoutGitRoot becomes hook-keyed and carries five entries, the two plans-lane payloads among them; the drafts payloads land here rather than as second outcomes on lines 1 and 2.
+10 AMENDED tests/test_hook_wire.py:432-435: carried.
+11 AMENDED tests/test_hook_wire.py:456-459: the four lane literals in GitSubcommandsInTheOtherLanes become the new lane paths; the sweep shape is unchanged.
+12 AMENDED tests/test_pair_sh.py:150: carried.
+13 AMENDED tests/test_blind_reads_declaration.py:66: the PLANS_LANE_PREFIX constant becomes gauntlet/plans/approved; both halves of the test, the TESTS/OPENED half included, stay as they stand.
+14 AMENDED tests/test_hook_wire.py:538-545: the `git grep foo -- docs/gauntlet/reviews/` key in ReviewsLaneArbiterGit becomes gauntlet/reviews/; the other five cases are unchanged.
+
+null stub: every lane hook and no-impl-reads.py exit silently on every payload, and pair.sh open prints nothing.
+  satisfies: none   fails: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+hard-coded stub: a table keyed on the exact payload strings this block names, returning the decision named beside each and SILENT for anything else, reading neither cwd, nor blind-reads.json, nor file content.
+  satisfies: 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 14   fails: 5 (its denied set is generated from a listing the table's author cannot enumerate), 12 (its two cases share every input and differ only in the text of two files), 13 (a table ignoring the declaration empties the BARE/TESTS changed set the line requires to be nonempty)
+  R5 was my round-1 block-level repair against this table and it was made: lines 3 and 4 now carry approved/sub beside approved-old, so the boundary is prefix work, not a string. The eleven satisfied lines are amendments to tests whose discrimination was pinned before this block; no new test rests on the table.
+
+survives: 3
