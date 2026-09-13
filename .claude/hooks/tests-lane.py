@@ -197,6 +197,15 @@ def self_test() -> int:
                 denied(bash("node -e \"require('fs').rmSync('tests/t.py')\"")),
             )
         ),
+        "6 read-only git naming tests/ passes, its write forms do not": all(
+            (
+                allowed(bash("git grep -n foo -- tests/")),
+                allowed(bash("git grep -n 'tests/' -- .claude/hooks")),
+                allowed(bash("git ls-tree HEAD tests/")),
+                denied(bash("git grep -Ovim foo -- tests/")),
+                denied(bash("git diff --output=tests/x")),
+            )
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")

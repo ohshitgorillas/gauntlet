@@ -22,6 +22,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - The `gauntlet-arbiter` and `gauntlet-prosecutor` no longer exempt a host conduct block from the framing count. A brief that authorizes no command carries no conduct block, so neither reviewer spends definition on weighing one at zero.
 
 ### Fixed
+- The lane hooks no longer count a read-only git command as a write. `git grep`, `git ls-tree`, `git cat-file`, `git rev-list`, `git shortlog`, `git reflog`, `git merge-base` and `git describe` naming a lane pass, the way `git log` does. A git stage carrying `--output`, `git grep -O` and the writing `reflog` forms (`write`, `delete`, `drop`, `expire`) count as writes, so `git diff --output=tests/x` is denied.
 - `scripts/pair.sh red` runs the suite verbose, so the saved output names every test that passed as well as every test that failed.
 
 ## [0.1.0] - 2026-09-10
