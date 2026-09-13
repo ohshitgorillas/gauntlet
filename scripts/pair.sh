@@ -5,6 +5,7 @@
 #   pair.sh open <slug>    cut the spec worktree, on the reviewed block only
 #   pair.sh red <slug>     run the suite there, and remove whole-file targets
 #   pair.sh merge <slug>   merge the spec branch, then check what landed
+#   pair.sh restore <slug> <rev>   put the approved block back as it was at <rev>
 #
 # The stdout of each is contract, and docs/agents.md carries the table. A
 # blind writer reads these literals there, never here.
@@ -143,13 +144,25 @@ cmd_merge() {
 	esac
 }
 
+#: the hand-carved `git restore --source` step of docs/approved-specs.md, given
+#: a name: the classifier carves out that one shell shape, and a subcommand
+#: keeps the carve-out in one place rather than in every transcript
+cmd_restore() {
+	local slug=$1 rev=$2 spec
+	[ -n "$rev" ] || die "usage: pair.sh restore <slug> <rev>"
+	spec=$(spec_path "$slug")
+	git restore --source "$rev" -- "$spec"
+	echo "RESTORED $spec $rev"
+}
+
 main() {
-	[ $# -ge 2 ] || die "usage: pair.sh open|red|merge <slug>"
+	[ $# -ge 2 ] || die "usage: pair.sh open|red|merge <slug> | restore <slug> <rev>"
 	case $1 in
 	open) cmd_open "$2" ;;
+	restore) cmd_restore "$2" "${3-}" ;;
 	red) cmd_red "$2" ;;
 	merge) cmd_merge "$2" ;;
-	*) die "usage: pair.sh open|red|merge <slug>" ;;
+	*) die "usage: pair.sh open|red|merge <slug> | restore <slug> <rev>" ;;
 	esac
 }
 
