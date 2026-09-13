@@ -97,7 +97,9 @@ cmd_red() {
 
 	mkdir -p state/red
 	out=state/red/$slug.txt
-	(cd "$wt" && "$PYTEST" -q) >"$out" 2>&1 || true
+	#: verbose, so a passing test is named rather than summarized as a dot:
+	#: the juror rules on the names this file carries and on nothing else
+	(cd "$wt" && "$PYTEST" -v) >"$out" 2>&1 || true
 	echo "$out"
 }
 

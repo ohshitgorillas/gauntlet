@@ -51,13 +51,13 @@ Both gates are this repository's own, which is why they sit in `scripts/gates/` 
 
 ## `tests/` is not yours
 
-`.claude/settings.json:5-17` wires `specs-lane.py`, `plans-lane.py` and `tests-lane.py` session-wide, so they bind a session working **on** this repo exactly as they bind one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `gauntlet-testsmith`, like any other.
+`.claude/settings.json:5-17` wires `specs-lane.py`, `plans-lane.py` and `tests-lane.py` session-wide, so they bind a session working **on** this repo exactly as they bind one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `gauntlet-scrivener`, like any other.
 
 ## Commits
 
 Prefixes in use: `spec:`, `test:`, `feat:`, `fix:`, `docs:`, `merge:`.
 
-`spec: approved block for <x>` is load-bearing rather than cosmetic. The `gauntlet-testsmith` refuses a delta that names no newer `spec:` commit, so that commit is the evidence a changed test is allowed to change. Do not fold an approved block into a `feat:` or a `docs:` commit.
+`spec: approved block for <x>` is load-bearing rather than cosmetic. The `gauntlet-scrivener` refuses a delta that names no newer `spec:` commit, so that commit is the evidence a changed test is allowed to change. Do not fold an approved block into a `feat:` or a `docs:` commit.
 
 ## Where a rule lives, and how it reads
 

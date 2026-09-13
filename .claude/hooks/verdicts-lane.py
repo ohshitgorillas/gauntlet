@@ -223,7 +223,7 @@ def self_test() -> int:
                 denied(write("docs/gauntlet/verdicts/demo.txt")),
                 denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-arbiter")),
                 denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-prosecutor")),
-                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-testsmith")),
+                denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "gauntlet-scrivener")),
                 #: an unprefixed same-named agent in the host project is not this one
                 denied(write(f"{root}/docs/gauntlet/verdicts/demo.txt", "juror")),
                 allowed(write(f"{root}/docs/gauntlet/verdicts/demo.txt", REVIEWER)),

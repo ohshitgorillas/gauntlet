@@ -1,0 +1,25 @@
+slug: cite-py-worktree-root
+kind: new
+brief:
+> scripts/cite.py:178-179 matches "worktrees" against the absolute path, so candidates() skips the whole checkout when ROOT is inside .claude/worktrees
+> Two spec-gated product defects turned up on the way
+> those are NOT MY DECISIONS, THEY ARE YOUR TASKS
+
+1. A tmp tree the test builds: a root carrying `scripts/cite.py`, one file at `data/<solo>`, and two copies of a file at `data/x/<dup>` and `data/y/<dup>`; and beneath it a second tree at `.claude/worktrees/<name>/` carrying the same `scripts/cite.py` and the same three files at the same relative paths. `<solo>` and `<dup>` are distinct basenames the test invents at run time, carried by no other path in either tree. One document cites `` `<solo>:1` `` and `` `<dup>:1` ``, and is handed to `--check` by the copy of the script at each root in turn. Both roots produce the same row set: no row for `` `<solo>:1` ``, and exactly one row naming `AMBIGUOUS` for `` `<dup>:1` ``, naming exactly that root's own `data/x/<dup>` and `data/y/<dup>` and no path beneath any other root.
+   kills: the pair of implementations either half of the sweep lets through — a skip that reads `worktrees` out of the resolved absolute path, under which every citation from the nested root comes back `MISSING`; and the deletion of that skip, under which the solo basename from the ordinary root is reported `AMBIGUOUS` against the nested tree's second copy of it.
+   bite: measured at HEAD with `<solo>` = `zq7solo.txt` and `<dup>` = `zq7dup.txt`, `python3 <root>/scripts/cite.py --check doc.md` over `` Solo at `zq7solo.txt:1` and dup at `zq7dup.txt:1`. ``: the ordinary root -> exit 1, one row ``AMBIGUOUS       `zq7dup.txt:1`  zq7dup.txt  data/x/zq7dup.txt, data/y/zq7dup.txt``; the root at `.claude/worktrees/w1` -> exit 1, two rows, ``MISSING         `zq7solo.txt:1`  zq7solo.txt`` and ``MISSING         `zq7dup.txt:1`  zq7dup.txt``. The two roots produce different row sets, which is the defect.
+   existing: `tests/test_cite.py::test_a_basename_two_paths_carry_is_reported_ambiguous`, at `tests/test_cite.py:114-125`, whose two parametrize cases already carry the solo and dup expectations from one root. This line is a delta to it: one more parametrize dimension, the root.
+
+--- reviewer ---
+
+READY
+discriminates: differential on the `--check` row set across two roots, carrying a two-value sweep (no row / one AMBIGUOUS row) on basenames the test invents at run time
+
+1  DELTA tests/test_cite.py:114-125: the parametrize gains a root dimension and the tree it runs against - the same document is run by a copy of the script at an ordinary tmp root and at a root beneath it under .claude/worktrees/, and the assertion widens from the status-token tuple to the whole row set, including the two paths the AMBIGUOUS row names.
+
+null stub: --check parses the document, prints no rows and exits 0 for every citation, from every root.
+  satisfies: none   fails: 1
+hard-coded stub: --check never searches: for every citation it echoes the cited basename back as an AMBIGUOUS row naming data/x/<basename> and data/y/<basename>, ignoring the root. The basenames are invented at run time, so no fixed map reaches them, and the templated form puts a row on `<solo>:1` that the line forbids.
+  satisfies: none   fails: 1
+
+survives: 0

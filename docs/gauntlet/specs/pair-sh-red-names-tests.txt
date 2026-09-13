@@ -1,0 +1,25 @@
+slug: pair-sh-red-names-tests
+kind: new
+brief:
+> three testsmith tests for the anchor-form block sit uncommitted and passing in .claude/worktrees/cite-py-spec, which is correct for kind: characterization, but the juror wrote INVALID on all three because scripts/pair.sh:99 runs pytest -q and so names no passing test
+> pair.sh:99 needs verbose output
+> those are NOT MY DECISIONS, THEY ARE YOUR TASKS
+
+1. Two fixture repositories, each driven through `scripts/pair.sh open demo` then `scripts/pair.sh red demo`, differing only in the single test file they carry: repository A holds `test_alpha_passes` with the body `assert 2 + 2 == 4` and `test_alpha_fails` with the body `assert 2 + 2 == 5`; repository B holds `test_bravo_passes` with the body `assert 5 + 5 == 10` and `test_bravo_fails` with the body `assert 5 + 5 == 11`. The value read out of each repository's `state/red/demo.txt` is the set of the four test names it carries together with the failing assertion's text. A's file carries `test_alpha_passes`, carries `test_alpha_fails`, carries neither bravo name, and carries `assert 2 + 2 == 5`. B's file carries `test_bravo_passes`, carries `test_bravo_fails`, carries neither alpha name, and carries `assert 5 + 5 == 11`.
+   kills: the pair of implementations either half of the sweep lets through — a run that summarizes passes as dots, under which neither file names the test that passed and the `gauntlet-juror`, which reads that file and the committed block and nothing else, has nothing to rule `GREEN` on; and a `red` that copies a canned blob and runs no suite, which carries one repository's names into the other's file and drops the assertion text that the failing half of every red run is read from.
+   bite: measured at HEAD, `scripts/pair.sh open demo` then `scripts/pair.sh red demo` over each repository, built from the `tests/test_pair_sh.py` fixture with its two test files replaced by one carrying the two functions above. Repository A's `state/red/demo.txt` begins `.F                                                                       [100%]` and carries `test_alpha_fails` and `assert 2 + 2 == 5`, and does not carry `test_alpha_passes`, `test_bravo_passes` or `test_bravo_fails`. Repository B's file is the same shape with `test_bravo_fails` and `assert 5 + 5 == 11` in place of the alpha pair, and does not carry `test_bravo_passes`. Of the four names, each repository's file carries exactly one — the failing one — so both halves of the expected value fail at HEAD.
+   existing: none, `grep -rn 'state/red\|cmd_red\|"red"' tests/` returns one hit, `tests/test_pair_sh.py:175`, a `_pair(repo, "red", SLUG)` call inside `test_red_removes_whole_file_targets_and_keeps_single_test_target_files`, which asserts the excised tree's file listing and never opens the red file. No fold available.
+
+--- reviewer ---
+READY
+discriminates: sweep on `state/red/<slug>.txt` — two suites, two distinct expected name sets
+
+1  KEEP  two fixture repos differing only in their one test file, each driven `pair.sh open demo` then `pair.sh red demo` -> A's red file carries {test_alpha_passes, test_alpha_fails} and `assert 2 + 2 == 5`, B's carries {test_bravo_passes, test_bravo_fails} and `assert 5 + 5 == 11`, neither carrying the other's names; a run that summarizes passes as dots fails it at both repos (the passing name is absent), and a canned-blob `red` fails it at whichever repo it was not canned from; bite: at HEAD each file carries only the failing name of the four, so A lacks `test_alpha_passes` and B lacks `test_bravo_passes`
+
+null stub: `pair.sh red` writes nothing, leaving `state/red/demo.txt` absent or empty.
+  satisfies: none   fails: 1
+hard-coded stub: `red` copies one canned blob naming repository A's two test names and its assertion text, running no suite.
+  satisfies: none   fails: 1 (B's file would carry the alpha names and neither bravo name)
+survives: 1
+
+note: only the name-set half of the compared value bites — the assertion text is already present at HEAD in both repositories, as the `bite:` records. That half is a guard against the failure detail being dropped on the way to verbose output, which is the reason the fold was named; it is not a second red.
