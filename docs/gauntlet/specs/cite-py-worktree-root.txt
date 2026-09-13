@@ -11,7 +11,6 @@ brief:
    existing: `tests/test_cite.py::test_a_basename_two_paths_carry_is_reported_ambiguous`, at `tests/test_cite.py:114-125`, whose two parametrize cases already carry the solo and dup expectations from one root. This line is a delta to it: one more parametrize dimension, the root.
 
 --- reviewer ---
-
 READY
 discriminates: differential on the `--check` row set across two roots, carrying a two-value sweep (no row / one AMBIGUOUS row) on basenames the test invents at run time
 
