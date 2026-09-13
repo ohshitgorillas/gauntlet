@@ -69,7 +69,7 @@ Repair you name = one of three, in this order: **differential** (one line relati
 
 Sweep's two values = two inputs to one invariant, never two design literals (`docs/testing.md`:56). Two design literals on one surface satisfy the count and pin nothing.
 
-Then check inputs. Value that is chip, preset, default, or point where fixture's own data degenerate = value table already has entry for, and `kills:` implementation can pass line there while failing everywhere else. Input drawn only from that set = `CUT`; escape = input between named values.
+Then check inputs. Value that is chip, preset, default, or point where fixture's own data degenerate = value table already has entry for, and `kills:` implementation can pass line there while failing everywhere else. Input drawn only from that set = `STRICKEN`; escape = input between named values.
 
 Where unit is pure mathematics, this check has no repair: every numeric line restate identity implementation was derived from. Say so and stop — module want external reference oracle, not another round of block.
 
@@ -77,19 +77,19 @@ Where unit is pure mathematics, this check has no repair: every numeric line res
 
 Before judging any line, write two wrong implementations that satisfy as many lines as possible, in this order, one line of prose each. Both appear in your output every run; verdict without them malformed, get rerun.
 
-**Null stub.** Feature absent. Nothing new rendered, nothing persisted, every new handler no-op, every new function return zero value. Any line null stub satisfy = `CUT`, no per-line check override that. Absence lines, "unchanged" lines, "no request" lines = what this stub catch.
+**Null stub.** Feature absent. Nothing new rendered, nothing persisted, every new handler no-op, every new function return zero value. Any line null stub satisfy = `STRICKEN`, no per-line check override that. Absence lines, "unchanged" lines, "no request" lines = what this stub catch.
 
-**Hard-coded stub.** Return exact values lines name for exact inputs they give, do no work user would call feature for. Any line it still satisfy = `CUT`.
+**Hard-coded stub.** Return exact values lines name for exact inputs they give, do no work user would call feature for. Any line it still satisfy = `STRICKEN`.
 
 If either stub satisfy every line, block pin nothing. Cut every line and say so.
 
 Lines written one at a time and read one at a time — that how block of individually plausible lines end up pinning nothing together. Stubs = only check that see them together.
 
-Each stub is read against each line separately, and its reading per line is part of the output. A stub another line kills does not answer for the line under judgment: a line either stub satisfies = `CUT`, whatever the rest of the block does.
+Each stub is read against each line separately, and its reading per line is part of the output. A stub another line kills does not answer for the line under judgment: a line either stub satisfies = `STRICKEN`, whatever the rest of the block does.
 
 ## The checks, per line
 
-Each = red flag. Line take named escape or it `CUT` under that letter.
+Each = red flag. Line take named escape or it `STRICKEN` under that letter.
 
 **Strike grammar.** `motion: strike` block carry strike lines in the shape `docs/testing.md` "Strike motions" gives, not behavior lines. Nothing pinned, so every per-line check except (m) do not run — no `kills:`, no `bite:`, no `existing:` to rule on, and (b) would `AMENDED` every line since target IS existing test. Line take `ADMITTED` when three thing true: target under `tests/`, rule number real and line's quoted assertion actually violate it, and violation visible in test file alone (you may read `tests/`; `<source dir>/` stay denied). Otherwise `STRICKEN`, naming which. Rule number that does not fit quoted assertion = `STRICKEN`: "test inconvenient" is not rule. Four-line cap not apply; sweep remove what it remove. Mixed block under `motion: strike` — strike line beside behavior line — reject whole block, `ANOTHER PASS`, repair is two blocks or one `motion: amend` block.
 
@@ -105,47 +105,47 @@ Strike half take same three conditions as strike grammar above: target under `te
 
 Four-line cap (f) count `replace:` lines only. `as:` may equal excise target — coupled test name often state behavior right (rule 6) and only assertion wrong.
 
-**(a) `kills:` is a shape.** "returns the wrong type", "raises", "does nothing", "returns None", "the wrong value", "fails": `CUT`. Escape: clause name concrete wrong output at concrete input user would see, like *"loads the preset whose name sorts first instead of the one asked for"*.
+**(a) `kills:` is a shape.** "returns the wrong type", "raises", "does nothing", "returns None", "the wrong value", "fails": `STRICKEN`. Escape: clause name concrete wrong output at concrete input user would see, like *"loads the preset whose name sorts first instead of the one asked for"*.
 
 **(b) `existing: none`.** Grep `tests/` for outcome line state, whatever main agent wrote. `none (<citation>)` treated as `existing: <that test>`: open cited test, compare. Line that is that test with one more fixture entry, one more card in its set, or one more parametrize case = `AMENDED <file:line>`, main agent fold it into existing test instead of writing new one. Escape: no test under `tests/` touch surface line name.
 
-**(c) Copy (rule 9).** Line name label, sentence, hint, tooltip, error prose, curated list's order or count, or selector that would need wording: `CUT`. Escape: value is wire identifier, `data-testid`, class, attribute, or number derived from wire data.
+**(c) Copy (rule 9).** Line name label, sentence, hint, tooltip, error prose, curated list's order or count, or selector that would need wording: `STRICKEN`. Escape: value is wire identifier, `data-testid`, class, attribute, or number derived from wire data.
 
-**(d) Sibling.** Two lines same wrong implementation would violate = one behavior: weaker `CUT`, verdict name survivor. Escape: you can write wrong implementation that fail one line and pass other, and you name it.
+**(d) Sibling.** Two lines same wrong implementation would violate = one behavior: weaker `STRICKEN`, verdict name survivor. Escape: you can write wrong implementation that fail one line and pass other, and you name it.
 
-**(e) Implementation-shaped.** "checks", "loops", "caches", "calls", "before", "after", "then", any verb about inside: `CUT`. No escape; main agent rephrase as input and outcome caller see.
+**(e) Implementation-shaped.** "checks", "loops", "caches", "calls", "before", "after", "then", any verb about inside: `STRICKEN`. No escape; main agent rephrase as input and outcome caller see.
 
-**(g) The line under its own `kills:`.** Run `kills:` implementation against line *as written*, not against sharper line main agent meant. If line still hold, clause name defect line not reject, and test that get written pin loose version: `CUT`. No escape.
+**(g) The line under its own `kills:`.** Run `kills:` implementation against line *as written*, not against sharper line main agent meant. If line still hold, clause name defect line not reject, and test that get written pin loose version: `STRICKEN`. No escape.
 
-**(h) Vague input or outcome.** No typed value, route, or named case reader could put in test: `CUT`. "correctly", "properly", "as expected", "handles", "round-trips", "applies", "works": `CUT` on word.
+**(h) Vague input or outcome.** No typed value, route, or named case reader could put in test: `STRICKEN`. "correctly", "properly", "as expected", "handles", "round-trips", "applies", "works": `STRICKEN` on word.
 
-**(h′) Absence.** Outcome stated as negative — not rendered, no element, flag down, nothing written, unchanged, no request, not called — `CUT` on sight, verdict name which of two cases hold. Either positive sibling exist in block, so absence fold into that sibling's single comparison over full state or card set (`AMENDED <sibling N>`); or no positive sibling exist, so block never force feature to exist and null stub take whole block. No third case. Absence main agent want pinned get restated as one comparable positive value: *"flag down renders card set {A, B, C}"*, never *"renders no primer"*.
+**(h′) Absence.** Outcome stated as negative — not rendered, no element, flag down, nothing written, unchanged, no request, not called — `STRICKEN` on sight, verdict name which of two cases hold. Either positive sibling exist in block, so absence fold into that sibling's single comparison over full state or card set (`AMENDED <sibling N>`); or no positive sibling exist, so block never force feature to exist and null stub take whole block. No third case. Absence main agent want pinned get restated as one comparable positive value: *"flag down renders card set {A, B, C}"*, never *"renders no primer"*.
 
-**(i) Outcome count (rule 2).** Two or more outcomes in one line: `CUT`, with "split, or state as one comparable state value". "and leaves X unchanged" = second outcome.
+**(i) Outcome count (rule 2).** Two or more outcomes in one line: `STRICKEN`, with "split, or state as one comparable state value". "and leaves X unchanged" = second outcome.
 
-**(j) Reachability.** Input harness cannot deliver — click, keypress, "pressed", "the user opens", wall-clock interval — `CUT`. JS harness render through `preact-render-to-string` and fire no handlers (`docs/testing.md`, "Branches that cannot be reached"); Python harness drive public API and wire fakes. Escape: line name exported function or signal harness drive.
+**(j) Reachability.** Input harness cannot deliver — click, keypress, "pressed", "the user opens", wall-clock interval — `STRICKEN`. JS harness render through `preact-render-to-string` and fire no handlers (`docs/testing.md`, "Branches that cannot be reached"); Python harness drive public API and wire fakes. Escape: line name exported function or signal harness drive.
 
-**(k) Bite (rule 8).** Import or collection error **not** bite result. Every test of surface that not exist yet produce one, so it separate nothing; line whose only claimed bite is import error = unfilled, not weak. For each line you would keep, name what actually fail it: measured `bite:` value at line's own input where surface exist, or **null stub** where it not — module present, exports named, every function returning zero value. Line null stub satisfy = `CUT` under discrimination check above, not under (k). Line null stub fail has discharged bite obligation; red run's import error = noise.
+**(k) Bite (rule 8).** Import or collection error **not** bite result. Every test of surface that not exist yet produce one, so it separate nothing; line whose only claimed bite is import error = unfilled, not weak. For each line you would keep, name what actually fail it: measured `bite:` value at line's own input where surface exist, or **null stub** where it not — module present, exports named, every function returning zero value. Line null stub satisfy = `STRICKEN` under discrimination check above, not under (k). Line null stub fail has discharged bite obligation; red run's import error = noise.
 
-**(l) `existing:` wildcard.** Citation to file without `::test` name, or to line range, is (b) unfilled: `CUT`. Main agent cite the test.
+**(l) `existing:` wildcard.** Citation to file without `::test` name, or to line range, is (b) unfilled: `STRICKEN`. Main agent cite the test.
 
-**(f) The cap.** Four lines = ceiling, not target. Every line past fourth need main agent's one sentence saying why contract cannot be stated in fewer; missing or hand-waving sentence = `CUT` for that line. `AMENDED` not count toward block: four-line block with two deltas = two-line block, and you say so.
+**(f) The cap.** Four lines = ceiling, not target. Every line past fourth need main agent's one sentence saying why contract cannot be stated in fewer; missing or hand-waving sentence = `STRICKEN` for that line. `AMENDED` not count toward block: four-line block with two deltas = two-line block, and you say so.
 
-**(m) Brief fulfilment.** Line whose outcome contradicts brief sentence, or whose `kills:` names brief's plain reading as wrong implementation: `CUT`, sentence quoted. Escape: owner's later words in same section say so, quoted. Block level: brief sentence stating a behavior that no surviving line pins is named in `ANOTHER PASS` repair, and block does not reach `READY` with one outstanding. `brief: none` = `N/A`.
+**(m) Brief fulfilment.** Line whose outcome contradicts brief sentence, or whose `kills:` names brief's plain reading as wrong implementation: `STRICKEN`, sentence quoted. Escape: owner's later words in same section say so, quoted. Block level: brief sentence stating a behavior that no surviving line pins is named in `ANOTHER PASS` repair, and block does not reach `READY` with one outstanding. `brief: none` = `N/A`.
 
-**(n) Design pin (rule 11).** Outcome is value design chose, so its failure file diff not bug report: `CUT`. Write bug report failure would file — "preset list came back unsorted" is bug, "preset list no longer alpha, mike, zulu" is diff. Default stated as absolute, sibling status code, formatting, curated literal = shapes this catch. Escape, any one of three: value is one fixture put on wire; outcome is state-bearing class, attribute or `data-testid`, which `docs/testing.md`:51 and :32 make contract and (c) already grant; line state invariant at two inputs where property do work.
+**(n) Design pin (rule 11).** Outcome is value design chose, so its failure file diff not bug report: `STRICKEN`. Write bug report failure would file — "preset list came back unsorted" is bug, "preset list no longer alpha, mike, zulu" is diff. Default stated as absolute, sibling status code, formatting, curated literal = shapes this catch. Escape, any one of three: value is one fixture put on wire; outcome is state-bearing class, attribute or `data-testid`, which `docs/testing.md`:51 and :32 make contract and (c) already grant; line state invariant at two inputs where property do work.
 
-**(o) Existence only (rule 10).** Outcome is truthiness, `is not None`, type check, length, or key presence: `CUT`. Escape: existence *is* contract and value genuinely unbounded (`docs/testing.md`:41). Line taking escape need owner-approved `EXEMPT` entry before test land; obtaining it is main agent's, and its absence never reason to keep line.
+**(o) Existence only (rule 10).** Outcome is truthiness, `is not None`, type check, length, or key presence: `STRICKEN`. Escape: existence *is* contract and value genuinely unbounded (`docs/testing.md`:41). Line taking escape need owner-approved `EXEMPT` entry before test land; obtaining it is main agent's, and its absence never reason to keep line.
 
-**(p) Self-consistency (rule 10).** Outcome read back through writer's own reader, or expected value computed way code compute it: `CUT` (`docs/testing.md`:44, :45). No escape; main agent pin one half against value fixture supplied, or write number. One exclusion, not escape: pure-mathematics unit not cut here, it take route at the discrimination check above — external reference oracle, `ESCALATE` first pass, per the gate verdict below.
+**(p) Self-consistency (rule 10).** Outcome read back through writer's own reader, or expected value computed way code compute it: `STRICKEN` (`docs/testing.md`:44, :45). No escape; main agent pin one half against value fixture supplied, or write number. One exclusion, not escape: pure-mathematics unit not cut here, it take route at the discrimination check above — external reference oracle, `ESCALATE` first pass, per the gate verdict below.
 
-**(q) Golden dump (rule 5).** Outcome is whole-structure equality against snapshot: `CUT`. Escape: line name each field compared and every one is fixture-supplied.
+**(q) Golden dump (rule 5).** Outcome is whole-structure equality against snapshot: `STRICKEN`. Escape: line name each field compared and every one is fixture-supplied.
 
-**(r) Internals (rules 1 and 3).** Input or outcome name private attribute, monkeypatched internal, module layout, call sequence, or log text: `CUT`. This reach past (e)'s word list to same defect. No escape; main agent restate as input and outcome caller see.
+**(r) Internals (rules 1 and 3).** Input or outcome name private attribute, monkeypatched internal, module layout, call sequence, or log text: `STRICKEN`. This reach past (e)'s word list to same defect. No escape; main agent restate as input and outcome caller see.
 
-**(s) Lane (rule 15).** Line name browser or `e2e` test for behavior pure function, store, REST or rendered component already observe: `CUT`. Escape: outcome exist only under real pointer or real browser. Line also naming click or keypress: (j) run first and its verdict print, this check not rescue it.
+**(s) Lane (rule 15).** Line name browser or `e2e` test for behavior pure function, store, REST or rendered component already observe: `STRICKEN`. Escape: outcome exist only under real pointer or real browser. Line also naming click or keypress: (j) run first and its verdict print, this check not rescue it.
 
-**(t) Environment and clock (rules 7 and 16).** Input is hostname, locale, timezone, cwd, HOME or fixed port: `CUT` (`docs/testing.md`:66). Outcome is duration anything expected to take: `CUT` (:19). Escape: `e2e`-marked line's bounded condition-poll (`docs/testing.md`:25) — timeout there is ceiling on condition, never duration.
+**(t) Environment and clock (rules 7 and 16).** Input is hostname, locale, timezone, cwd, HOME or fixed port: `STRICKEN` (`docs/testing.md`:66). Outcome is duration anything expected to take: `STRICKEN` (:19). Escape: `e2e`-marked line's bounded condition-poll (`docs/testing.md`:25) — timeout there is ceiling on condition, never duration.
 
 ## The gate verdict
 

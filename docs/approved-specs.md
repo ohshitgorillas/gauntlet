@@ -18,7 +18,7 @@ The `gauntlet-scrivener` is blind on purpose: a test written by the agent that w
 
 So if the main agent can write the spec file, the blindness buys nothing. The main agent states the behavior it already implemented, drops it in the folder, and the writer faithfully pins the mistake. Review becomes a step that happened somewhere in the transcript rather than a fact on disk.
 
-Making the folder the reviewer's alone turns approval into evidence. The presence of `docs/gauntlet/specs/<slug>.txt` means one specific agent, which never read the implementation and whose default verdict is `CUT`, decided those lines earn the tests they will produce. Nothing else can put that file there, so nothing else can claim it.
+Making the folder the reviewer's alone turns approval into evidence. The presence of `docs/gauntlet/specs/<slug>.txt` means one specific agent, which never read the implementation and whose default verdict is `STRICKEN`, decided those lines earn the tests they will produce. Nothing else can put that file there, so nothing else can claim it.
 
 ## What the reviewer writes
 
@@ -38,10 +38,10 @@ brief:
 --- reviewer ---
 READY
 discriminates: <differential | anchor+edges | sweep> on <surface>
-1  KEEP  <input> -> <outcome>; ...
+1  ADMITTED  <input> -> <outcome>; ...
 ```
 
-`CUT` lines are dropped rather than recorded as cut: the file is the surviving contract, and the writer's one-test-per-line rule counts what is in it. A `DELTA` line stays, since it names a test that changes.
+`STRICKEN` lines are dropped rather than recorded as cut: the file is the surviving contract, and the writer's one-test-per-line rule counts what is in it. An `AMENDED` line stays, since it names a test that changes.
 
 ## Changing an approved spec
 
