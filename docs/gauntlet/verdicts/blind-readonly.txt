@@ -1,0 +1,3 @@
+RED 1: AssertionError: self.assertEqual(actual, expected) — actual[('', 'tests/test_08394f91.py')] == 'the same answer under both copies' but expected 'DENY without the declaration, SILENT with it'
+RED 2: AssertionError: self.assertEqual(actual, expected) — actual[('tests-lane.py', 'tests/test_195d783d.py')] == ('the same answer under both copies', 'the same answer under both copies') but expected ('DENY without the declaration, SILENT with it', 'the same answer under both copies')
+RED 3: AssertionError: self.assertEqual(actual, expected) — actual['tests/ced68b9e/../unit_9413bff1/test_6f9ccae8.py'] == 'the same answer under both copies' but expected 'DENY without the declaration, SILENT with it'
