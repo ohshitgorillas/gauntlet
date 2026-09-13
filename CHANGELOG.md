@@ -8,12 +8,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - `gauntlet-juror`, a blind agent spawned once per red run. It reads the approved block and the run output, and returns one verdict per behavior line — `RED`, `ERROR`, `GREEN` or `INVALID`.
 - `verdicts-lane.py`. The `gauntlet-juror` writes `docs/gauntlet/verdicts/<slug>.txt`, tracked; nothing else can write there, the main agent included.
 - `verdicts-lane.py --stop`, wired as a `Stop` hook. A turn ending with a red run in `state/red/` that has no verdict, or a verdict older than the run it answers, is blocked and every outstanding slug is named. An empty red run is blocked with its own message. No `state/red/` means no block, so a project that never runs `scripts/pair.sh red` never sees it.
+- `gauntlet-bailiff`, a blind agent spawned once per merged block. It takes the `TEST CHECK` brief `scripts/pair.sh merge` prints, reads the committed block and the tests that landed, and returns `PIN`, `SOFT`, `MISSING` or `EXTRA` per behavior line, plus a row per rule 4, 6, 13 or 14 violation. It writes nothing and holds no `Write`.
 - `scripts/cite.py`, a citation resolver for a plan draft. `--check` resolves every backticked `path:line` against the tree and exits 1 on one that does not, `--fix` fills a number from its quoted anchor where the anchor is unique in the file. A bare continuation and a path outside the checkout print a row whether or not they fail.
 
 **Breaking for existing installs:** re-copy `.claude/` and re-run the `--self-test` commands, which are now eight.
 
 ### Changed
 - The `gauntlet-arbiter` returns `ADMITTED`, `AMENDED` or `STRICKEN` per behavior line, and its default verdict is `STRICKEN`.
+- The `gauntlet-detective`, `gauntlet-juror` and `gauntlet-examiner` are pinned to Sonnet. Their work is mechanical — a file:line table, a verdict matched against run output, a measured value — so the level is fixed rather than inherited from whatever the calling session runs.
+- The `gauntlet-arbiter` and `gauntlet-prosecutor` no longer carry the paragraph that exempts a host conduct block from the framing count. A brief that authorizes no command carries no conduct block, so neither reviewer spends definition on weighing one at zero. A conduct sentence that pairs itself with a conclusion is still a tell, under the conclusion tell that already covers it.
+- The post-merge test check leaves the `gauntlet-arbiter` and becomes the `gauntlet-bailiff`'s own round. The reviewer that passed a block no longer judges the tests that landed against it: a fresh agent holds none of the reasons the block was passed, so a softened assertion cannot reach it as permission. The brief and the output format are unchanged, and the caller now spawns a `gauntlet-bailiff` where it used to re-brief the arbiter.
+- The `gauntlet-arbiter`'s re-review, round-file and framing paragraphs are compressed to the register the rest of the definition is written in. Every rule, escape and verdict token is unchanged; the definition is about 300 words shorter, which is 300 words off every spawn.
 
 ### Fixed
 - `pair.sh red` runs the suite verbose, so the saved output names every test that passed as well as every test that failed.

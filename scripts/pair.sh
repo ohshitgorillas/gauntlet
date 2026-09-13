@@ -115,7 +115,7 @@ cmd_merge() {
 	case $kind in
 	excision | repair)
 		#: no implementation phase, so no window for a test to soften in:
-		#: the mechanical check takes the blind reviewer's second job
+		#: the mechanical check takes the gauntlet-bailiff's round
 		python3 scripts/excision-diff.py --spec "$spec" --base "$base" --head HEAD
 		;;
 	*)

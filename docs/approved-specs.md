@@ -71,9 +71,9 @@ Session-wide, in `.claude/settings.json`, so the lane binds the main agent and e
 }
 ```
 
-`no-impl-reads.py` is the exception: it is wired only from the `hooks:` frontmatter of `gauntlet-arbiter.md` and `gauntlet-scrivener.md`, never session-wide — a session-wide read-block would blind the main agent itself, which has to read the implementation to adjudicate a failing test.
+`no-impl-reads.py` is the exception: it is wired only from the `hooks:` frontmatter of the blind agents — `gauntlet-arbiter.md`, `gauntlet-scrivener.md`, `gauntlet-juror.md` and `gauntlet-bailiff.md` — never session-wide — a session-wide read-block would blind the main agent itself, which has to read the implementation to adjudicate a failing test.
 
-The same `specs-lane.py` script is wired again from the `hooks:` frontmatter of every agent that could reach the folder — `gauntlet-arbiter.md`, `gauntlet-scrivener.md`, `gauntlet-examiner.md`, `gauntlet-detective.md` — so the lane holds even where a build does not apply session hooks to subagent calls.
+The same `specs-lane.py` script is wired again from the `hooks:` frontmatter of every agent that could reach the folder — `gauntlet-arbiter.md`, `gauntlet-scrivener.md`, `gauntlet-examiner.md`, `gauntlet-detective.md`, `gauntlet-juror.md`, `gauntlet-bailiff.md` — so the lane holds even where a build does not apply session hooks to subagent calls.
 
 Copy the whole `hooks/` directory, not the one file. `specs-lane.py` imports `shell_shapes.py` from beside it, and it has three siblings that enforce the other half of the same rule: `plans-lane.py`, which holds this same one-directory-one-writer rule for the plan gate one stage earlier (`docs/gauntlet/plans/`, the `gauntlet-prosecutor` alone — rules in `plans.md`); `tests-lane.py`, which keeps every hand but the blind writer's off `tests/`; and `reviews-lane.py`, which keeps a reviewer's verdict a file the reviewer wrote. `reviews-lane.py` is the one that must know about both lanes: it confines each reviewer to `docs/gauntlet/reviews/`, so it carries the explicit carve-outs that let the `gauntlet-arbiter` write `docs/gauntlet/specs/` and the `gauntlet-prosecutor` write `docs/gauntlet/plans/`, each and nothing else besides. Ship them together or a reviewer is locked out of the folder reserved for it.
 

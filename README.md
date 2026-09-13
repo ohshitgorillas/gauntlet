@@ -32,7 +32,7 @@ The workflow enforced by Gauntlet is, as its name implies, quite brutal:
 11. A `gauntlet-juror`, blind and spawned fresh for that one run, reads the red run's output against the approved block and returns one verdict per behavior line — `RED`, `ERROR`, `GREEN` or `INVALID`. It writes them to `docs/gauntlet/verdicts/<slug>.txt`, a folder only it can write to, so the main agent, which has read the code, cannot rule on whether its own tests bit. A turn that leaves a red run unruled does not end: the `Stop` hook names the slug.
 12. The main agent has two approaches to a test failing against implementation: fix the code, or send a revised spec back to the `gauntlet-arbiter` for approval. The `gauntlet-scrivener` will refuse any direct attempts by the main agent to weaken the tests to pass at this phase.
 13. Once the test suite is green against implementation, the change merges.
-14. The `gauntlet-arbiter` checks the landed tests against the block it approved; a test that no longer matches gets restored from the red commit, or the spec goes back to the main agent.
+14. A `gauntlet-bailiff`, blind and spawned fresh, checks the landed tests against the approved block; a test that no longer matches gets restored from the red commit, or the spec goes back to the main agent. It holds none of the reasons the block was passed, so a softened assertion cannot reach it as permission.
 
 ## The tests-only lane
 
@@ -49,7 +49,7 @@ See `docs/agents.md` for what each agent is allowed to see and write, and `docs/
 
 ## Setup
 
-Clone this repository and copy its `.claude/` directory (agents, hooks, and `settings.json`) into the target project. `.claude/settings.json` wires `plans-lane.py`, `specs-lane.py`, `tests-lane.py`, `reviews-lane.py` and `verdicts-lane.py` session-wide, so they bind the main agent and every subagent, and wires `verdicts-lane.py --stop` as a `Stop` hook, which blocks a turn that leaves a red run unruled; `no-impl-reads.py` is wired only per-agent, from the `hooks:` frontmatter of `gauntlet-arbiter.md`, `gauntlet-scrivener.md` and `gauntlet-juror.md` — see `docs/approved-specs.md` for why. After copying, check the lanes:
+Clone this repository and copy its `.claude/` directory (agents, hooks, and `settings.json`) into the target project. `.claude/settings.json` wires `plans-lane.py`, `specs-lane.py`, `tests-lane.py`, `reviews-lane.py` and `verdicts-lane.py` session-wide, so they bind the main agent and every subagent, and wires `verdicts-lane.py --stop` as a `Stop` hook, which blocks a turn that leaves a red run unruled; `no-impl-reads.py` is wired only per-agent, from the `hooks:` frontmatter of `gauntlet-arbiter.md`, `gauntlet-scrivener.md`, `gauntlet-juror.md` and `gauntlet-bailiff.md` — see `docs/approved-specs.md` for why. After copying, check the lanes:
 
 ```
 python3 .claude/hooks/plans-lane.py --self-test
