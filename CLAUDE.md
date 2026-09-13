@@ -14,25 +14,19 @@ An entry lands under `[Unreleased]` in the same commit as the change it describe
 
 ## The gates
 
-Green means all nine, not just the first:
+Green means all nine gates pass, not just the first. One command runs them:
 
 ```
-.venv/bin/pytest tests -q
-python3 .claude/hooks/plans-lane.py --self-test
-python3 .claude/hooks/specs-lane.py --self-test
-python3 .claude/hooks/tests-lane.py --self-test
-python3 .claude/hooks/reviews-lane.py --self-test
-python3 .claude/hooks/verdicts-lane.py --self-test
-python3 .claude/hooks/no-impl-reads.py --self-test
-python3 scripts/excision-diff.py --self-test
-python3 scripts/cite.py --self-test
+scripts/gates/check-gates.sh
 ```
+
+It runs `pytest` on `tests/` and the `--self-test` of `plans-lane.py`, `specs-lane.py`, `tests-lane.py`, `reviews-lane.py`, `verdicts-lane.py`, `no-impl-reads.py`, `excision-diff.py` and `cite.py`, one after another under `nice -n 19 ionice -c3`. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
 
 Each `--self-test` prints one `PASS` or `FAIL` per rule that script exists to hold, and they cover cases the suite does not. A hook change that passes `pytest` and fails its own `--self-test` is exactly what this bar catches.
 
 No linter is installed here. `ruff`, `black` and `eslint` appear in the agent definitions as instructions for the project those agents are copied into, not as a bar for this repo; do not run them here and do not add them to a report.
 
-Inside a `.claude/worktrees/*` tree, run the suite as `PYTHONPATH=$(pwd) .venv/bin/pytest tests -q`, or it tests the parent checkout and tells you nothing about the tree you are in.
+Inside a `.claude/worktrees/*` tree, run that tree's own `scripts/gates/check-gates.sh`. It sets `PYTHONPATH` to the tree it sits in, because without it the suite tests the parent checkout and tells you nothing about the tree you are in.
 
 **The lane hooks stay on and unweakened.** They are the product, so disabling one to land a change ships the defect rather than hiding it. No matcher narrowed, no entry commented out, no `--self-test` left failing. A hook that fires where it should not is a bug to fix in the hook, reported as one.
 
