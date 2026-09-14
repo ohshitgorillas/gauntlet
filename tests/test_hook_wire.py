@@ -21,6 +21,11 @@ from pathlib import Path
 WORKTREE_ROOT = Path(__file__).resolve().parents[1]
 HOOK_DIR = WORKTREE_ROOT / "hooks"
 
+#: The kit's own wiring. It moved out of `.claude/settings.json` and into the
+#: plugin manifest, which is what an installed copy reads; the project file is
+#: a consumer's own business and wires none of these.
+MANIFEST = json.loads((WORKTREE_ROOT / ".claude-plugin" / "plugin.json").read_text())
+
 
 def _main_checkout_root():
     """Absolute path of the main checkout, discovered rather than hard-coded.
@@ -688,7 +693,7 @@ class ReviewsLaneArbiterGit(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
-#: the five hooks `.claude/settings.json` wires on `Bash` that judge every
+#: the five hooks the plugin manifest wires on `Bash` that judge every
 #: caller, so this is the set a main-agent shell command is actually judged by.
 #: `no-impl-reads.py` and `blind-bash.py` are wired on `Bash` session-wide too,
 #: but each gates on `agent_type` and answers `SILENT` for every caller outside
@@ -991,14 +996,46 @@ class TheCallerGate(unittest.TestCase):
         # runs for everyone, and it is load-bearing because nothing else wires
         # these two any more. A frontmatter block left in an agent definition
         # reads as enforcement a plugin runtime never executes.
-        settings = json.loads((WORKTREE_ROOT / ".claude" / "settings.json").read_text())
         wired = {
             hook["command"].rsplit("/", 1)[-1]
-            for entry in settings["hooks"]["PreToolUse"]
+            for entry in MANIFEST["hooks"]["PreToolUse"]
             for hook in entry["hooks"]
         }
         self.assertIn("no-impl-reads.py", wired)
         self.assertIn("blind-bash.py", wired)
+
+    def test_the_manifest_is_the_only_place_the_kit_hooks_are_wired(self):
+        # This repo is its own consumer, so a kit hook left declared in
+        # `.claude/settings.json` fires a second time beside the installed
+        # plugin's copy. Every lane would judge each call twice.
+        settings_path = WORKTREE_ROOT / ".claude" / "settings.json"
+        settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
+        project_wired = {
+            hook.get("command", "")
+            for event in settings.get("hooks", {}).values()
+            for entry in event
+            for hook in entry.get("hooks", ())
+        }
+        for command in project_wired:
+            with self.subTest(command=command):
+                self.assertNotIn("/hooks/", command)
+
+    def test_every_hook_command_the_manifest_names_resolves_in_the_kit(self):
+        # `${CLAUDE_PLUGIN_ROOT}` is the root of this repo once it is installed,
+        # so a manifest naming a script that is not here wires nothing.
+        commands = [
+            hook["command"]
+            for event in MANIFEST["hooks"].values()
+            for entry in event
+            for hook in entry["hooks"]
+        ]
+        self.assertEqual(len(commands), 11)
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertIn("${CLAUDE_PLUGIN_ROOT}", command)
+                self.assertNotIn("${CLAUDE_PROJECT_DIR}", command)
+                script = command.split("/hooks/", 1)[1].split()[0]
+                self.assertTrue((HOOK_DIR / script).is_file())
 
         definitions = sorted((WORKTREE_ROOT / "agents").glob("gauntlet-*.md"))
         self.assertTrue(definitions)

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "gauntlet",
+  "description": "Adversarial review chain for Claude Code: blind plan, spec, test and merge reviewers, each held at the tool call by a lane hook.",
+  "owner": {
+    "name": "oh shit, gorillas!",
+    "url": "https://github.com/ohshitgorillas"
+  },
+  "plugins": [
+    {
+      "name": "gauntlet",
+      "description": "Blind adversarial subagents around the main agent, with lane hooks that deny a write outside an approved plan, spec block or verdict.",
+      "source": "./",
+      "category": "workflow"
+    }
+  ]
+}
