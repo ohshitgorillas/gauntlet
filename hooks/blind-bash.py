@@ -90,7 +90,16 @@ _ARGS = (
     rf"status\s+{SLUG}",
     rf"show\s+{COMMIT}\s+{SLUG}",
 )
-ALLOWED = tuple(re.compile(rf"\s*{re.escape(ENTRY)}\s+{a}\s*\Z") for a in _ARGS)
+#: the head, as a blind agent can type it once the kit ships as a plugin. The
+#: entry is `scripts/blind.sh` relative to a checkout that holds the kit; a
+#: plugin sits outside the checkout, so the agent types an absolute path to it
+#: or the `${CLAUDE_PLUGIN_ROOT}` the runtime expands into one. A *relative*
+#: prefix is deliberately not admitted: the blind writer may write under
+#: `<tests dir>/`, so `tests/scripts/blind.sh` would be a shell of its own
+#: authoring. `sh.is_blind_run` reads the same head with `endswith`.
+_HEAD = r"(?:/[A-Za-z0-9_.@+:/-]*/|\$\{CLAUDE_PLUGIN_ROOT\}/)?" + re.escape(ENTRY)
+
+ALLOWED = tuple(re.compile(rf"\s*{_HEAD}\s+{a}\s*\Z") for a in _ARGS)
 
 _WHY = (
     "A blind agent's shell is one command: `scripts/blind.sh test <path>`, "
@@ -128,7 +137,7 @@ def self_test() -> int:
     """Pin the four spec lines of the blind agents' one command."""
     shapes = "shell_shapes.py"
     hook = "no-impl-reads.py"
-    here = ".claude/hooks/"
+    here = "hooks/"
     wire = sh.tests_dir() + "/test_hook_wire.py"
     plan = sh.plans_lane() + "/bash-sandbox"
 
@@ -167,6 +176,19 @@ def self_test() -> int:
                 denied(bash("echo $(scripts/blind.sh status demo)")),
                 denied(bash(f"cat {here}{hook}")),
                 denied(bash("")),
+            )
+        ),
+        "1a the head is the entry, an absolute path to it, or the plugin root": all(
+            (
+                allowed(bash("/opt/gauntlet/scripts/blind.sh status demo")),
+                allowed(bash("${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh status demo")),
+                allowed(bash(f"${{CLAUDE_PLUGIN_ROOT}}/scripts/blind.sh test {wire}")),
+                #: a relative prefix is not a head: the blind writer can write
+                #: under its own lane, so this would be a shell it authored
+                denied(bash(f"{sh.tests_dir()}/scripts/blind.sh status demo")),
+                denied(bash("../scripts/blind.sh status demo")),
+                denied(bash("/opt/gauntlet/scripts/blind.sh.bak status demo")),
+                denied(bash("/opt/g;x/scripts/blind.sh status demo")),
             )
         ),
         "2 each subcommand admits only its own argument shape": all(

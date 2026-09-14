@@ -3,7 +3,7 @@
 
 Wire it session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`.claude/agents/gauntlet-arbiter.md` and `.claude/agents/gauntlet-scrivener.md`.
+`agents/gauntlet-arbiter.md` and `agents/gauntlet-scrivener.md`.
 
 An approved spec is the only thing the blind `gauntlet-scrivener` works from. If the
 agent that wants a test can also write the file the test is generated from,
@@ -119,7 +119,7 @@ def self_test() -> int:
         "5 read-only git naming the lane passes, its write forms do not": all(
             (
                 allowed(bash("git grep -n foo -- gauntlet/specs/approved/")),
-                allowed(bash("git grep -n 'gauntlet/specs/approved/' -- .claude/hooks")),
+                allowed(bash("git grep -n 'gauntlet/specs/approved/' -- hooks")),
                 allowed(bash("git ls-tree HEAD gauntlet/specs/approved/")),
                 denied(bash("git grep -Ovim foo -- gauntlet/specs/approved/")),
                 denied(bash("git diff --output=gauntlet/specs/approved/x.txt")),

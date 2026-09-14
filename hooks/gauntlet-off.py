@@ -28,7 +28,7 @@ or an argument to `export`, `set` or `env`. The `claude` test is on the *head
 word* of a segment, after any leading assignments and any wrapper (`env`,
 `nohup`, `timeout`, `xargs`) are stepped over. A head-word test rather than a
 text match because the commands this repository documents carry the string
-`claude` inside a path: `python3 .claude/hooks/<name>.py --self-test` is nine
+`claude` inside a path: `python3 hooks/<name>.py --self-test` is nine
 lines of `README.md`. Matching text would deny the repository's own documented
 commands; matching the head word denies `claude -p ...`, `env GAUNTLET=off
 claude` and `nohup claude` and lets every `.claude/` path through. The reading
@@ -269,8 +269,8 @@ def self_test() -> int:
         "a .claude/ path is not a claude invocation": all(
             _verdict("Bash", {"command": c}) is None
             for c in (
-                "python3 .claude/hooks/plans-lane.py --self-test",
-                "python3 .claude/hooks/gauntlet-off.py --self-test",
+                "python3 hooks/plans-lane.py --self-test",
+                "python3 hooks/gauntlet-off.py --self-test",
                 "cat .claude/settings.json",
                 "ls .claude/worktrees",
                 "grep -rn claude docs/",

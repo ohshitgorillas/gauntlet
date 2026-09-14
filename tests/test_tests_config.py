@@ -1,6 +1,6 @@
 """Wire tests for the five keys of the sibling ``blind-reads.json``.
 
-The surface is a copy of ``.claude/hooks/`` that differs only in its
+The surface is a copy of ``hooks/`` that differs only in its
 ``blind-reads.json``, a JSON payload on a hook's stdin, and the hook's decision
 on stdout.  A second surface is the reader the scripts use,
 ``shell_shapes.py --config <key>``, whose stdout is the value a shell script
@@ -25,7 +25,7 @@ import unittest
 from pathlib import Path
 
 WORKTREE_ROOT = Path(__file__).resolve().parents[1]
-HOOK_DIR = WORKTREE_ROOT / ".claude" / "hooks"
+HOOK_DIR = WORKTREE_ROOT / "hooks"
 BLIND_SH = WORKTREE_ROOT / "scripts" / "blind.sh"
 
 
@@ -56,27 +56,43 @@ DEFAULTS = {"tests_dir": "tests", "gauntlet_dir": "gauntlet", "docs_dir": "docs"
 
 
 def _copy(tmp, label, conf):
-    """A copy of the hook directory carrying ``conf`` as its declaration."""
-    destination = Path(tmp) / label
+    """A copy of the hook directory, in a project carrying ``conf`` as its declaration.
+
+    The declaration is the project's, at ``<project>/.claude/blind-reads.json``,
+    which is where the kit reads it from once it ships as a plugin: the hook
+    directory travels with the plugin and carries no copy to fall back to.
+    """
+    project = Path(tmp) / label
+    destination = project / "hooks"
     shutil.copytree(HOOK_DIR, destination)
-    sibling = destination / "blind-reads.json"
+    declaration = project / ".claude" / "blind-reads.json"
+    declaration.parent.mkdir(parents=True, exist_ok=True)
     if conf is None:
-        sibling.unlink(missing_ok=True)
+        declaration.unlink(missing_ok=True)
     elif isinstance(conf, str):
-        sibling.write_text(conf)
+        declaration.write_text(conf)
     else:
-        sibling.write_text(json.dumps(conf))
+        declaration.write_text(json.dumps(conf))
     return destination
 
 
-def _environment():
+def _environment(project=None):
     """The caller's environment with ``GAUNTLET`` cleared, so a hook decides.
 
     Under ``GAUNTLET=off`` every hook returns silent at its first line, and a
     suite run from such a session would read that silence as an allow.
+
+    ``CLAUDE_PROJECT_DIR`` names the copy's own project, so the declaration the
+    copy reads is the one this surface wrote.  Without it the reader would walk
+    up from the working directory and find this repository's own file, and
+    every expectation here would be about that instead.
     """
     environment = dict(os.environ)
     environment.pop("GAUNTLET", None)
+    if project is None:
+        environment.pop("CLAUDE_PROJECT_DIR", None)
+    else:
+        environment["CLAUDE_PROJECT_DIR"] = str(project)
     return environment
 
 
@@ -93,7 +109,7 @@ def _decision(hook_dir, hook_name, payload):
         input=json.dumps(payload),
         capture_output=True,
         text=True,
-        env=_environment(),
+        env=_environment(Path(hook_dir).parent),
     )
     stdout = completed.stdout.strip()
     if not stdout:
@@ -112,6 +128,7 @@ def _config_lines(hook_dir, key):
         capture_output=True,
         text=True,
         check=True,
+        env=_environment(Path(hook_dir).parent),
     )
     return completed.stdout.splitlines()
 
@@ -422,8 +439,8 @@ class BlindAgentReadsTheConfig(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_blind_reads_json_is_readable_and_its_siblings_are_not(self):
-        self.assertEqual(_read(self.bare, ".claude/hooks/blind-reads.json"), SILENT)
-        self.assertEqual(_read(self.bare, ".claude/hooks/shell_shapes.py"), DENY)
+        self.assertEqual(_read(self.bare, ".claude/blind-reads.json"), SILENT)
+        self.assertEqual(_read(self.bare, "hooks/shell_shapes.py"), DENY)
         self.assertEqual(_read(self.bare, ".claude/settings.json"), DENY)
 
 

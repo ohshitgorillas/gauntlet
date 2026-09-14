@@ -18,7 +18,7 @@ REPO = Path(__file__).resolve().parent.parent
 PAIR = REPO / "scripts" / "pair.sh"
 PAIR_PACKAGE = REPO / "scripts" / "pair"
 STRIKE_DIFF = REPO / "scripts" / "strike-diff.py"
-SHELL_SHAPES = REPO / ".claude" / "hooks" / "shell_shapes.py"
+SHELL_SHAPES = REPO / "hooks" / "shell_shapes.py"
 
 SLUG = "demo"
 TARGET = "main"
@@ -115,12 +115,15 @@ def _repo(tmp_path, spec_text, review_text):
     shutil.copytree(PAIR_PACKAGE, repo / "scripts" / "pair")
     #: the scripts read every directory, the target branch and the gate through
     #: the hooks' reader, so the fixture ships that one module beside them
-    (repo / ".claude" / "hooks").mkdir(parents=True)
-    shutil.copy2(SHELL_SHAPES, repo / ".claude" / "hooks" / "shell_shapes.py")
+    (repo / "hooks").mkdir(parents=True)
+    shutil.copy2(SHELL_SHAPES, repo / "hooks" / "shell_shapes.py")
+    #: the declaration is the project's and sits under `.claude/`, which the
+    #: fixture's `.gitignore` keeps untracked exactly as a real checkout does
+    (repo / ".claude").mkdir(parents=True, exist_ok=True)
     #: the fixture has no `make` and no gate of its own, and the point of the
     #: key is that the command is the project's: a gate that always passes
     #: leaves the merge steps around it as what these tests measure
-    (repo / ".claude" / "hooks" / "blind-reads.json").write_text(
+    (repo / ".claude" / "blind-reads.json").write_text(
         json.dumps({"target_branch": TARGET, "gate_command": GATE})
     )
     (repo / "tests" / "test_a.py").write_text(TEST_A)
@@ -849,7 +852,7 @@ def _converge(tmp_path, move=False, gate=GATE):
     text of the two files at that HEAD.
     """
     repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
-    (repo / ".claude" / "hooks" / "blind-reads.json").write_text(
+    (repo / ".claude" / "blind-reads.json").write_text(
         json.dumps({"target_branch": TARGET, "gate_command": gate})
     )
     _pair(repo, "open", SLUG)

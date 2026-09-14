@@ -57,7 +57,7 @@ The continuation is the form a plan uses most, and it is the one that goes wrong
 
 Where a sentence quotes the line it cites, the quote is the claim: the number must point at a line containing that text, and for a range, at one line of the span. A citation with no quotation beside it claims only that the line exists.
 
-`python3 scripts/cite.py --check <draft>` resolves all of this and exits 1 on a citation that does not. It reports a bare continuation and a cross-repo path whether they resolve or not, so a run over a clean draft prints rows rather than nothing. It says where a number landed; whether the line it landed on supports the sentence is the `gauntlet-prosecutor`'s check, and no run of the script stands in for it.
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/cite.py --check <draft>` resolves all of this and exits 1 on a citation that does not. It reports a bare continuation and a cross-repo path whether they resolve or not, so a run over a clean draft prints rows rather than nothing. It says where a number landed; whether the line it landed on supports the sentence is the `gauntlet-prosecutor`'s check, and no run of the script stands in for it.
 
 ## Discovery
 

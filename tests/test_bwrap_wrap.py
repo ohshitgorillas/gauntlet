@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-HOOK = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "bwrap-wrap.py"
+HOOK = Path(__file__).resolve().parent.parent / "hooks" / "bwrap-wrap.py"
 
 PROSECUTOR = "gauntlet-prosecutor"
 ARBITER = "gauntlet-arbiter"

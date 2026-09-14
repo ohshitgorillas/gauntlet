@@ -3,7 +3,7 @@
 
 Wire it session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`.claude/agents/gauntlet-prosecutor.md`.
+`agents/gauntlet-prosecutor.md`.
 
 This is the rule `specs-lane.py` holds for the spec gate, one stage earlier.
 A plan that reached `READY` is the thing the implementation is measured
@@ -121,7 +121,7 @@ def self_test() -> int:
         "5 read-only git naming the lane passes, its write forms do not": all(
             (
                 allowed(bash("git grep -n foo -- gauntlet/plans/approved/")),
-                allowed(bash("git grep -n 'gauntlet/plans/approved/' -- .claude/hooks")),
+                allowed(bash("git grep -n 'gauntlet/plans/approved/' -- hooks")),
                 allowed(bash("git ls-tree HEAD gauntlet/plans/approved/")),
                 denied(bash("git grep -Ovim foo -- gauntlet/plans/approved/")),
                 denied(bash("git diff --output=gauntlet/plans/approved/x.txt")),

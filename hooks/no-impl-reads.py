@@ -53,7 +53,7 @@ run before the allow list below, so a fifth artifact
 directory added later is blind-safe until someone deliberately opens it, and no
 `blind-reads.json` entry can re-open the plans, the drafts or the rounds.
 
-The list is not configurable. What `blind-reads.json` beside this file moves is
+The list is not configurable. What `blind-reads.json` moves is
 where the entries point, never which entries there are: `tests_dir` is the
 blind writer's lane, `docs_dir` the prose, and `gauntlet_dir` the base whose
 `specs/approved` subtree is the one artifact a blind agent works from. All
@@ -113,7 +113,7 @@ TESTS = sh.tests_dir()
 DOCS = sh.docs_dir()
 #: the one file that says where those are, readable by a blind agent whose
 #: definition names them as `<tests dir>` and `<docs dir>` and nothing more concrete
-CONFIG = ".claude/hooks/blind-reads.json"
+CONFIG = ".claude/blind-reads.json"
 #: the gauntlet's own artifact base at the repo root, denied entire
 GAUNTLET_BASE = sh.gauntlet_dir()
 #: the one subtree of it a blind agent works from: the approved spec block
@@ -461,7 +461,7 @@ def main() -> None:
 
 
 def _config_parses() -> bool:
-    """That the per-repo config beside this hook reads, where there is one.
+    """That the per-repo config this hook names reads, where there is one.
 
     `sh.config` answers a malformed file with an empty config, and that is the
     right answer at the gate: an empty config names no lane, so the lane is
@@ -469,7 +469,7 @@ def _config_parses() -> bool:
     to the default and says nothing about it. The runtime keeps the safe
     direction; this line is where the typo becomes visible instead of free.
     """
-    path = Path(__file__).resolve().parent / "blind-reads.json"
+    path = Path(__file__).resolve().parents[1] / CONFIG
     if not path.exists():
         return True  # no per-repo value here; nothing to parse
     try:
@@ -488,8 +488,8 @@ def _no_denied_nesting() -> bool:
     the `docs/gauntlet/` nesting opened. The other direction — the re-allowed
     leaf inside the denied base — is harmless and is excluded here.
 
-    `DEFAULT_ALLOW` carries the directories the real `blind-reads.json` beside
-    this file names, so a repo whose `tests_dir` or `docs_dir` resolved to the
+    `DEFAULT_ALLOW` carries the directories the real `blind-reads.json`
+    names, so a repo whose `tests_dir` or `docs_dir` resolved to the
     artifact base or an ancestor of it would fail this case rather than silently
     re-open the base, were `shell_shapes.dirs_from` not already refusing every
     overlapping set.
@@ -613,7 +613,7 @@ def self_test() -> int:
                 #: the worktree carries its own copy of these, and neither is a
                 #: spec source in either tree
                 denied(read(f"{tree}/src/core/manager.py")),
-                denied(read(f"{tree}/.claude/hooks/no-impl-reads.py")),
+                denied(read(f"{tree}/hooks/no-impl-reads.py")),
                 #: the run the agent is told to make, from inside its own tree
                 allowed(bash(f"cd {tree} && PYTHONPATH=$(pwd) .venv/bin/pytest tests/t.py -q")),
                 #: a `cd` does not launder a read: the path is resolved from there

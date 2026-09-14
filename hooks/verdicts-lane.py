@@ -4,7 +4,7 @@
 
 Wire both session-wide from `.claude/settings.json`, so they bind the main
 agent and every subagent, and wire the lane again from the `hooks:` frontmatter
-of `.claude/agents/gauntlet-juror.md`.
+of `agents/gauntlet-juror.md`.
 
 The red run is a gate, so it carries an artifact. A verdict that lives in a
 transcript alone cannot be checked after the session and does not say which
@@ -248,7 +248,7 @@ def self_test() -> int:
         "8 read-only git naming the lane passes, its write forms do not": all(
             (
                 allowed(bash("git grep -n foo -- gauntlet/verdicts/")),
-                allowed(bash("git grep -n 'gauntlet/verdicts/' -- .claude/hooks")),
+                allowed(bash("git grep -n 'gauntlet/verdicts/' -- hooks")),
                 allowed(bash("git ls-tree HEAD gauntlet/verdicts/")),
                 denied(bash("git grep -Ovim foo -- gauntlet/verdicts/")),
                 denied(bash("git diff --output=gauntlet/verdicts/x.txt")),

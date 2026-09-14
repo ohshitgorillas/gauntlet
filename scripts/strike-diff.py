@@ -34,13 +34,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-_HOOKS = str(Path(__file__).resolve().parent / ".." / ".claude" / "hooks")
+_HOOKS = str(Path(__file__).resolve().parent / ".." / "hooks")
 sys.path.insert(0, _HOOKS)
 
 try:
     import shell_shapes as sh  # noqa: E402
 except ImportError:
-    sys.exit(f"strike-diff.py: no shell_shapes.py in {_HOOKS}: scripts/ ships with .claude/hooks/")
+    sys.exit(f"strike-diff.py: no shell_shapes.py in {_HOOKS}: scripts/ ships with hooks/")
 
 #: the blind writer's lane, `tests/` unless `blind-reads.json` names another
 TESTS = sh.tests_dir() + "/"

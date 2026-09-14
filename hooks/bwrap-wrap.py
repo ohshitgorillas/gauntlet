@@ -37,7 +37,7 @@ internally dies with it, which no command-text carve-out can reach.
   * **default** for every other `gauntlet-` agent. Everything readable.
     Writable: the repository, the session's own `/tmp`, and `~/.cache`.
     Read-only again inside the repository: every lane directory in every
-    checkout, `<gauntlet dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `scripts/`,
+    checkout, `<gauntlet dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `hooks/`, `agents/`, `scripts/`,
     `.git/hooks` and `.git/config`. `~/.gitconfig` is read-only. `/run/user` is masked with an
     empty tmpfs, which closes the D-Bus route to `systemd --user` -- a socket
     rather than a spelling, so no string classifier could ever have caught it.
@@ -119,6 +119,8 @@ PROTECTED_IN_CHECKOUT = sh.LANE_DIRS + (
     sh.gauntlet_dir() + "/red",
     sh.gauntlet_dir() + "/merge",
     ".claude",
+    "hooks",
+    "agents",
     "scripts",
     ".git/hooks",
     ".git/config",

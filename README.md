@@ -57,7 +57,7 @@ A change confined to `<tests dir>/` does not pay implementation prices. Bring a 
 1. The main agent drafts a `motion: strike` block (the test goes) or a `motion: amend` block (the test goes, and one line names the behavior that replaces it). A strike line cites the rule the test breaks, or — where the test breaks none and the behavior it pins is one the owner dropped — quotes the owner's sentence that dropped it.
 2. The `gauntlet-arbiter` reviews it against the test file, which it is allowed to read, and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
 3. The `gauntlet-scrivener` removes the targets and writes the replacements.
-4. `scripts/strike-diff.py` checks the landed diff against the approved block at merge.
+4. `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py` checks the landed diff against the approved block at merge.
 
 No plan gate, no red run, no juror, no post-merge review round. The `Stop` hook fires on a red run that exists and never on the absence of one, so it stays silent here. Those three exist to police an implementation phase, and a tests-only change has none. What still holds is the part that matters: the main agent never writes `<tests dir>/`, and never decides on its own that a test it finds inconvenient pins nothing.
 
@@ -68,23 +68,23 @@ See `docs/agents.md` for what each agent is allowed to see and write, and `docs/
 Clone this repository and copy its `.claude/` directory (agents, hooks, and `settings.json`) into the target project. `.claude/settings.json` wires `plans-lane.py`, `specs-lane.py`, `tests-lane.py`, `reviews-lane.py` and `verdicts-lane.py` session-wide, so they bind the main agent and every subagent, and wires `verdicts-lane.py --stop` as a `Stop` hook, which blocks a turn that leaves a red run unruled; `no-impl-reads.py` and `blind-bash.py` are wired session-wide beside them and gated on the caller instead, each judging the agents in its own `BLIND` tuple and letting every other caller through unjudged — see `docs/approved-specs.md` for why no agent definition wires a hook of its own. `gauntlet-off.py` is wired beside them on three events, and carries the owner's switch: `GAUNTLET=off claude` starts one session with the seven lane hooks and the `Stop` gate silent, which is how the owner works outside the chain — repairing a lane file, demoing the kit, working on the hooks themselves — without weakening a hook in the tree. It is thrown on the shell that launches the session and nowhere else: inside a session with the gauntlet on, `gauntlet-off.py --bash` denies a `GAUNTLET=` assignment and a nested `claude` invocation, and an agent may never propose the switch. Every claim below about a lane denying a write is a claim about a session with the gauntlet on. After copying, check the lanes:
 
 ```
-python3 .claude/hooks/plans-lane.py --self-test
-python3 .claude/hooks/specs-lane.py --self-test
-python3 .claude/hooks/tests-lane.py --self-test
-python3 .claude/hooks/reviews-lane.py --self-test
-python3 .claude/hooks/verdicts-lane.py --self-test
-python3 .claude/hooks/no-impl-reads.py --self-test
-python3 .claude/hooks/blind-bash.py --self-test
-python3 .claude/hooks/gauntlet-off.py --self-test
+python3 hooks/plans-lane.py --self-test
+python3 hooks/specs-lane.py --self-test
+python3 hooks/tests-lane.py --self-test
+python3 hooks/reviews-lane.py --self-test
+python3 hooks/verdicts-lane.py --self-test
+python3 hooks/no-impl-reads.py --self-test
+python3 hooks/blind-bash.py --self-test
+python3 hooks/gauntlet-off.py --self-test
 python3 scripts/strike-diff.py --self-test
 python3 scripts/cite.py --self-test
 ```
 
 Each prints one `PASS` or `FAIL` per line it exists to hold. A `FAIL` means the lane is not binding, and the gate it enforces is not there.
 
-`.claude/hooks/blind-reads.json` is what a project writes down for the kit, and it carries three directories. `tests_dir` is the blind writer's lane, `tests` by default, and what `<tests dir>` means wherever the agent definitions say it. `gauntlet_dir` is where the chain's artifacts live, `gauntlet` by default, and what `<gauntlet dir>` means wherever a definition or a doc says it. `docs_dir` is the prose a blind agent may read, `docs` by default. The structure under `gauntlet_dir` is not a project's to move: the four lanes are always `specs/approved`, `plans/approved`, `reviews` and `verdicts` beneath it. It carries four more keys beside the directories: `target_branch` and `gate_command`, the branch a finished pair lands on and the command that has to pass before it does, `main` and `make check` by default; and `pytest_command` and `node_command`, the invocations `scripts/blind.sh test` and `scripts/pair.sh red` run, `.venv/bin/pytest` and `node --test` by default.
+`.claude/blind-reads.json` is what a project writes down for the kit, and it carries three directories. `tests_dir` is the blind writer's lane, `tests` by default, and what `<tests dir>` means wherever the agent definitions say it. `gauntlet_dir` is where the chain's artifacts live, `gauntlet` by default, and what `<gauntlet dir>` means wherever a definition or a doc says it. `docs_dir` is the prose a blind agent may read, `docs` by default. The structure under `gauntlet_dir` is not a project's to move: the four lanes are always `specs/approved`, `plans/approved`, `reviews` and `verdicts` beneath it. It carries four more keys beside the directories: `target_branch` and `gate_command`, the branch a finished pair lands on and the command that has to pass before it does, `main` and `make check` by default; and `pytest_command` and `node_command`, the invocations `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh test` and `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh red` run, `.venv/bin/pytest` and `node --test` by default.
 
-Every hook and every script reads those through one reader, `python3 .claude/hooks/shell_shapes.py --config <key>`, which answers the three keys and the four derived lanes — `specs_lane`, `plans_lane`, `reviews_lane`, `verdicts_lane` — and is also how to see what a project's copy resolved to. `no-impl-reads.py` lets a blind agent read the file itself, since its definition names those directories only as `<tests dir>` and `<docs dir>`.
+Every hook and every script reads those through one reader, `python3 hooks/shell_shapes.py --config <key>`, which answers the three keys and the four derived lanes — `specs_lane`, `plans_lane`, `reviews_lane`, `verdicts_lane` — and is also how to see what a project's copy resolved to. `no-impl-reads.py` lets a blind agent read the file itself, since its definition names those directories only as `<tests dir>` and `<docs dir>`.
 
 The three names must be usable and pairwise disjoint: each repo-relative and normalized, none of them the root, absolute or walking out, and none equal to, under, or over another. A set that fails any of those moves nothing — every key falls back to its default together, rather than half a layout being applied. Per-key fallback would not be safe here: `tests_dir` naming `docs` is legal read alone and collides the moment the default `docs_dir` fills in, which would put the writer's lane over the prose it reads.
 

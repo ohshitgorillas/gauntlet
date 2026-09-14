@@ -16,7 +16,7 @@
 Steps 3 to 6 hold a lock, so two sessions converging at once queue instead of
 racing the branch tip. Every land is `--ff-only`; nothing is ever force-pushed.
 
-The branch and the gate are read from `.claude/hooks/blind-reads.json`, like
+The branch and the gate are read from `.claude/blind-reads.json`, like
 every directory the kit names. Neither is a literal here.
 """
 
@@ -149,7 +149,7 @@ def gate(slug: str) -> bool:
     """
     argv = shlex.split(GATE)
     if not argv:
-        die("pair: gate_command in .claude/hooks/blind-reads.json is empty")
+        die("pair: gate_command in .claude/blind-reads.json is empty")
     note("  gate: " + GATE)
     return trees.in_tree(trees.spec_tree(slug), argv) == 0
 

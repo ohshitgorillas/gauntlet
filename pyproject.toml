@@ -34,12 +34,12 @@ line-length = 100
 strict = true
 # The hooks import `shell_shapes` from beside them, and they travel as a unit
 # with no package around them, so the directory itself is the import path.
-mypy_path = ".claude/hooks"
+mypy_path = "hooks"
 exclude = ['^\.claude/worktrees/', '^\.venv/']
 
 [tool.coverage.run]
 branch = true
-source = [".claude/hooks", "scripts"]
+source = ["hooks", "scripts"]
 omit = ["*/__pycache__/*", ".claude/worktrees/*"]
 
 [tool.coverage.json]

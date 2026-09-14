@@ -38,11 +38,11 @@ Blindness costs something, so it is paid for. The `gauntlet-examiner` measures t
 3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-examiner` measures it.
 4. The `gauntlet-arbiter` runs its checks blind and, on `READY` and only then, writes `<gauntlet dir>/specs/approved/<slug>.txt`.
 5. The `gauntlet-scrivener` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
-6. The tests run red under `scripts/pair.sh red`, and a `gauntlet-juror` reads that saved output against the approved block and returns one verdict per line, blind.
+6. The tests run red under `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh red`, and a `gauntlet-juror` reads that saved output against the approved block and returns one verdict per line, blind.
 7. The main agent implements against the tests, and never edits them.
-8. After `scripts/pair.sh merge`, a `gauntlet-bailiff` reads the `TEST CHECK` brief the script printed, and the `<gauntlet dir>/merge/<slug>.txt` that brief names, against the committed block, and returns `PIN`, `SOFT`, `MISSING` or `EXTRA` per behavior line, blind. It is the only round that holds test code, so rules 4, 6, 13 and 14 are checked there and nowhere else.
+8. After `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`, a `gauntlet-bailiff` reads the `TEST CHECK` brief the script printed, and the `<gauntlet dir>/merge/<slug>.txt` that brief names, against the committed block, and returns `PIN`, `SOFT`, `MISSING` or `EXTRA` per behavior line, blind. It is the only round that holds test code, so rules 4, 6, 13 and 14 are checked there and nowhere else.
 
-## `scripts/pair.sh`
+## `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh`
 
 The script that moves a block between the reviewer, the writer and the tree. Its subcommands, and their stdout is contract:
 
@@ -52,7 +52,7 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 | `pair.sh open <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
 | `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
 | `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: <gauntlet dir>/merge/<slug>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor` |
-| `pair.sh merge <slug>` | the `scripts/strike-diff.py` verdict lines | the structure line is `motion: strike` or `motion: amend` |
+| `pair.sh merge <slug>` | the `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py` verdict lines | the structure line is `motion: strike` or `motion: amend` |
 | `pair.sh review <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.<N>.txt` | `<N>` is one more than the highest already on disk for that slug, 1 where there is none, and `<gauntlet dir>/reviews/` exists |
 | `pair.sh review plan <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.plan.<N>.txt` | the same count over the plan rounds of that slug |
 | `pair.sh restore <slug> <rev>` | `RESTORED <gauntlet dir>/specs/approved/<slug>.txt <rev>` | the approved block on disk is the block as it stood at `<rev>` |
@@ -73,9 +73,9 @@ The evidence sits in the file the `merge output:` line names, not beneath that h
 
 A red gate stops at step five: nothing lands, both trees stand exactly as they are, and stdout carries no brief — the evidence goes to stderr with the failure, because a brief on stdout is the brief of a merged block. A failing test there means the block and the code disagree, and the way out is the implementation tree or a re-approved block, never an edited test.
 
-The target branch and the gate command are `target_branch` and `gate_command` of `.claude/hooks/blind-reads.json`, read through the same `shell_shapes.py --config <key>` that answers for every directory the kit names. They default to `main` and `make check`. The gate is split into arguments rather than run through a shell, so a second command written after it in that file is an argument and not a command.
+The target branch and the gate command are `target_branch` and `gate_command` of `.claude/blind-reads.json`, read through the same `shell_shapes.py --config <key>` that answers for every directory the kit names. They default to `main` and `make check`. The gate is split into arguments rather than run through a shell, so a second command written after it in that file is an argument and not a command.
 
-The two runners are `pytest_command` and `node_command` of that same file, read through the same reader and split into arguments the same way. They default to `.venv/bin/pytest` and `node --test`, and they are what `pair.sh red` and `scripts/blind.sh test` run: a project that has to deselect a marker or import a loader names the whole invocation once there instead of editing the two scripts by hand. The test path and the flags each script adds come after the configured words, and a configured word carrying a slash is a path in the checkout while a bare word is on `PATH`. A wider runner widens nothing a blind agent may type: `blind-bash.py` admits `scripts/blind.sh test <path>` and no runner argument beside it, so the invocation is configuration and never agent input.
+The two runners are `pytest_command` and `node_command` of that same file, read through the same reader and split into arguments the same way. They default to `.venv/bin/pytest` and `node --test`, and they are what `pair.sh red` and `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh test` run: a project that has to deselect a marker or import a loader names the whole invocation once there instead of editing the two scripts by hand. The test path and the flags each script adds come after the configured words, and a configured word carrying a slash is a path in the checkout while a bare word is on `PATH`. A wider runner widens nothing a blind agent may type: `blind-bash.py` admits `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh test <path>` and no runner argument beside it, so the invocation is configuration and never agent input.
 
 `respec` lands a re-approved block on the open spec branch as the `spec:` commit the writer's delta names. It makes the same comparison `open` makes and one more: the newest round has to differ from the one the spec branch already committed, because a block whose lines changed under the last `READY` would otherwise pass. It stages the block alone, so tests the writer has not committed stay out of that commit.
 
@@ -86,7 +86,7 @@ A change confined to `<tests dir>/` — a test that violates `docs/testing.md` a
 1. The main agent drafts a `motion: strike` or `motion: amend` block and sends it to a `gauntlet-arbiter`.
 2. The reviewer resolves each line's quoted assertion against the test file itself — `<tests dir>/` is open to it, and the implementation is not what these lines rest on — and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
 3. The `gauntlet-scrivener` removes the targets and writes the replacements its `as:` fields name.
-4. `scripts/strike-diff.py`, run by `scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither shape has an implementation phase, so the window those two watch does not exist.
+4. `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py`, run by `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither shape has an implementation phase, so the window those two watch does not exist.
 
 The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `<tests dir>/`.
 

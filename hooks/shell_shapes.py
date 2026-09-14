@@ -646,20 +646,37 @@ def path_shape(prefix: str) -> str:
 def config() -> dict[str, Any]:
     """The one per-repo value, from the project's `blind-reads.json`.
 
-    `$CLAUDE_PROJECT_DIR/.claude/blind-reads.json` is the declaration, and the
-    copy beside this file is the fallback when that path names no file. The
-    project path wins because the config is the project's: the hook file may
-    live outside the checkout entirely, shared by every project it runs for,
-    and only the project path distinguishes them.
+    `$CLAUDE_PROJECT_DIR/.claude/blind-reads.json` is the declaration. The
+    project path wins because the config is the project's: the kit ships as a
+    plugin and lives outside the checkout entirely, shared by every project it
+    runs for, and only the project path distinguishes them.
+
+    That variable is set for a hook and is not promised to a script, so where
+    it is unset the checkout holding the working directory stands in as the
+    project. `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh` and
+    `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh` run with the checkout as their
+    working directory and would otherwise read a project's declaration as
+    absent and move every lane back to its default without saying so. A
+    variable that is set is the project and the walk does not run: a project
+    that declares nothing declares nothing, whatever checkout it sits under.
+
+    The copy beside this file is the last fallback, for a kit copied into a
+    tree rather than installed. The kit itself ships none.
 
     An unreadable or malformed file is an empty config, which is the default
-    lane: a typo in the file moves nothing. That holds for whichever of the two
-    is read — a malformed project file is an empty config rather than a fall
-    back to the beside-file copy, so a broken declaration never half-applies.
+    lane: a typo in the file moves nothing. That holds for whichever source is
+    read — a malformed file is an empty config rather than a fall back to the
+    next candidate, so a broken declaration never half-applies.
     """
     beside = Path(__file__).resolve().parent / "blind-reads.json"
-    project = os.environ.get("CLAUDE_PROJECT_DIR")
     source = beside
+    project = os.environ.get("CLAUDE_PROJECT_DIR")
+    if not project:
+        #: `checkout_root` is defined below and this runs at import time, so
+        #: the walk is spelled out here rather than called
+        here = Path.cwd().resolve()
+        root = next((p for p in (here, *here.parents) if (p / ".git").exists()), None)
+        project = str(root) if root else None
     if project:
         candidate = Path(project) / ".claude" / "blind-reads.json"
         if candidate.is_file():

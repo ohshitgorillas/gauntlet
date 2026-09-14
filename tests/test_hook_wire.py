@@ -1,4 +1,4 @@
-"""Wire tests for the four PreToolUse hooks in .claude/hooks/.
+"""Wire tests for the four PreToolUse hooks in hooks/.
 
 Each hook is invoked exactly as Claude Code invokes it: one JSON object on
 stdin carrying ``tool_name``, ``tool_input`` and ``cwd``, and the hook answers
@@ -19,7 +19,7 @@ from pathlib import Path
 
 # The hooks under test are the ones in this worktree.
 WORKTREE_ROOT = Path(__file__).resolve().parents[1]
-HOOK_DIR = WORKTREE_ROOT / ".claude" / "hooks"
+HOOK_DIR = WORKTREE_ROOT / "hooks"
 
 
 def _main_checkout_root():
@@ -274,7 +274,7 @@ class TestsLaneGitSubcommands(unittest.TestCase):
         # very subcommand admitted as a read.
         expected = {
             "git grep -n foo -- tests/": SILENT,
-            "git grep -n 'tests/' -- .claude/hooks": SILENT,
+            "git grep -n 'tests/' -- hooks": SILENT,
             "git ls-tree HEAD tests/": SILENT,
             "git cat-file -p HEAD:tests/test_hook_wire.py": SILENT,
             "git rev-list HEAD -- tests/": SILENT,
@@ -798,7 +798,7 @@ class LanesOnReadOnlyShellShapes(unittest.TestCase):
 
     def test_git_reading_forms_naming_a_lane_pass(self):
         expected = {
-            "git ls-tree -r --name-only main -- scripts gauntlet/specs .claude/agents": PASSES,
+            "git ls-tree -r --name-only main -- scripts gauntlet/specs agents": PASSES,
             "git log --oneline -- tests/": PASSES,
             "git diff main -- tests/test_x.py": PASSES,
             "git show HEAD:tests/test_x.py": PASSES,
@@ -935,8 +935,8 @@ class TheCallerGate(unittest.TestCase):
 
     #: an implementation path on no allowlist, and a shell command that is not
     #: the blind agents' one entry point
-    SOURCE = ".claude/hooks/shell_shapes.py"
-    COMMAND = "cat .claude/hooks/shell_shapes.py"
+    SOURCE = "hooks/shell_shapes.py"
+    COMMAND = "cat hooks/shell_shapes.py"
 
     def test_the_blind_agents_are_read_blocked_and_the_main_agent_is_not(self):
         # An absent `agent_type` is the main agent, which has to read the
@@ -1000,7 +1000,7 @@ class TheCallerGate(unittest.TestCase):
         self.assertIn("no-impl-reads.py", wired)
         self.assertIn("blind-bash.py", wired)
 
-        definitions = sorted((WORKTREE_ROOT / ".claude" / "agents").glob("gauntlet-*.md"))
+        definitions = sorted((WORKTREE_ROOT / "agents").glob("gauntlet-*.md"))
         self.assertTrue(definitions)
         for definition in definitions:
             with self.subTest(agent=definition.name):

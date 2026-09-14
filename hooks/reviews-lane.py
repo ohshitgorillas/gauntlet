@@ -3,7 +3,7 @@
 
 Wired session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`.claude/agents/gauntlet-arbiter.md` and `.claude/agents/gauntlet-prosecutor.md`, where
+`agents/gauntlet-arbiter.md` and `agents/gauntlet-prosecutor.md`, where
 the same script confines those two agents to what they are allowed to write.
 
 The rule it enforces: a reviewer's verdict reaches the rest of the chain from a
@@ -232,7 +232,7 @@ def self_test() -> int:
         "6 read-only git naming the lane passes, its write forms do not": all(
             (
                 allowed(bash("git grep -n foo -- gauntlet/reviews/")),
-                allowed(bash("git grep -n 'gauntlet/reviews/' -- .claude/hooks")),
+                allowed(bash("git grep -n 'gauntlet/reviews/' -- hooks")),
                 allowed(bash("git ls-tree HEAD gauntlet/reviews/")),
                 denied(bash("git grep -Ovim foo -- gauntlet/reviews/")),
                 denied(bash("git diff --output=gauntlet/reviews/x.txt")),

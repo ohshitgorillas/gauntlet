@@ -66,7 +66,7 @@ Session-wide, in `.claude/settings.json`, so the lane binds the main agent and e
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/specs-lane.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/hooks/specs-lane.py"
           }
         ]
       }
@@ -92,11 +92,11 @@ A repo that moves one of the three moves it everywhere at once, because every ho
 Check them after wiring. Each prints one `PASS` or `FAIL` per line it exists to hold:
 
 ```
-python3 .claude/hooks/plans-lane.py --self-test
-python3 .claude/hooks/specs-lane.py --self-test
-python3 .claude/hooks/tests-lane.py --self-test
-python3 .claude/hooks/reviews-lane.py --self-test
-python3 .claude/hooks/no-impl-reads.py --self-test
+python3 hooks/plans-lane.py --self-test
+python3 hooks/specs-lane.py --self-test
+python3 hooks/tests-lane.py --self-test
+python3 hooks/reviews-lane.py --self-test
+python3 hooks/no-impl-reads.py --self-test
 ```
 
 ## Failure modes it accepts

@@ -3,7 +3,7 @@
 
 Wired session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`.claude/agents/gauntlet-scrivener.md`, where the same script confines that agent to
+`agents/gauntlet-scrivener.md`, where the same script confines that agent to
 its own tree's `tests/`.
 
 The rule it enforces: tests are written blind, from an approved spec block, by
@@ -175,7 +175,7 @@ def self_test() -> int:
         "6 read-only git naming tests/ passes, its write forms do not": all(
             (
                 allowed(bash("git grep -n foo -- tests/")),
-                allowed(bash("git grep -n 'tests/' -- .claude/hooks")),
+                allowed(bash("git grep -n 'tests/' -- hooks")),
                 allowed(bash("git ls-tree HEAD tests/")),
                 denied(bash("git grep -Ovim foo -- tests/")),
                 denied(bash("git diff --output=tests/x")),

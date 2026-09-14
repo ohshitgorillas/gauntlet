@@ -6,7 +6,7 @@
 #   blind.sh status <slug>           is that block's approved spec committed
 #   blind.sh show <commit> <slug>    print that block's approved spec
 #
-# `.claude/hooks/blind-bash.py` denies the gauntlet-scrivener and the
+# `hooks/blind-bash.py` denies the gauntlet-scrivener and the
 # gauntlet-bailiff every command but these, matching the whole command text
 # against one anchored pattern per subcommand. This script is the other half:
 # the hook decides nothing about what a subcommand does, and this file offers
@@ -66,12 +66,17 @@ sandbox() {
 		"$@"
 }
 
-#: the values of `.claude/hooks/blind-reads.json`, through the same reader
+#: the values of `.claude/blind-reads.json`, through the same reader
 #: the hooks use, so the lane this script binds writable is the lane
 #: `tests-lane.py` guards and the block it shows is the one `specs-lane.py` holds
-READER=$ROOT/.claude/hooks/shell_shapes.py
+#:
+#: The reader is found beside this script rather than under `$ROOT`, because
+#: `scripts/` and `hooks/` travel together as the plugin and `$ROOT` is the
+#: checkout being worked on, which holds neither once the kit is installed
+#: rather than copied. The declaration it reads is still the project's.
+READER=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/hooks/shell_shapes.py
 cfg() {
-	[ -f "$READER" ] || die "no $READER: scripts/ ships with .claude/hooks/, copy both"
+	[ -f "$READER" ] || die "no $READER: scripts/ ships with hooks/, copy both"
 	python3 "$READER" --config "$1"
 }
 SPECS=$(cfg specs_lane) || die "cannot read the approved-specs lane"

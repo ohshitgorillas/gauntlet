@@ -21,13 +21,13 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-_HOOKS = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks")
+_HOOKS = str(Path(__file__).resolve().parents[2] / "hooks")
 sys.path.insert(0, _HOOKS)
 
 try:
     import shell_shapes as sh  # noqa: E402
 except ImportError:  # pragma: no cover - a checkout missing half the kit
-    sys.exit(f"pair: no shell_shapes.py in {_HOOKS}: scripts/ ships with .claude/hooks/")
+    sys.exit(f"pair: no shell_shapes.py in {_HOOKS}: scripts/ ships with hooks/")
 
 
 def _root() -> str:
