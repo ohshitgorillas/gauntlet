@@ -41,10 +41,10 @@ this file.
 
 from __future__ import annotations
 
-import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
@@ -68,8 +68,8 @@ _BASH = sh.lane_denial(LANE, "a test", _LANE)
 
 
 def _is_spec_tree(root: str) -> bool:
-    parent, name = os.path.split(root)
-    return name.endswith("-spec") and os.path.basename(parent) == "worktrees"
+    path = Path(root)
+    return path.name.endswith("-spec") and path.parent.name == "worktrees"
 
 
 def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
@@ -86,7 +86,7 @@ def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
     return _LANE if in_tests else None
 
 
-def _bash_verdict(command: str, agent: str = "") -> str | None:
+def _bash_verdict(command: str, _agent: str = "") -> str | None:
     return _BASH if sh.lane_write_in(command, BASH_TESTS) else None
 
 
@@ -101,9 +101,9 @@ def main() -> None:
 
 def self_test() -> int:
     """Pin the three spec lines of the test lane."""
-    root = sh.checkout_root(os.path.dirname(os.path.abspath(__file__))) or "/repo"
-    spec = os.path.join(root, ".claude", "worktrees", "x-spec")
-    impl = os.path.join(root, ".claude", "worktrees", "x-impl")
+    root = sh.checkout_root(str(Path(__file__).resolve().parent)) or "/repo"
+    spec = str(Path(root) / ".claude" / "worktrees" / "x-spec")
+    impl = str(Path(root) / ".claude" / "worktrees" / "x-impl")
 
     write, bash = sh.probes(_verdict, root)
     denied, allowed = sh.denied, sh.allowed

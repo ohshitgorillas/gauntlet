@@ -29,12 +29,12 @@ reading; `as:` is the field that names what the replacement must land as.
 """
 
 import argparse
-import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
-_HOOKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".claude", "hooks")
+_HOOKS = str(Path(__file__).resolve().parent / ".." / ".claude" / "hooks")
 sys.path.insert(0, _HOOKS)
 
 try:
@@ -167,8 +167,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--head", required=True, help="the commit that landed it")
     args = ap.parse_args(argv)
 
-    with open(args.spec, encoding="utf-8") as fh:
-        block = fh.read()
+    block = Path(args.spec).read_text(encoding="utf-8")
 
     verdicts = report(block, args.base, args.head)
     for verdict in verdicts:

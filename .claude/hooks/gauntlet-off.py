@@ -53,12 +53,12 @@ variable unset. That property is itself one of the lines it pins, and it is
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
@@ -154,14 +154,14 @@ def _head(segment: str) -> str:
         if "=" in word and not word.startswith("=") and "/" not in word.split("=", 1)[0]:
             i += 1  # a leading assignment, not the command
             continue
-        if os.path.basename(word) in WRAPPERS:
+        if Path(word).name in WRAPPERS:
             wrapped = True
             i += 1  # a wrapper carries the command we want in its arguments
             continue
         if wrapped and (word.startswith("-") or _DURATION.match(word)):
             i += 1  # a wrapper's own option or `timeout`'s duration
             continue
-        return os.path.basename(word)
+        return Path(word).name
     return ""
 
 
@@ -179,10 +179,10 @@ def _assignment_words(segment: str) -> list[str]:
         out.append(words[i])
         i += 1
     while i < len(words):
-        if os.path.basename(words[i]) in ("export", "set", "env"):
+        if Path(words[i]).name in ("export", "set", "env"):
             out.extend(words[i + 1 :])
             break
-        if os.path.basename(words[i]) in WRAPPERS:
+        if Path(words[i]).name in WRAPPERS:
             i += 1
             continue
         break
@@ -227,7 +227,7 @@ def prompt() -> None:
 def bash() -> None:
     #: this hook guards one tool, so a payload naming any other is not its call
     #: to refuse however malformed it is
-    sh.hook_main(lambda name, tool_input, payload: _verdict(name, tool_input), guards=("Bash",))
+    sh.hook_main(lambda name, tool_input, _payload: _verdict(name, tool_input), guards=("Bash",))
 
 
 def self_test() -> int:
@@ -291,7 +291,7 @@ def self_test() -> int:
             and BANNER != NOTICE
         ),
         "the self-test asserts nothing on the ambient variable": (
-            off("off") is True and off(os.environ.get("nonexistent-by-construction")) is False
+            off("off") is True and off(os.environ.get("NONEXISTENT-BY-CONSTRUCTION")) is False
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal.

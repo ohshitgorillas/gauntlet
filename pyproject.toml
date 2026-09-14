@@ -14,6 +14,15 @@ extend-exclude = [".claude/worktrees", ".venv", "state"]
 # tool call is allowed; an exception it swallows is a call it waved through, so
 # a bare `except` in this tree is a lane that fails open.
 select = ["E", "F", "B", "SIM", "UP", "RET", "ARG", "PTH", "C901", "BLE", "TRY"]
+# Two of `TRY` are off because they cut against the reason `TRY` is on. TRY003
+# wants the message moved inside a subclass; the messages here name the tool
+# that is missing or the shape the judge answered with, and a subclass per
+# message buys a reader nothing. TRY004 wants a `TypeError` where a value has
+# the wrong type, but the wrong types in this tree come from a subprocess whose
+# output is parsed, and `check_md_trivia.py:358` catches `RuntimeError` to turn
+# exactly those into one clean gate line -- a `TypeError` there escapes the
+# handler and prints a traceback instead.
+ignore = ["TRY003", "TRY004"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

@@ -207,7 +207,10 @@ def from_records(path: Path) -> list[Line]:
 
 
 def worktree_lines() -> list[Line]:
-    """Collect every markdown line the working tree adds: diffs against HEAD, plus untracked files whole."""
+    """Every markdown line the working tree adds.
+
+    The diff against HEAD, plus each untracked file whole.
+    """
     out = added_lines(git_diff("HEAD", "--", "*.md"))
     for rel in git("ls-files", "--others", "--exclude-standard", "--", "*.md").split():
         text = (ROOT / rel).read_text(encoding="utf-8").splitlines()
@@ -366,7 +369,10 @@ def judged(args: argparse.Namespace, gate: Gate, lines: list[Line], out: TextIO)
 
 
 def collect(args: argparse.Namespace) -> tuple[list[Line], list[str]]:
-    """Lines to judge, from whichever input mode the arguments name; markdown raises no complaint of its own."""
+    """Lines to judge, from whichever input mode the arguments name.
+
+    Markdown raises no complaint of its own.
+    """
     if args.stop:
         if stop_already_ran():
             return [], []
