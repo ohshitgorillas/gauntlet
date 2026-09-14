@@ -1,0 +1,4 @@
+RED 1: assert (other_names_another_symbol, other_calls_the_symbol_unimported) == (["tests/test_one.py"], ["tests/test_one.py", "tests/test_two.py"])
+RED 2: assert (far_ties_to_a_test_file, far_ties_to_the_helper) == (["tests/support/helper.py", "tests/test_uses_helper.py"], ["tests/support/helper.py", "tests/test_far.py", "tests/test_uses_helper.py"])
+RED 3: assert (collide_binds_the_symbols_name, collide_binds_another_name) == (["tests/test_collide.py", "tests/test_one.py"], ["tests/test_one.py"])
+RED 4: assert (the_file_does_not_parse, the_file_parses_and_uses_the_symbol) == (["tests/test_good.py"], ["tests/test_broken.py", "tests/test_good.py"])

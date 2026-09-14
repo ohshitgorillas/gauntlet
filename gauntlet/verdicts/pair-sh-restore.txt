@@ -1,0 +1,2 @@
+RED 1: assert (repo / SPEC_PATH).read_text() == expected
+RED 2: assert _printed(lines, repo) == (1, rev, expected)
