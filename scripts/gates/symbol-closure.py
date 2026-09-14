@@ -98,16 +98,16 @@ def names_and_defines(text: str) -> tuple[set[str], set[str]]:
     return names, defines | _module_assignments(tree)
 
 
-def closure(root, symbols):
+def closure(root: Path, symbols: set[str]) -> list[str]:
     """The paths under `root` the symbols reach, relative to the root's parent."""
-    read = {}
+    read: dict[Path, tuple[set[str], set[str]]] = {}
     for path in root.rglob("*.py"):
         if path.is_file():
             read[path] = names_and_defines(path.read_text(errors="replace"))
 
     direct = {path for path, (names, _) in read.items() if names & symbols}
 
-    exported = set()
+    exported: set[str] = set()
     for path in direct:
         exported |= read[path][1]
 
@@ -117,13 +117,13 @@ def closure(root, symbols):
     return sorted(str(path.relative_to(base)) for path in direct | hop)
 
 
-def self_test():
+def self_test() -> int:
     """One PASS or FAIL per rule this script exists to hold."""
     import tempfile
 
     failed = 0
 
-    def tree(root, files):
+    def tree(root: Path, files: dict[str, str]) -> Path:
         anchor = root / "tests" / "__init__.py"
         anchor.parent.mkdir(parents=True, exist_ok=True)
         anchor.write_text("")
@@ -133,7 +133,7 @@ def self_test():
             target.write_text(text)
         return anchor
 
-    def check(rule, got, want):
+    def check(rule: str, got: list[str], want: list[str]) -> None:
         nonlocal failed
         if got == want:
             print(f"PASS {rule}")
@@ -229,7 +229,7 @@ def self_test():
     return 1 if failed else 0
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     if argv[1:] == ["--self-test"]:
         return self_test()
     if len(argv) != 3 or argv[1] != "--symbols-stdin":

@@ -58,7 +58,15 @@ FAILING = ("MISSING", "RANGE", "AMBIGUOUS", "ORPHAN", "QUOTE")
 class Citation:
     """One backticked citation, as written and where it sits in the document."""
 
-    def __init__(self, path, start, end, row, col_start, col_end):
+    def __init__(
+        self,
+        path: str,
+        start: int,
+        end: int,
+        row: int,
+        col_start: int,
+        col_end: int,
+    ) -> None:
         self.path = path  # as written, "" on a bare continuation
         self.start = start
         self.end = end  # == start where the citation names one line
@@ -67,21 +75,21 @@ class Citation:
         self.col_end = col_end
         self.anchor = ""  # the quoted text beside it, "" where none
         self.inherited = ""  # the path a bare continuation resolved to
-        self.resolved = None  # Path, or None where it did not resolve
+        self.resolved: Path | None = None  # None where it did not resolve
         self.verdict = "OK"
         self.detail = ""
 
     @property
-    def text(self):
+    def text(self) -> str:
         span = f"{self.start}" if self.end == self.start else f"{self.start}-{self.end}"
         return f"{self.path}:{span}"
 
     @property
-    def bare(self):
+    def bare(self) -> bool:
         return self.path == ""
 
     @property
-    def named(self):
+    def named(self) -> str:
         """The path the citation is about: its own, or the one it inherited."""
         return self.path or self.inherited
 
@@ -89,7 +97,7 @@ class Citation:
 REACH = 80  # how far from a citation a quote may sit and still be its anchor
 
 
-def quotes_in(line):
+def quotes_in(line: str) -> list[re.Match[str]]:
     """The double-quoted spans of one document line, code spans excluded.
 
     A quote inside backticks is source text a sentence is showing, not text the
@@ -174,7 +182,7 @@ def _bind_preceding(
             break
 
 
-def parse(text):
+def parse(text: str) -> list[Citation]:
     """Every citation in the document, in document order."""
     found = []
     for row, line in enumerate(text.splitlines()):
@@ -191,7 +199,7 @@ def parse(text):
     return found
 
 
-def candidates(name):
+def candidates(name: str) -> list[Path]:
     """Every path in the checkout carrying that basename."""
     hits = []
     for path in ROOT.rglob(name):
@@ -207,7 +215,7 @@ def candidates(name):
     return sorted(hits)
 
 
-def resolve(cite):
+def resolve(cite: Citation) -> None:
     """Set `resolved`, and a failing verdict where the path does not land."""
     named = cite.named
     if not named:
@@ -241,12 +249,14 @@ def resolve(cite):
         cite.resolved = hits[0]
 
 
-def lines_of(path):
+def lines_of(path: Path) -> list[str]:
     return path.read_text(encoding="utf-8", errors="replace").splitlines()
 
 
-def judge(cite):
+def judge(cite: Citation) -> None:
     """The verdict for one citation whose path resolved."""
+    if cite.resolved is None:
+        return
     rows = lines_of(cite.resolved)
     if cite.start < 1 or cite.end > len(rows) or cite.end < cite.start:
         cite.verdict = "RANGE"
@@ -260,7 +270,7 @@ def judge(cite):
         cite.detail = span[0].strip()
 
 
-def check(text):
+def check(text: str) -> list[Citation]:
     """Every citation in the document, resolved and judged, in order."""
     cites = parse(text)
     carried = ""
@@ -277,7 +287,7 @@ def check(text):
     return cites
 
 
-def shown(path):
+def shown(path: Path | str) -> str:
     """A resolved path, repo-relative where it is in the checkout."""
     try:
         return str(Path(path).relative_to(ROOT))
@@ -285,7 +295,7 @@ def shown(path):
         return str(path)
 
 
-def rows_for(cite):
+def rows_for(cite: Citation) -> list[str]:
     """The rows one citation prints: its standing rows, then its failure."""
     out = []
     if cite.bare:
@@ -302,14 +312,14 @@ def rows_for(cite):
     return out
 
 
-def report(text):
+def report(text: str) -> list[str]:
     out = []
     for cite in check(text):
         out += rows_for(cite)
     return out
 
 
-def fixes(text):
+def fixes(text: str) -> list[tuple[Citation, int | None]]:
     """One `(citation, number)` per citation this document can fill, and one
     `(citation, None)` per citation whose anchor is not unique in its file."""
     out = []
@@ -323,9 +333,10 @@ def fixes(text):
     return out
 
 
-def apply_fixes(text):
+def apply_fixes(text: str) -> tuple[str, list[str]]:
     """The document with every fillable number filled, and the rows to print."""
-    rows, edits = [], []
+    rows: list[str] = []
+    edits: list[tuple[Citation, int]] = []
     for cite, number in fixes(text):
         if number is None:
             rows.append(f"REFUSED         `{cite.text}`  the anchor is not unique")
@@ -340,7 +351,7 @@ def apply_fixes(text):
     return "".join(lines), rows
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -366,7 +377,7 @@ def main(argv):
     return 0
 
 
-def self_test():
+def self_test() -> int:
     """Pin the rules of the grammar and the two modes, on a throwaway tree."""
     import tempfile
 
@@ -387,7 +398,7 @@ def self_test():
         outside = elsewhere / "OUT.md"
         outside.write_text("out one\nout two\n", encoding="utf-8")
 
-        def codes(doc):
+        def codes(doc: str) -> list[str]:
             return [row.split()[0] for row in report(doc)]
 
         rules["1 a path absent from the checkout is MISSING, one present is not"] = (
