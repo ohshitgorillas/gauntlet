@@ -643,6 +643,41 @@ def path_shape(prefix: str) -> str:
     return rf"(?:{TREE})?{re.escape(prefix)}/[A-Za-z0-9_][A-Za-z0-9._/-]*"
 
 
+def project_checkout(start: Path) -> Path | None:
+    """The main checkout holding `start`, following a worktree's pointer file.
+
+    A worktree's `.git` is a file reading `gitdir: <main>/.git/worktrees/<name>`
+    rather than a directory, so a walk that stops at the first `.git` stops in
+    the worktree. The declaration lives in the main checkout, and a worktree
+    that carries no copy of it would otherwise read as a project declaring
+    nothing. The pointer names the main checkout's `.git`, whose parent is the
+    checkout.
+
+    Anything else a pointer file names -- a submodule's `<super>/.git/modules/`,
+    an unreadable file, a spelling this does not know -- is the directory
+    holding it, which is what the walk answered before.
+    """
+    for candidate in (start, *start.parents):
+        dot_git = candidate / ".git"
+        if dot_git.is_dir():
+            return candidate
+        if dot_git.is_file():
+            try:
+                pointer = dot_git.read_text(encoding="utf-8").strip()
+            except OSError:
+                return candidate
+            if not pointer.startswith("gitdir:"):
+                return candidate
+            gitdir = Path(pointer[len("gitdir:") :].strip())
+            if not gitdir.is_absolute():
+                gitdir = (candidate / gitdir).resolve()
+            common = gitdir.parent.parent
+            if gitdir.parent.name == "worktrees" and common.name == ".git":
+                return common.parent
+            return candidate
+    return None
+
+
 def config() -> dict[str, Any]:
     """The one per-repo value, from the project's `blind-reads.json`.
 
@@ -656,9 +691,13 @@ def config() -> dict[str, Any]:
     project. `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh` and
     `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh` run with the checkout as their
     working directory and would otherwise read a project's declaration as
-    absent and move every lane back to its default without saying so. A
-    variable that is set is the project and the walk does not run: a project
-    that declares nothing declares nothing, whatever checkout it sits under.
+    absent and move every lane back to its default without saying so. Both
+    scripts resolve the checkout at entry and export the variable, so the walk
+    is the last fallback rather than the usual path; where it does run it
+    follows a worktree's pointer file to the main checkout, because that is
+    where the declaration is. A variable that is set is the project and the
+    walk does not run: a project that declares nothing declares nothing,
+    whatever checkout it sits under.
 
     The copy beside this file is the last fallback, for a kit copied into a
     tree rather than installed. The kit itself ships none.
@@ -672,10 +711,7 @@ def config() -> dict[str, Any]:
     source = beside
     project = os.environ.get("CLAUDE_PROJECT_DIR")
     if not project:
-        #: `checkout_root` is defined below and this runs at import time, so
-        #: the walk is spelled out here rather than called
-        here = Path.cwd().resolve()
-        root = next((p for p in (here, *here.parents) if (p / ".git").exists()), None)
+        root = project_checkout(Path.cwd().resolve())
         project = str(root) if root else None
     if project:
         candidate = Path(project) / ".claude" / "blind-reads.json"

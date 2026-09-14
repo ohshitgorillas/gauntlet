@@ -36,6 +36,20 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
 }
 cd "$ROOT" || exit 2
 
+#: `shell_shapes.config()` reads the declaration from `$CLAUDE_PROJECT_DIR`, and
+#: the variable is set for a hook but not for a `Bash` child. So the checkout is
+#: resolved once here and exported for everything below. `--git-common-dir` is
+#: the main checkout's `.git` from inside a worktree as well, and the checkout
+#: is its parent: the declaration is the project's, and a worktree carries no
+#: copy of it. A variable already set is the caller's and stands.
+if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
+	if common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) &&
+		[ -n "$common_dir" ]; then
+		CLAUDE_PROJECT_DIR=$(dirname "$common_dir")
+		export CLAUDE_PROJECT_DIR
+	fi
+fi
+
 die() {
 	echo "blind.sh: $1" >&2
 	exit 2

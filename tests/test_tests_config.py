@@ -541,3 +541,84 @@ class TwoScalarsResolvedOnTheirOwn(unittest.TestCase):
             self.assertEqual(_config_lines(copy, key), [default], key)
         self.assertEqual(_config_lines(copy, "target_branch"), ["dev"])
         self.assertEqual(_config_lines(copy, "gate_command"), ["gate"])
+
+
+def _git(cwd, *args):
+    subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"},
+    )
+
+
+class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
+    """What the reader answers with ``CLAUDE_PROJECT_DIR`` unset, from a worktree.
+
+    A worktree's ``.git`` is a pointer file rather than a directory, so a walk
+    that stops at the first ``.git`` stops in the worktree.  The worktree
+    carries no ``.claude/blind-reads.json`` of its own -- the declaration is
+    committed in the project, and the tree is a checkout of a branch, not a
+    second project -- so stopping there reads the declaration as absent and
+    moves every lane silently back to its kit default.
+
+    The variable is the knob and both scripts export it, so this is the
+    fallback rather than the usual path.  It is still the path any other
+    ``Bash`` child takes.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.project = Path(cls.tmp.name) / "project"
+        cls.project.mkdir()
+        _git(cls.tmp.name, "init", "-q", "-b", "main", "project")
+        (cls.project / "README").write_text("x")
+        _git(cls.project, "add", "-A")
+        _git(cls.project, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+        #: written after the commit, so the worktree gets no copy of it -- which
+        #: is the shape the walk stopped on
+        (cls.project / ".claude").mkdir()
+        (cls.project / ".claude" / "blind-reads.json").write_text(
+            json.dumps({"tests_dir": "spec"})
+        )
+        cls.tree = cls.project / ".claude" / "worktrees" / "slug-spec"
+        _git(cls.project, "worktree", "add", "-q", "-b", "slug", str(cls.tree))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def _tests_dir(self, cwd):
+        environment = dict(os.environ)
+        environment.pop("GAUNTLET", None)
+        environment.pop("CLAUDE_PROJECT_DIR", None)
+        completed = subprocess.run(
+            [sys.executable, str(HOOK_DIR / "shell_shapes.py"), "--config", "tests_dir"],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=True,
+            env=environment,
+        )
+        return completed.stdout.strip()
+
+    def test_the_worktree_carries_no_declaration_of_its_own(self):
+        self.assertFalse((self.tree / ".claude" / "blind-reads.json").exists())
+        self.assertTrue((self.tree / ".git").is_file())
+
+    def test_the_main_checkout_reads_its_declaration(self):
+        self.assertEqual(self._tests_dir(self.project), "spec")
+
+    def test_the_worktree_reads_the_projects_declaration_and_not_the_default(self):
+        self.assertEqual(self._tests_dir(self.tree), "spec")
+
+    def test_a_directory_under_the_worktree_reads_it_too(self):
+        deeper = self.tree / "spec" / "unit"
+        deeper.mkdir(parents=True, exist_ok=True)
+        self.assertEqual(self._tests_dir(deeper), "spec")
+
+    def test_outside_any_checkout_there_is_no_project(self):
+        self.assertEqual(self._tests_dir(self.tmp.name), "tests")
