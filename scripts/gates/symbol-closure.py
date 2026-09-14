@@ -83,11 +83,7 @@ def closure(root, symbols):
     for path in direct:
         exported |= read[path][1]
 
-    hop = {
-        path
-        for path, (names, _) in read.items()
-        if path not in direct and names & exported
-    }
+    hop = {path for path, (names, _) in read.items() if path not in direct and names & exported}
 
     base = root.parent
     return sorted(str(path.relative_to(base)) for path in direct | hop)
@@ -142,9 +138,7 @@ def self_test():
         anchor = tree(
             Path(tmp),
             {
-                helper: (
-                    "from pkg import alpha\n\n\ndef build_thing():\n    return alpha()\n"
-                ),
+                helper: ("from pkg import alpha\n\n\ndef build_thing():\n    return alpha()\n"),
                 near: (
                     "from support.helper import build_thing\n"
                     "\n"

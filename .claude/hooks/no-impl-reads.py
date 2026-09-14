@@ -226,8 +226,8 @@ def readable(target: str, root: str | None, cwd: str) -> bool:
         elif rel == name:
             return True
     #: a documentation file sitting at the repo root, by extension
-    return base is not None and os.sep not in rel and (
-        Path(rel).suffix.lower() in DEFAULT_ROOT_FILES
+    return (
+        base is not None and os.sep not in rel and (Path(rel).suffix.lower() in DEFAULT_ROOT_FILES)
     )
 
 
@@ -238,9 +238,7 @@ def _candidates(words: list[str]) -> list[str]:
         for w in words[1:]
         #: a URL is not a path: `SERVED` above rules on the ones that carry source,
         #: and an API call over HTTP reaches no file this hook is guarding
-        if "://" not in w
-        and ("/" in w or Path(w).suffix)
-        and not w.startswith("-")
+        if "://" not in w and ("/" in w or Path(w).suffix) and not w.startswith("-")
     ]
 
 
@@ -389,9 +387,7 @@ def _bash_verdict(command: str, root: str | None, cwd: str) -> str | None:
     return None
 
 
-def _verdict(
-    name: str, tool_input: dict[str, Any], root: str | None, cwd: str
-) -> str | None:
+def _verdict(name: str, tool_input: dict[str, Any], root: str | None, cwd: str) -> str | None:
     """Why this call is refused, or None to let it through."""
     if name == "Read":
         return None if readable(tool_input.get("file_path", ""), root, cwd) else _WHY
@@ -414,9 +410,7 @@ GUARDS = ("Read", "Grep", "Glob", "Bash")
 
 
 def main() -> None:
-    def verdict(
-        name: str, tool_input: dict[str, Any], payload: dict[str, Any]
-    ) -> str | None:
+    def verdict(name: str, tool_input: dict[str, Any], payload: dict[str, Any]) -> str | None:
         #: inside the closure, so that a root that will not resolve is a
         #: refusal like any other rather than a crash read as one
         cwd = sh.cwd_of(payload)
@@ -468,9 +462,7 @@ def _no_denied_nesting() -> bool:
             return False
         #: the root sits inside the denied base, on a branch that is not the
         #: one re-allowed leaf, so everything it names is denied to a read
-        if _under(root, GAUNTLET_BASE) and not any(
-            _under(root, leaf) for leaf in GAUNTLET_LEAVES
-        ):
+        if _under(root, GAUNTLET_BASE) and not any(_under(root, leaf) for leaf in GAUNTLET_LEAVES):
             return False
     return True
 
@@ -499,9 +491,7 @@ def self_test() -> int:
     def bash(cmd: str) -> str | None:
         return call("Bash", {"command": cmd})
 
-    node_reads_source = (
-        "node -e \"console.log(require('fs').readFileSync('src/core.py','utf8'))\""
-    )
+    node_reads_source = "node -e \"console.log(require('fs').readFileSync('src/core.py','utf8'))\""
     denied, allowed = sh.denied, sh.allowed
     lines = {
         "1 the spec's own sources are readable, the rest is not": all(

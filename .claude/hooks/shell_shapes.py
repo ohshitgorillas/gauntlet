@@ -115,11 +115,43 @@ Verdict = Callable[[str, dict[str, Any], Payload], str | None]
 #: first words of commands that only read; anything else is treated as a write
 READ_ONLY = frozenset(
     {
-        "basename", "cat", "cksum", "cmp", "column", "comm", "cut", "diff",
-        "dirname", "du", "echo", "false", "fgrep", "file", "grep",
-        "head", "jq", "less", "ls", "md5sum", "nl", "od",
-        "printf", "pwd", "realpath", "rg", "sha256sum", "sort",
-        "stat", "tail", "test", "tr", "true", "uniq", "wc", "which", "xxd",
+        "basename",
+        "cat",
+        "cksum",
+        "cmp",
+        "column",
+        "comm",
+        "cut",
+        "diff",
+        "dirname",
+        "du",
+        "echo",
+        "false",
+        "fgrep",
+        "file",
+        "grep",
+        "head",
+        "jq",
+        "less",
+        "ls",
+        "md5sum",
+        "nl",
+        "od",
+        "printf",
+        "pwd",
+        "realpath",
+        "rg",
+        "sha256sum",
+        "sort",
+        "stat",
+        "tail",
+        "test",
+        "tr",
+        "true",
+        "uniq",
+        "wc",
+        "which",
+        "xxd",
         "yq",
     }
 )
@@ -128,8 +160,15 @@ READ_ONLY = frozenset(
 #: `find` prints names and is the reader every search starts with
 FIND_WRITE_ACTIONS = frozenset(
     {
-        "-delete", "-exec", "-execdir", "-ok", "-okdir",
-        "-fprint", "-fprint0", "-fprintf", "-fls",
+        "-delete",
+        "-exec",
+        "-execdir",
+        "-ok",
+        "-okdir",
+        "-fprint",
+        "-fprint0",
+        "-fprintf",
+        "-fls",
     }
 )
 
@@ -137,9 +176,26 @@ FIND_WRITE_ACTIONS = frozenset(
 #: not the command `xargs` runs
 XARGS_VALUE_FLAGS = frozenset(
     {
-        "-a", "-d", "-E", "-e", "-I", "-i", "-L", "-l", "-n", "-P", "-s",
-        "--arg-file", "--delimiter", "--eof", "--replace", "--max-lines",
-        "--max-args", "--max-procs", "--max-chars", "--process-slot-var",
+        "-a",
+        "-d",
+        "-E",
+        "-e",
+        "-I",
+        "-i",
+        "-L",
+        "-l",
+        "-n",
+        "-P",
+        "-s",
+        "--arg-file",
+        "--delimiter",
+        "--eof",
+        "--replace",
+        "--max-lines",
+        "--max-args",
+        "--max-procs",
+        "--max-chars",
+        "--process-slot-var",
     }
 )
 
@@ -169,8 +225,12 @@ INLINE_P_HEADS = frozenset({"perl", "node"})
 #: `pytest` arguments that make it write somewhere of its own choosing, so the
 #: invocation stops being a run of the suite and falls to the ordinary path test
 PYTEST_WRITE_FLAGS = (
-    "--junitxml", "--junit-xml", "--report-log", "--result-log",
-    "--cov-report", "--basetemp",
+    "--junitxml",
+    "--junit-xml",
+    "--report-log",
+    "--result-log",
+    "--cov-report",
+    "--basetemp",
 )
 
 #: git subcommands that print no file content; everything else prints some, and
@@ -183,9 +243,24 @@ PYTEST_WRITE_FLAGS = (
 #: `ls-files`, `merge-base`, `rev-list`, `rev-parse` and `status`.
 GIT_METADATA = frozenset(
     {
-        "status", "rev-parse", "ls-files", "branch", "describe", "remote",
-        "config", "symbolic-ref", "merge-base", "rev-list", "tag",
-        "add", "commit", "restore", "checkout", "switch", "worktree", "reset",
+        "status",
+        "rev-parse",
+        "ls-files",
+        "branch",
+        "describe",
+        "remote",
+        "config",
+        "symbolic-ref",
+        "merge-base",
+        "rev-list",
+        "tag",
+        "add",
+        "commit",
+        "restore",
+        "checkout",
+        "switch",
+        "worktree",
+        "reset",
     }
 )
 #: flags that turn `git log` from a list of commits into a patch
@@ -215,9 +290,23 @@ LANE_SUFFIXES = ("plans/approved", "specs/approved", "verdicts", "reviews")
 #: carries `--output`, `grep -O` or a writing `reflog` form.
 GIT_NO_WORKTREE = frozenset(
     {
-        "add", "blame", "cat-file", "commit", "describe", "diff", "grep", "log",
-        "ls-files", "ls-tree", "merge-base", "reflog", "rev-list", "rev-parse",
-        "shortlog", "show", "status",
+        "add",
+        "blame",
+        "cat-file",
+        "commit",
+        "describe",
+        "diff",
+        "grep",
+        "log",
+        "ls-files",
+        "ls-tree",
+        "merge-base",
+        "reflog",
+        "rev-list",
+        "rev-parse",
+        "shortlog",
+        "show",
+        "status",
     }
 )
 
@@ -291,9 +380,7 @@ def redirect_targets(segment: str) -> list[str]:
 def _redirections(segment: str) -> list[str]:
     """The target text of every redirection in the stage, in order."""
     masked = mask_quoted(segment)
-    return [
-        segment[m.start(1) : m.end(1)].strip("\"'") for m in REDIRECT.finditer(masked)
-    ]
+    return [segment[m.start(1) : m.end(1)].strip("\"'") for m in REDIRECT.finditer(masked)]
 
 
 def redirect_writes(segment: str) -> bool:
@@ -362,9 +449,7 @@ def _split_unquoted(text: str) -> list[str]:
         #: redirection (`2>&1`, `>&2`) it duplicates a descriptor instead
         elif ch in ";|\n" or (
             ch == "&"
-            and not (
-                (i and text[i - 1] in ">&") or (i + 1 < len(text) and text[i + 1] in ">&")
-            )
+            and not ((i and text[i - 1] in ">&") or (i + 1 < len(text) and text[i + 1] in ">&"))
         ):
             out.append("".join(buf))
             buf = []
@@ -426,9 +511,7 @@ KEYWORD_PREFIXES = frozenset(
 #: stage heads that run no command at all. A `for ... in <list>` header binds a
 #: variable, `done` and `fi` close a block: nothing in them touches the disk, so
 #: a lane path quoted in a `for` list is a string and not a target.
-NO_COMMAND_HEADS = frozenset(
-    {"for", "select", "case", "in", "done", "fi", "esac", "}", ")", ";;"}
-)
+NO_COMMAND_HEADS = frozenset({"for", "select", "case", "in", "done", "fi", "esac", "}", ")", ";;"})
 
 
 def command_words(words: list[str]) -> list[str]:
@@ -1029,9 +1112,7 @@ def lane_pattern(lane: str) -> re.Pattern[str]:
     `tests_old.py` is not the lane.
     """
     return re.compile(
-        r"(?:^|[\s\"'=(:])(?:[^\s\"']*/)?"
-        + re.escape(lane)
-        + r"(?:/|(?=[\s\"';|&)]|$))"
+        r"(?:^|[\s\"'=(:])(?:[^\s\"']*/)?" + re.escape(lane) + r"(?:/|(?=[\s\"';|&)]|$))"
     )
 
 
@@ -1274,9 +1355,7 @@ REQUIRED_FIELD = {
 OPTIONAL_FIELD = {"Grep": "path", "Glob": "path"}
 
 
-def payload_fault(
-    name: str, tool_input: Any, payload: Any, guarded: tuple[str, ...]
-) -> str | None:
+def payload_fault(name: str, tool_input: Any, payload: Any, guarded: tuple[str, ...]) -> str | None:
     """Why this hook cannot decide the call it was handed, or None to decide it.
 
     A guard reads three things: which tool, what it names, and who is running

@@ -132,7 +132,9 @@ def self_test() -> int:
                 #: the runner takes one path under the test directory, so it
                 #: reaches no other lane however the argument is spelled
                 denied(bash("scripts/blind.sh test gauntlet/plans/approved/slug.txt")),
-                denied(bash("scripts/blind.sh test tests/a/../../gauntlet/plans/approved/slug.txt")),
+                denied(
+                    bash("scripts/blind.sh test tests/a/../../gauntlet/plans/approved/slug.txt")
+                ),
             )
         ),
         "7 the lane is what a write targets, not what its text mentions": all(
@@ -145,7 +147,9 @@ def self_test() -> int:
                 ),
                 allowed(bash("echo 'gauntlet/plans/approved/slug.txt' >> notes.txt")),
                 allowed(bash("find gauntlet/plans/approved -name '*.txt'")),
-                allowed(bash("cmp gauntlet/plans/drafts/slug.txt gauntlet/plans/approved/slug.txt")),
+                allowed(
+                    bash("cmp gauntlet/plans/drafts/slug.txt gauntlet/plans/approved/slug.txt")
+                ),
                 denied(bash("cat draft.txt > gauntlet/plans/approved/slug.txt")),
                 denied(bash("find gauntlet/plans/approved -name '*.txt' -delete")),
             )

@@ -150,12 +150,17 @@ _BWRAP_BROKEN = (
 #: user namespace, bind a root, mount `/dev` and `/proc`, unshare the pid
 #: namespace. A host that refuses any of those refuses every profile here.
 _PROBE = (
-    "--ro-bind", "/", "/",
-    "--dev", "/dev",
-    "--proc", "/proc",
+    "--ro-bind",
+    "/",
+    "/",
+    "--dev",
+    "/dev",
+    "--proc",
+    "/proc",
     "--unshare-pid",
     "--die-with-parent",
-    "--", "true",
+    "--",
+    "true",
 )
 
 
@@ -246,13 +251,19 @@ def _base(root: str) -> list[str]:
     """The mounts every profile takes: readable world, live /dev, masked /run/user."""
     return [
         "bwrap",
-        "--ro-bind", "/", "/",
-        "--dev", "/dev",
-        "--proc", "/proc",
+        "--ro-bind",
+        "/",
+        "/",
+        "--dev",
+        "/dev",
+        "--proc",
+        "/proc",
         # the D-Bus route to `systemd --user`, which starts a unit outside
         # anything the calling process was confined by
-        "--tmpfs", "/run/user",
-        "--tmpfs", "/tmp",
+        "--tmpfs",
+        "/run/user",
+        "--tmpfs",
+        "/tmp",
         "--unshare-pid",
         "--die-with-parent",
         # a `--chdir` onto a directory that is not there fails the invocation,
@@ -476,15 +487,12 @@ def _self_test_in(tmp: str) -> int:
         "a command carrying the delimiter cannot close the here-document early": (
             "<<'GAUNTLET_COMMAND_EOF_'" in wrap("a\nGAUNTLET_COMMAND_EOF\nb", root, "")
         ),
-        "the default profile makes the repository writable": (
-            f"--bind {root} {root}" in default
-        ),
+        "the default profile makes the repository writable": (f"--bind {root} {root}" in default),
         "the lane directories are bound back read-only under it": all(
             f"--ro-bind-try {root}/{lane} {root}/{lane}" in default for lane in sh.LANE_DIRS
         ),
         "the reviewer profile binds no writable repository": (
-            f"--bind {root} {root}" not in reviewer
-            and f"--tmpfs {root}/{REVIEWS_DIR}" in reviewer
+            f"--bind {root} {root}" not in reviewer and f"--tmpfs {root}/{REVIEWS_DIR}" in reviewer
         ),
         "/run/user is masked and the pid namespace is unshared": (
             "--tmpfs /run/user" in default and "--unshare-pid" in default
@@ -535,8 +543,7 @@ def _self_test_in(tmp: str) -> int:
             _answer({"tool_name": "Write", "tool_input": {"command": "x"}}) is None
         ),
         "the worktree list is read from disk rather than carried": (
-            worktrees("/nonexistent-by-construction") == []
-            and worktrees(root) == [tree]
+            worktrees("/nonexistent-by-construction") == [] and worktrees(root) == [tree]
         ),
         #: the bug: `.git` is a pointer file in a worktree, so `.git/hooks`
         #: resolves ENOTDIR, and `--ro-bind-try` forgives absence only
@@ -546,8 +553,7 @@ def _self_test_in(tmp: str) -> int:
         #: the gap the probe closes: on `PATH` and unable to run is a host where
         #: every rewritten `Bash` call dies at exec with no statement of why
         "a bwrap that is installed but will not run is denied, by its own words": (
-            "No permissions to creating new namespace"
-            in _reason(_answer_with_path(broken, root))
+            "No permissions to creating new namespace" in _reason(_answer_with_path(broken, root))
         ),
         "a host with no bwrap at all is denied for that, and not for the other": (
             _reason(_answer_with_path(empty, root)) == _NO_BWRAP

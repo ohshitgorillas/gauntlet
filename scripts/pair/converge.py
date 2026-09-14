@@ -84,13 +84,23 @@ def rebase_if_moved(slug: str, has_impl: bool) -> None:
         )
     if has_impl and not git_ok("rebase", "--quiet", TARGET, tree=impl):
         die(
-            "pair: " + trees.impl_branch(slug) + " does not rebase onto " + TARGET
-            + " cleanly -- resolve it in " + impl + " and rerun."
+            "pair: "
+            + trees.impl_branch(slug)
+            + " does not rebase onto "
+            + TARGET
+            + " cleanly -- resolve it in "
+            + impl
+            + " and rerun."
         )
     if not git_ok("rebase", "--quiet", TARGET, tree=spec):
         die(
-            "pair: " + trees.spec_branch(slug) + " does not rebase onto " + TARGET
-            + " cleanly -- resolve it in " + spec + " and rerun."
+            "pair: "
+            + trees.spec_branch(slug)
+            + " does not rebase onto "
+            + TARGET
+            + " cleanly -- resolve it in "
+            + spec
+            + " and rerun."
         )
 
 
@@ -109,14 +119,23 @@ def combine(slug: str) -> None:
         return
     if git_ok("merge-base", "--is-ancestor", branch, "HEAD", tree=spec):
         die(
-            "pair: " + branch + " is already combined into " + trees.spec_branch(slug)
-            + " -- rerun the gate in " + spec + " rather than combining twice."
+            "pair: "
+            + branch
+            + " is already combined into "
+            + trees.spec_branch(slug)
+            + " -- rerun the gate in "
+            + spec
+            + " rather than combining twice."
         )
     if not git_ok("merge", "--no-ff", "--no-edit", branch, tree=spec):
         die(
-            "pair: merging " + branch + " into " + trees.spec_branch(slug)
+            "pair: merging "
+            + branch
+            + " into "
+            + trees.spec_branch(slug)
             + " conflicted -- the lanes should have prevented this; resolve in "
-            + spec + "."
+            + spec
+            + "."
         )
     note("  " + spec + " now holds the tests and the implementation")
 
@@ -140,12 +159,20 @@ def land(slug: str) -> str:
     on = git("rev-parse", "--abbrev-ref", "HEAD")
     if on != TARGET:
         die(
-            "pair: the primary checkout is on " + on + ", and a pair lands on "
-            + TARGET + " -- check out " + TARGET + " and rerun."
+            "pair: the primary checkout is on "
+            + on
+            + ", and a pair lands on "
+            + TARGET
+            + " -- check out "
+            + TARGET
+            + " and rerun."
         )
     if not git_ok("merge", "--ff-only", branch):
         die(
-            "pair: " + TARGET + " will not fast-forward to " + branch
+            "pair: "
+            + TARGET
+            + " will not fast-forward to "
+            + branch
             + " -- the primary checkout may carry local changes over the same files."
         )
     return git("rev-parse", "HEAD")
@@ -153,7 +180,7 @@ def land(slug: str) -> str:
 
 def cleanup(slug: str, has_impl: bool) -> None:
     """Remove both trees, both branches and the recorded base."""
-    for tree in ([trees.spec_tree(slug)] + ([trees.impl_tree(slug)] if has_impl else [])):
+    for tree in [trees.spec_tree(slug)] + ([trees.impl_tree(slug)] if has_impl else []):
         trees.unlink_tooling(tree)
         git("worktree", "remove", tree)
     branches = [trees.spec_branch(slug)] + ([trees.impl_branch(slug)] if has_impl else [])

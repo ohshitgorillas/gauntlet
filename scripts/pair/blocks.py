@@ -208,7 +208,10 @@ def strike_whole_files(tree: str, block: str) -> None:
     for target in targets:
         if not target.startswith(prefix):
             trees.die(
-                "pair: strike target '" + target + "' is not under " + prefix
+                "pair: strike target '"
+                + target
+                + "' is not under "
+                + prefix
                 + " -- a strike motion removes tests, never source."
             )
         if ".." in target:

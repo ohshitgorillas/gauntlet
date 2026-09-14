@@ -100,9 +100,7 @@ def impl_branch(slug: str) -> str:
 def git(*args: str, tree: str | None = None, check: bool = True) -> str:
     """One git command, in the primary checkout unless `tree` names another."""
     where = path(tree) if tree else ROOT
-    done = subprocess.run(
-        ("git", "-C", where, *args), capture_output=True, text=True, check=False
-    )
+    done = subprocess.run(("git", "-C", where, *args), capture_output=True, text=True, check=False)
     if check and done.returncode != 0:
         die("pair: git " + " ".join(args) + " failed:\n" + done.stderr.rstrip())
     return done.stdout.strip()
@@ -115,9 +113,7 @@ def git_out(*args: str, tree: str | None = None) -> str:
     script editing what the reviewer is shown.
     """
     where = path(tree) if tree else ROOT
-    done = subprocess.run(
-        ("git", "-C", where, *args), capture_output=True, text=True, check=False
-    )
+    done = subprocess.run(("git", "-C", where, *args), capture_output=True, text=True, check=False)
     return done.stdout
 
 
@@ -160,9 +156,7 @@ def _exclude_tooling(tree: str) -> None:
     `.gitignore` has to be edited for. It lives in the common directory, which
     every worktree of the checkout reads, and it is never committed.
     """
-    common = git(
-        "rev-parse", "--path-format=absolute", "--git-common-dir", tree=tree, check=False
-    )
+    common = git("rev-parse", "--path-format=absolute", "--git-common-dir", tree=tree, check=False)
     if not common:
         return
     exclude = Path(common, "info", "exclude")

@@ -150,7 +150,9 @@ def binary(name: str) -> str:
 def git(*args: str) -> str:
     """Stdout of a read-only git command run at the repo root."""
     cmd = [binary("git"), *args]
-    return subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=ROOT).stdout  # noqa: S603
+    return subprocess.run(
+        cmd, check=True, capture_output=True, text=True, cwd=ROOT
+    ).stdout  # noqa: S603
 
 
 def git_diff(*args: str) -> str:
@@ -230,9 +232,13 @@ def ask(lines: list[Line], prompt: str) -> list[dict[str, str]]:
         "--output-format",
         "json",
     ]
-    proc = subprocess.run(cmd, input=body, capture_output=True, text=True, env=env, cwd=ROOT, check=False)  # noqa: S603
+    proc = subprocess.run(
+        cmd, input=body, capture_output=True, text=True, env=env, cwd=ROOT, check=False
+    )  # noqa: S603
     if proc.returncode != 0:
-        raise RuntimeError(f"claude exited {proc.returncode}: {proc.stderr.strip() or proc.stdout.strip()}")
+        raise RuntimeError(
+            f"claude exited {proc.returncode}: {proc.stderr.strip() or proc.stdout.strip()}"
+        )
     envelope = json.loads(proc.stdout)
     if envelope.get("is_error"):
         raise RuntimeError(f"claude reported an error: {envelope.get('result')}")
@@ -254,7 +260,10 @@ def report(lines: list[Line], flags: list[dict[str, str]], out: TextIO) -> bool:
         if line:
             print(f"    {line.text.strip()}", file=out)
     if flags:
-        print(f"\n{len(flags)} line(s) narrate history. State what holds now, or delete the remark.", file=out)
+        print(
+            f"\n{len(flags)} line(s) narrate history. State what holds now, or delete the remark.",
+            file=out,
+        )
     else:
         print(f"[ok] {len(lines)} markdown line(s) state what holds now", file=out)
     return bool(flags)
@@ -313,10 +322,14 @@ class Gate:
 
 def parse_args(doc: str, noun: str) -> argparse.Namespace:
     """Read the five input modes both trivia gates take."""
-    parser = argparse.ArgumentParser(description=doc, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=doc, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("files", nargs="*", help=f"staged {noun} (pre-commit)")
     parser.add_argument("--head", action="store_true", help=f"judge the {noun} HEAD added")
-    parser.add_argument("--stop", action="store_true", help="judge the working tree; reads a Stop payload on stdin")
+    parser.add_argument(
+        "--stop", action="store_true", help="judge the working tree; reads a Stop payload on stdin"
+    )
     parser.add_argument("--lines", help="calibration records, path:line<TAB>text")
     parser.add_argument("--out", help="write the judge's raw answer here")
     return parser.parse_args()

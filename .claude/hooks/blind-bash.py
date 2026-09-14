@@ -123,9 +123,7 @@ def self_test() -> int:
     wire = sh.tests_dir() + "/test_hook_wire.py"
     plan = sh.plans_lane() + "/bash-sandbox"
 
-    bash = sh.rebased(
-        sh.probe(_verdict, "/repo", "Bash", "command", agent="gauntlet-scrivener")
-    )
+    bash = sh.rebased(sh.probe(_verdict, "/repo", "Bash", "command", agent="gauntlet-scrivener"))
 
     denied, allowed = sh.denied, sh.allowed
 

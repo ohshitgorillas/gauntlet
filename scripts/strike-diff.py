@@ -88,9 +88,7 @@ def parse_block(text: str) -> list[Line]:
 
 
 def _git(*args: str) -> tuple[int, str]:
-    done = subprocess.run(
-        ("git", *args), capture_output=True, text=True, check=False
-    )
+    done = subprocess.run(("git", *args), capture_output=True, text=True, check=False)
     return done.returncode, done.stdout
 
 
@@ -116,7 +114,7 @@ def test_body(source: str, name: str) -> str | None:
             continue
         indent = len(start.group("indent"))
         body = [row]
-        for follow in rows[i + 1:]:
+        for follow in rows[i + 1 :]:
             if follow.strip() and len(follow) - len(follow.lstrip()) <= indent:
                 stripped = follow.lstrip()
                 if stripped.startswith(("def ", "async def ", "class ", "@")):
@@ -158,9 +156,7 @@ def report(block: str, base: str, head: str) -> list[str]:
 
     out = [strike_verdict(line, head) for line in lines]
     out += [landing_verdict(line, head) for line in lines if line.landing]
-    out += [
-        f"UNNAMED {path}" for path in changed_files(base, head) if path not in named
-    ]
+    out += [f"UNNAMED {path}" for path in changed_files(base, head) if path not in named]
     return out
 
 
@@ -211,12 +207,9 @@ def self_test() -> int:
             and line.assertion not in (test_body(sibling, "test_x") or "")
         ),
         "2 the assertion is read in the target's body, never in a sibling's": (
-            line.assertion in sibling
-            and line.assertion not in (test_body(sibling, "test_x") or "")
+            line.assertion in sibling and line.assertion not in (test_body(sibling, "test_x") or "")
         ),
-        "3 a name the file does not define has no body": (
-            test_body(gone, "test_x") is None
-        ),
+        "3 a name the file does not define has no body": (test_body(gone, "test_x") is None),
         "4 the block parses to its target, assertion and landing name": (
             line.target == "tests/test_a.py::test_x"
             and line.landing == "tests/test_a.py::test_x"

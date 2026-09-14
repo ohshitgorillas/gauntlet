@@ -59,15 +59,15 @@ class Citation:
     """One backticked citation, as written and where it sits in the document."""
 
     def __init__(self, path, start, end, row, col_start, col_end):
-        self.path = path            # as written, "" on a bare continuation
+        self.path = path  # as written, "" on a bare continuation
         self.start = start
-        self.end = end              # == start where the citation names one line
-        self.row = row              # 0-based index into the document's lines
+        self.end = end  # == start where the citation names one line
+        self.row = row  # 0-based index into the document's lines
         self.col_start = col_start  # offsets of the text inside the backticks
         self.col_end = col_end
-        self.anchor = ""            # the quoted text beside it, "" where none
-        self.inherited = ""         # the path a bare continuation resolved to
-        self.resolved = None        # Path, or None where it did not resolve
+        self.anchor = ""  # the quoted text beside it, "" where none
+        self.inherited = ""  # the path a bare continuation resolved to
+        self.resolved = None  # Path, or None where it did not resolve
         self.verdict = "OK"
         self.detail = ""
 
@@ -133,7 +133,7 @@ def anchor_pairs(line, cites):
         for i, found in enumerate(quotes):
             if i in taken or found.start() < cite.col_end:
                 continue
-            if reachable(line[cite.col_end + 1:found.start()]):
+            if reachable(line[cite.col_end + 1 : found.start()]):
                 cite.anchor = found.group(1)
                 taken.add(i)
             break
@@ -144,7 +144,7 @@ def anchor_pairs(line, cites):
             found = quotes[i]
             if i in taken or found.end() > cite.col_start:
                 continue
-            if reachable(line[found.end():cite.col_start - 1]):
+            if reachable(line[found.end() : cite.col_start - 1]):
                 cite.anchor = found.group(1)
                 taken.add(i)
             break
@@ -161,9 +161,7 @@ def parse(text):
                 continue
             start = int(hit.group("start"))
             end = int(hit.group("end")) if hit.group("end") else start
-            here.append(
-                Citation(hit.group("path"), start, end, row, span.start(1), span.end(1))
-            )
+            here.append(Citation(hit.group("path"), start, end, row, span.start(1), span.end(1)))
         anchor_pairs(line, here)
         found += here
     return found
@@ -232,7 +230,7 @@ def judge(cite):
         return
     if not cite.anchor:
         return
-    span = rows[cite.start - 1:cite.end]
+    span = rows[cite.start - 1 : cite.end]
     if not any(cite.anchor in row for row in span):
         cite.verdict = "QUOTE"
         cite.detail = span[0].strip()
@@ -249,9 +247,7 @@ def check(text):
         if cite.resolved is not None:
             judge(cite)
         if not cite.bare:
-            carried = (
-                str(cite.resolved) if cite.resolved is not None else cite.path
-            )
+            carried = str(cite.resolved) if cite.resolved is not None else cite.path
         if cite.bare and cite.inherited:
             cite.inherited = str(cite.resolved) if cite.resolved else cite.inherited
     return cites
@@ -298,10 +294,7 @@ def fixes(text):
             continue
         if cite.resolved is None:
             continue
-        hits = [
-            i + 1 for i, row in enumerate(lines_of(cite.resolved))
-            if cite.anchor in row
-        ]
+        hits = [i + 1 for i, row in enumerate(lines_of(cite.resolved)) if cite.anchor in row]
         out.append((cite, hits[0] if len(hits) == 1 else None))
     return out
 
@@ -319,9 +312,7 @@ def apply_fixes(text):
     lines = text.splitlines(keepends=True)
     for cite, number in sorted(edits, key=lambda e: (e[0].row, e[0].col_start), reverse=True):
         line = lines[cite.row]
-        lines[cite.row] = (
-            line[:cite.col_start] + f"{cite.path}:{number}" + line[cite.col_end:]
-        )
+        lines[cite.row] = line[: cite.col_start] + f"{cite.path}:{number}" + line[cite.col_end :]
     return "".join(lines), rows
 
 
@@ -384,43 +375,37 @@ def self_test():
         rules["3 a basename two paths carry is AMBIGUOUS, one path carries resolves"] = (
             codes("`twin.md:1`") == ["AMBIGUOUS"] and codes("`pair.md:1`") == []
         )
-        rules["4 a bare number with no full citation before it is ORPHAN"] = (
-            codes("`:2`") == ["INHERITED-FROM", "ORPHAN"]
-            and codes("`docs/a.md:1` and `:2`") == ["INHERITED-FROM"]
+        rules["4 a bare number with no full citation before it is ORPHAN"] = codes("`:2`") == [
+            "INHERITED-FROM",
+            "ORPHAN",
+        ] and codes("`docs/a.md:1` and `:2`") == ["INHERITED-FROM"]
+        rules["5 INHERITED-FROM prints on a passing continuation and a failing one"] = codes(
+            "`docs/a.md:1` `:2`"
+        ) == ["INHERITED-FROM"] and codes("`docs/a.md:1` `:9`") == ["INHERITED-FROM", "RANGE"]
+        rules["6 a bare number inherits the nearest preceding path, not the first"] = report(
+            "`docs/a.md:1` `docs/b.md:1` `:2`"
+        )[-1].endswith("docs/b.md") and report("`docs/b.md:1` `docs/a.md:1` `:2`")[-1].endswith(
+            "docs/a.md"
         )
-        rules["5 INHERITED-FROM prints on a passing continuation and a failing one"] = (
-            codes("`docs/a.md:1` `:2`") == ["INHERITED-FROM"]
-            and codes("`docs/a.md:1` `:9`") == ["INHERITED-FROM", "RANGE"]
-        )
-        rules["6 a bare number inherits the nearest preceding path, not the first"] = (
-            report("`docs/a.md:1` `docs/b.md:1` `:2`")[-1].endswith("docs/b.md")
-            and report("`docs/b.md:1` `docs/a.md:1` `:2`")[-1].endswith("docs/a.md")
-        )
-        rules["7 an anchor is read on the cited line only, never elsewhere in the file"] = (
-            codes('`docs/a.md:2` "two"') == []
-            and codes('`docs/a.md:1` "two"') == ["QUOTE"]
-        )
-        rules["8 an anchor on a span's second line passes, one on neither fails"] = (
-            codes('`docs/pair.md:1-2` "second half"') == []
-            and codes('`docs/pair.md:1-2` "nowhere"') == ["QUOTE"]
-        )
-        rules["9 a citation with no anchor is checked for existence only"] = (
-            codes("the sentence says something else entirely `docs/a.md:2`") == []
-            and codes("the sentence says something else entirely `docs/a.md:9`") == ["RANGE"]
-        )
-        rules["10 a path outside the checkout resolves, and prints CROSS-REPO"] = (
-            codes(f"`{outside}:1`") == ["CROSS-REPO"]
-            and codes(f"`{elsewhere / 'gone.md'}:1`") == ["MISSING"]
-        )
-        rules["11 only a backticked path:line is a citation"] = (
-            codes("`docs/a.md:1` and docs/a.md:99 in prose") == []
-            and codes("`docs/a.md:1` and `docs/a.md:99`") == ["RANGE"]
-        )
+        rules["7 an anchor is read on the cited line only, never elsewhere in the file"] = codes(
+            '`docs/a.md:2` "two"'
+        ) == [] and codes('`docs/a.md:1` "two"') == ["QUOTE"]
+        rules["8 an anchor on a span's second line passes, one on neither fails"] = codes(
+            '`docs/pair.md:1-2` "second half"'
+        ) == [] and codes('`docs/pair.md:1-2` "nowhere"') == ["QUOTE"]
+        rules["9 a citation with no anchor is checked for existence only"] = codes(
+            "the sentence says something else entirely `docs/a.md:2`"
+        ) == [] and codes("the sentence says something else entirely `docs/a.md:9`") == ["RANGE"]
+        rules["10 a path outside the checkout resolves, and prints CROSS-REPO"] = codes(
+            f"`{outside}:1`"
+        ) == ["CROSS-REPO"] and codes(f"`{elsewhere / 'gone.md'}:1`") == ["MISSING"]
+        rules["11 only a backticked path:line is a citation"] = codes(
+            "`docs/a.md:1` and docs/a.md:99 in prose"
+        ) == [] and codes("`docs/a.md:1` and `docs/a.md:99`") == ["RANGE"]
         unique, _ = apply_fixes('`docs/a.md:1` "three"')
         several, _ = apply_fixes('`docs/twice.md:9` "same"')
         rules["12 --fix fills from a unique anchor and refuses on several"] = (
-            unique == '`docs/a.md:3` "three"'
-            and several == '`docs/twice.md:9` "same"'
+            unique == '`docs/a.md:3` "three"' and several == '`docs/twice.md:9` "same"'
         )
         both = '`docs/a.md:3` "three" and `docs/a.md:1` "two"'
         rules["13 --fix moves the citation that missed its anchor and no other"] = (

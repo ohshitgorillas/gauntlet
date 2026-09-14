@@ -116,8 +116,11 @@ def cmd_respec(slug: str) -> int:
         return 1
     if blocks.committed_section(tree, slug) == blocks.reviewer_section(text):
         die(
-            "pair: " + newest + " is the round already committed on "
-            + trees.spec_branch(slug) + " -- a re-approved block carries a new round,"
+            "pair: "
+            + newest
+            + " is the round already committed on "
+            + trees.spec_branch(slug)
+            + " -- a re-approved block carries a new round,"
             " not the last one pasted under a changed block."
         )
 
@@ -181,9 +184,7 @@ def _check_lanes(tree: str, impl: str, has_impl: bool) -> None:
         die("pair: the lanes are what make this combine conflict-free; move those files.")
 
 
-def _report_red(
-    slug: str, tree: str, text: str, base: str, head: str, mechanical: bool
-) -> None:
+def _report_red(slug: str, tree: str, text: str, base: str, head: str, mechanical: bool) -> None:
     """What a red gate in the combined tree leaves behind, all of it on stderr.
 
     Nothing landed, so nothing on stdout should read as the brief of a merged

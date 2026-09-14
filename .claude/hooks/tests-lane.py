@@ -92,9 +92,7 @@ def _bash_verdict(command: str, agent: str = "") -> str | None:
 
 def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
     """Why this call is refused, or None to let it through."""
-    return sh.dispatch(
-        name, tool_input, payload, on_write=_write_verdict, on_bash=_bash_verdict
-    )
+    return sh.dispatch(name, tool_input, payload, on_write=_write_verdict, on_bash=_bash_verdict)
 
 
 def main() -> None:
