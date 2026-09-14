@@ -36,7 +36,7 @@ Break rule = review say no. Even if test green.
    - Rendered text is copy — assert class/attribute/`data-*`/values, text only if wire identifier or number.
    - Vendored/built data blob never give expected value — test join/lookup against owned fixtures; data well-formedness is a data gate, not a behavior test.
    - Curated count/order is copy.
-   - Selector need wording → add stable test id. Nothing live through remove wording → delete via `motion: strike`, or `kind: repair` where behavior under it stay pinned. Never hand-edit `<tests dir>/`.
+   - Selector need wording → add stable test id. Nothing live through remove wording → delete via `motion: strike`, or `motion: amend` where behavior under it stay pinned. Never hand-edit `<tests dir>/`.
    - `<mechanical gate for this>`.
 
 10. **A test discriminates, or it's a tautology.** Name failing implementation and a passing one, both plausible; if failing one is only "feature absent," test pins nothing. Shapes that fail this:
@@ -88,11 +88,11 @@ N. strike <target>
 
 Exactly one of `rule:` or `removed:` per line, never both, never neither. `removed:` sentence must appear in block's own `brief:` — reviewer blind to implementation, so owner's word is only fact it can check. Sentence not in `brief:` = line go. "Feature gone so test fail" is not `removed:`: failing test is finding, and dropped behavior reach here through owner, never through red suite.
 
-Every test in file gone by single-test line, none replaced there → writer delete file, same as repair half below.
+Every test in file gone by single-test line, none replaced there → writer delete file, same as amend half below.
 
-## Repair blocks
+## Amend motions
 
-Test that break rule but pin behavior worth keeping walk chain as `kind: repair`. One line carry both halves — what go, what take its place:
+Test that break rule but pin behavior worth keeping walk chain as `motion: amend`. One line carry both halves — what go, what take its place:
 
 ```
 N. strike <tests dir>/<file>::<test>

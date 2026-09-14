@@ -52,7 +52,7 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 | `pair.sh open <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
 | `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
 | `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: <gauntlet dir>/merge/<slug>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor` |
-| `pair.sh merge <slug>` | the `scripts/strike-diff.py` verdict lines | the structure line is `motion: strike` or `kind: repair` |
+| `pair.sh merge <slug>` | the `scripts/strike-diff.py` verdict lines | the structure line is `motion: strike` or `motion: amend` |
 | `pair.sh review <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.<N>.txt` | `<N>` is one more than the highest already on disk for that slug, 1 where there is none, and `<gauntlet dir>/reviews/` exists |
 | `pair.sh review plan <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.plan.<N>.txt` | the same count over the plan rounds of that slug |
 | `pair.sh restore <slug> <rev>` | `RESTORED <gauntlet dir>/specs/approved/<slug>.txt <rev>` | the approved block on disk is the block as it stood at `<rev>` |
@@ -83,7 +83,7 @@ The two runners are `pytest_command` and `node_command` of that same file, read 
 
 A change confined to `<tests dir>/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
 
-1. The main agent drafts a `motion: strike` or `kind: repair` block and sends it to a `gauntlet-arbiter`.
+1. The main agent drafts a `motion: strike` or `motion: amend` block and sends it to a `gauntlet-arbiter`.
 2. The reviewer resolves each line's quoted assertion against the test file itself — `<tests dir>/` is open to it, and the implementation is not what these lines rest on — and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
 3. The `gauntlet-scrivener` removes the targets and writes the replacements its `as:` fields name.
 4. `scripts/strike-diff.py`, run by `scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither shape has an implementation phase, so the window those two watch does not exist.

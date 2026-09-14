@@ -206,7 +206,7 @@ def cmd_merge(slug: str) -> int:
         base = git("merge-base", TARGET, trees.spec_branch(slug))
         head = git("rev-parse", "HEAD", tree=tree)
         kind = blocks.block_kind(text)
-        mechanical = kind in ("strike", "repair")
+        mechanical = kind in ("strike", "amend")
 
         note("  [5/6] gate")
         if not converge.gate(slug):

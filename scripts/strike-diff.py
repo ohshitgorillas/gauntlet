@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check a landed tests-only change against the block that approved it.
 
-`motion: strike` and `kind: repair` have no implementation phase, so the
+`motion: strike` and `motion: amend` have no implementation phase, so the
 post-merge reviewer round that catches a softened test has no window to watch.
 What it watched for still happens here, in one move rather than two: the
 deletion is itself the softening. This script is that check, and it is
@@ -50,7 +50,7 @@ _FIELD = re.compile(r"^\s*(?P<key>rule|assertion|replace|as):\s*(?P<value>.*)$")
 
 
 class Line:
-    """One strike or repair line of an approved block."""
+    """One strike or amend line of an approved block."""
 
     def __init__(self, target: str) -> None:
         self.target = target
@@ -183,7 +183,7 @@ def main(argv: list[str]) -> int:
 def self_test() -> int:
     """Pin the four lines of the merge check."""
     block = (
-        "slug: s\nkind: repair\n\n"
+        "slug: s\nmotion: amend\n\n"
         "1. strike tests/test_a.py::test_x\n"
         "   rule: docs/testing.md rule 7\n"
         "   assertion: assert time.monotonic() - start < 2\n"

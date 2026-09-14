@@ -54,7 +54,7 @@ No hook enforces this, the same gap `docs/exemptions.md` states for the `EXEMPT`
 
 A change confined to `<tests dir>/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not fourteen:
 
-1. The main agent drafts a `motion: strike` block (the test goes) or a `kind: repair` block (the test goes, and one line names the behavior that replaces it). A strike line cites the rule the test breaks, or — where the test breaks none and the behavior it pins is one the owner dropped — quotes the owner's sentence that dropped it.
+1. The main agent drafts a `motion: strike` block (the test goes) or a `motion: amend` block (the test goes, and one line names the behavior that replaces it). A strike line cites the rule the test breaks, or — where the test breaks none and the behavior it pins is one the owner dropped — quotes the owner's sentence that dropped it.
 2. The `gauntlet-arbiter` reviews it against the test file, which it is allowed to read, and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
 3. The `gauntlet-scrivener` removes the targets and writes the replacements.
 4. `scripts/strike-diff.py` checks the landed diff against the approved block at merge.

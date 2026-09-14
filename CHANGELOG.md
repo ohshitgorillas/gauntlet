@@ -27,7 +27,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 **Breaking for existing installs:** re-copy `.claude/` and re-run the `--self-test` commands.
 
 ### Changed
-- The tests-only removal lane reads as a motion to strike. The structure line of such a block is `motion: strike` rather than `kind: excision`, its per-line verb is `strike <target>` rather than `excise <target>`, the section that gives its shape is `docs/testing.md` "Strike motions", and the merge check is `scripts/strike-diff.py`. `scripts/pair.sh` reads `kind:` and `motion:` as the same structure line, so it routes on either. `kind: repair` is untouched.
+- The tests-only removal lane reads as a motion to strike. The structure line of such a block is `motion: strike` rather than `kind: excision`, its per-line verb is `strike <target>` rather than `excise <target>`, the section that gives its shape is `docs/testing.md` "Strike motions", and the merge check is `scripts/strike-diff.py`. `scripts/pair.sh` reads `kind:` and `motion:` as the same structure line, so it routes on either. The repair lane becomes `motion: amend` by the entry below.
+- The tests-only replacement lane is a motion to amend. The structure line of such a block is `motion: amend` rather than `kind: repair`, the section that gives its shape is `docs/testing.md` "Amend motions", and `scripts/pair.sh merge` routes `strike` and `amend` to `scripts/strike-diff.py`. The line shape is unchanged: `strike <target>`, `rule:`, `assertion:`, `replace:`, `as:`, `kills:`. A block written `motion: amend` previously missed the mechanical route and merged with no `scripts/strike-diff.py` check at all.
 - The plan gate's locator round is the discovery round. A plan's second metadata line is `discovery: gauntlet-detective | inline` rather than `grounding:`, and the `gauntlet-prosecutor` check that reads it is `(b) Discovery`.
 - `scripts/pair.sh` is an `exec` shim over `scripts/pair/`, whose `cli.py` owns every contract line and whose three libraries print to stderr only. The name does not move: it is a literal in the agent definitions, in `tests-lane.py`, in `verdicts-lane.py` and in the `bwrap` carve-out `pair-passthrough.py` matches end to end.
 - `scripts/pair.sh merge` converges the pair instead of merging the spec branch alone: the lane check, a commit in each tree, a rebase of both branches onto the target branch where it moved under them, the combine of `impl/<slug>` into the spec tree, the gate in that combined tree, and an `--ff-only` land followed by the removal of both trees and both branches. Steps three to six hold `flock` on `.claude/worktrees/.pair.lock`. A red gate lands nothing, leaves both trees standing, and puts its evidence on stderr. An implementation tree that was never cut is skipped rather than fatal. The stdout of every subcommand is unchanged.
@@ -55,7 +56,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - `gauntlet/` as the base for every agent write: `plans/`, `specs/`, `reviews/`, `drafts/{plans,specs}/`. Plans and specs tracked, the other two gitignored.
 - `plans-lane.py`. Only the `gauntlet-prosecutor` writes `gauntlet/plans/approved/<slug>.txt`.
 - `docs/plans.md`, the stage-1 plan shape.
-- A tests-only lane: `motion: strike` and `kind: repair` blocks skip the plan gate, the red run and the post-merge round.
+- A tests-only lane: `motion: strike` and `motion: amend` blocks skip the plan gate, the red run and the post-merge round.
 - `scripts/pair.sh` — `open`, `red`, `merge` — and `scripts/strike-diff.py`, the mechanical merge check for the two tests-only shapes.
 
 ### Changed

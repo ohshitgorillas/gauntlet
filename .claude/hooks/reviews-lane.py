@@ -37,9 +37,10 @@ Denied:
 
 A reviewer is denied the lane's contents as well as its writes, and a prior
 round reaches a reviewer only as the carried verdicts in the main agent's own
-return. The numbering that denial used to leave to the reviewer is
-`scripts/pair.sh review <slug>`'s: it counts the directory from outside and
-prints the one path the reviewer writes, which the brief carries verbatim. A
+return. That denial puts the numbering out of the reviewer's reach, so it
+belongs to `scripts/pair.sh review <slug>`: it counts the directory from
+outside and prints the one path the reviewer writes, which the brief carries
+verbatim. A
 reviewer that picks its own `<N>` under this denial is guessing, and a guess
 that lands on a number already taken overwrites a round held in no git object.
 

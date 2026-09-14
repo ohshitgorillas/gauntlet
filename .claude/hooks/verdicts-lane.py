@@ -6,10 +6,10 @@ Wire both session-wide from `.claude/settings.json`, so they bind the main
 agent and every subagent, and wire the lane again from the `hooks:` frontmatter
 of `.claude/agents/gauntlet-juror.md`.
 
-The red run is the one gate in the chain that used to have no artifact. Its
-verdict lived in a transcript, so nobody could check it after the session, and
-nothing said which hand issued it. The main agent has read the implementation:
-it is the one hand that must not rule on whether a test bit, and it was free to
+The red run is a gate, so it carries an artifact. A verdict that lives in a
+transcript alone cannot be checked after the session and does not say which
+hand issued it. The main agent has read the implementation: it is the one hand
+that must not rule on whether a test bit, and without this lane it is free to
 write the verdict, to paraphrase one, or to skip the round and report a pass.
 So the verdict is a tracked file, written by exactly one hand, and a turn that
 produced a red run and no verdict does not land.

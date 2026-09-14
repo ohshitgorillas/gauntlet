@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """PreToolUse hook: every `Bash` command runs inside `bwrap`, unread.
 
-This is the mechanism that replaces reading command text. A lane hook used to
-decide a `Bash` call by parsing the string -- does this command write, and
-where -- and that question is undecidable on a string: an env prefix, a
-here-document, a command substitution, a shell function, a `find -exec`, an
-`xargs`. Each round of patching added a member to a list and left the next
-spelling open.
+This is the mechanism that stands in place of reading command text. Deciding a
+`Bash` call by parsing the string -- does this command write, and where -- is
+undecidable on a string: an env prefix, a here-document, a command
+substitution, a shell function, a `find -exec`, an `xargs`. A list of spellings
+leaves the next spelling open.
 
 So nothing here parses. The command text is carried into the replacement byte
 for byte and what changes is not the command but the filesystem it sees. A
