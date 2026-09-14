@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -165,12 +166,12 @@ def self_test() -> int:
                 path.write_text(body)
         return base
 
-    def gate(**kw) -> int:
+    def gate(**kw: Any) -> int:
         #: the exit code is the subject; the block's own message is line 6's
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()):
             return stop(tree(tmp, **kw))
 
-    def slugs(**files) -> list[str]:
+    def slugs(**files: tuple[str, str | None]) -> list[str]:
         """The slugs `--stop` names, for a tree of `slug=(red, verdict)` pairs."""
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

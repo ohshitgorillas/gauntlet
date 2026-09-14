@@ -109,8 +109,11 @@ from typing import Any
 #: one payload as a hook reads it: whatever JSON carried, decided at runtime by
 #: `payload_fault` rather than trusted by its static shape
 Payload = dict[str, Any]
+#: the `tool_input` of one payload, on the same terms: a hook reads the keys it
+#: needs through `command_of` and `write_target`, which answer for a missing key
+ToolInput = dict[str, Any]
 #: the three arguments every lane verdict takes, and the refusal or None it gives
-Verdict = Callable[[str, dict[str, Any], Payload], str | None]
+Verdict = Callable[[str, ToolInput, Payload], str | None]
 
 #: first words of commands that only read; anything else is treated as a write
 READ_ONLY = frozenset(

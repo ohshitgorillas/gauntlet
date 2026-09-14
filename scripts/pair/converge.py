@@ -26,6 +26,7 @@ import fcntl
 import shlex
 import subprocess
 from pathlib import Path
+from typing import TextIO
 
 import trees
 from trees import GATE, TARGET, die, exists, git, git_ok, note, path
@@ -35,7 +36,7 @@ class Lock:
     """`flock` on `.claude/worktrees/.pair.lock`, held for the whole converge."""
 
     def __init__(self) -> None:
-        self.handle = None
+        self.handle: TextIO | None = None
 
     def __enter__(self) -> Lock:
         Path(path(trees.WORKTREES)).mkdir(parents=True, exist_ok=True)
@@ -44,7 +45,7 @@ class Lock:
         fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX)
         return self
 
-    def __exit__(self, *_exc) -> None:
+    def __exit__(self, *_exc: object) -> None:
         if self.handle is not None:
             fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
             self.handle.close()

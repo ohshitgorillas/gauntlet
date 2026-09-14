@@ -90,7 +90,7 @@ def _bash_verdict(command: str, _agent: str = "") -> str | None:
     return _BASH if sh.lane_write_in(command, BASH_TESTS) else None
 
 
-def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
+def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | None:
     """Why this call is refused, or None to let it through."""
     return sh.dispatch(name, tool_input, payload, on_write=_write_verdict, on_bash=_bash_verdict)
 

@@ -37,7 +37,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import blocks  # noqa: E402
 import converge  # noqa: E402
 import trees  # noqa: E402
-from trees import REVIEWS, TARGET, die, git, git_ok, note, path, sh  # noqa: E402
+from trees import REVIEWS, TARGET, die, git, git_ok, note, path  # noqa: E402
+
+#: imported here rather than taken from `trees`, which does not re-export it.
+#: The import above is what put the hooks directory on `sys.path`, so this line
+#: has to follow it.
+import shell_shapes as sh  # noqa: E402
 
 USAGE = (
     "usage: pair.sh open|respec|red|merge|abort <slug> | list"
@@ -66,18 +71,16 @@ def approved(slug: str) -> tuple[str, str]:
     return relative, text
 
 
-def round_match(slug: str, text: str) -> str | None:
-    """The newest round file, where the block's reviewer section is that file.
+def round_match(slug: str, text: str) -> tuple[str, bool]:
+    """The newest round file, and whether the block's reviewer section is it.
 
-    Returns None where the two texts differ; the caller prints `MISMATCH`, which
-    is a contract line and so is not printed here.
+    The path comes back either way, because the caller names it on the
+    `MISMATCH` line. `MISMATCH` is a contract line and so is not printed here.
     """
     newest = blocks.newest_round(slug)
     if newest is None:
         die("pair: no reviewer round on disk for " + slug)
-    if blocks.reviewer_section(text) != (blocks.read(newest) or ""):
-        return None
-    return newest
+    return newest, blocks.reviewer_section(text) == (blocks.read(newest) or "")
 
 
 # --- the pair -----------------------------------------------------------------
@@ -85,9 +88,9 @@ def round_match(slug: str, text: str) -> str | None:
 
 def cmd_open(slug: str) -> int:
     relative, text = approved(slug)
-    newest = round_match(slug, text)
-    if newest is None:
-        out("MISMATCH " + blocks.newest_round(slug))
+    newest, matched = round_match(slug, text)
+    if not matched:
+        out("MISMATCH " + newest)
         return 1
 
     tree = trees.spec_tree(slug)
@@ -110,9 +113,9 @@ def cmd_respec(slug: str) -> int:
     tree = trees.spec_tree(slug)
     if not Path(path(tree)).is_dir():
         die("pair: no spec worktree at " + tree + " -- was this pair opened?")
-    newest = round_match(slug, text)
-    if newest is None:
-        out("MISMATCH " + blocks.newest_round(slug))
+    newest, matched = round_match(slug, text)
+    if not matched:
+        out("MISMATCH " + newest)
         return 1
     if blocks.committed_section(tree, slug) == blocks.reviewer_section(text):
         die(

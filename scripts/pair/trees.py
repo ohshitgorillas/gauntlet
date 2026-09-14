@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 _HOOKS = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks")
 sys.path.insert(0, _HOOKS)
@@ -72,7 +73,14 @@ def note(message: str) -> None:
     sys.stderr.write(message + "\n")
 
 
-def die(message: str) -> None:
+def die(message: str) -> NoReturn:
+    """Print the message and leave with status 2.
+
+    `NoReturn` rather than `None` because every caller is a guard: a checker
+    that thinks this returns thinks the `str | None` it just rejected is still
+    live on the next line, and the callers would have to say `assert` to a
+    branch that cannot be reached.
+    """
     sys.stderr.write(message + "\n")
     raise SystemExit(2)
 

@@ -102,7 +102,7 @@ def _allowed_command(command: str) -> bool:
     return any(p.match(command) for p in ALLOWED)
 
 
-def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
+def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | None:
     """Why this call is refused, or None to let it through."""
     if name != "Bash":
         return None
@@ -135,7 +135,12 @@ def self_test() -> int:
         one here and asking again is what proves that.
         """
         saved = sh.runners
-        sh.runners = lambda: {"pytest_command": words, "node_command": words}
+        #: a plain function where the module holds an `lru_cache` wrapper, which
+        #: is the whole point of the swap: the stand-in answers without a cache
+        sh.runners = lambda: {  # type: ignore[assignment]
+            "pytest_command": words,
+            "node_command": words,
+        }
         try:
             typed = " ".join(words + [target])
             return denied(bash(typed)) and denied(bash(f"scripts/blind.sh test {typed}"))

@@ -130,7 +130,7 @@ def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
     return _REVIEWER_LANE
 
 
-def _read_verdict(tool_input: dict, cwd: str, agent: str) -> str | None:
+def _read_verdict(tool_input: sh.ToolInput, cwd: str, agent: str) -> str | None:
     """A reviewer reads no round file; `Read` names one, `Grep` names a set."""
     if agent not in REVIEWERS:
         return None
@@ -147,7 +147,7 @@ def _bash_verdict(command: str, agent: str) -> str | None:
     return _BASH if sh.lane_write_in(command, BASH_REVIEWS, restore_ok=False) else None
 
 
-def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
+def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | None:
     """Why this call is refused, or None to let it through."""
     return sh.dispatch(
         name,

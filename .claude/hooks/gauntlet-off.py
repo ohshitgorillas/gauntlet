@@ -203,7 +203,7 @@ def invokes_claude(command: str) -> bool:
     return any(_head(segment) == "claude" for segment in sh.segments(command))
 
 
-def _verdict(name: str, tool_input: dict) -> str | None:
+def _verdict(name: str, tool_input: sh.ToolInput) -> str | None:
     """Why this call is refused, or None to let it through."""
     if name != "Bash":
         return None
