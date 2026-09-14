@@ -16,6 +16,8 @@ import importlib.util
 import os
 import re
 import sys
+from pathlib import Path
+from types import ModuleType
 
 import trees
 from trees import GAUNTLET, REVIEWS, SPECS, TESTS, git, git_out, note, path
@@ -32,14 +34,14 @@ _KIND = re.compile(r"^(?:kind|motion):\s*(?P<kind>.*?)\s*$")
 HEADINGS = ("test files:", "diff:", "red output:")
 
 
-def _load_strike_diff():
+def _load_strike_diff() -> ModuleType:
     """`scripts/strike-diff.py`, imported rather than run.
 
     Its name is not an identifier, so it is loaded by path. A subprocess would
     be a second interpreter start and a second copy of the config, for a
     function this process can simply call.
     """
-    source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "strike-diff.py")
+    source = str(Path(__file__).resolve().parents[1] / "strike-diff.py")
     spec = importlib.util.spec_from_file_location("strike_diff", source)
     if spec is None or spec.loader is None:  # pragma: no cover - a broken checkout
         sys.exit("pair: no scripts/strike-diff.py beside scripts/pair/")
@@ -62,8 +64,7 @@ def merge_path(slug: str) -> str:
 
 def read(relative: str) -> str | None:
     try:
-        with open(path(relative), encoding="utf-8") as handle:
-            return handle.read()
+        return Path(path(relative)).read_text(encoding="utf-8")
     except OSError:
         return None
 
@@ -88,7 +89,7 @@ def highest_round(slug: str, infix: str) -> int:
     shape = re.compile(re.escape(slug + "." + infix) + r"(\d+)\.txt\Z")
     best = 0
     try:
-        names = os.listdir(path(REVIEWS))
+        names = [entry.name for entry in Path(path(REVIEWS)).iterdir()]
     except OSError:
         return 0
     for name in names:
@@ -139,12 +140,12 @@ def red_run(slug: str, tree: str, runner: list[str]) -> str:
     the only word this function adds to it is its own.
     """
     saved = red_path(slug)
-    os.makedirs(path(os.path.dirname(saved)), exist_ok=True)
+    where = Path(path(saved))
+    where.parent.mkdir(parents=True, exist_ok=True)
     #: verbose, so a passing test is named rather than summarized as a dot: the
     #: juror rules on the names this file carries and on nothing else
     output = trees.capture_in_tree(tree, list(runner) + ["-v"])
-    with open(path(saved), "w", encoding="utf-8") as handle:
-        handle.write(output)
+    where.write_text(output, encoding="utf-8")
     return saved
 
 
@@ -155,13 +156,14 @@ def merge_artifact(slug: str, base: str, head: str, tree: str) -> str:
     the `gauntlet-bailiff` reads this file itself.
     """
     saved = merge_path(slug)
-    os.makedirs(path(os.path.dirname(saved)), exist_ok=True)
+    where = Path(path(saved))
+    where.parent.mkdir(parents=True, exist_ok=True)
     names = git_out("diff", "--name-only", base, head, "--", TESTS + "/", tree=tree)
     diff = git_out("diff", base, head, "--", TESTS + "/", tree=tree)
     #: no red log on disk is a complete brief with an empty section, not an
     #: abort that leaves the block unterminated
     red = read(red_path(slug)) or ""
-    with open(path(saved), "w", encoding="utf-8") as handle:
+    with where.open("w", encoding="utf-8") as handle:
         handle.write(HEADINGS[0] + "\n" + names)
         handle.write(HEADINGS[1] + "\n" + diff)
         handle.write(HEADINGS[2] + "\n" + red)
@@ -175,10 +177,11 @@ def strike_report(block: str, base: str, head: str, tree: str) -> list[str]:
     from the tree being checked and the directory is put back afterwards.
     """
     module = _load_strike_diff()
-    here = os.getcwd()
+    here = Path.cwd()
     os.chdir(path(tree))
     try:
-        return module.report(block, base, head)
+        verdicts: list[str] = module.report(block, base, head)
+        return verdicts
     finally:
         os.chdir(here)
 
@@ -215,7 +218,7 @@ def strike_whole_files(tree: str, block: str) -> None:
             )
     for target in targets:
         try:
-            os.unlink(path(tree, target))
+            Path(path(tree, target)).unlink()
         except OSError:
             continue
         note("  struck " + target)

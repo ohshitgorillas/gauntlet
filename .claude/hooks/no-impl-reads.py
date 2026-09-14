@@ -35,7 +35,8 @@ works from; `gauntlet/red/`, the red run a blind writer must certify; and
 two moved the certification to the main agent, which is the inversion this hook
 exists to prevent. No denied subtree nests inside an allowed one: `docs/`,
 `tests/` and `state/` are allowed the whole way down, and the three re-allowed
-leaves sit inside the denied base, which is the harmless direction. Both tests run before the allow list below, so a fifth artifact
+leaves sit inside the denied base, which is the harmless direction. Both tests
+run before the allow list below, so a fifth artifact
 directory added later is blind-safe until someone deliberately opens it, and no
 `blind-reads.json` entry can re-open the plans, the drafts or the rounds.
 
@@ -77,8 +78,10 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
+from typing import Any
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
@@ -141,11 +144,14 @@ _UNROOTED = (
 
 
 def repo_root(start: str) -> str | None:
-    path = os.path.abspath(start or ".")
+    #: lexical, not `Path.resolve()`: resolving follows symlinks, and a checkout
+    #: reached through a symlinked path would answer with a root the session
+    #: never named
+    path = os.path.abspath(start or ".")  # noqa: PTH100
     while True:
-        if os.path.exists(os.path.join(path, ".git")):
+        if Path(path, ".git").exists():
             return path
-        parent = os.path.dirname(path)
+        parent = str(Path(path).parent)
         if parent == path:
             return None
         path = parent
@@ -177,7 +183,10 @@ def readable(target: str, root: str | None, cwd: str) -> bool:
     """
     if not target:
         return True
-    resolved = os.path.abspath(os.path.join(cwd or (root or "."), target))
+    #: lexical again: the `..` collapse is the whole job here, and
+    #: `Path.resolve()` would follow a symlink out of the lane the allowlist
+    #: anchors on
+    resolved = os.path.abspath(os.path.join(cwd or (root or "."), target))  # noqa: PTH100, PTH118
     #: a path inside `.claude/worktrees/<slug>` is anchored at that worktree, not
     #: at the checkout the session was started in. A blind agent is handed the
     #: absolute paths of files in its own worktree, and against the session root
@@ -218,7 +227,7 @@ def readable(target: str, root: str | None, cwd: str) -> bool:
             return True
     #: a documentation file sitting at the repo root, by extension
     return base is not None and os.sep not in rel and (
-        os.path.splitext(rel)[1].lower() in DEFAULT_ROOT_FILES
+        Path(rel).suffix.lower() in DEFAULT_ROOT_FILES
     )
 
 
@@ -230,7 +239,7 @@ def _candidates(words: list[str]) -> list[str]:
         #: a URL is not a path: `SERVED` above rules on the ones that carry source,
         #: and an API call over HTTP reaches no file this hook is guarding
         if "://" not in w
-        and ("/" in w or os.path.splitext(w)[1])
+        and ("/" in w or Path(w).suffix)
         and not w.startswith("-")
     ]
 
@@ -243,7 +252,7 @@ def _reads_recursively(words: list[str]) -> bool:
     standalone `-r`, a clustered short option carrying it (`-rn`), or the long
     `--recursive`.
     """
-    head = os.path.basename(words[0]) if words else ""
+    head = Path(words[0]).name if words else ""
     if head in RECURSIVE_ALWAYS:
         return True
     letters = RECURSIVE_ON_FLAG.get(head)
@@ -326,6 +335,31 @@ def _strip_env(words: list[str]) -> list[str]:
     return words[i:]
 
 
+def _stage_verdict(words: list[str], root: str | None, here: str) -> str | None:
+    """Why one stage of a pipeline is refused, or None to let it through.
+
+    A stage that moves the walk -- a `cd` -- is the caller's business; this
+    rules on the stages that read.
+    """
+    head = Path(words[0]).name
+    if sh.is_runner(words):
+        return None
+    if _unrooted_sweep(words):
+        return _UNROOTED
+    if head == "git":
+        #: a git command that prints content carries no path of its own when
+        #: it is spelled `git show <rev>`, so the candidate test has nothing
+        #: to fail on and the implementation goes out whole
+        if _git_prints_content(words):
+            paths = _git_candidates(words)
+            if not paths or any(not readable(w, root, here) for w in paths):
+                return _WHY
+        return None
+    if any(not readable(w, root, here) for w in _candidates(words)):
+        return _WHY
+    return None
+
+
 def _bash_verdict(command: str, root: str | None, cwd: str) -> str | None:
     """Why this shell command is refused, or None to let it through.
 
@@ -346,28 +380,18 @@ def _bash_verdict(command: str, root: str | None, cwd: str) -> str | None:
             if target in ("", "-") or target.startswith("~"):
                 here = cwd
             else:
-                here = os.path.abspath(os.path.join(here, target))
+                #: lexical, for the same reason `readable` is
+                here = os.path.abspath(os.path.join(here, target))  # noqa: PTH100, PTH118
             continue
-        head = os.path.basename(words[0])
-        if sh.is_runner(words):
-            continue
-        if _unrooted_sweep(words):
-            return _UNROOTED
-        if head == "git":
-            #: a git command that prints content carries no path of its own when
-            #: it is spelled `git show <rev>`, so the candidate test has nothing
-            #: to fail on and the implementation goes out whole
-            if _git_prints_content(words):
-                paths = _git_candidates(words)
-                if not paths or any(not readable(w, root, here) for w in paths):
-                    return _WHY
-            continue
-        if any(not readable(w, root, here) for w in _candidates(words)):
-            return _WHY
+        why = _stage_verdict(words, root, here)
+        if why is not None:
+            return why
     return None
 
 
-def _verdict(name: str, tool_input: dict, root: str | None, cwd: str) -> str | None:
+def _verdict(
+    name: str, tool_input: dict[str, Any], root: str | None, cwd: str
+) -> str | None:
     """Why this call is refused, or None to let it through."""
     if name == "Read":
         return None if readable(tool_input.get("file_path", ""), root, cwd) else _WHY
@@ -390,7 +414,9 @@ GUARDS = ("Read", "Grep", "Glob", "Bash")
 
 
 def main() -> None:
-    def verdict(name: str, tool_input: dict, payload: dict) -> str | None:
+    def verdict(
+        name: str, tool_input: dict[str, Any], payload: dict[str, Any]
+    ) -> str | None:
         #: inside the closure, so that a root that will not resolve is a
         #: refusal like any other rather than a crash read as one
         cwd = sh.cwd_of(payload)
@@ -408,11 +434,11 @@ def _config_parses() -> bool:
     to the default and says nothing about it. The runtime keeps the safe
     direction; this line is where the typo becomes visible instead of free.
     """
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blind-reads.json")
-    if not os.path.exists(path):
+    path = Path(__file__).resolve().parent / "blind-reads.json"
+    if not path.exists():
         return True  # no per-repo value here; nothing to parse
     try:
-        with open(path, encoding="utf-8") as fh:
+        with path.open(encoding="utf-8") as fh:
             return isinstance(json.load(fh), dict)
     except (OSError, ValueError):
         return False
@@ -460,7 +486,7 @@ def self_test() -> int:
     #: built by hand below carry it too, and no string gets two passes
     PATHS = ("file_path", "path", "command")
 
-    def call(tool: str, tool_input: dict) -> str | None:
+    def call(tool: str, tool_input: dict[str, Any]) -> str | None:
         moved = {
             key: sh.respell(value) if key in PATHS and isinstance(value, str) else value
             for key, value in tool_input.items()
@@ -473,6 +499,9 @@ def self_test() -> int:
     def bash(cmd: str) -> str | None:
         return call("Bash", {"command": cmd})
 
+    node_reads_source = (
+        "node -e \"console.log(require('fs').readFileSync('src/core.py','utf8'))\""
+    )
     denied, allowed = sh.denied, sh.allowed
     lines = {
         "1 the spec's own sources are readable, the rest is not": all(
@@ -508,7 +537,7 @@ def self_test() -> int:
             (
                 #: the runner question is the whole invocation, never the head
                 #: word: `node -e` and `node --test` share one
-                denied(bash("node -e \"console.log(require('fs').readFileSync('src/core.py','utf8'))\"")),
+                denied(bash(node_reads_source)),
                 denied(bash("python -c \"print(open('src/core.py').read())\"")),
                 allowed(bash("pytest tests/test_lane.py -q")),
                 allowed(bash("npx vitest run")),

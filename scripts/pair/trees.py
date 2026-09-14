@@ -14,11 +14,13 @@ writing that contract from underneath the one file that owns it.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import sys
+from pathlib import Path
 
-_HOOKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".claude", "hooks")
+_HOOKS = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks")
 sys.path.insert(0, _HOOKS)
 
 try:
@@ -29,7 +31,7 @@ except ImportError:  # pragma: no cover - a checkout missing half the kit
 
 def _root() -> str:
     """The primary checkout, found from this file rather than from the caller's cwd."""
-    here = os.path.dirname(os.path.abspath(__file__))
+    here = str(Path(__file__).resolve().parent)
     done = subprocess.run(
         ("git", "-C", here, "rev-parse", "--show-toplevel"),
         capture_output=True,
@@ -70,13 +72,13 @@ def note(message: str) -> None:
     sys.stderr.write(message + "\n")
 
 
-def die(message: str) -> "None":
+def die(message: str) -> None:
     sys.stderr.write(message + "\n")
     raise SystemExit(2)
 
 
 def path(*parts: str) -> str:
-    return os.path.join(ROOT, *parts)
+    return str(Path(ROOT).joinpath(*parts))
 
 
 def spec_tree(slug: str) -> str:
@@ -137,10 +139,13 @@ def exists(rev: str) -> bool:
 def link_tooling(tree: str) -> None:
     """Borrow the primary checkout's interpreters, so a gate can run in the tree."""
     for dep in TOOLING:
-        source = path(dep)
-        target = path(tree, dep)
-        if os.path.exists(source) and not os.path.lexists(target):
-            os.symlink(source, target)
+        source = Path(path(dep))
+        target = Path(path(tree, dep))
+        #: `is_symlink() or exists()` is `os.path.lexists`: a link already there
+        #: and pointing nowhere still occupies the name, and `exists()` alone
+        #: follows it and answers False
+        if source.exists() and not (target.is_symlink() or target.exists()):
+            target.symlink_to(source)
     _exclude_tooling(tree)
 
 
@@ -160,17 +165,16 @@ def _exclude_tooling(tree: str) -> None:
     )
     if not common:
         return
-    exclude = os.path.join(common, "info", "exclude")
-    os.makedirs(os.path.dirname(exclude), exist_ok=True)
+    exclude = Path(common, "info", "exclude")
+    exclude.parent.mkdir(parents=True, exist_ok=True)
     wanted = ["/" + dep for dep in TOOLING]
-    held = []
-    if os.path.exists(exclude):
-        with open(exclude, encoding="utf-8") as handle:
-            held = handle.read().splitlines()
+    held: list[str] = []
+    if exclude.exists():
+        held = exclude.read_text(encoding="utf-8").splitlines()
     missing = [line for line in wanted if line not in held]
     if not missing:
         return
-    with open(exclude, "a", encoding="utf-8") as handle:
+    with exclude.open("a", encoding="utf-8") as handle:
         handle.write("".join(line + "\n" for line in missing))
 
 
@@ -183,9 +187,9 @@ def unlink_tooling(tree: str) -> None:
     the tree it is trying to remove.
     """
     for dep in TOOLING:
-        target = path(tree, dep)
-        if os.path.islink(target):
-            os.unlink(target)
+        target = Path(path(tree, dep))
+        if target.is_symlink():
+            target.unlink()
 
 
 def in_tree(tree: str, argv: list[str]) -> int:
@@ -312,30 +316,26 @@ def commit_tree(tree: str, message: str) -> bool:
 
 
 def record_base(slug: str, commit: str) -> None:
-    os.makedirs(path(STATE), exist_ok=True)
-    with open(path(STATE, slug + ".base"), "w", encoding="utf-8") as handle:
-        handle.write(commit + "\n")
+    Path(path(STATE)).mkdir(parents=True, exist_ok=True)
+    Path(path(STATE, slug + ".base")).write_text(commit + "\n", encoding="utf-8")
 
 
 def read_base(slug: str) -> str | None:
     try:
-        with open(path(STATE, slug + ".base"), encoding="utf-8") as handle:
-            return handle.read().strip() or None
+        return Path(path(STATE, slug + ".base")).read_text(encoding="utf-8").strip() or None
     except OSError:
         return None
 
 
 def forget_base(slug: str) -> None:
-    try:
-        os.unlink(path(STATE, slug + ".base"))
-    except OSError:
-        pass
+    with contextlib.suppress(OSError):
+        Path(path(STATE, slug + ".base")).unlink()
 
 
 def open_pairs() -> list[str]:
     """The slugs with a recorded base, oldest name first."""
     try:
-        names = os.listdir(path(STATE))
+        names = [entry.name for entry in Path(path(STATE)).iterdir()]
     except OSError:
         return []
     return sorted(name[: -len(".base")] for name in names if name.endswith(".base"))

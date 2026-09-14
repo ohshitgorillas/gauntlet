@@ -23,9 +23,9 @@ every directory the kit names. Neither is a literal here.
 from __future__ import annotations
 
 import fcntl
-import os
 import shlex
 import subprocess
+from pathlib import Path
 
 import trees
 from trees import GATE, TARGET, die, exists, git, git_ok, note, path
@@ -37,9 +37,9 @@ class Lock:
     def __init__(self) -> None:
         self.handle = None
 
-    def __enter__(self) -> "Lock":
-        os.makedirs(path(trees.WORKTREES), exist_ok=True)
-        self.handle = open(path(trees.LOCK), "w", encoding="utf-8")
+    def __enter__(self) -> Lock:
+        Path(path(trees.WORKTREES)).mkdir(parents=True, exist_ok=True)
+        self.handle = Path(path(trees.LOCK)).open("w", encoding="utf-8")
         note("  waiting for the pair lock...")
         fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX)
         return self
@@ -166,7 +166,7 @@ def cleanup(slug: str, has_impl: bool) -> None:
 def abort(slug: str) -> None:
     """Take the pair back out: trees, branches and recorded base alike."""
     for tree in (trees.spec_tree(slug), trees.impl_tree(slug)):
-        if os.path.isdir(path(tree)):
+        if Path(path(tree)).is_dir():
             trees.unlink_tooling(tree)
             git("worktree", "remove", "--force", tree, check=False)
     git("worktree", "prune", check=False)

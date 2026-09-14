@@ -30,8 +30,9 @@ from __future__ import annotations
 import os
 import re
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import blocks  # noqa: E402
 import converge  # noqa: E402
@@ -90,7 +91,7 @@ def cmd_open(slug: str) -> int:
         return 1
 
     tree = trees.spec_tree(slug)
-    if os.path.exists(path(tree)):
+    if Path(path(tree)).exists():
         die("pair: " + tree + " already exists -- abort that pair, or pick another slug.")
     if trees.exists(trees.spec_branch(slug)):
         die("pair: branch " + trees.spec_branch(slug) + " already exists.")
@@ -107,7 +108,7 @@ def cmd_open(slug: str) -> int:
 def cmd_respec(slug: str) -> int:
     relative, text = approved(slug)
     tree = trees.spec_tree(slug)
-    if not os.path.isdir(path(tree)):
+    if not Path(path(tree)).is_dir():
         die("pair: no spec worktree at " + tree + " -- was this pair opened?")
     newest = round_match(slug, text)
     if newest is None:
@@ -120,8 +121,7 @@ def cmd_respec(slug: str) -> int:
             " not the last one pasted under a changed block."
         )
 
-    with open(path(tree, relative), "w", encoding="utf-8") as handle:
-        handle.write(text)
+    Path(path(tree, relative)).write_text(text, encoding="utf-8")
     if git_ok("diff", "--quiet", "HEAD", "--", relative, tree=tree):
         die("pair: " + relative + " matches the block at HEAD -- nothing for the delta to read.")
     #: the block alone. The writer may hold uncommitted tests in this tree, and a
@@ -145,7 +145,7 @@ def _pytest_argv() -> list[str]:
     """
     words = sh.pytest_command()
     head = os.environ.get("PYTEST") or words[0]
-    if not os.path.isabs(head) and "/" in head:
+    if not Path(head).is_absolute() and "/" in head:
         head = path(head)
     return [head] + words[1:]
 
@@ -153,7 +153,7 @@ def _pytest_argv() -> list[str]:
 def cmd_red(slug: str) -> int:
     _, text = approved(slug)
     tree = trees.spec_tree(slug)
-    if not os.path.isdir(path(tree)):
+    if not Path(path(tree)).is_dir():
         die("pair: no spec worktree at " + tree)
     blocks.strike_whole_files(tree, text)
     out(blocks.red_run(slug, tree, _pytest_argv()))
@@ -172,24 +172,85 @@ def _brief(slug: str, tree: str, base: str, head: str) -> list[str]:
     ]
 
 
-def cmd_merge(slug: str) -> int:
-    relative, text = approved(slug)
-    tree = trees.spec_tree(slug)
-    impl = trees.impl_tree(slug)
-    if not os.path.isdir(path(tree)):
-        die("pair: no spec worktree at " + tree + " -- was this pair opened?")
-    #: an implementation tree that was never cut is a tests-only pair, which is
-    #: the ordinary shape of the two tests-only kinds: skipped, never fatal
-    has_impl = os.path.isdir(path(impl)) and trees.exists(trees.impl_branch(slug))
-    if not has_impl:
-        note("  no implementation tree for " + slug + "; the spec tree lands alone")
-
-    note("  [1/6] lane check")
+def _check_lanes(tree: str, impl: str, has_impl: bool) -> None:
+    """The disjoint-path rule over both trees, or an exit naming the files."""
     lanes = trees.lane_check(tree, "spec")
     if has_impl and not trees.lane_check(impl, "impl"):
         lanes = False
     if not lanes:
         die("pair: the lanes are what make this combine conflict-free; move those files.")
+
+
+def _report_red(
+    slug: str, tree: str, text: str, base: str, head: str, mechanical: bool
+) -> None:
+    """What a red gate in the combined tree leaves behind, all of it on stderr.
+
+    Nothing landed, so nothing on stdout should read as the brief of a merged
+    block.
+    """
+    note("")
+    note("pair: the gate is red in the combined tree. " + TARGET + " is untouched")
+    note("and both trees are left exactly as they are: " + tree)
+    note("A failing test here means the block and the code disagree. The code is")
+    note("wrong and the fix lands in the implementation tree, or the block is wrong")
+    note("and it goes back for re-approval. Tests are not edited to pass.")
+    if mechanical:
+        for line in blocks.strike_report(text, base, head, tree):
+            note("  " + line)
+    else:
+        note("  merge output: " + blocks.merge_artifact(slug, base, head, tree))
+
+
+def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
+    """Rebase, combine, gate and land, with the pair lock already held."""
+    note("  [3/6] rebase onto " + TARGET)
+    converge.rebase_if_moved(slug, has_impl)
+    if has_impl:
+        note("  [4/6] combine in the spec tree")
+        converge.combine(slug)
+
+    base = git("merge-base", TARGET, trees.spec_branch(slug))
+    head = git("rev-parse", "HEAD", tree=tree)
+    mechanical = blocks.block_kind(text) in ("strike", "amend")
+
+    note("  [5/6] gate")
+    if not converge.gate(slug):
+        _report_red(slug, tree, text, base, head, mechanical)
+        return 1
+
+    if mechanical:
+        #: no implementation phase, so no window for a test to soften in:
+        #: the mechanical check takes the gauntlet-bailiff's round
+        verdicts = blocks.strike_report(text, base, head, tree)
+        for line in verdicts:
+            out(line)
+        if not all(line.startswith("OK ") for line in verdicts):
+            die("pair: the landed tests do not match the block that approved them.")
+    else:
+        for line in _brief(slug, tree, base, head):
+            out(line)
+
+    note("  [6/6] land on " + TARGET)
+    converge.land(slug)
+    converge.cleanup(slug, has_impl)
+    return 0
+
+
+def cmd_merge(slug: str) -> int:
+    _, text = approved(slug)
+    tree = trees.spec_tree(slug)
+    impl = trees.impl_tree(slug)
+    if not Path(path(tree)).is_dir():
+        die("pair: no spec worktree at " + tree + " -- was this pair opened?")
+    #: an implementation tree that was never cut is a tests-only pair, which is
+    #: the ordinary shape of the two tests-only kinds: skipped, never fatal
+    has_impl = Path(path(impl)).is_dir() and trees.exists(trees.impl_branch(slug))
+    if not has_impl:
+        note("  no implementation tree for " + slug + "; the spec tree lands alone")
+
+    note("  [1/6] lane check")
+    _check_lanes(tree, impl, has_impl)
 
     note("  [2/6] commit both trees")
     trees.commit_tree(tree, "test: " + slug)
@@ -197,50 +258,7 @@ def cmd_merge(slug: str) -> int:
         trees.commit_tree(impl, "feat: " + slug)
 
     with converge.Lock():
-        note("  [3/6] rebase onto " + TARGET)
-        converge.rebase_if_moved(slug, has_impl)
-        if has_impl:
-            note("  [4/6] combine in the spec tree")
-            converge.combine(slug)
-
-        base = git("merge-base", TARGET, trees.spec_branch(slug))
-        head = git("rev-parse", "HEAD", tree=tree)
-        kind = blocks.block_kind(text)
-        mechanical = kind in ("strike", "amend")
-
-        note("  [5/6] gate")
-        if not converge.gate(slug):
-            #: the evidence goes to stderr here: nothing landed, so nothing on
-            #: stdout should read as the brief of a merged block
-            note("")
-            note("pair: the gate is red in the combined tree. " + TARGET + " is untouched")
-            note("and both trees are left exactly as they are: " + tree)
-            note("A failing test here means the block and the code disagree. The code is")
-            note("wrong and the fix lands in the implementation tree, or the block is wrong")
-            note("and it goes back for re-approval. Tests are not edited to pass.")
-            if mechanical:
-                for line in blocks.strike_report(text, base, head, tree):
-                    note("  " + line)
-            else:
-                note("  merge output: " + blocks.merge_artifact(slug, base, head, tree))
-            return 1
-
-        if mechanical:
-            #: no implementation phase, so no window for a test to soften in:
-            #: the mechanical check takes the gauntlet-bailiff's round
-            verdicts = blocks.strike_report(text, base, head, tree)
-            for line in verdicts:
-                out(line)
-            if not all(line.startswith("OK ") for line in verdicts):
-                die("pair: the landed tests do not match the block that approved them.")
-        else:
-            for line in _brief(slug, tree, base, head):
-                out(line)
-
-        note("  [6/6] land on " + TARGET)
-        converge.land(slug)
-        converge.cleanup(slug, has_impl)
-    return 0
+        return _converge_and_land(slug, tree, text, has_impl)
 
 
 def cmd_abort(slug: str) -> int:
@@ -278,7 +296,7 @@ def cmd_review(first: str, second: str | None) -> int:
         slug = second or ""
     check_slug(slug)
     #: the reviewer's Write is its own; the directory it writes into is not
-    os.makedirs(path(REVIEWS), exist_ok=True)
+    Path(path(REVIEWS)).mkdir(parents=True, exist_ok=True)
     number = blocks.highest_round(slug, infix) + 1
     out("REVIEW " + REVIEWS + "/" + slug + "." + infix + str(number) + ".txt")
     return 0
@@ -307,13 +325,13 @@ def cmd_impl(verb: str, slug: str | None) -> int:
     if verb == "checkout":
         #: a second checkout of a slug already cut is the same tree, not a fresh
         #: one: re-cutting would discard the implementation in progress in it
-        if not os.path.isdir(path(tree)):
+        if not Path(path(tree)).is_dir():
             git("worktree", "add", "--quiet", "-b", trees.impl_branch(slug), tree)
             trees.link_tooling(tree)
         out("IMPL " + tree)
         return 0
     if verb == "merge":
-        if not os.path.isdir(path(tree)):
+        if not Path(path(tree)).is_dir():
             die("pair: no implementation worktree at " + tree)
         git("merge", "--no-edit", "-q", trees.impl_branch(slug))
         out("MERGED " + slug + " " + git("rev-parse", "HEAD"))
@@ -368,7 +386,7 @@ def self_test() -> int:
         "2. strike tests/test_b.py\n"
         "\n--- reviewer ---\nREADY\n1  KEEP  the counter\n"
     )
-    source = open(os.path.abspath(__file__), encoding="utf-8").read()
+    source = Path(__file__).resolve().read_text(encoding="utf-8")
     lines = {
         "the reviewer section is everything below the divider, verbatim": (
             blocks.reviewer_section(block) == "READY\n1  KEEP  the counter\n"
@@ -387,7 +405,7 @@ def self_test() -> int:
             blocks.HEADINGS == ("test files:", "diff:", "red output:")
         ),
         "the branch and the gate are what the configuration says they are": (
-            trees.TARGET == sh.target_branch() and trees.GATE == sh.gate_command()
+            sh.target_branch() == trees.TARGET and sh.gate_command() == trees.GATE
         ),
         "every contract literal this driver prints is in this file": (
             all(
@@ -422,8 +440,7 @@ def self_test() -> int:
 
 
 def _sibling(name: str) -> str:
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), name), encoding="utf-8") as handle:
-        return handle.read()
+    return (Path(__file__).resolve().parent / name).read_text(encoding="utf-8")
 
 
 def _accepts(slug: str) -> bool:

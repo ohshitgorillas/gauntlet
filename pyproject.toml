@@ -1,0 +1,38 @@
+# Tooling configuration for this repository.
+#
+# There is no package here to build. The hooks and scripts are copied into a
+# consumer's tree rather than installed, so this file configures the tools the
+# gate runner invokes and declares nothing else.
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = [".claude/worktrees", ".venv", "state"]
+
+[tool.ruff.lint]
+# BLE and TRY are load-bearing rather than taste. A lane hook decides whether a
+# tool call is allowed; an exception it swallows is a call it waved through, so
+# a bare `except` in this tree is a lane that fails open.
+select = ["E", "F", "B", "SIM", "UP", "RET", "ARG", "PTH", "C901", "BLE", "TRY"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.black]
+line-length = 100
+
+[tool.mypy]
+strict = true
+# The hooks import `shell_shapes` from beside them, and they travel as a unit
+# with no package around them, so the directory itself is the import path.
+mypy_path = ".claude/hooks"
+exclude = ['^\.claude/worktrees/', '^\.venv/']
+
+[tool.coverage.run]
+branch = true
+source = [".claude/hooks", "scripts"]
+omit = ["*/__pycache__/*", ".claude/worktrees/*"]
+
+[tool.coverage.json]
+output = ".coverage.json"
+show_contexts = false

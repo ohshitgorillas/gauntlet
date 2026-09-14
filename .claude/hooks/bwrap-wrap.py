@@ -88,14 +88,15 @@ from __future__ import annotations
 
 import functools
 import importlib
-import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
+from typing import Any
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
@@ -176,7 +177,7 @@ def bwrap_fault() -> str | None:
         return _NO_BWRAP
     try:
         done = subprocess.run(
-            ["bwrap", *_PROBE], capture_output=True, text=True, timeout=30
+            ["bwrap", *_PROBE], capture_output=True, text=True, timeout=30, check=False
         )
     except (OSError, subprocess.SubprocessError) as error:
         return _BWRAP_BROKEN.format(said=_first_line(str(error)) or type(error).__name__)
@@ -186,7 +187,7 @@ def bwrap_fault() -> str | None:
     return _BWRAP_BROKEN.format(said=said)
 
 
-def _answer(payload: dict) -> dict | None:
+def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
     """The hook's answer for this payload, or None to say nothing at all."""
     if payload.get("tool_name") != "Bash":
         return None
@@ -233,13 +234,12 @@ def worktrees(root: str) -> list[str]:
     Rebuilt per call on purpose. A cached list outlives the tree it names, and
     `bwrap` fails the whole invocation on a bind source that is not there.
     """
-    parent = os.path.join(root, WORKTREES)
+    parent = Path(root) / WORKTREES
     try:
-        names = sorted(os.listdir(parent))
+        trees = sorted(parent.iterdir())
     except OSError:
         return []
-    trees = [os.path.join(parent, name) for name in names]
-    return [tree for tree in trees if os.path.isdir(tree)]
+    return [str(tree) for tree in trees if tree.is_dir()]
 
 
 def _base(root: str) -> list[str]:
@@ -263,12 +263,12 @@ def _base(root: str) -> list[str]:
 def _source(path: str) -> bool:
     """Whether `path` is a bind source `bwrap` will accept, right now.
 
-    `os.path.exists` answers False for every reason a bind would fail on the
+    `Path.exists` answers False for every reason a bind would fail on the
     source -- absent, a component that is a file (`ENOTDIR`), a dangling
     symlink, a directory that cannot be traversed -- which is the whole of what
     this needs to know. `--ro-bind-try` forgives only the first of those.
     """
-    return os.path.exists(path)
+    return Path(path).exists()
 
 
 def _bind(flag: str, path: str) -> list[str]:
@@ -285,7 +285,7 @@ def _checkout_readonly(checkout: str) -> list[str]:
     """
     args: list[str] = []
     for relative in PROTECTED_IN_CHECKOUT:
-        args += _bind("--ro-bind-try", os.path.join(checkout, relative))
+        args += _bind("--ro-bind-try", str(Path(checkout) / relative))
     return args
 
 
@@ -311,18 +311,18 @@ def _profile(root: str, agent: str) -> list[str]:
         # read-only, so `bwrap` cannot create one. A checkout without the
         # reviews lane gives the reviewer a wholly read-only filesystem, which
         # errs in the safe direction.
-        reviews = os.path.join(root, REVIEWS_DIR)
+        reviews = str(Path(root) / REVIEWS_DIR)
         if _source(reviews):
             args += ["--tmpfs", reviews]
     else:
         args += _bind("--bind", root)
-        args += _bind("--bind-try", os.path.join(home, ".cache"))
-        args += _bind("--ro-bind-try", os.path.join(home, ".gitconfig"))
+        args += _bind("--bind-try", str(Path(home) / ".cache"))
+        args += _bind("--ro-bind-try", str(Path(home) / ".gitconfig"))
 
         # the repository is writable, so the lanes inside it are bound back
         # read-only, in the main checkout and in every worktree
         args += _checkout_readonly(root)
-        args += _bind("--ro-bind-try", os.path.join(root, WORKTREES))
+        args += _bind("--ro-bind-try", str(Path(root) / WORKTREES))
         for tree in worktrees(root):
             # `--bind`, not `--bind-try`, would stake the whole invocation on a
             # tree surviving the microseconds between the listing above and the
@@ -384,11 +384,10 @@ def _make_tree(root: str, worktree_git_is_a_file: bool) -> None:
     for relative in PROTECTED_IN_CHECKOUT + (WORKTREES,):
         if relative.startswith(".git/") and worktree_git_is_a_file:
             continue
-        os.makedirs(os.path.join(root, relative), exist_ok=True)
-    dot_git = os.path.join(root, ".git")
+        (Path(root) / relative).mkdir(parents=True, exist_ok=True)
+    dot_git = Path(root) / ".git"
     if worktree_git_is_a_file:
-        with open(dot_git, "w", encoding="utf-8") as handle:
-            handle.write("gitdir: /elsewhere/.git/worktrees/tree\n")
+        dot_git.write_text("gitdir: /elsewhere/.git/worktrees/tree\n", encoding="utf-8")
 
 
 def _runs(wrapped: str) -> tuple[bool, str]:
@@ -399,12 +398,12 @@ def _runs(wrapped: str) -> tuple[bool, str]:
     command inside the sandbox is `true`, so the cost is one process.
     """
     done = subprocess.run(
-        ["bash", "-c", wrapped], capture_output=True, text=True, timeout=60
+        ["bash", "-c", wrapped], capture_output=True, text=True, timeout=60, check=False
     )
     return done.returncode == 0, (done.stderr or "").strip().split("\n")[0]
 
 
-def _answer_with_path(where: str, root: str) -> dict | None:
+def _answer_with_path(where: str, root: str) -> dict[str, Any] | None:
     """`_answer` for one Bash call, with `where` as the whole of `PATH`.
 
     The probe is cached for the life of the process, so the cache is cleared on
@@ -429,26 +428,25 @@ def _answer_with_path(where: str, root: str) -> dict | None:
 
 def _fake_bwrap(where: str, body: str) -> str:
     """A real executable named `bwrap` in `where`, running `body`. Returns `where`."""
-    os.makedirs(where, exist_ok=True)
-    path = os.path.join(where, "bwrap")
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write("#!/bin/sh\n" + body + "\n")
-    os.chmod(path, 0o755)
+    Path(where).mkdir(parents=True, exist_ok=True)
+    path = Path(where) / "bwrap"
+    path.write_text("#!/bin/sh\n" + body + "\n", encoding="utf-8")
+    path.chmod(0o755)
     return where
 
 
-def _reason(answer: dict | None) -> str:
+def _reason(answer: dict[str, Any] | None) -> str:
     """The denial text of an answer, or "" if it is not a denial."""
     out = (answer or {}).get("hookSpecificOutput") or {}
     if out.get("permissionDecision") != "deny":
         return ""
-    return out.get("permissionDecisionReason") or ""
+    return str(out.get("permissionDecisionReason") or "")
 
 
 def _self_test_in(tmp: str) -> int:
-    root = os.path.join(tmp, "checkout")
+    root = str(Path(tmp) / "checkout")
     _make_tree(root, worktree_git_is_a_file=False)
-    tree = os.path.join(root, WORKTREES, "demo-spec")
+    tree = str(Path(root) / WORKTREES / "demo-spec")
     _make_tree(tree, worktree_git_is_a_file=True)
 
     semicolon = "echo hi; cat /etc/hostname"
@@ -460,16 +458,16 @@ def _self_test_in(tmp: str) -> int:
 
     #: not `shutil.which`: a binary that will not run is the case below
     have_bwrap = bwrap_fault() is None
-    gone = os.path.join(tmp, "cut-since-the-call-began")
+    gone = str(Path(tmp) / "cut-since-the-call-began")
 
     #: an installed `bwrap` that dies at exec -- user namespaces off, a seccomp
     #: policy refusing the setup. A real executable, so the probe is a real run.
     broken = _fake_bwrap(
-        os.path.join(tmp, "broken-bin"),
+        str(Path(tmp) / "broken-bin"),
         'echo "bwrap: No permissions to creating new namespace" >&2\nexit 1',
     )
-    empty = os.path.join(tmp, "empty-bin")
-    os.makedirs(empty, exist_ok=True)
+    empty = str(Path(tmp) / "empty-bin")
+    Path(empty).mkdir(parents=True, exist_ok=True)
 
     lines = {
         "the caller's text survives the wrap byte for byte, whatever it is": (
@@ -559,7 +557,7 @@ def _self_test_in(tmp: str) -> int:
         ),
         "a bind source cut between the profile and the exec is not named": (
             gone not in wrap("true", gone, "gauntlet-prosecutor")
-            or not os.path.exists(gone)
+            or not Path(gone).exists()
             and f"--chdir {gone}" not in wrap("true", gone, "gauntlet-prosecutor")
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
@@ -575,8 +573,7 @@ def _self_test_in(tmp: str) -> int:
             ("the reviewer profile runs, against this very tree", reviewer),
             (
                 "the profile for the real checkout this gate runs in runs",
-                wrap("true", os.path.dirname(os.path.dirname(os.path.dirname(
-                    os.path.abspath(__file__)))), "gauntlet-prosecutor"),
+                wrap("true", str(Path(__file__).resolve().parents[2]), "gauntlet-prosecutor"),
             ),
         ):
             #: `true` inside the sandbox, so a failure is the mount setup and

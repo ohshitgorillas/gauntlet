@@ -102,6 +102,15 @@ import os
 import re
 import shlex
 import sys
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+#: one payload as a hook reads it: whatever JSON carried, decided at runtime by
+#: `payload_fault` rather than trusted by its static shape
+Payload = dict[str, Any]
+#: the three arguments every lane verdict takes, and the refusal or None it gives
+Verdict = Callable[[str, dict[str, Any], Payload], str | None]
 
 #: first words of commands that only read; anything else is treated as a write
 READ_ONLY = frozenset(
@@ -349,12 +358,13 @@ def _split_unquoted(text: str) -> list[str]:
             out.append("".join(buf))
             buf = []
             i += 2
-        elif ch in ";|\n":
-            out.append("".join(buf))
-            buf = []
-            i += 1
-        elif ch == "&" and not (
-            (i and text[i - 1] in ">&") or (i + 1 < len(text) and text[i + 1] in ">&")
+        #: a one-character separator, and the bare `&` that is one: next to a
+        #: redirection (`2>&1`, `>&2`) it duplicates a descriptor instead
+        elif ch in ";|\n" or (
+            ch == "&"
+            and not (
+                (i and text[i - 1] in ">&") or (i + 1 < len(text) and text[i + 1] in ">&")
+            )
         ):
             out.append("".join(buf))
             buf = []
@@ -484,7 +494,7 @@ def _ruff_reads(words: list[str]) -> bool:
 #: heads whose read-only answer depends on the rest of the invocation. They are
 #: the shapes every search and every gate run reaches for, and a head-word list
 #: cannot hold them: `find tests` prints and `find tests -delete` empties.
-CONDITIONAL_READERS = {
+CONDITIONAL_READERS: dict[str, Callable[[list[str]], bool]] = {
     "find": _find_reads,
     "xargs": _xargs_reads,
     "awk": _awk_reads,
@@ -503,13 +513,13 @@ def reads_only(words: list[str]) -> bool:
     """
     if not words:
         return True
-    head = os.path.basename(words[0])
+    head = Path(words[0]).name
     if head in READ_ONLY:
         return True
     if head == "sed":
         return not any(w == "-i" or w.startswith("-i") for w in words[1:])
     checker = CONDITIONAL_READERS.get(head)
-    return bool(checker) and checker(words)
+    return checker is not None and checker(words)
 
 
 def has_inline_script(words: list[str]) -> bool:
@@ -522,7 +532,7 @@ def has_inline_script(words: list[str]) -> bool:
     """
     if not words:
         return False
-    head = os.path.basename(words[0])
+    head = Path(words[0]).name
     for word in words[1:]:
         if word in ("-e", "--eval", "-"):
             return True
@@ -543,15 +553,15 @@ def path_shape(prefix: str) -> str:
     return rf"(?:{TREE})?{re.escape(prefix)}/[A-Za-z0-9_][A-Za-z0-9._/-]*"
 
 
-def config() -> dict:
+def config() -> dict[str, Any]:
     """The one per-repo value, from `blind-reads.json` beside this file.
 
     An unreadable or malformed file is an empty config, which is the default
     lane: a typo in the file moves nothing.
     """
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blind-reads.json")
+    source = Path(__file__).resolve().parent / "blind-reads.json"
     try:
-        with open(path, encoding="utf-8") as fh:
+        with source.open(encoding="utf-8") as fh:
             loaded = json.load(fh)
     except (OSError, ValueError):
         return {}
@@ -592,7 +602,7 @@ DEFAULT_RUNNERS = {
 }
 
 
-def _clean(name) -> str | None:
+def _clean(name: object) -> str | None:
     """One repo-relative directory, or `None` when the name cannot be one.
 
     Normalized, so a traversal is judged by where it lands rather than by how
@@ -601,13 +611,15 @@ def _clean(name) -> str | None:
     """
     if not isinstance(name, str) or not name:
         return None
+    #: lexical: `Path` has no normalization that collapses `..` without
+    #: resolving symlinks, and where a name lands is the whole question here
     name = os.path.normpath(name).replace(os.sep, "/")
-    if os.path.isabs(name) or name in (".", "..") or name.startswith("../"):
+    if Path(name).is_absolute() or name in (".", "..") or name.startswith("../"):
         return None
     return name
 
 
-def _scalar(value) -> str | None:
+def _scalar(value: object) -> str | None:
     """One configured scalar, or `None` when the value cannot be one.
 
     A scalar is a single non-empty line with no leading or trailing blanks left
@@ -622,7 +634,7 @@ def _scalar(value) -> str | None:
     return value
 
 
-def _words(value) -> list[str] | None:
+def _words(value: object) -> list[str] | None:
     """One runner invocation as words, or `None` when the value cannot be one.
 
     A command line, split the way a shell splits it, so a marker expression
@@ -638,34 +650,34 @@ def _words(value) -> list[str] | None:
     return words or None
 
 
-def runners_from(conf: dict) -> dict:
+def runners_from(conf: dict[str, Any]) -> dict[str, list[str]]:
     """The two runner invocations this config resolves to, defaults filled in.
 
     Per key, like the scalars: a runner overlaps no lane and no other runner, so
     an unusable `pytest_command` leaves the node one standing.
     """
-    resolved = {}
+    resolved: dict[str, list[str]] = {}
     for key, default in DEFAULT_RUNNERS.items():
         words = _words(conf.get(key)) if key in conf else None
         resolved[key] = words if words is not None else shlex.split(default)
     return resolved
 
 
-def scalars_from(conf: dict) -> dict:
+def scalars_from(conf: dict[str, Any]) -> dict[str, str]:
     """The two scalars this config resolves to, defaults filled in.
 
     Per key, unlike the directories: a scalar cannot overlap a lane or another
     scalar, so an unusable branch name has nothing to take down with it and the
     gate keeps whatever the project named.
     """
-    resolved = {}
+    resolved: dict[str, str] = {}
     for key, default in DEFAULT_SCALARS.items():
         name = _scalar(conf.get(key)) if key in conf else None
         resolved[key] = name if name is not None else default
     return resolved
 
 
-def dirs_from(conf: dict) -> dict:
+def dirs_from(conf: dict[str, Any]) -> dict[str, str]:
     """The three directories this config resolves to, defaults filled in.
 
     All or nothing. A key that cannot be a directory, or any pair that overlaps
@@ -674,7 +686,7 @@ def dirs_from(conf: dict) -> dict:
     the rest, so naming `tests_dir` as `docs` collides with the default
     `docs_dir` exactly as it would with a declared one.
     """
-    resolved = {}
+    resolved: dict[str, str] = {}
     for key, default in DEFAULT_DIRS.items():
         if key not in conf:
             resolved[key] = default
@@ -692,19 +704,19 @@ def dirs_from(conf: dict) -> dict:
 
 
 @functools.lru_cache(maxsize=1)
-def dirs() -> dict:
+def dirs() -> dict[str, str]:
     """The resolved set, read once per process."""
     return dirs_from(config())
 
 
 @functools.lru_cache(maxsize=1)
-def scalars() -> dict:
+def scalars() -> dict[str, str]:
     """The resolved scalars, read once per process."""
     return scalars_from(config())
 
 
 @functools.lru_cache(maxsize=1)
-def runners() -> dict:
+def runners() -> dict[str, list[str]]:
     """The resolved runner invocations, read once per process."""
     return runners_from(config())
 
@@ -778,7 +790,7 @@ LANE_DIRS = tuple(lane(suffix) for suffix in LANE_SUFFIXES)
 #: derived lanes, so a shell script asks for a lane rather than rebuilding one
 #: out of the base and a suffix it would have to hardcode. A runner answers one
 #: word per line; every other key answers one line.
-CONFIG_READERS = {
+CONFIG_READERS: dict[str, Callable[[], str | list[str]]] = {
     "tests_dir": tests_dir,
     "gauntlet_dir": gauntlet_dir,
     "docs_dir": docs_dir,
@@ -836,25 +848,8 @@ def is_blind_run(words: list[str]) -> bool:
     return bool(_TESTPATH_WHOLE.match(arg) and _TESTPATH_WHOLE.match(os.path.normpath(arg)))
 
 
-def is_runner(words: list[str]) -> bool:
-    """Is this invocation a run of the project's suite, rather than a write?
-
-    A closed table of whole invocations. `pytest` is the only head word
-    accepted with arbitrary arguments; everything else names the argument that
-    makes it a run. An inline-script flag disqualifies any of them.
-
-    The kit's own `scripts/blind.sh test <path>` is in it as a whole
-    invocation: a script is not a head word on any list, and asking whether a
-    head only ever prints is the wrong question for one that runs gates.
-    """
-    if not words:
-        return False
-    if has_inline_script(words):
-        return False
-    if is_blind_run(words):
-        return True
-    head = os.path.basename(words[0])
-    rest = words[1:]
+def _runner_by_head(head: str, rest: list[str]) -> bool:
+    """The closed table: one head word, and the argument that makes it a run."""
     first = rest[0] if rest else ""
     if head == "pytest":
         return not any(w.startswith(PYTEST_WRITE_FLAGS) for w in rest)
@@ -872,6 +867,26 @@ def is_runner(words: list[str]) -> bool:
     if head in ("cargo", "go"):
         return first == "test"
     return False
+
+
+def is_runner(words: list[str]) -> bool:
+    """Is this invocation a run of the project's suite, rather than a write?
+
+    A closed table of whole invocations. `pytest` is the only head word
+    accepted with arbitrary arguments; everything else names the argument that
+    makes it a run. An inline-script flag disqualifies any of them.
+
+    The kit's own `scripts/blind.sh test <path>` is in it as a whole
+    invocation: a script is not a head word on any list, and asking whether a
+    head only ever prints is the wrong question for one that runs gates.
+    """
+    if not words:
+        return False
+    if has_inline_script(words):
+        return False
+    if is_blind_run(words):
+        return True
+    return _runner_by_head(Path(words[0]).name, words[1:])
 
 
 def is_object_restore(words: list[str]) -> bool:
@@ -935,7 +950,7 @@ def segment_writes(segment: str, *, restore_ok: bool = True) -> bool:
         return False
     if is_runner(words):
         return False
-    head = os.path.basename(words[0])
+    head = Path(words[0]).name
     if head == "git":
         if len(words) > 1 and words[1] in GIT_NO_WORKTREE:
             return git_write_form(words)
@@ -978,7 +993,7 @@ def stage_targets(segment: str, body: str = "") -> tuple[list[str], str | None]:
     words = command_words(words_of(segment))
     if not words or words[0] in NO_COMMAND_HEADS:
         return targets, None
-    head = os.path.basename(words[0])
+    head = Path(words[0]).name
     git_reader = (
         head == "git"
         and len(words) > 1
@@ -1026,7 +1041,7 @@ def bash_touches_lane(command: str, pattern: re.Pattern[str]) -> bool:
 
 def cd_target(words: list[str]) -> str | None:
     """The directory a `cd` stage moves to, or None when the stage is not a `cd`."""
-    if not words or os.path.basename(words[0]) != "cd":
+    if not words or Path(words[0]).name != "cd":
         return None
     args = [w for w in words[1:] if not w.startswith("-")]
     return args[0] if args else ""
@@ -1036,8 +1051,10 @@ def _target_in_lane(target: str, here: str | None, pattern: re.Pattern[str]) -> 
     """Does one write target land in the lane, from the directory the walk is in?"""
     if pattern.search(target):
         return True
-    if here and not os.path.isabs(target):
-        return bool(pattern.search(os.path.normpath(os.path.join(here, target))))
+    if here and not Path(target).is_absolute():
+        #: lexical: where the target lands is the question, and `Path.resolve()`
+        #: would follow a symlink out of the lane before it is asked
+        return bool(pattern.search(os.path.normpath(os.path.join(here, target))))  # noqa: PTH118
     return False
 
 
@@ -1069,7 +1086,8 @@ def lane_write_in(command: str, pattern: re.Pattern[str], *, restore_ok: bool = 
             if here is None or target in ("", "-") or target.startswith(("/", "~")):
                 here = None
             else:
-                here = os.path.normpath(os.path.join(here, target))
+                #: lexical, for the reason `_target_in_lane` gives
+                here = os.path.normpath(os.path.join(here, target))  # noqa: PTH118
             continue
         if not segment_writes(stage, restore_ok=restore_ok):
             continue
@@ -1091,9 +1109,9 @@ def lane_write_in(command: str, pattern: re.Pattern[str], *, restore_ok: bool = 
 def checkout_root(path: str) -> str | None:
     """The checkout (main or worktree) containing `path`, by walking up to a `.git`."""
     while True:
-        if os.path.exists(os.path.join(path, ".git")):
+        if Path(path, ".git").exists():
             return path
-        parent = os.path.dirname(path)
+        parent = str(Path(path).parent)
         if parent == path:
             return None
         path = parent
@@ -1105,17 +1123,19 @@ def root_by_name(path: str) -> str | None:
     `.claude/worktrees/<slug>-spec` and `-impl` are roots by construction; the
     directory holding `.claude/worktrees` is the main checkout.
     """
-    parts = path.split(os.sep)
+    parts = Path(path).parts
     for i in range(len(parts) - 1, 1, -1):
         if parts[i - 2] == ".claude" and parts[i - 1] == "worktrees":
-            return os.sep.join(parts[: i + 1])
+            return str(Path(*parts[: i + 1]))
     return None
 
 
 def split_root(target: str, cwd: str) -> tuple[str | None, str | None]:
     """(checkout root, path relative to it) for a write target, or (None, None)."""
-    resolved = os.path.abspath(os.path.join(cwd, target))
-    root = root_by_name(resolved) or checkout_root(os.path.dirname(resolved))
+    #: lexical: the `..` collapse is the whole job, and resolving would follow a
+    #: symlink into another checkout
+    resolved = os.path.abspath(os.path.join(cwd, target))  # noqa: PTH100, PTH118
+    root = root_by_name(resolved) or checkout_root(str(Path(resolved).parent))
     if root is None:
         return None, None
     return root, os.path.relpath(resolved, root)
@@ -1136,7 +1156,9 @@ def path_in_lane(target: str, cwd: str, lane: str) -> bool:
     _, rel = split_root(target, cwd)
     if rel is not None and not rel.startswith(".."):
         return under(rel, lane)
-    parts = os.path.abspath(os.path.join(cwd, target)).split(os.sep)
+    #: lexical, as in `split_root`
+    resolved = os.path.abspath(os.path.join(cwd, target))  # noqa: PTH100, PTH118
+    parts = list(Path(resolved).parts)
     lane_parts = lane.split("/")
     return any(
         parts[i : i + len(lane_parts)] == lane_parts
@@ -1160,8 +1182,6 @@ def bypassed() -> bool:
 
 def deny(reason: str) -> str:
     """The PreToolUse deny payload, as a JSON string."""
-    import json
-
     return json.dumps(
         {
             "hookSpecificOutput": {
@@ -1173,7 +1193,7 @@ def deny(reason: str) -> str:
     )
 
 
-def command_of(tool_input: dict) -> str:
+def command_of(tool_input: dict[str, Any] | None) -> str:
     """The `command` field of a tool input, as a string, whatever it holds.
 
     A hook reads this field and hands it to a classifier that splits it. The
@@ -1187,14 +1207,14 @@ def command_of(tool_input: dict) -> str:
     return command if isinstance(command, str) else ""
 
 
-def cwd_of(payload: dict) -> str:
+def cwd_of(payload: Payload | None) -> str:
     """The `cwd` a payload names, as a path, or this process's own.
 
     Same boundary as `command_of`: the field is whatever the payload carried,
     and a hook that hands a number to `os.path` raises, which denies the call.
     """
     cwd = (payload or {}).get("cwd")
-    return cwd if isinstance(cwd, str) and cwd else os.getcwd()
+    return cwd if isinstance(cwd, str) and cwd else str(Path.cwd())
 
 
 #: payloads a hook must answer without dying, each with the tool it names --
@@ -1254,7 +1274,9 @@ REQUIRED_FIELD = {
 OPTIONAL_FIELD = {"Grep": "path", "Glob": "path"}
 
 
-def payload_fault(name: str, tool_input, payload, guarded: tuple[str, ...]) -> str | None:
+def payload_fault(
+    name: str, tool_input: Any, payload: Any, guarded: tuple[str, ...]
+) -> str | None:
     """Why this hook cannot decide the call it was handed, or None to decide it.
 
     A guard reads three things: which tool, what it names, and who is running
@@ -1297,7 +1319,7 @@ def undecidable(why: str) -> str:
     Names the hook, so the denial that reaches the agent says which gate spoke
     and what it could not read, rather than arriving as an unexplained no.
     """
-    hook = os.path.basename(sys.argv[0]) or "a gauntlet hook"
+    hook = Path(sys.argv[0]).name or "a gauntlet hook"
     return (
         f"{hook} could not decide this call, so it refuses it: {why}. A gate that "
         "cannot read the call it was handed does not let the call through -- the "
@@ -1308,10 +1330,8 @@ def undecidable(why: str) -> str:
 
 def is_denial(answer: str) -> bool:
     """Whether a hook's stdout is a `PreToolUse` denial."""
-    import json as _json
-
     try:
-        parsed = _json.loads(answer)
+        parsed = json.loads(answer)
     except ValueError:
         return False
     if not isinstance(parsed, dict):
@@ -1345,7 +1365,6 @@ def survives_hostile_payloads(
     its first line, and every payload would pass without touching the code the
     check exists to exercise.
     """
-    import json as _json
     import subprocess
 
     environment = dict(os.environ)
@@ -1358,22 +1377,22 @@ def survives_hostile_payloads(
             text=True,
             env=environment,
             timeout=60,
+            check=False,
         )
         if done.returncode != 0:
             return False
         out = done.stdout.strip()
         if out:
             try:
-                _json.loads(out)
+                json.loads(out)
             except ValueError:
                 return False
         if not refuses_undecidable:
             continue
         #: a payload naming no readable tool at all is undecidable for every
         #: hook; one naming a guarded tool is undecidable when its fields are not
-        if tool is None or (tool in guards and not usable):
-            if not is_denial(out):
-                return False
+        if (tool is None or (tool in guards and not usable)) and not is_denial(out):
+            return False
     return True
 
 
@@ -1390,20 +1409,21 @@ def survives_hostile_payloads(
 WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
 
 
-def write_target(tool_input: dict) -> str:
+def write_target(tool_input: dict[str, Any] | None) -> str:
     """The path a write tool names, or the empty string for no target."""
     tool_input = tool_input or {}
-    return tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+    target = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+    return target if isinstance(target, str) else ""
 
 
 def dispatch(
     name: str,
-    tool_input: dict,
-    payload: dict,
+    tool_input: dict[str, Any],
+    payload: Payload,
     *,
-    on_write,
-    on_bash,
-    on_read=None,
+    on_write: Callable[[str, str, str], str | None],
+    on_bash: Callable[[str, str], str | None],
+    on_read: Callable[[dict[str, Any], str, str], str | None] | None = None,
     read_tools: tuple[str, ...] = (),
 ) -> str | None:
     """Route one tool call to the handler for its kind; None lets it through.
@@ -1442,7 +1462,7 @@ def lane_denial(lane: str, noun: str, lane_msg: str, *, restore: bool = True) ->
     )
 
 
-def sole_writer_lane(lane: str, writer: str, lane_msg: str, bash_msg: str):
+def sole_writer_lane(lane: str, writer: str, lane_msg: str, bash_msg: str) -> Verdict:
     """The verdict function of a lane one named agent writes and nobody else.
 
     Returns a `_verdict(name, tool_input, payload)`. A write whose target is in
@@ -1457,16 +1477,16 @@ def sole_writer_lane(lane: str, writer: str, lane_msg: str, bash_msg: str):
             return None
         return None if agent == writer else lane_msg
 
-    def on_bash(command: str, agent: str) -> str | None:
+    def on_bash(command: str, _agent: str) -> str | None:
         return bash_msg if lane_write_in(command, pattern) else None
 
-    def verdict(name: str, tool_input: dict, payload: dict) -> str | None:
+    def verdict(name: str, tool_input: dict[str, Any], payload: Payload) -> str | None:
         return dispatch(name, tool_input, payload, on_write=on_write, on_bash=on_bash)
 
     return verdict
 
 
-def read_payload(guards: tuple[str, ...]) -> tuple[dict | None, str | None]:
+def read_payload(guards: tuple[str, ...]) -> tuple[Payload | None, str | None]:
     """One payload from stdin as `(payload, refusal)`; exactly one is not None.
 
     Every way the payload can fail to be a call this hook can decide ends in a
@@ -1491,7 +1511,7 @@ def read_payload(guards: tuple[str, ...]) -> tuple[dict | None, str | None]:
     return (None, undecidable(fault)) if fault is not None else (data, None)
 
 
-def hook_main(verdict, *, guards: tuple[str, ...] = WRITE_TOOLS + ("Bash",)) -> None:
+def hook_main(verdict: Verdict, *, guards: tuple[str, ...] = WRITE_TOOLS + ("Bash",)) -> None:
     """Read one payload from stdin and print a denial if `verdict` names one.
 
     `guards` is the set of tools this hook decides, and it is what makes a
@@ -1512,8 +1532,8 @@ def hook_main(verdict, *, guards: tuple[str, ...] = WRITE_TOOLS + ("Bash",)) -> 
     if bypassed():
         return  # GAUNTLET=off: the owner's switch, read at the entry point only
     data, refusal = read_payload(guards)
-    if refusal is not None:
-        print(deny(refusal))
+    if refusal is not None or data is None:
+        print(deny(refusal or undecidable("its payload named no call")))
         return
     try:
         reason = verdict(data.get("tool_name", ""), data.get("tool_input") or {}, data)
@@ -1524,7 +1544,11 @@ def hook_main(verdict, *, guards: tuple[str, ...] = WRITE_TOOLS + ("Bash",)) -> 
         print(deny(reason))
 
 
-def answer_main(answer_of, *, guards: tuple[str, ...] = ("Bash",)) -> None:
+def answer_main(
+    answer_of: Callable[[Payload], dict[str, Any] | None],
+    *,
+    guards: tuple[str, ...] = ("Bash",),
+) -> None:
     """`hook_main` for a hook whose answer is not a denial.
 
     `bwrap-wrap.py` rewrites the command rather than refusing it, so its answer
@@ -1536,8 +1560,8 @@ def answer_main(answer_of, *, guards: tuple[str, ...] = ("Bash",)) -> None:
     if bypassed():
         return  # GAUNTLET=off: the owner's switch, read at the entry point only
     data, refusal = read_payload(guards)
-    if refusal is not None:
-        print(deny(refusal))
+    if refusal is not None or data is None:
+        print(deny(refusal or undecidable("its payload named no call")))
         return
     try:
         answer = answer_of(data)
@@ -1548,7 +1572,7 @@ def answer_main(answer_of, *, guards: tuple[str, ...] = ("Bash",)) -> None:
         print(json.dumps(answer))
 
 
-def entry(self_test_fn, main_fn) -> None:
+def entry(self_test_fn: Callable[[], int], main_fn: Callable[[], None]) -> None:
     """The `__main__` of a hook with one gate mode and one wire mode."""
     sys.exit(self_test_fn()) if "--self-test" in sys.argv else main_fn()
 
@@ -1566,7 +1590,14 @@ def allowed(verdict: str | None) -> bool:
     return verdict is None
 
 
-def probe(verdict, root: str, tool: str, key: str = "file_path", *, agent: str | None = None):
+def probe(
+    verdict: Verdict,
+    root: str,
+    tool: str,
+    key: str = "file_path",
+    *,
+    agent: str | None = None,
+) -> Callable[..., str | None]:
     """A closure that calls `verdict` for one tool the way the wire does.
 
     `key` is the field that tool carries its target in. `agent` is the default
@@ -1574,8 +1605,8 @@ def probe(verdict, root: str, tool: str, key: str = "file_path", *, agent: str |
     agent, whose payload carries no such key at all.
     """
 
-    def call(value, who: str | None = agent) -> str | None:
-        payload = {"cwd": root}
+    def call(value: Any, who: str | None = agent) -> str | None:
+        payload: Payload = {"cwd": root}
         if who is not None:
             payload["agent_type"] = who
         return verdict(tool, {key: value}, payload)
@@ -1601,13 +1632,13 @@ def respell(target: str) -> str:
     a default one as a segment -- `gauntlet_dir` of `work/tests` is a legal set
     beside `tests_dir` -- and a second pass would rewrite what the first wrote.
     """
-    by_default = dict(zip(DEFAULT_DIRS.values(), dirs().values()))
+    by_default = dict(zip(DEFAULT_DIRS.values(), dirs().values(), strict=True))
     if all(default == configured for default, configured in by_default.items()):
         return target
     return _DEFAULT_SEGMENT.sub(lambda m: by_default[m.group(1)], target)
 
 
-def rebased(one_probe):
+def rebased(one_probe: Callable[..., str | None]) -> Callable[..., str | None]:
     """A probe that respells the kit's default directories at the configured ones.
 
     Every self-test writes its paths at `tests/`, `docs/` and `gauntlet/`, which
@@ -1622,13 +1653,15 @@ def rebased(one_probe):
     just written. The names are disjoint, so a single alternation is exact.
     """
 
-    def at_configured_dirs(target: str, *rest):
+    def at_configured_dirs(target: str, *rest: Any) -> str | None:
         return one_probe(respell(target), *rest)
 
     return at_configured_dirs
 
 
-def probes(verdict, root: str = "/repo", *, agent: str | None = None):
+def probes(
+    verdict: Verdict, root: str = "/repo", *, agent: str | None = None
+) -> tuple[Callable[..., str | None], Callable[..., str | None]]:
     """The `(write, bash)` pair every lane self-test drives its lane through."""
     return (
         rebased(probe(verdict, root, "Edit", agent=agent)),
@@ -1636,7 +1669,7 @@ def probes(verdict, root: str = "/repo", *, agent: str | None = None):
     )
 
 
-def report(lines: dict) -> int:
+def report(lines: dict[str, bool]) -> int:
     """Print one PASS or FAIL per spec line; 0 if every line held."""
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
