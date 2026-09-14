@@ -8,7 +8,7 @@ Eight agents, and the whole system is the shape of what each one is not allowed 
 | `gauntlet-detective` | yes, all of it | nothing | `specs-lane`, `tests-lane`, `reviews-lane` |
 | `gauntlet-examiner` | yes, all of it | throwaway scripts outside the tree | `specs-lane`, `tests-lane` |
 | `gauntlet-arbiter` | **no** | `gauntlet/reviews/<slug>.<N>.txt`, `gauntlet/specs/approved/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
-| `gauntlet-scrivener` | **no** | `tests/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane`, `blind-bash` |
+| `gauntlet-scrivener` | **no** | `<tests dir>/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane`, `blind-bash` |
 | `gauntlet-bailiff` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `plans-lane`, `reviews-lane`, `verdicts-lane`, `blind-bash` |
 | `gauntlet-juror` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `reviews-lane` |
 | the main agent | yes | everything else | all of them, session-wide |
@@ -61,20 +61,20 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 
 `review` is the reviewers' one path into their own lane. `reviews-lane.py` denies a reviewer every read of `gauntlet/reviews/`, so the reviewer cannot count the rounds it is continuing; the main agent runs `pair.sh review` before each round that will carry verdicts and hands the printed path to the reviewer verbatim in its brief. A round that writes nothing consumes no `<N>`, because the count is of what is on disk.
 
-The evidence `merge` used to print beneath that header now goes to the file the `merge output:` line names: `state/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- tests/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `state/red/<slug>.txt` is absent.
+The evidence `merge` used to print beneath that header now goes to the file the `merge output:` line names: `state/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- <tests dir>/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `state/red/<slug>.txt` is absent.
 
 `open` refuses on mismatch because the spec file is editable after the reviewer passed it, and the round file is not: the comparison is what makes the approved block the reviewed block rather than the latest one. `red` removes the whole-file excision targets, which the lane hook denies every agent, and leaves single-test targets to the writer's `Edit`. `merge` routes on `kind:` because the two tests-only kinds have no implementation phase, so the blind post-merge reviewer round has no window to watch and the mechanical check takes it.
 
 ## The tests-only lane
 
-A change confined to `tests/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
+A change confined to `<tests dir>/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
 
 1. The main agent drafts a `kind: excision` or `kind: repair` block and sends it to a `gauntlet-arbiter`.
-2. The reviewer resolves each line's quoted assertion against the test file itself — `tests/` is open to it, and the implementation is not what these lines rest on — and writes `gauntlet/specs/approved/<slug>.txt` on `READY`.
+2. The reviewer resolves each line's quoted assertion against the test file itself — `<tests dir>/` is open to it, and the implementation is not what these lines rest on — and writes `gauntlet/specs/approved/<slug>.txt` on `READY`.
 3. The `gauntlet-scrivener` removes the targets and writes the replacements its `as:` fields name.
 4. `scripts/excision-diff.py`, run by `scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither kind has an implementation phase, so the window those two watch does not exist.
 
-The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `tests/`.
+The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `<tests dir>/`.
 
 Steps 4 and 5 are the load-bearing pair, which is why a hook and not a convention stands between them: `gauntlet/specs/approved/` is written by the reviewer alone, so the file's existence is the writer's proof that the lines were reviewed. Rules in `approved-specs.md`.
 

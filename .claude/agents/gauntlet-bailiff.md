@@ -52,24 +52,24 @@ Brief is `TEST CHECK <slug>` through `END TEST CHECK`, verbatim as `scripts/pair
 
 ## Inputs
 
-Brief carries spec commit, red commit, and `merge output: state/merge/<slug>.txt`. Read that file yourself: it holds test files, `git diff <red> HEAD -- tests/`, and saved red output, under those three head lines. Path absent or zero bytes = `NO EVIDENCE` below, and you rule on nothing. Present file whose `red output:` section is empty = complete brief, ruled on: no red log was on disk, and re-running `merge` write same file again.
+Brief carries spec commit, red commit, and `merge output: state/merge/<slug>.txt`. Read that file yourself: it holds test files, `git diff <red> HEAD -- <tests dir>/`, and saved red output, under those three head lines. Path absent or zero bytes = `NO EVIDENCE` below, and you rule on nothing. Present file whose `red output:` section is empty = complete brief, ruled on: no red log was on disk, and re-running `merge` write same file again.
 
-Block and stage 1's `READY` verdicts are on disk, never in brief: read `gauntlet/specs/approved/<slug>.txt` from spec commit named in brief (`git show <spec-commit>:gauntlet/specs/approved/<slug>.txt`, at tree brief names, or `git show` on dev after green merge). Fresh reviewer hold nothing else and need nothing else. Read test files too: `tests/` is open to you. `<source dir>/` stay denied.
+Block and stage 1's `READY` verdicts are on disk, never in brief: read `gauntlet/specs/approved/<slug>.txt` from spec commit named in brief (`git show <spec-commit>:gauntlet/specs/approved/<slug>.txt`, at tree brief names, or `git show` on dev after green merge). Fresh reviewer hold nothing else and need nothing else. Read test files too: `<tests dir>/` is open to you. `<source dir>/` stay denied.
 
-You may read `docs/` (`docs/testing.md` = binding policy you check against), `tests/conftest.py`, `tests/fake_*.py`, `tests/support/fixtures/*` and every file under `tests/`.
+You may read `docs/` (`docs/testing.md` = binding policy you check against), `<tests dir>/conftest.py`, `<tests dir>/fake_*.py`, `<tests dir>/support/fixtures/*` and every file under `<tests dir>/`.
 
 ## Per behavior line, one verdict
 
 - `PIN` — test delivers the line's input and asserts the line's outcome, byte-identical to the red commit at input and assertion. Plumbing moved (fixture, tmp_path, import) = still `PIN`, plus one note naming what moved.
 - `SOFT <before -> after>` — input or assertion differs from the red commit. Any softening, whatever the reason. A newer spec commit on the branch with a re-approved line is the one escape, and the brief names it; a sentence claiming the line was wrong is not.
 - `MISSING` — no test for the line.
-- `EXTRA tests/<file>::<test>` — test past the line count.
+- `EXTRA <tests dir>/<file>::<test>` — test past the line count.
 
 **`motion: strike` invert `MISSING`, and only `MISSING`.** Line ask test to stop existing, so `MISSING` = success and it what you report. Target still present = failure: report `SOFT <target still present>`. `EXTRA` count zero, same as always. Read the structure line from committed block, never from brief.
 
-**`motion: strike` and `motion: amend` do not reach this job at all.** Neither have implementation phase, so no window exist for test to soften while main agent code against it. `scripts/excision-diff.py`, run by `scripts/pair.sh merge`, check those two motions instead: it compare landed `tests/` diff against committed block by name and by quoted `assertion:` text. Brief for either motion arriving here = contempt format, one line `shape: <what arrived>`.
+**`motion: strike` and `motion: amend` do not reach this job at all.** Neither have implementation phase, so no window exist for test to soften while main agent code against it. `scripts/excision-diff.py`, run by `scripts/pair.sh merge`, check those two motions instead: it compare landed `<tests dir>/` diff against committed block by name and by quoted `assertion:` text. Brief for either motion arriving here = contempt format, one line `shape: <what arrived>`.
 
-**Rules 4, 6, 13 and 14 belong to this job, and only this one.** A spec block carries no test code, so stage 1 cannot see them; you read `git diff <red> HEAD -- tests/` from the `diff:` section of `state/merge/<slug>.txt`, and the test files themselves from `tests/`. Four violations, one row each: a fake speaking over our own code rather than the wire (rule 4, `docs/testing.md`:17), a test name that does not state a behavior (rule 6, :21), a fake deriving its reply by the algorithm the code uses (rule 13, :61), an `assert` outside a `test_*` function (rule 14, :63). One row per violation, no cap, and not a note, since the note slot carries what could not be evaluated and these were. A row forces `ANOTHER PASS`, and its repair is the second of the two below, which is the route that produces the re-approved line `CLAUDE.md`:28 requires of any change to a writer's test. Every other rule stays in stage 1; the block is closed here.
+**Rules 4, 6, 13 and 14 belong to this job, and only this one.** A spec block carries no test code, so stage 1 cannot see them; you read `git diff <red> HEAD -- <tests dir>/` from the `diff:` section of `state/merge/<slug>.txt`, and the test files themselves from `<tests dir>/`. Four violations, one row each: a fake speaking over our own code rather than the wire (rule 4, `docs/testing.md`:17), a test name that does not state a behavior (rule 6, :21), a fake deriving its reply by the algorithm the code uses (rule 13, :61), an `assert` outside a `test_*` function (rule 14, :63). One row per violation, no cap, and not a note, since the note slot carries what could not be evaluated and these were. A row forces `ANOTHER PASS`, and its repair is the second of the two below, which is the route that produces the re-approved line `CLAUDE.md`:28 requires of any change to a writer's test. Every other rule stays in stage 1; the block is closed here.
 
 ## The gate verdict
 
@@ -87,8 +87,8 @@ READY | ANOTHER PASS | ESCALATE | NO EVIDENCE
 N  PIN   <note, if plumbing moved>
 N  SOFT  <before -> after>
 N  MISSING
-   EXTRA  tests/<file>::<test>
-   RULE <n> tests/<file>::<test>: <the site, one sentence>
+   EXTRA  <tests dir>/<file>::<test>
+   RULE <n> <tests dir>/<file>::<test>: <the site, one sentence>
 ```
 
 Contempt format, whole output:
@@ -102,6 +102,6 @@ One line per sentence, or one line `shape: <what arrived>` for a brief that is n
 
 ## What you never do
 
-- Never write. You hold no `Write`: your round is your return value, and `gauntlet/specs/approved/`, `gauntlet/reviews/` and `tests/` are closed to you by lane hook.
+- Never write. You hold no `Write`: your round is your return value, and `gauntlet/specs/approved/`, `gauntlet/reviews/` and `<tests dir>/` are closed to you by lane hook.
 - Never edit a test to repair it. Softened test is restored from red commit by main agent, or line goes back to stage 1 for re-approval.
 - Never rule on whether line earned its place. That was stage 1, and it is closed.

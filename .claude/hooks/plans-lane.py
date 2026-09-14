@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `gauntlet/plans/approved/` is the gauntlet-prosecutor's lane.
+"""PreToolUse hook: `<gauntlet dir>/plans/approved/` is the gauntlet-prosecutor's lane.
 
 Wire it session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
@@ -17,16 +17,16 @@ that holds the gate.
 Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under a
-    `gauntlet/plans/approved/` directory, unless the caller's `agent_type` is
+    `<gauntlet dir>/plans/approved/` directory, unless the caller's `agent_type` is
     `gauntlet-prosecutor`
-  * a `Bash` command that names a `gauntlet/plans/approved/` path and is not
+  * a `Bash` command that names a `<gauntlet dir>/plans/approved/` path and is not
     read-only, except a restore from a named git object
     (`git restore --source <rev>` or `git checkout <rev> --` onto the path),
     which copies a commit and types nothing
 
-Allowed: every read of `gauntlet/plans/approved/`, by any agent and by the shell;
+Allowed: every read of `<gauntlet dir>/plans/approved/`, by any agent and by the shell;
 every write anywhere else, including a draft plan under
-`gauntlet/plans/drafts/`.
+`<gauntlet dir>/plans/drafts/`.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
 is the main agent, which is denied. If a build omits the key for subagents
@@ -44,13 +44,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 REVIEWER = "gauntlet-prosecutor"
-LANE = "gauntlet/plans/approved"
+LANE = sh.plans_lane()
+#: where an unreviewed plan is drafted: beside the lane, never in it
+DRAFTS = sh.gauntlet_dir() + "/plans/drafts"
 
 _LANE = (
-    "gauntlet/plans/approved/ is the gauntlet-prosecutor's lane. An approved plan is "
+    f"{LANE}/ is the gauntlet-prosecutor's lane. An approved plan is "
     "written there by the reviewer that approved it, and by nothing else: it is "
     "the only evidence a later stage has that the plan it works from passed the "
-    "plan gate. Draft under gauntlet/plans/drafts/ and send the draft to the "
+    f"plan gate. Draft under {DRAFTS}/ and send the draft to the "
     "gauntlet-prosecutor. (hooks/plans-lane.py)"
 )
 _BASH = sh.lane_denial(LANE, "an approved plan", _LANE)
@@ -125,9 +127,9 @@ def self_test() -> int:
                 denied(bash("git diff --output=gauntlet/plans/approved/x.txt")),
             )
         ),
-        "6 a declared runner invocation naming this lane is still denied": all(
+        "6 the blind runner naming this lane is still denied": all(
             (
-                #: the declaration names the test directory, so its one argument
+                #: the runner takes one path under the test directory, so it
                 #: reaches no other lane however the argument is spelled
                 denied(bash("scripts/blind.sh test gauntlet/plans/approved/slug.txt")),
                 denied(bash("scripts/blind.sh test tests/a/../../gauntlet/plans/approved/slug.txt")),

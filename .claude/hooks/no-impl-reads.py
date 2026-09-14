@@ -39,26 +39,24 @@ direction. Both tests run before the allow list below, so a fifth artifact
 directory added later is blind-safe until someone deliberately opens it, and no
 `blind-reads.json` entry can re-open the plans, the drafts or the rounds.
 
-Extend the list per repo with `blind-reads.json` beside this file:
+The list is not configurable. What `blind-reads.json` beside this file moves is
+where the entries point, never which entries there are: `tests_dir` is the
+blind writer's lane, `docs_dir` the prose, and `gauntlet_dir` the base whose
+`specs/approved` subtree is the one artifact a blind agent works from. All
+three are read through `shell_shapes`, which refuses any set of names that
+overlap, so no value here can put the lane over the prose or the base under
+either. The file itself is on the list too, because a blind agent's definition
+names those directories only as `<tests dir>` and `<docs dir>` and this is
+where the names resolve. A spec source that lives elsewhere belongs under the
+docs directory or beside the block in the approved-specs lane, not on a list
+that could grow to reach the implementation.
 
-    {"allow": ["reference/", "vendor/protocol.h"], "runners": ["pytest", "make"]}
-
-`allow` entries are repo-relative paths anchored at the repo root, a trailing
-`/` meaning the directory and everything under it. A name matches there and
-nowhere else: `docs/` is this repository's `docs`, never `src/docs`.
-
-`runners` are the names of this repo's own suite commands, accepted with any
-arguments — a traceback through the code is the cost of running the suite at
-all, and running the suite is the point. The common runners need no entry:
-`shell_shapes.is_runner` recognizes them by their whole invocation, which is
-the only way to tell `node --test` from `node -e`. An inline-script flag
-(`-e`, `-c`, `-p`, `--eval`, `--print`) disqualifies any command, configured
-name included.
-
-The file is read by `shell_shapes.config`, which also reads its
-`runner_invocations` key: the invocations this repo declares read-only for
-every lane hook, keyed on the whole invocation rather than on a name. This
-hook reads `allow` and `runners` from the same file and nothing else.
+A suite run is a read: a traceback through the code is the cost of running
+the suite at all, and running the suite is the point. `shell_shapes.is_runner`
+recognizes a run by its whole invocation, which is the only way to tell `node
+--test` from `node -e`, and the kit's own `scripts/blind.sh test <path>` is in
+its table. An inline-script flag (`-e`, `-c`, `-p`, `--eval`, `--print`)
+disqualifies any command.
 
 Blocked for those agents:
 
@@ -84,12 +82,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import shell_shapes as sh  # noqa: E402
 
-#: repo-relative paths a blind agent may read; a trailing `/` means the subtree
-DEFAULT_ALLOW = ("docs/", "tests/", "state/", "gauntlet/specs/approved/")
+#: the blind writer's lane, `tests` unless `blind-reads.json` names another
+TESTS = sh.tests_dir()
+#: the prose a blind agent may read, `docs` unless the file names another
+DOCS = sh.docs_dir()
+#: the one file that says where those are, readable by a blind agent whose
+#: definition names them as `<tests dir>` and `<docs dir>` and nothing more concrete
+CONFIG = ".claude/hooks/blind-reads.json"
 #: the gauntlet's own artifact base at the repo root, denied entire
-GAUNTLET_BASE = "gauntlet"
+GAUNTLET_BASE = sh.gauntlet_dir()
 #: the one subtree of it a blind agent works from: the approved spec block
-GAUNTLET_SPECS = "gauntlet/specs/approved"
+GAUNTLET_SPECS = sh.specs_lane()
+#: repo-relative paths a blind agent may read; a trailing `/` means the subtree
+DEFAULT_ALLOW = (DOCS + "/", TESTS + "/", "state/", GAUNTLET_SPECS + "/", CONFIG)
 #: repo-root files a blind agent may read, by extension
 DEFAULT_ROOT_FILES = (".md", ".txt", ".pdf")
 
@@ -107,17 +112,15 @@ SERVED = re.compile(
 
 _WHY = (
     "Blind agent: the implementation is out of bounds. Work from the approved spec "
-    "block at gauntlet/specs/approved/, the rest of docs/, and tests/. If the spec does "
+    f"block at {GAUNTLET_SPECS}/, the rest of {DOCS}/, and {TESTS}/. If the spec does "
     "not say what the behavior is, report that gap instead of reading the code to "
-    "find out. If this path is genuinely a spec source, add it to the allow list in "
-    "hooks/blind-reads.json — except under gauntlet/, which is the gauntlet's "
-    "own artifact base: gauntlet/specs/approved/ is the only part of it that is yours, "
-    "and no allow-list entry reaches the plans, the drafts or the reviewer rounds, "
-    "which quote implementation citations. A spec source belongs in "
-    "gauntlet/specs/approved/. (hooks/no-impl-reads.py)"
+    f"find out. If this path is genuinely a spec source, it belongs under {DOCS}/ or in "
+    f"{GAUNTLET_SPECS}/, which is the only part of {GAUNTLET_BASE}/ that is yours: the "
+    "plans, the drafts and the reviewer rounds quote implementation citations, and "
+    "no list reaches them. (hooks/no-impl-reads.py)"
 )
 _UNROOTED = (
-    "Give Grep/Glob an explicit path (tests/, docs/, gauntlet/specs/approved/): an "
+    f"Give Grep/Glob an explicit path ({TESTS}/, {DOCS}/, {GAUNTLET_SPECS}/): an "
     "unrooted search sweeps the whole tree and prints its source. " + _WHY
 )
 
@@ -133,30 +136,6 @@ def repo_root(start: str) -> str | None:
         path = parent
 
 
-def config() -> dict:
-    """Per-repo widening, from `blind-reads.json` beside this file.
-
-    The reader lives in `shell_shapes`, which reads the same file for the
-    runner invocations a repo declares. One module reads the config and two
-    use it.
-    """
-    return sh.config()
-
-
-def _rules(conf: dict) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """The allowlist and the repo's own extra runner names.
-
-    There is no default runner list any more. A head word cannot tell a suite
-    run from an interpreter printing a source file — `node -e` and `node
-    --test` share it — so the runner question goes to `shell_shapes.is_runner`,
-    which reads the whole invocation. What stays configurable is the name a
-    repo gives its own suite command, and an inline-script flag disqualifies
-    those too.
-    """
-    allow = tuple(DEFAULT_ALLOW) + tuple(conf.get("allow") or ())
-    return allow, tuple(conf.get("runners") or ())
-
-
 def _under(rel: str, name: str) -> bool:
     """Is this repo-relative path that directory, or something inside it?
 
@@ -168,7 +147,7 @@ def _under(rel: str, name: str) -> bool:
     return rel == prefix or rel.startswith(prefix + os.sep)
 
 
-def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) -> bool:
+def readable(target: str, root: str | None, cwd: str) -> bool:
     """Is this path one of the spec's own sources?
 
     An allowlist entry is anchored: `docs/` is the repository's own `docs`,
@@ -214,7 +193,7 @@ def readable(target: str, root: str | None, cwd: str, allow: tuple[str, ...]) ->
         return False
     #: the allowlist runs next: `tests` is the allowed directory itself, not a
     #: root file that happens to carry no extension
-    for entry in allow:
+    for entry in DEFAULT_ALLOW:
         name = entry.rstrip("/").replace("/", os.sep)
         if entry.endswith("/"):
             if rel == name or rel.startswith(name + os.sep):
@@ -331,9 +310,7 @@ def _strip_env(words: list[str]) -> list[str]:
     return words[i:]
 
 
-def _bash_verdict(
-    command: str, root: str | None, cwd: str, allow: tuple[str, ...], runners: tuple[str, ...]
-) -> str | None:
+def _bash_verdict(command: str, root: str | None, cwd: str) -> str | None:
     """Why this shell command is refused, or None to let it through.
 
     The stages are walked in order carrying the directory a `cd` moved them to,
@@ -356,8 +333,7 @@ def _bash_verdict(
                 here = os.path.abspath(os.path.join(here, target))
             continue
         head = os.path.basename(words[0])
-        inline = sh.has_inline_script(words)
-        if sh.is_runner(words) or (head in runners and not inline):
+        if sh.is_runner(words):
             continue
         if _unrooted_sweep(words):
             return _UNROOTED
@@ -367,29 +343,28 @@ def _bash_verdict(
             #: to fail on and the implementation goes out whole
             if _git_prints_content(words):
                 paths = _git_candidates(words)
-                if not paths or any(not readable(w, root, here, allow) for w in paths):
+                if not paths or any(not readable(w, root, here) for w in paths):
                     return _WHY
             continue
-        if any(not readable(w, root, here, allow) for w in _candidates(words)):
+        if any(not readable(w, root, here) for w in _candidates(words)):
             return _WHY
     return None
 
 
-def _verdict(name: str, tool_input: dict, root: str | None, cwd: str, conf: dict) -> str | None:
+def _verdict(name: str, tool_input: dict, root: str | None, cwd: str) -> str | None:
     """Why this call is refused, or None to let it through."""
-    allow, runners = _rules(conf)
     if name == "Read":
-        return None if readable(tool_input.get("file_path", ""), root, cwd, allow) else _WHY
+        return None if readable(tool_input.get("file_path", ""), root, cwd) else _WHY
     if name in ("Grep", "Glob"):
         target = tool_input.get("path")
         if target is None:
             return _UNROOTED
-        return None if readable(target, root, cwd, allow) else _WHY
+        return None if readable(target, root, cwd) else _WHY
     if name == "Bash":
         command = sh.command_of(tool_input)
         if SERVED.search(command):
             return _WHY
-        return _bash_verdict(command, root, cwd, allow, runners)
+        return _bash_verdict(command, root, cwd)
     return None
 
 
@@ -400,10 +375,10 @@ GUARDS = ("Read", "Grep", "Glob", "Bash")
 
 def main() -> None:
     def verdict(name: str, tool_input: dict, payload: dict) -> str | None:
-        #: inside the closure, so that a root or a config that will not resolve
-        #: is a refusal like any other rather than a crash read as one
+        #: inside the closure, so that a root that will not resolve is a
+        #: refusal like any other rather than a crash read as one
         cwd = sh.cwd_of(payload)
-        return _verdict(name, tool_input, repo_root(cwd), cwd, config())
+        return _verdict(name, tool_input, repo_root(cwd), cwd)
 
     sh.hook_main(verdict, guards=GUARDS)
 
@@ -412,14 +387,14 @@ def _config_parses() -> bool:
     """That the per-repo config beside this hook reads, where there is one.
 
     `sh.config` answers a malformed file with an empty config, and that is the
-    right answer at the gate: an empty config declares nothing and so denies.
-    It is also silent, so a typo in the file costs a repo every widening it
-    declared and says nothing about it. The runtime keeps the safe direction;
-    this line is where the typo becomes visible instead of free.
+    right answer at the gate: an empty config names no lane, so the lane is
+    `tests`. It is also silent, so a typo in the file moves a repo's lane back
+    to the default and says nothing about it. The runtime keeps the safe
+    direction; this line is where the typo becomes visible instead of free.
     """
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blind-reads.json")
     if not os.path.exists(path):
-        return True  # no per-repo widening here; nothing to parse
+        return True  # no per-repo value here; nothing to parse
     try:
         with open(path, encoding="utf-8") as fh:
             return isinstance(json.load(fh), dict)
@@ -436,12 +411,13 @@ def _no_denied_nesting() -> bool:
     the `docs/gauntlet/` nesting opened. The other direction — the re-allowed
     leaf inside the denied base — is harmless and is excluded here.
 
-    It reads the real `blind-reads.json` beside this file, not a hand-built
-    config, so a repo that adds `gauntlet/` or an ancestor of it to its own
-    allow list fails this case rather than silently re-opening the base.
+    `DEFAULT_ALLOW` carries the directories the real `blind-reads.json` beside
+    this file names, so a repo whose `tests_dir` or `docs_dir` resolved to the
+    artifact base or an ancestor of it would fail this case rather than silently
+    re-open the base, were `shell_shapes.dirs_from` not already refusing every
+    overlapping set.
     """
-    entries = list(DEFAULT_ALLOW) + list(config().get("allow", ()))
-    for entry in entries:
+    for entry in DEFAULT_ALLOW:
         root = entry.rstrip("/")
         if not root:
             continue
@@ -459,10 +435,19 @@ def self_test() -> int:
     """Pin the spec lines of the blind-read allowlist."""
     root = "/repo"
     tree = f"{root}/.claude/worktrees/demo-spec"
-    conf: dict = {}
+
+    #: the lines below spell the kit's defaults; under a project that moved one
+    #: of the three directories, the same lines run at that project's own. The
+    #: respelling sits here rather than on `read` and `bash`, so the payloads
+    #: built by hand below carry it too, and no string gets two passes
+    PATHS = ("file_path", "path", "command")
 
     def call(tool: str, tool_input: dict) -> str | None:
-        return _verdict(tool, tool_input, root, root, conf)
+        moved = {
+            key: sh.respell(value) if key in PATHS and isinstance(value, str) else value
+            for key, value in tool_input.items()
+        }
+        return _verdict(tool, moved, root, root)
 
     def read(path: str) -> str | None:
         return call("Read", {"file_path": path})
@@ -581,26 +566,29 @@ def self_test() -> int:
                 denied(bash("git show HEAD:gauntlet/plans/approved/demo.txt")),
             )
         ),
-        "10 no blind-reads.json entry re-opens the base": all(
+        "10 no blind-reads.json value re-opens the base or overlaps another": all(
             (
-                denied(
-                    _verdict(
-                        "Read",
-                        {"file_path": f"{root}/gauntlet/plans/approved/demo.txt"},
-                        root,
-                        root,
-                        {"allow": ["gauntlet/plans/approved/", "gauntlet/"]},
-                    )
-                ),
-                allowed(
-                    _verdict(
-                        "Read",
-                        {"file_path": f"{root}/reference/protocol.md"},
-                        root,
-                        root,
-                        {"allow": ["reference/"]},
-                    )
-                ),
+                #: a usable set moves all three, which is the point of the file
+                sh.dirs_from({"tests_dir": "spec", "gauntlet_dir": "work", "docs_dir": "prose"})
+                == {"tests_dir": "spec", "gauntlet_dir": "work", "docs_dir": "prose"},
+                #: and every unusable one moves nothing at all, together: a name
+                #: at, under or over another would put one directory's hook over
+                #: the other's, and a partly honoured set is the hole itself
+                sh.dirs_from({"tests_dir": "gauntlet"}) == dict(sh.DEFAULT_DIRS),
+                sh.dirs_from({"tests_dir": "gauntlet/plans/approved"}) == dict(sh.DEFAULT_DIRS),
+                sh.dirs_from({"gauntlet_dir": "tests"}) == dict(sh.DEFAULT_DIRS),
+                sh.dirs_from({"gauntlet_dir": "tests/artifacts"}) == dict(sh.DEFAULT_DIRS),
+                #: a key the file omits still collides: `tests_dir` at `docs` is
+                #: legal read alone and sits over the default `docs_dir`
+                sh.dirs_from({"tests_dir": "docs"}) == dict(sh.DEFAULT_DIRS),
+                sh.dirs_from({"docs_dir": "spec", "tests_dir": "spec"}) == dict(sh.DEFAULT_DIRS),
+                #: judged by where a name lands, not by how it is spelled
+                sh.dirs_from({"tests_dir": "spec/../gauntlet/reviews"}) == dict(sh.DEFAULT_DIRS),
+                sh.dirs_from({"tests_dir": "."}) == dict(sh.DEFAULT_DIRS),
+                sh.dirs_from({"gauntlet_dir": "/repo/work"}) == dict(sh.DEFAULT_DIRS),
+                sh.dirs_from({"docs_dir": ["prose"]}) == dict(sh.DEFAULT_DIRS),
+                #: there is no allow key: a path off the table stays off it
+                denied(read(f"{root}/reference/protocol.md")),
             )
         ),
         "11 no denied subtree nests inside an allowed one": _no_denied_nesting(),

@@ -24,14 +24,23 @@ set -euo pipefail
 ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 
-PYTEST=${PYTEST:-$ROOT/.venv/bin/pytest}
-
 die() {
 	echo "$1" >&2
 	exit 2
 }
 
-spec_path() { echo "gauntlet/specs/approved/$1.txt"; }
+#: the directories of `.claude/hooks/blind-reads.json`, through the reader the
+#: hooks use: the lane this script diffs is the lane `tests-lane.py` guards,
+#: and the two it writes are the lanes `specs-lane.py` and `reviews-lane.py` hold
+READER=$ROOT/.claude/hooks/shell_shapes.py
+[ -f "$READER" ] || die "no $READER: scripts/ ships with .claude/hooks/, copy both"
+TESTS=$(python3 "$READER" --config tests_dir)
+SPECS=$(python3 "$READER" --config specs_lane)
+REVIEWS=$(python3 "$READER" --config reviews_lane)
+[ -n "$TESTS" ] && [ -n "$SPECS" ] && [ -n "$REVIEWS" ] || die "no $READER: cannot read blind-reads.json"
+PYTEST=${PYTEST:-$ROOT/.venv/bin/pytest}
+
+spec_path() { echo "$SPECS/$1.txt"; }
 worktree_path() { echo ".claude/worktrees/$1-spec"; }
 impl_path() { echo ".claude/worktrees/$1-impl"; }
 
@@ -45,7 +54,7 @@ reviewer_section() {
 #: `<slug>.<N>.txt`, `plan.` for the plan rounds `<slug>.plan.<N>.txt`.
 highest_round() {
 	local slug=$1 infix=$2 best=0 n
-	for f in gauntlet/reviews/"$slug"."$infix"[0-9]*.txt; do
+	for f in "$REVIEWS"/"$slug"."$infix"[0-9]*.txt; do
 		[ -e "$f" ] || continue
 		n=${f##*"$slug"."$infix"}
 		n=${n%.txt}
@@ -64,7 +73,7 @@ newest_round() {
 	local slug=$1 n
 	n=$(highest_round "$slug" "")
 	[ "$n" -gt 0 ] || return 0
-	echo "gauntlet/reviews/$slug.$n.txt"
+	echo "$REVIEWS/$slug.$n.txt"
 }
 
 #: `N. excise <target>` lines of the committed block, targets only
@@ -141,9 +150,9 @@ cmd_merge() {
 		#: brief, and the gauntlet-bailiff reads this file itself
 		{
 			echo "test files:"
-			git diff --name-only "$base" HEAD -- tests/
+			git diff --name-only "$base" HEAD -- "$TESTS/"
 			echo "diff:"
-			git diff "$base" HEAD -- tests/
+			git diff "$base" HEAD -- "$TESTS/"
 			echo "red output:"
 			#: no red log on disk is a complete brief with an empty section,
 			#: not an errexit abort that leaves the block unterminated
@@ -160,7 +169,7 @@ cmd_merge() {
 
 #: the path a reviewer writes its round to, counted here and handed to it in
 #: its brief. A reviewer cannot count the directory itself: reviews-lane.py
-#: denies it every read of `gauntlet/reviews/`, so a reviewer left to pick its
+#: denies it every read of the reviewers' lane, so a reviewer left to pick its
 #: own `<N>` is guessing, and a guess that lands on a number already taken
 #: overwrites a round that exists in no git object and is gone.
 cmd_review() {
@@ -171,9 +180,9 @@ cmd_review() {
 	fi
 	[ -n "$slug" ] || die "usage: pair.sh review [plan] <slug>"
 	#: the reviewer's Write is its own; the directory it writes into is not
-	mkdir -p gauntlet/reviews
+	mkdir -p "$REVIEWS"
 	n=$(highest_round "$slug" "$infix")
-	echo "REVIEW gauntlet/reviews/$slug.$infix$((n + 1)).txt"
+	echo "REVIEW $REVIEWS/$slug.$infix$((n + 1)).txt"
 }
 
 #: the hand-carved `git restore --source` step of docs/approved-specs.md, given

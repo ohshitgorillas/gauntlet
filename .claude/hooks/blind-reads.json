@@ -1,5 +1,5 @@
 {
-  "runner_invocations": [
-    {"entry": "scripts/blind.sh", "args": ["test"], "prefix": "tests"}
-  ]
+  "tests_dir": "tests",
+  "gauntlet_dir": "gauntlet",
+  "docs_dir": "docs"
 }

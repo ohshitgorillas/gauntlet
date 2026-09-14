@@ -16,6 +16,7 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 PAIR = REPO / "scripts" / "pair.sh"
 EXCISION_DIFF = REPO / "scripts" / "excision-diff.py"
+SHELL_SHAPES = REPO / ".claude" / "hooks" / "shell_shapes.py"
 
 SLUG = "demo"
 
@@ -109,6 +110,10 @@ def _repo(tmp_path, spec_text, review_text):
         landed = repo / "scripts" / source.name
         shutil.copy2(source, landed)
         landed.chmod(landed.stat().st_mode | stat.S_IXUSR)
+    #: the scripts read the `tests` key of blind-reads.json through the hooks'
+    #: reader, so the fixture ships that one module beside them and no config
+    (repo / ".claude" / "hooks").mkdir(parents=True)
+    shutil.copy2(SHELL_SHAPES, repo / ".claude" / "hooks" / "shell_shapes.py")
     (repo / "tests" / "test_a.py").write_text(TEST_A)
     (repo / "tests" / "test_b.py").write_text(TEST_B)
     (repo / "gauntlet" / "specs" / "approved" / "demo.txt").write_text(spec_text)

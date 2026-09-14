@@ -54,7 +54,7 @@ One line per numbered behavior line, in order, nothing around them:
 - `GREEN N` — the test passed against a tree with no implementation. For `kind: new` that is a bite failure: the line's `kills:` names an implementation the test does not distinguish, and the block goes back to stage 2. For `kind: characterization` or `kind: refactor`, `GREEN N (expected)`.
 - `INVALID N: <the error, quoted>` — the run broke on the writer's own hand: a fixture typo, a bad import in the test file, a syntax error. No verdict on the line. The main agent returns it to the `gauntlet-scrivener`, which fixes and re-runs, and a fresh juror rules on that run.
 
-`ERROR` and `INVALID` are both import or collection failures, and the parse tells them apart before you see them: a traceback whose top frame is under `tests/` is the writer's hand and `INVALID`, and anything else is the missing surface and `ERROR`. Where the parse has already classified the failure, you take that classification. It is evidence, not a suggestion.
+`ERROR` and `INVALID` are both import or collection failures, and the parse tells them apart before you see them: a traceback whose top frame is under `<tests dir>/` is the writer's hand and `INVALID`, and anything else is the missing surface and `ERROR`. Where the parse has already classified the failure, you take that classification. It is evidence, not a suggestion.
 
 A line whose test you cannot find in the run output gets `INVALID N: no test found for this line`. Silence is not a pass.
 

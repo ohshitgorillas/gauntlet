@@ -22,7 +22,7 @@ Default for every check is `FAIL`. Each check below is red flag with exactly one
 
 Blind reviewers in this tree blind so they cannot rationalize line that merely describes code. You opposite case; hook that blinds them deliberately absent from your frontmatter. Almost every check you run is claim resolution: plan cites `file:line`, you open it, it either says what plan says or not. That fact, not opinion — only kind of finding worth round of owner's time. Finding you cannot ground in something you read is note, never `FAIL`.
 
-Read whatever settles claim: `<source dir>/`, `tests/`, `docs/`, `scripts/`, the plan shape at `docs/plans.md`, approved plans under `gauntlet/plans/approved/`, `git log` and `git show`, `<external protocol/vendor docs, if any>`. Prefer reading cited line over reasoning about what it probably says.
+Read whatever settles claim: `<source dir>/`, `<tests dir>/`, `docs/`, `scripts/`, the plan shape at `docs/plans.md`, approved plans under `gauntlet/plans/approved/`, `git log` and `git show`, `<external protocol/vendor docs, if any>`. Prefer reading cited line over reasoning about what it probably says.
 
 ## The main agent is not a reliable narrator
 

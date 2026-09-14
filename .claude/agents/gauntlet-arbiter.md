@@ -42,7 +42,7 @@ Inside block that pass count, rules still hold: claim about what code do that no
 N. <behavior as the caller sees it>
    kills: <a wrong implementation a user would notice, which this line rejects>
    bite: <the value HEAD produces at this input, measured, with the command> | null stub fails at <input> (surface new)
-   existing: none, <the grep the main agent ran and its result> | tests/<file>::<test>
+   existing: none, <the grep the main agent ran and its result> | <tests dir>/<file>::<test>
 ```
 
 `bite:` and `existing:` carry evidence, not belief. You cannot read `<source dir>/`, so the `bite:` value the main agent measured = only fact you have about pre-change tree. Main agent who leave it as claim handed you nothing to check: line unfilled under (k).
@@ -59,7 +59,7 @@ N. <behavior as the caller sees it>
 
 That folder is yours alone. `.claude/hooks/specs-lane.py` denies every other agent, the main agent included, every write under `gauntlet/specs/approved/`, so the file's existence is the only proof the blind `gauntlet-scrivener` has that the lines it is about to pin were reviewed at all. Write nothing there you did not pass, and never a block you have not run the checks on: a main agent that cannot get you to `READY` has no other route to that path, which is the whole reason the gate holds. Rules in `docs/approved-specs.md`.
 
-You may read `docs/` (`docs/testing.md` = binding policy you check against), `tests/conftest.py`, `tests/fake_*.py`, `tests/support/fixtures/*` and every file under `tests/`, plus `<external protocol/vendor docs, if any>`.
+You may read `docs/` (`docs/testing.md` = binding policy you check against), `<tests dir>/conftest.py`, `<tests dir>/fake_*.py`, `<tests dir>/support/fixtures/*` and every file under `<tests dir>/`, plus `<external protocol/vendor docs, if any>`.
 
 ## Before the stubs: does the block discriminate at all
 
@@ -91,11 +91,11 @@ Each stub is read against each line separately, and its reading per line is part
 
 Each = red flag. Line take named escape or it `STRICKEN` under that letter.
 
-**Strike grammar.** `motion: strike` block carry strike lines in the shape `docs/testing.md` "Strike motions" gives, not behavior lines. Nothing pinned, so every per-line check except (m) do not run — no `kills:`, no `bite:`, no `existing:` to rule on, and (b) would `AMENDED` every line since target IS existing test. Line take `ADMITTED` when three thing true: target under `tests/`, rule number real and line's quoted assertion actually violate it, and violation visible in test file alone (you may read `tests/`; `<source dir>/` stay denied). Otherwise `STRICKEN`, naming which. Rule number that does not fit quoted assertion = `STRICKEN`: "test inconvenient" is not rule. Four-line cap not apply; sweep remove what it remove. Mixed block under `motion: strike` — strike line beside behavior line — reject whole block, `ANOTHER PASS`, repair is two blocks or one `motion: amend` block.
+**Strike grammar.** `motion: strike` block carry strike lines in the shape `docs/testing.md` "Strike motions" gives, not behavior lines. Nothing pinned, so every per-line check except (m) do not run — no `kills:`, no `bite:`, no `existing:` to rule on, and (b) would `AMENDED` every line since target IS existing test. Line take `ADMITTED` when three thing true: target under `<tests dir>/`, rule number real and line's quoted assertion actually violate it, and violation visible in test file alone (you may read `<tests dir>/`; `<source dir>/` stay denied). Otherwise `STRICKEN`, naming which. Rule number that does not fit quoted assertion = `STRICKEN`: "test inconvenient" is not rule. Four-line cap not apply; sweep remove what it remove. Mixed block under `motion: strike` — strike line beside behavior line — reject whole block, `ANOTHER PASS`, repair is two blocks or one `motion: amend` block.
 
 **Amend grammar.** `motion: amend` block carry amend lines in the shape `docs/testing.md` "Amend motions" gives: `excise <target>`, `rule:`, `assertion:`, `replace:`, `as:`, `kills:`. One line, two halves, and you judge both.
 
-Strike half take same three conditions as strike grammar above: target under `tests/`, rule number real and line's quoted assertion really break it, violation visible in test file alone. Target must name a test (`tests/<file>::<test>`); whole-file target = `STRICKEN`, it belong to `motion: strike` where nothing land in file being removed.
+Strike half take same three conditions as strike grammar above: target under `<tests dir>/`, rule number real and line's quoted assertion really break it, violation visible in test file alone. Target must name a test (`<tests dir>/<file>::<test>`); whole-file target = `STRICKEN`, it belong to `motion: strike` where nothing land in file being removed.
 
 `replace:` half take per-line checks (a), (c), (d), (e), (g), (h), (h′), (i), (j), (l), (n), (o), (p), (q), (r), (s), (t). Three checks move:
 
@@ -107,7 +107,7 @@ Four-line cap (f) count `replace:` lines only. `as:` may equal excise target —
 
 **(a) `kills:` is a shape.** "returns the wrong type", "raises", "does nothing", "returns None", "the wrong value", "fails": `STRICKEN`. Escape: clause name concrete wrong output at concrete input user would see, like *"loads the preset whose name sorts first instead of the one asked for"*.
 
-**(b) `existing: none`.** Grep `tests/` for outcome line state, whatever main agent wrote. `none (<citation>)` treated as `existing: <that test>`: open cited test, compare. Line that is that test with one more fixture entry, one more card in its set, or one more parametrize case = `AMENDED <file:line>`, main agent fold it into existing test instead of writing new one. Escape: no test under `tests/` touch surface line name.
+**(b) `existing: none`.** Grep `<tests dir>/` for outcome line state, whatever main agent wrote. `none (<citation>)` treated as `existing: <that test>`: open cited test, compare. Line that is that test with one more fixture entry, one more card in its set, or one more parametrize case = `AMENDED <file:line>`, main agent fold it into existing test instead of writing new one. Escape: no test under `<tests dir>/` touch surface line name.
 
 **(c) Copy (rule 9).** Line name label, sentence, hint, tooltip, error prose, curated list's order or count, or selector that would need wording: `STRICKEN`. Escape: value is wire identifier, `data-testid`, class, attribute, or number derived from wire data.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `gauntlet/verdicts/` is the gauntlet-juror's lane.
+"""PreToolUse hook: `<gauntlet dir>/verdicts/` is the gauntlet-juror's lane.
 `Stop` hook, behind `--stop`: a red run with no verdict does not end a turn.
 
 Wire both session-wide from `.claude/settings.json`, so they bind the main
@@ -17,14 +17,14 @@ produced a red run and no verdict does not land.
 Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under a
-    `gauntlet/verdicts/` directory, unless the caller's `agent_type` is
+    `<gauntlet dir>/verdicts/` directory, unless the caller's `agent_type` is
     `gauntlet-juror`
-  * a `Bash` command that names a `gauntlet/verdicts/` path and is not
+  * a `Bash` command that names a `<gauntlet dir>/verdicts/` path and is not
     read-only, except a restore from a named git object
     (`git restore --source <rev>` or `git checkout <rev> --` onto the path),
     which copies a commit and types nothing
 
-Allowed: every read of `gauntlet/verdicts/`, by any agent and by the
+Allowed: every read of `<gauntlet dir>/verdicts/`, by any agent and by the
 shell; every write anywhere else, the other lanes included.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
@@ -63,13 +63,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 REVIEWER = "gauntlet-juror"
-LANE = "gauntlet/verdicts"
+LANE = sh.verdicts_lane()
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 RED_DIR = "state/red"
 
 _LANE = (
-    "gauntlet/verdicts/ is the gauntlet-juror's lane. The verdict on a red run "
+    f"{LANE}/ is the gauntlet-juror's lane. The verdict on a red run "
     "is written there by the juror that issued it, and by nothing else: it is the "
     "only evidence anyone has that the run was certified and that a blind hand "
     "certified it. Spawn a gauntlet-juror with the committed spec path and the path "
@@ -90,12 +90,12 @@ def main() -> None:
 _EMPTY = "{slug}: state/red/{slug}.txt is empty. The run printed nothing, so there is "
 _EMPTY += "nothing to rule on. Re-run `scripts/pair.sh red {slug}`, or delete the file."
 _MISSING = "{slug}: no verdict. state/red/{slug}.txt is a red run nobody ruled on. Spawn "
-_MISSING += "a gauntlet-juror with gauntlet/specs/approved/{slug}.txt and state/red/{slug}.txt, "
+_MISSING += "a gauntlet-juror with " + sh.specs_lane() + "/{slug}.txt and state/red/{slug}.txt, "
 _MISSING += "or delete the red file if the slug was abandoned."
 _UNREADABLE = "{slug}: state/red/{slug}.txt could not be read ({error}). A red run this "
 _UNREADABLE += "gate cannot open is one nobody can be shown a verdict for, so it is a complaint "
 _UNREADABLE += "and not a file to step over. Fix its permissions, or delete it."
-_STALE = "{slug}: stale verdict. gauntlet/verdicts/{slug}.txt is older than "
+_STALE = "{slug}: stale verdict. " + LANE + "/{slug}.txt is older than "
 _STALE += "state/red/{slug}.txt, so the run it ruled on has been overwritten since. Spawn "
 _STALE += "a fresh gauntlet-juror on the run now on disk."
 
@@ -254,9 +254,9 @@ def self_test() -> int:
                 denied(bash("git diff --output=gauntlet/verdicts/x.txt")),
             )
         ),
-        "9 a declared runner invocation naming this lane is still denied": all(
+        "9 the blind runner naming this lane is still denied": all(
             (
-                #: the declaration names the test directory, so its one argument
+                #: the runner takes one path under the test directory, so it
                 #: reaches no other lane however the argument is spelled
                 denied(bash("scripts/blind.sh test gauntlet/verdicts/slug.txt")),
                 denied(bash("scripts/blind.sh test tests/a/../../gauntlet/verdicts/slug.txt")),

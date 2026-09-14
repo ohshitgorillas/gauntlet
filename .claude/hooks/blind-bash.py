@@ -20,7 +20,7 @@ command in front, or an environment assignment in front all fail to match.
 
 Each subcommand admits its own argument shape and nothing wider:
 
-  * `test <path>`   a repo-relative path under `tests/`
+  * `test <path>`   a repo-relative path under `<tests dir>/`
   * `status <slug>`
   * `show <commit> <slug>`
 
@@ -109,10 +109,12 @@ def self_test() -> int:
     shapes = "shell_shapes.py"
     hook = "no-impl-reads.py"
     here = ".claude/hooks/"
-    wire = "tests/test_hook_wire.py"
-    plan = "gauntlet/plans/approved/bash-sandbox"
+    wire = sh.tests_dir() + "/test_hook_wire.py"
+    plan = sh.plans_lane() + "/bash-sandbox"
 
-    bash = sh.probe(_verdict, "/repo", "Bash", "command", agent="gauntlet-scrivener")
+    bash = sh.rebased(
+        sh.probe(_verdict, "/repo", "Bash", "command", agent="gauntlet-scrivener")
+    )
 
     denied, allowed = sh.denied, sh.allowed
     lines = {

@@ -1,12 +1,11 @@
 """Behavior tests for the child environment the suite's two subprocess helpers build.
 
 The subject is this repository's own suite: ``hook_decision`` in
-``tests/test_hook_wire.py`` and ``payload_decision`` in
-``tests/test_blind_reads_declaration.py``.  Both take the script to run as an
-ordinary parameter and join it onto a directory with ``pathlib``, so an absolute
-path handed to that parameter is the path that runs; both return raw stdout when
-stdout is not a hook answer, so a probe's own report comes back as the helper's
-return value.
+``tests/test_hook_wire.py`` and ``_decision`` in ``tests/test_tests_config.py``.
+Both take the script to run as an ordinary parameter and join it onto a
+directory with ``pathlib``, so an absolute path handed to that parameter is the
+path that runs; both return raw stdout when stdout is not a hook answer, so a
+probe's own report comes back as the helper's return value.
 
 The probe below is written by this file, so every literal asserted here was put
 on the wire by the test rather than read out of an implementation.  Every
@@ -22,8 +21,10 @@ import pytest
 WORKTREE_ROOT = Path(__file__).resolve().parents[1]
 TESTS_DIR = WORKTREE_ROOT / "tests"
 
-# The copy label whose declaration the calls below carry.
-ALLOW_LABEL = "ALLOW"
+# The label of the hook-directory copy the calls below run against.  Which
+# declaration it carries does not matter here: the subject is the child
+# environment the helper builds, not any hook's decision.
+COPY_LABEL = "ENV_SCRUB"
 
 # The probe's whole source.  It reads its own environment and prints one line:
 # each variable's value, or `<unset>` where the variable is absent from it.
@@ -77,14 +78,11 @@ def hook_wire_module():
 
 
 @pytest.fixture(scope="module")
-def blind_reads_module():
-    """The declaration module, with ``_COPIES`` populated as the suite does."""
-    module = _load_suite_module(
-        "test_blind_reads_declaration.py", "suite_env_scrub_blind_reads"
-    )
-    module.setUpModule()
-    yield module
-    module.tearDownModule()
+def tests_config_module(tmp_path_factory):
+    """The directory-config module, with one hook-directory copy made as it makes them."""
+    module = _load_suite_module("test_tests_config.py", "suite_env_scrub_tests_config")
+    copy = module._copy(str(tmp_path_factory.mktemp("suite-env-scrub-copy")), COPY_LABEL, None)
+    yield module, copy
 
 
 @pytest.mark.parametrize("control_value,expected_report", CALLER_SWEEP)
@@ -98,13 +96,11 @@ def test_hook_wire_helper_scrubs_gauntlet_and_keeps_other_caller_variables(
 
 
 @pytest.mark.parametrize("control_value,expected_report", CALLER_SWEEP)
-def test_payload_decision_scrubs_gauntlet_and_keeps_other_caller_variables(
-    monkeypatch, blind_reads_module, probe_path, control_value, expected_report
+def test_decision_helper_scrubs_gauntlet_and_keeps_other_caller_variables(
+    monkeypatch, tests_config_module, probe_path, control_value, expected_report
 ):
+    module, copy = tests_config_module
     monkeypatch.setenv("GAUNTLET", "off")
     monkeypatch.setenv("PROBE_CONTROL", control_value)
 
-    assert (
-        blind_reads_module.payload_decision(ALLOW_LABEL, probe_path, PROBE_PAYLOAD)
-        == expected_report
-    )
+    assert module._decision(copy, probe_path, PROBE_PAYLOAD) == expected_report
