@@ -24,6 +24,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 **Breaking for existing installs:** re-copy `.claude/` and re-run the `--self-test` commands.
 
 ### Changed
+- The agent definitions, `README.md` and the docs write the four artifact lanes as `<gauntlet dir>/specs/approved/`, `<gauntlet dir>/plans/approved/`, `<gauntlet dir>/reviews/` and `<gauntlet dir>/verdicts/`. `<gauntlet dir>` is `gauntlet_dir` from `.claude/hooks/blind-reads.json`, the same convention `<tests dir>` already follows, so a project that moves the base reads its own layout in the prose it copies.
 - The `gauntlet-arbiter` returns `ADMITTED`, `AMENDED` or `STRICKEN` per behavior line; default `STRICKEN`.
 - The post-merge test check leaves the `gauntlet-arbiter` for the `gauntlet-bailiff`. Brief and output format unchanged.
 - The `gauntlet-detective`, `gauntlet-juror` and `gauntlet-examiner` are pinned to Sonnet.

@@ -54,7 +54,7 @@ Brief is `TEST CHECK <slug>` through `END TEST CHECK`, verbatim as `scripts/pair
 
 Brief carries spec commit, red commit, and `merge output: state/merge/<slug>.txt`. Read that file yourself: it holds test files, `git diff <red> HEAD -- <tests dir>/`, and saved red output, under those three head lines. Path absent or zero bytes = `NO EVIDENCE` below, and you rule on nothing. Present file whose `red output:` section is empty = complete brief, ruled on: no red log was on disk, and re-running `merge` write same file again.
 
-Block and stage 1's `READY` verdicts are on disk, never in brief: read `gauntlet/specs/approved/<slug>.txt` from spec commit named in brief (`git show <spec-commit>:gauntlet/specs/approved/<slug>.txt`, at tree brief names, or `git show` on dev after green merge). Fresh reviewer hold nothing else and need nothing else. Read test files too: `<tests dir>/` is open to you. `<source dir>/` stay denied.
+Block and stage 1's `READY` verdicts are on disk, never in brief: read `<gauntlet dir>/specs/approved/<slug>.txt` from spec commit named in brief (`git show <spec-commit>:<gauntlet dir>/specs/approved/<slug>.txt`, at tree brief names, or `git show` on dev after green merge). Fresh reviewer hold nothing else and need nothing else. Read test files too: `<tests dir>/` is open to you. `<source dir>/` stay denied.
 
 You may read `docs/` (`docs/testing.md` = binding policy you check against), `<tests dir>/conftest.py`, `<tests dir>/fake_*.py`, `<tests dir>/support/fixtures/*` and every file under `<tests dir>/`.
 
@@ -102,6 +102,6 @@ One line per sentence, or one line `shape: <what arrived>` for a brief that is n
 
 ## What you never do
 
-- Never write. You hold no `Write`: your round is your return value, and `gauntlet/specs/approved/`, `gauntlet/reviews/` and `<tests dir>/` are closed to you by lane hook.
+- Never write. You hold no `Write`: your round is your return value, and `<gauntlet dir>/specs/approved/`, `<gauntlet dir>/reviews/` and `<tests dir>/` are closed to you by lane hook.
 - Never edit a test to repair it. Softened test is restored from red commit by main agent, or line goes back to stage 1 for re-approval.
 - Never rule on whether line earned its place. That was stage 1, and it is closed.
