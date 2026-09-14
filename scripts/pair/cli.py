@@ -348,6 +348,12 @@ def cmd_impl(verb: str, slug: str | None) -> int:
 
 
 def main(argv: list[str]) -> int:
+    #: the driver converges onto `target_branch` and runs `gate_command`, both
+    #: of them configured, so a declaration that will not load is a merge onto
+    #: whatever the kit defaults to. It is a fault here, not a default.
+    fault = sh.config_fault()
+    if fault is not None:
+        die("pair: " + fault)
     if not argv:
         die(USAGE)
     verb, rest = argv[0], argv[1:]

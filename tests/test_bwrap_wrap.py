@@ -43,9 +43,25 @@ def _repo(tmp_path, trees=()):
     (repo / ".claude" / "worktrees").mkdir(parents=True)
     (repo / "scripts").mkdir()
     (repo / "tests").mkdir()
+    #: a project declares itself, and an absent declaration is a fault the hook
+    #: denies on rather than a fall back to these same defaults
+    (repo / ".claude" / "blind-reads.json").write_text(json.dumps(DECLARATION))
     for name in trees:
         _add_tree(repo, name)
     return repo
+
+
+#: the kit's shipped layout, written as a project's own word. Every path this
+#: file asserts on is one of these names.
+DECLARATION = {
+    "tests_dir": "tests",
+    "gauntlet_dir": "gauntlet",
+    "docs_dir": "docs",
+    "target_branch": "main",
+    "gate_command": "make check",
+    "pytest_command": ".venv/bin/pytest",
+    "node_command": "node --test",
+}
 
 
 def _add_tree(repo, name):

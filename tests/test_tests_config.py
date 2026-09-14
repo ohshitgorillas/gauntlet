@@ -122,15 +122,23 @@ def _decision(hook_dir, hook_name, payload):
     return specific.get("permissionDecision") or stdout
 
 
-def _config_lines(hook_dir, key):
+def _config_run(hook_dir, key):
+    """The reader as a shell sees it: status, stdout lines, stderr."""
     completed = subprocess.run(
         [sys.executable, str(hook_dir / "shell_shapes.py"), "--config", key],
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
         env=_environment(Path(hook_dir).parent),
     )
-    return completed.stdout.splitlines()
+    return completed.returncode, completed.stdout.splitlines(), completed.stderr
+
+
+def _config_lines(hook_dir, key):
+    status, lines, stderr = _config_run(hook_dir, key)
+    if status != 0:
+        raise AssertionError(f"the reader faulted on {key}: {stderr.strip()}")
+    return lines
 
 
 def _write(hook_dir, hook_name, path, agent=None):
@@ -174,7 +182,7 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", None)
+        cls.bare = _copy(cls.tmp.name, "BARE", {})
         cls.moved = _copy(cls.tmp.name, "MOVED", {"tests_dir": "spec"})
 
     @classmethod
@@ -243,7 +251,7 @@ class GauntletDirMovesEveryLane(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", None)
+        cls.bare = _copy(cls.tmp.name, "BARE", {})
         cls.moved = _copy(cls.tmp.name, "MOVED", {"gauntlet_dir": "work/chain"})
 
     @classmethod
@@ -302,7 +310,7 @@ class DocsDirMovesTheBlindReadAllowance(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", None)
+        cls.bare = _copy(cls.tmp.name, "BARE", {})
         cls.moved = _copy(cls.tmp.name, "MOVED", {"docs_dir": "prose"})
 
     @classmethod
@@ -392,8 +400,7 @@ class OneReaderOneKeySet(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", None)
-        cls.broken = _copy(cls.tmp.name, "BROKEN", "{not json")
+        cls.bare = _copy(cls.tmp.name, "BARE", {})
         cls.extra = _copy(
             cls.tmp.name,
             "EXTRA",
@@ -421,9 +428,6 @@ class OneReaderOneKeySet(unittest.TestCase):
         self.assertEqual(_config_lines(self.bare, "runner_invocations"), [])
         self.assertEqual(_config_lines(self.bare, "agents.writer"), [])
 
-    def test_a_malformed_file_is_the_defaults(self):
-        for key, default in DEFAULTS.items():
-            self.assertEqual(_config_lines(self.broken, key), [default])
 
 
 class BlindAgentReadsTheConfig(unittest.TestCase):
@@ -432,7 +436,7 @@ class BlindAgentReadsTheConfig(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", None)
+        cls.bare = _copy(cls.tmp.name, "BARE", {})
 
     @classmethod
     def tearDownClass(cls):
@@ -465,6 +469,78 @@ class BlindShellReadsTheSameKeys(unittest.TestCase):
         self.assertNotIn("gauntlet/specs/approved", BLIND_SH.read_text())
 
 
+class ADeclarationThatIsAFault(unittest.TestCase):
+    """An absent or malformed file is a fault, and never the kit's defaults.
+
+    The three cases were one answer once: a project that declared nothing, a
+    project whose file was a typo, and a project that meant the defaults all
+    resolved to the same empty config.  That made a typo in `target_branch` a
+    merge onto `main` and a typo in `pytest_command` a red run with its
+    deselection dropped, in both cases with nothing said to anyone.  Only the
+    third is a word now; the other two reach the operator, as a denial out of a
+    hook and as a non-zero exit out of the reader.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory(prefix="fault-config-")
+        cls.absent = _copy(cls.tmp.name, "FABSENT", None)
+        cls.broken = _copy(cls.tmp.name, "FBROKEN", "{not json")
+        cls.not_object = _copy(cls.tmp.name, "FLIST", '["tests_dir"]')
+        cls.empty = _copy(cls.tmp.name, "FEMPTY", {})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_the_reader_exits_non_zero_and_names_the_path(self):
+        for label, copy in (
+            ("absent", self.absent),
+            ("malformed", self.broken),
+            ("not an object", self.not_object),
+        ):
+            status, lines, stderr = _config_run(copy, "tests_dir")
+            self.assertEqual(status, 2, label)
+            self.assertEqual(lines, [], label)
+            self.assertIn(".claude/blind-reads.json", stderr, label)
+
+    def test_a_hook_denies_rather_than_guarding_the_default_lane(self):
+        # The lane is a configured directory.  A hook that cannot read the
+        # declaration does not know which directory it guards, so it refuses
+        # instead of guarding the kit's and calling that a decision.
+        for label, copy in (("absent", self.absent), ("malformed", self.broken)):
+            self.assertEqual(_write(copy, "tests-lane.py", "/repo/src/main.py"), DENY, label)
+            self.assertEqual(_write(copy, "specs-lane.py", "/repo/README.md"), DENY, label)
+
+    def test_the_denial_names_the_file_and_the_way_out(self):
+        completed = subprocess.run(
+            [sys.executable, str(self.absent / "tests-lane.py")],
+            input=json.dumps(
+                {
+                    "hook_event_name": "PreToolUse",
+                    "tool_name": "Write",
+                    "cwd": str(REPO_CWD),
+                    "tool_input": {"file_path": "/repo/src/main.py"},
+                }
+            ),
+            capture_output=True,
+            text=True,
+            env=_environment(Path(self.absent).parent),
+        )
+        reason = json.loads(completed.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertIn("blind-reads.json", reason)
+        self.assertIn("scripts/init.py", reason)
+
+    def test_the_empty_object_is_the_projects_word_and_resolves(self):
+        # `{}` is how a project asks for the shipped layout and means it.  It is
+        # the one shape `scripts/init.py` cannot be needed for, and the one that
+        # separates "declared nothing" from "declared the defaults".
+        for key, default in DEFAULTS.items():
+            self.assertEqual(_config_lines(self.empty, key), [default], key)
+        self.assertEqual(_write(self.empty, "tests-lane.py", "/repo/tests/t.py"), DENY)
+        self.assertEqual(_write(self.empty, "tests-lane.py", "/repo/src/main.py"), SILENT)
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -485,8 +561,7 @@ class TwoScalarsResolvedOnTheirOwn(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="scalars-config-")
-        cls.bare = _copy(cls.tmp.name, "SBARE", None)
-        cls.broken = _copy(cls.tmp.name, "SBROKEN", "{not json")
+        cls.bare = _copy(cls.tmp.name, "SBARE", {})
         cls.named = _copy(
             cls.tmp.name,
             "SNAMED",
@@ -498,9 +573,11 @@ class TwoScalarsResolvedOnTheirOwn(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_a_file_that_names_neither_is_the_defaults(self):
-        for copy in (self.bare, self.broken):
-            for key, default in SCALARS.items():
-                self.assertEqual(_config_lines(copy, key), [default], key)
+        # The empty object names neither and is still the project's word, so
+        # both scalars are the kit's.  An absent file is a fault instead, and
+        # `ADeclarationThatIsAFault` is where that is pinned.
+        for key, default in SCALARS.items():
+            self.assertEqual(_config_lines(self.bare, key), [default], key)
 
     def test_the_reader_answers_the_two_names_a_project_gives(self):
         self.assertEqual(_config_lines(self.named, "target_branch"), ["dev"])
@@ -561,8 +638,9 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
     that stops at the first ``.git`` stops in the worktree.  The worktree
     carries no ``.claude/blind-reads.json`` of its own -- the declaration is
     committed in the project, and the tree is a checkout of a branch, not a
-    second project -- so stopping there reads the declaration as absent and
-    moves every lane silently back to its kit default.
+    second project -- so stopping there reads the declaration as absent, which
+    is a fault the reader exits non-zero on rather than a lane moved silently
+    back to its kit default.
 
     The variable is the knob and both scripts export it, so this is the
     fallback rather than the usual path.  It is still the path any other
@@ -591,7 +669,7 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def _tests_dir(self, cwd):
+    def _run(self, cwd):
         environment = dict(os.environ)
         environment.pop("GAUNTLET", None)
         environment.pop("CLAUDE_PROJECT_DIR", None)
@@ -600,9 +678,14 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
             cwd=str(cwd),
             capture_output=True,
             text=True,
-            check=True,
+            check=False,
             env=environment,
         )
+        return completed
+
+    def _tests_dir(self, cwd):
+        completed = self._run(cwd)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
         return completed.stdout.strip()
 
     def test_the_worktree_carries_no_declaration_of_its_own(self):
@@ -620,5 +703,11 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
         deeper.mkdir(parents=True, exist_ok=True)
         self.assertEqual(self._tests_dir(deeper), "spec")
 
-    def test_outside_any_checkout_there_is_no_project(self):
-        self.assertEqual(self._tests_dir(self.tmp.name), "tests")
+    def test_outside_any_checkout_there_is_no_project_and_that_is_a_fault(self):
+        # No project and no copy beside the kit is no declaration at all.  The
+        # reader exits non-zero and names the file, because a `tests_dir` printed
+        # here would be substituted into a shell that binds a lane with it.
+        completed = self._run(self.tmp.name)
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(completed.stdout, "")
+        self.assertIn("blind-reads.json", completed.stderr)

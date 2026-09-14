@@ -47,6 +47,7 @@ gates=(
     "strike-diff|python3 scripts/strike-diff.py --self-test"
     "pair|python3 scripts/pair/cli.py --self-test"
     "cite|python3 scripts/cite.py --self-test"
+    "init|python3 scripts/init.py --self-test"
     "symbol-closure|python3 scripts/gates/symbol-closure.py --self-test"
 )
 

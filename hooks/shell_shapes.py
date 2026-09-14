@@ -42,9 +42,22 @@ it is not a run.
 `blind-reads.json` carries seven keys, and they are the whole
 of what varies between the projects this kit is copied into. It is read from
 `$CLAUDE_PROJECT_DIR/.claude/blind-reads.json`, and from beside this file when
-that one is absent: the config belongs to the project, not to wherever the hook
-file happens to sit, so a kit installed once outside the checkout still reads
-each project's own declaration. Three name
+the project names no file at all: the config belongs to the project, not to
+wherever the hook file happens to sit, so a kit installed once outside the
+checkout still reads each project's own declaration.
+
+The file is required. A declaration that is there and parses is the project's
+word, and `{}` is a word like any other -- it asks for the kit's defaults and
+gets them. Absent, unreadable, not JSON and not a JSON object are faults, and
+a fault is a denial out of every hook and a non-zero exit out of `--config`,
+naming the path. They answered as an empty config once, alongside "declares
+nothing", which made a typo in the file a merge onto the wrong branch and a
+red run with its deselection dropped, silently. `scripts/init.py` writes the
+file, so an install has one deliberate step instead of a quiet wrong answer.
+
+The fault is held rather than raised at import: seven hooks build their lane
+constants at module level, and a hook that raises there takes the session with
+it and prints no denial at all. Three name
 directories. `tests_dir` is the blind writer's lane, `tests` by default, and what
 the agent definitions and the docs mean by `<tests dir>`. `gauntlet_dir` is where
 the chain's artifacts live, `gauntlet` by default. `docs_dir` is the prose a
@@ -678,8 +691,17 @@ def project_checkout(start: Path) -> Path | None:
     return None
 
 
-def config() -> dict[str, Any]:
-    """The one per-repo value, from the project's `blind-reads.json`.
+class ConfigFault(Exception):
+    """The project's declaration is absent or will not parse.
+
+    Not a default. A project that declares nothing and a project whose
+    declaration is a typo are both faults, and the empty object is the only
+    way to ask for the kit's defaults and mean it.
+    """
+
+
+def config_path() -> Path:
+    """The file this project's declaration is read from, present or not.
 
     `$CLAUDE_PROJECT_DIR/.claude/blind-reads.json` is the declaration. The
     project path wins because the config is the project's: the kit ships as a
@@ -691,38 +713,82 @@ def config() -> dict[str, Any]:
     project. `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh` and
     `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh` run with the checkout as their
     working directory and would otherwise read a project's declaration as
-    absent and move every lane back to its default without saying so. Both
-    scripts resolve the checkout at entry and export the variable, so the walk
-    is the last fallback rather than the usual path; where it does run it
-    follows a worktree's pointer file to the main checkout, because that is
-    where the declaration is. A variable that is set is the project and the
-    walk does not run: a project that declares nothing declares nothing,
-    whatever checkout it sits under.
+    absent. Both scripts resolve the checkout at entry and export the
+    variable, so the walk is the last fallback rather than the usual path;
+    where it does run it follows a worktree's pointer file to the main
+    checkout, because that is where the declaration is.
 
     The copy beside this file is the last fallback, for a kit copied into a
-    tree rather than installed. The kit itself ships none.
-
-    An unreadable or malformed file is an empty config, which is the default
-    lane: a typo in the file moves nothing. That holds for whichever source is
-    read — a malformed file is an empty config rather than a fall back to the
-    next candidate, so a broken declaration never half-applies.
+    tree rather than installed. The kit itself ships none, and the fallback is
+    reached only where the project names no file at all: a project path that
+    exists is the declaration whatever it holds, so a malformed project file
+    never half-applies by falling through to a second source. Where neither
+    file is there the path named is the project's, because that is the one to
+    write.
     """
     beside = Path(__file__).resolve().parent / "blind-reads.json"
-    source = beside
     project = os.environ.get("CLAUDE_PROJECT_DIR")
     if not project:
         root = project_checkout(Path.cwd().resolve())
         project = str(root) if root else None
-    if project:
-        candidate = Path(project) / ".claude" / "blind-reads.json"
-        if candidate.is_file():
-            source = candidate
+    if not project:
+        return beside
+    candidate = Path(project) / ".claude" / "blind-reads.json"
+    return beside if not candidate.is_file() and beside.is_file() else candidate
+
+
+def config() -> dict[str, Any]:
+    """The project's declaration, or a `ConfigFault` naming the file.
+
+    A file that is there and parses is the project's word, and `{}` is a word
+    like any other: it asks for the kit's defaults and gets them. Absent,
+    unreadable, not JSON, and not a JSON object are the four faults. They were
+    one answer with "declares nothing" once -- all five came back `{}` -- which
+    meant a typo in the file moved `scripts/pair.sh merge` onto whatever
+    `target_branch` defaults to and dropped a runner's deselection, with
+    nothing said to anyone.
+
+    The fault is raised rather than printed. `hook_main` turns it into a
+    denial and the `--config` reader turns it into a non-zero exit naming the
+    path, so an operator reads the path instead of a traceback out of a hook.
+    """
+    source = config_path()
     try:
         with source.open(encoding="utf-8") as fh:
             loaded = json.load(fh)
-    except (OSError, ValueError):
-        return {}
-    return loaded if isinstance(loaded, dict) else {}
+    except FileNotFoundError:
+        raise ConfigFault(
+            f"no declaration at {source}: run scripts/init.py to write one"
+        ) from None
+    except OSError as exc:
+        raise ConfigFault(f"the declaration at {source} cannot be read ({exc})") from None
+    except ValueError as exc:
+        raise ConfigFault(f"the declaration at {source} is not valid JSON ({exc})") from None
+    if not isinstance(loaded, dict):
+        raise ConfigFault(f"the declaration at {source} is not a JSON object")
+    return loaded
+
+
+@functools.lru_cache(maxsize=1)
+def _declared() -> tuple[dict[str, Any], str | None]:
+    """The declaration and the fault it is, read once per process.
+
+    The fault is held here rather than raised because the callers are
+    module-level constants in seven hooks and in this file: a hook that raises
+    while importing takes the whole session with it, and the denial it owed
+    the operator is never printed. So the resolved values stay the kit's
+    defaults and the fault waits at the entry point, which is the one place
+    that can shape it.
+    """
+    try:
+        return config(), None
+    except ConfigFault as exc:
+        return {}, str(exc)
+
+
+def config_fault() -> str | None:
+    """The fault this project's declaration is, or `None` when it is its word."""
+    return _declared()[1]
 
 
 def _under(path: str, parent: str) -> bool:
@@ -863,19 +929,19 @@ def dirs_from(conf: dict[str, Any]) -> dict[str, str]:
 @functools.lru_cache(maxsize=1)
 def dirs() -> dict[str, str]:
     """The resolved set, read once per process."""
-    return dirs_from(config())
+    return dirs_from(_declared()[0])
 
 
 @functools.lru_cache(maxsize=1)
 def scalars() -> dict[str, str]:
     """The resolved scalars, read once per process."""
-    return scalars_from(config())
+    return scalars_from(_declared()[0])
 
 
 @functools.lru_cache(maxsize=1)
 def runners() -> dict[str, list[str]]:
     """The resolved runner invocations, read once per process."""
-    return runners_from(config())
+    return runners_from(_declared()[0])
 
 
 def pytest_command() -> list[str]:
@@ -1481,6 +1547,24 @@ def undecidable(why: str) -> str:
     )
 
 
+def misconfigured(fault: str) -> str:
+    """The refusal a hook gives while the project's declaration is a fault.
+
+    A lane is a configured directory, so a hook whose config will not load
+    does not know where any lane is. It refuses rather than deciding against
+    the kit's defaults: defaults that are not the project's are a lane in the
+    wrong place, and a lane in the wrong place guards nothing.
+    """
+    hook = Path(sys.argv[0]).name or "a gauntlet hook"
+    return (
+        f"{hook} refuses this call: {fault}. The lanes are configured "
+        "directories, so a gate that cannot read the declaration does not know "
+        "which directory it guards, and it will not fall back on the kit's "
+        "defaults and guard the wrong one. Fix the file, or write one with "
+        f"`python3 scripts/init.py`. (hooks/{hook})"
+    )
+
+
 def is_denial(answer: str) -> bool:
     """Whether a hook's stdout is a `PreToolUse` denial."""
     try:
@@ -1688,6 +1772,10 @@ def hook_main(verdict: Verdict, *, guards: tuple[str, ...] = WRITE_TOOLS + ("Bas
     if refusal is not None or data is None:
         print(deny(refusal or undecidable("its payload named no call")))
         return
+    fault = config_fault()
+    if fault is not None:
+        print(deny(misconfigured(fault)))
+        return
     try:
         reason = verdict(data.get("tool_name", ""), data.get("tool_input") or {}, data)
     except Exception as exc:  # noqa: BLE001 -- see the docstring: a crash is a denial
@@ -1715,6 +1803,10 @@ def answer_main(
     data, refusal = read_payload(guards)
     if refusal is not None or data is None:
         print(deny(refusal or undecidable("its payload named no call")))
+        return
+    fault = config_fault()
+    if fault is not None:
+        print(deny(misconfigured(fault)))
         return
     try:
         answer = answer_of(data)
@@ -1834,6 +1926,13 @@ if __name__ == "__main__":
     #: shell script; `scripts/blind.sh` and `scripts/pair.sh` read it through
     #: here so one reader serves the hooks and the scripts alike
     if len(sys.argv) == 3 and sys.argv[1] == "--config":
+        #: a fault is the exit status and a line on stderr, never a value on
+        #: stdout: the shell reading this substitutes what it is given, and a
+        #: default printed here is the wrong branch or the wrong lane, silently
+        fault = config_fault()
+        if fault is not None:
+            sys.stderr.write(f"shell_shapes.py: {fault}\n")
+            sys.exit(2)
         sys.stdout.write("".join(line + "\n" for line in config_lines(sys.argv[2])))
         sys.exit(0)
     sys.stderr.write("usage: shell_shapes.py --config <key>\n")
