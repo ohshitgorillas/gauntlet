@@ -68,6 +68,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 **Breaking for existing installs:** re-copy `.claude/` and re-run the `--self-test` commands.
 
 ### Fixed
+- `scripts/blind.sh test` resolving a spec worktree against a `tests_dir` that carries a glob character. The configured name is the needle in both of the parameter expansions that split the path, so it is quoted: an unquoted `*` or `?` there matched a directory the key does not name, and the run landed in the wrong tree.
 - Lane writes slipping through behind a harmless head word.
 - Blind reads through an interpreter's `-e`/`-c`, an unrooted `grep -rn x .`, or a source file under a directory named `docs`, `tests` or `specs`.
 - Lanes now hold outside a git checkout, including the write that creates the lane directory.

@@ -100,8 +100,11 @@ cmd_test() {
 	#: a path into a spec worktree names the tree it runs in; anything else is
 	#: the main checkout, and the hook admits no third shape
 	if [[ $path == .claude/worktrees/*-spec/* ]]; then
-		tree=$ROOT/${path%%/$tests/*}
-		rel=$tests/${path#*/$tests/}
+		#: `$tests` is quoted inside both expansions because it is the needle,
+		#: not the pattern: a `tests_dir` carrying `*` or `?` would otherwise
+		#: match a directory it does not name.
+		tree=$ROOT/${path%%/"$tests"/*}
+		rel=$tests/${path#*/"$tests"/}
 	fi
 	[ -f "$tree/$rel" ] || die "no such test file: $path"
 
