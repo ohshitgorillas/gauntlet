@@ -98,7 +98,7 @@ def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
         return None
     if (payload.get("agent_type") or "") not in BLIND:
         return _CALLER
-    return None if _allowed_command(tool_input.get("command", "")) else _WHY
+    return None if _allowed_command(sh.command_of(tool_input)) else _WHY
 
 
 def main() -> None:
@@ -108,6 +108,8 @@ def main() -> None:
         data = json.loads(sys.stdin.read())
     except (ValueError, OSError):
         return  # never block on our own failure
+    if not isinstance(data, dict):
+        return  # a payload that is not an object names no tool call
     reason = _verdict(data.get("tool_name", ""), data.get("tool_input") or {}, data)
     if reason is not None:
         print(sh.deny(reason))
@@ -187,4 +189,4 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else sh.never_block(main)
+    sys.exit(self_test()) if "--self-test" in sys.argv else main()

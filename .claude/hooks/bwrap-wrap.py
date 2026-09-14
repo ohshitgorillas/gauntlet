@@ -67,13 +67,6 @@ Nothing about a checkout is assumed. A worktree's `.git/hooks` and `.git/config`
 simply drop out of its profile, and the protection still holds, because a
 worktree shares both with the main checkout whose copies are bound read-only.
 
-Where the profile cannot be built at all -- an exception from anywhere in
-`wrap` -- `_bare` answers instead: the same sandbox with no repository-shaped
-bind in it beyond the writable root. It asserts nothing about the tree, so
-there is nothing in it to be wrong about. The lane directories lose their
-read-only bind in that mode, which is a real loss, said on stderr rather than
-swallowed; a dead shell would be the larger one.
-
 One shape escapes the wrap: `scripts/pair.sh`, which writes lane files by
 design. `pair_passthrough.is_pair_command` holds that decision, in its own file,
 because a wrapper that decided for itself which commands to skip would be a
@@ -150,7 +143,7 @@ def _answer(payload: dict) -> dict | None:
             }
         }
 
-    root = payload.get("cwd") or os.getcwd()
+    root = sh.cwd_of(payload)
     wrapped = wrap(command, root, agent)
     return {
         "hookSpecificOutput": {
@@ -227,30 +220,9 @@ def wrap(command: str, root: str, agent: str) -> str:
 
     The caller's text is carried on stdin through a here-document, so it appears
     in the result byte for byte however it is spelled.
-
-    Never raises. A profile that cannot be built falls back to `_bare`, which
-    asserts nothing about the shape of the tree.
     """
-    try:
-        args = _profile(root, agent)
-    except Exception:  # noqa: BLE001 -- a dead shell is worse than a bare sandbox
-        print(
-            "bwrap-wrap.py: could not build the sandbox profile for "
-            f"{root!r}; falling back to a bare sandbox, in which the lane "
-            "directories are writable. This is a defect in the hook.",
-            file=sys.stderr,
-        )
-        args = _bare(root)
+    args = _profile(root, agent)
     return " ".join(_quote(a) for a in args) + " " + _heredoc(command)
-
-
-def _bare(root: str) -> list[str]:
-    """The sandbox with no repository-shaped bind in it beyond a writable root.
-
-    The fallback profile. It names one path the caller gave us and no path this
-    hook worked out for itself, so there is nothing in it to be wrong about.
-    """
-    return _base(root) + _bind("--bind", root) + ["--", "bash", "-s"]
 
 
 def _profile(root: str, agent: str) -> list[str]:
@@ -311,6 +283,8 @@ def main() -> None:
         payload = json.loads(sys.stdin.read())
     except (ValueError, OSError):
         return  # never block on our own failure
+    if not isinstance(payload, dict):
+        return  # a payload that is not an object names no tool call
     answer = _answer(payload)
     if answer is not None:
         print(json.dumps(answer))
@@ -444,16 +418,6 @@ def _self_test_in(tmp: str) -> int:
             or not os.path.exists(gone)
             and f"--chdir {gone}" not in wrap("true", gone, "gauntlet-prosecutor")
         ),
-        "a profile that cannot be built falls back to a bare sandbox, not a crash": (
-            _falls_back_to_bare(root)
-        ),
-        "the bare sandbox names no path this hook worked out for itself": (
-            [a for a in _bare(root) if a.startswith(root) and a != root] == []
-        ),
-        #: the class: a hook's own failure never stops a tool call
-        "an internal failure allows the call rather than blocking it": (
-            _never_block_allows()
-        ),
         #: a hook decides a tool call, so its own crash is a denial
         "no payload shape makes this hook block the call it is deciding": (
             sh.survives_hostile_payloads(__file__)
@@ -464,7 +428,6 @@ def _self_test_in(tmp: str) -> int:
         for label, profile in (
             ("the default profile runs, against this very tree", default),
             ("the reviewer profile runs, against this very tree", reviewer),
-            ("the bare fallback runs", " ".join(_quote(a) for a in _bare(root)) + " " + _heredoc("true")),
             (
                 "the profile for the real checkout this gate runs in runs",
                 wrap("true", os.path.dirname(os.path.dirname(os.path.dirname(
@@ -485,45 +448,5 @@ def _self_test_in(tmp: str) -> int:
     return 0 if all(lines.values()) else 1
 
 
-def _falls_back_to_bare(root: str) -> bool:
-    """That an exception anywhere in the profile becomes `_bare`, not a crash.
-
-    `_profile` is replaced for the length of the check, because the point is
-    what happens for a bug that does not exist yet: no real defect can be left
-    in the tree to stand in for one.
-    """
-    global _profile
-    keep, bare = _profile, " ".join(_quote(a) for a in _bare(root))
-
-    def boom(*_args: object) -> list[str]:
-        raise RuntimeError("a defect that has not been written yet")
-
-    _profile = boom
-    try:
-        got = wrap("echo hi", root, "gauntlet-prosecutor")
-    except Exception:  # noqa: BLE001 -- a raise here is the failure being pinned
-        return False
-    finally:
-        _profile = keep
-    return got.startswith(bare) and got.endswith(_heredoc("echo hi"))
-
-
-def _never_block_allows() -> bool:
-    """That a hook whose `main()` raises still exits 0 and says nothing.
-
-    Run as a subprocess, because the thing under test is an exit status.
-    """
-    program = (
-        "import sys; sys.path.insert(0, %r); import shell_shapes as sh; "
-        "sh.never_block(lambda: (_ for _ in ()).throw(RuntimeError('boom')))"
-        % os.path.dirname(os.path.abspath(__file__))
-    )
-    done = subprocess.run(
-        [sys.executable, "-c", program], capture_output=True, text=True, timeout=60
-    )
-    return done.returncode == 0 and done.stdout == "" and "boom" in done.stderr
-
-
-
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else sh.never_block(main)
+    sys.exit(self_test()) if "--self-test" in sys.argv else main()

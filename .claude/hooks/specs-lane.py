@@ -71,13 +71,13 @@ def _bash_verdict(command: str) -> str | None:
 
 def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
     """Why this call is refused, or None to let it through."""
-    cwd = payload.get("cwd") or os.getcwd()
+    cwd = sh.cwd_of(payload)
     agent = payload.get("agent_type") or ""
     if name in WRITE_TOOLS:
         target = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
         return _write_verdict(target, cwd, agent) if target else None
     if name == "Bash":
-        return _bash_verdict(tool_input.get("command", ""))
+        return _bash_verdict(sh.command_of(tool_input))
     return None
 
 
@@ -88,6 +88,8 @@ def main() -> None:
         data = json.loads(sys.stdin.read())
     except (ValueError, OSError):
         return  # never block on our own failure
+    if not isinstance(data, dict):
+        return  # a payload that is not an object names no tool call
     reason = _verdict(data.get("tool_name", ""), data.get("tool_input") or {}, data)
     if reason is not None:
         print(sh.deny(reason))
@@ -211,4 +213,4 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else sh.never_block(main)
+    sys.exit(self_test()) if "--self-test" in sys.argv else main()

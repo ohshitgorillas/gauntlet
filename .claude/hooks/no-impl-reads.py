@@ -386,7 +386,7 @@ def _verdict(name: str, tool_input: dict, root: str | None, cwd: str, conf: dict
             return _UNROOTED
         return None if readable(target, root, cwd, allow) else _WHY
     if name == "Bash":
-        command = tool_input.get("command", "")
+        command = sh.command_of(tool_input)
         if SERVED.search(command):
             return _WHY
         return _bash_verdict(command, root, cwd, allow, runners)
@@ -400,7 +400,9 @@ def main() -> None:
         data = json.loads(sys.stdin.read())
     except (ValueError, OSError):
         return  # never block on our own failure
-    cwd = data.get("cwd") or os.getcwd()
+    if not isinstance(data, dict):
+        return  # a payload that is not an object names no tool call
+    cwd = sh.cwd_of(data)
     try:
         reason = _verdict(
             data.get("tool_name", ""), data.get("tool_input") or {}, repo_root(cwd), cwd, config()
@@ -610,4 +612,4 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else sh.never_block(main)
+    sys.exit(self_test()) if "--self-test" in sys.argv else main()

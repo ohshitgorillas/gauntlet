@@ -917,32 +917,28 @@ def deny(reason: str) -> str:
     )
 
 
-def never_block(entry) -> None:
-    """Run one hook's `main()` so that its own failure cannot stop a tool call.
+def command_of(tool_input: dict) -> str:
+    """The `command` field of a tool input, as a string, whatever it holds.
 
-    A `PreToolUse` hook that raises exits non-zero, and a non-zero exit is read
-    as a block: an internal bug in a hook becomes a dead session, every tool
-    call refused until someone edits the tree. That trade is never worth it.
-    The hooks here are advisory machinery, not the last line of anything, so an
-    unhandled exception is swallowed, a note goes to stderr where a transcript
-    keeps it, and the call proceeds as if the hook had said nothing.
-
-    The swallow covers `Exception` only. `KeyboardInterrupt` and `SystemExit`
-    are the caller's control flow and pass through, so `sys.exit(1)` from a
-    `--self-test` still means what it says.
+    A hook reads this field and hands it to a classifier that splits it. The
+    field is whatever the payload carried, so a number or a list there reaches
+    the classifier as one and raises -- and a hook that raises exits non-zero,
+    which is read as a denial of the call it was deciding. Anything that is not
+    a string is no command, and an empty string is the shape the classifier
+    already answers for.
     """
-    import traceback
+    command = (tool_input or {}).get("command")
+    return command if isinstance(command, str) else ""
 
-    try:
-        entry()
-    except Exception:  # noqa: BLE001 -- the whole point is that nothing escapes
-        name = os.path.basename(sys.argv[0]) or "hook"
-        print(
-            f"{name}: failed internally and allowed the call; "
-            "this is a defect in the hook, not in the command",
-            file=sys.stderr,
-        )
-        traceback.print_exc(file=sys.stderr)
+
+def cwd_of(payload: dict) -> str:
+    """The `cwd` a payload names, as a path, or this process's own.
+
+    Same boundary as `command_of`: the field is whatever the payload carried,
+    and a hook that hands a number to `os.path` raises, which denies the call.
+    """
+    cwd = (payload or {}).get("cwd")
+    return cwd if isinstance(cwd, str) and cwd else os.getcwd()
 
 
 #: payloads a hook must answer without dying. Not a guess at what Claude Code

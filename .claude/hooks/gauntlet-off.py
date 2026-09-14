@@ -207,7 +207,7 @@ def _verdict(name: str, tool_input: dict) -> str | None:
     """Why this call is refused, or None to let it through."""
     if name != "Bash":
         return None
-    command = tool_input.get("command", "")
+    command = sh.command_of(tool_input)
     if sets_var(command):
         return _WHY_ASSIGN
     if invokes_claude(command):
@@ -231,6 +231,8 @@ def bash() -> None:
         data = json.loads(sys.stdin.read())
     except (ValueError, OSError):
         return  # never block on our own failure
+    if not isinstance(data, dict):
+        return  # a payload that is not an object names no tool call
     reason = _verdict(data.get("tool_name", ""), data.get("tool_input") or {})
     if reason is not None:
         print(sh.deny(reason))
@@ -314,8 +316,8 @@ if __name__ == "__main__":
     if "--self-test" in sys.argv:
         sys.exit(self_test())
     if "--session-start" in sys.argv:
-        sh.never_block(session_start)
+        session_start()
     elif "--prompt" in sys.argv:
-        sh.never_block(prompt)
+        prompt()
     elif "--bash" in sys.argv:
-        sh.never_block(bash)
+        bash()
