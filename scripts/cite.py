@@ -105,7 +105,7 @@ def quotes_in(line):
     return out
 
 
-def anchor_pairs(line, cites):
+def anchor_pairs(line: str, cites: list[Citation]) -> None:
     """Bind each quote on the line to at most one citation, and set anchors.
 
     A plan writes the quote after the citation -- `docs/plans.md:37` requires
@@ -122,13 +122,28 @@ def anchor_pairs(line, cites):
     an unbounded reach would pair a citation with a quote several claims away.
     """
     quotes = quotes_in(line)
-    taken = set()
+    taken: set[int] = set()
+    _bind_following(line, cites, quotes, taken)
+    _bind_preceding(line, cites, quotes, taken)
 
-    def reachable(gap):
-        if len(gap) > REACH or "`" in gap:
-            return False
-        return not any(end in gap for end in (". ", "; ", "! ", "? "))
 
+def reachable(gap: str) -> bool:
+    """Whether a citation reaches across this gap to a quote.
+
+    Too far, a backtick, or a sentence end, and it does not.
+    """
+    if len(gap) > REACH or "`" in gap:
+        return False
+    return not any(end in gap for end in (". ", "; ", "! ", "? "))
+
+
+def _bind_following(
+    line: str,
+    cites: list[Citation],
+    quotes: list[re.Match[str]],
+    taken: set[int],
+) -> None:
+    """First pass: each citation claims the nearest quote after it."""
     for cite in cites:
         for i, found in enumerate(quotes):
             if i in taken or found.start() < cite.col_end:
@@ -137,6 +152,15 @@ def anchor_pairs(line, cites):
                 cite.anchor = found.group(1)
                 taken.add(i)
             break
+
+
+def _bind_preceding(
+    line: str,
+    cites: list[Citation],
+    quotes: list[re.Match[str]],
+    taken: set[int],
+) -> None:
+    """Second pass: a citation that claimed nothing looks behind it."""
     for cite in cites:
         if cite.anchor:
             continue

@@ -65,63 +65,108 @@ def _frontmatter_end(lines: list[str]) -> int:
     return 0  # unterminated — not frontmatter, reflow it like any other prose
 
 
+class _Blocks:
+    """The output lines, and the one logical line being gathered into them.
+
+    A paragraph, list item or blockquote arrives as several source lines and
+    leaves as one, so the gathering needs somewhere to sit between them. It
+    sits here rather than in a closure over `reflow`, which is what lets the
+    fence bookkeeping and the prose gathering be two readable functions
+    instead of one long loop.
+    """
+
+    def __init__(self, out: list[str]) -> None:
+        self.out = out
+        self.block: list[str] = []
+        self.prefix = ""
+
+    def add(self, entry: str) -> None:
+        """Continue the block being gathered."""
+        self.block.append(entry)
+
+    def open(self, text: str, prefix: str) -> None:
+        """End the block being gathered and start a new one at this line."""
+        self.flush()
+        self.prefix, entry = _opening(text, prefix)
+        self.block.append(entry)
+
+    def flush(self) -> None:
+        """Emit the gathered block, if there is one."""
+        if self.block:
+            self.out.append(self.prefix + " ".join(self.block))
+            self.block, self.prefix = [], ""
+
+    def hard_break(self) -> None:
+        """Emit the gathered block with the two spaces that ended it."""
+        self.out.append(self.prefix + " ".join(self.block) + "  ")
+        self.block, self.prefix = [], ""
+
+
+def _opening(text: str, prefix: str) -> tuple[str, str]:
+    """The prefix a block starting at this line carries, and its first entry."""
+    if LIST_RE.match(text) is None and not prefix:
+        indent = re.match(r"^\s*", text)
+        return (indent.group(0) if indent else ""), text.strip()
+    return prefix, text.rstrip()
+
+
+def _fence_line(line: str, in_fence: bool, marker: str, blocks: _Blocks) -> tuple[bool, str, bool]:
+    """Fence bookkeeping for one line.
+
+    Returns the fence state after it and whether the line was already emitted.
+    Everything inside a fence is copied through untouched; a fence closes only
+    on its own marker, so a ``~~~`` inside a ``````` block does not end it.
+    """
+    fence = FENCE_RE.match(line)
+    if fence:
+        if not in_fence:
+            blocks.flush()
+            blocks.out.append(line)
+            return True, fence.group(1), True
+        blocks.out.append(line)
+        if line.strip().startswith(marker):
+            return False, "", True
+        return True, marker, True
+    if in_fence:
+        blocks.out.append(line)
+        return True, marker, True
+    return in_fence, marker, False
+
+
+def _prose_line(line: str, blocks: _Blocks) -> None:
+    """Gather one line of prose into the block being built."""
+    quote = QUOTE_RE.match(line)
+    prefix, text = (quote.group(1), quote.group(2)) if quote else ("", line)
+
+    if not text.strip():
+        blocks.flush()
+        blocks.out.append(line)
+        return
+
+    if _is_block_start(text) or prefix != blocks.prefix or not blocks.block:
+        blocks.open(text, prefix)
+    else:
+        blocks.add(text.strip())
+
+    if HARD_BREAK_RE.search(line):
+        # explicit hard break: the author meant this line to end here
+        blocks.hard_break()
+
+
 def reflow(source: str) -> str:
     lines = source.split("\n")
     fm = _frontmatter_end(lines)
     out: list[str] = lines[:fm]
-    lines = lines[fm:]
-    block: list[str] = []
-    block_prefix = ""
+    blocks = _Blocks(out)
     in_fence = False
     fence_marker = ""
 
-    def flush() -> None:
-        nonlocal block, block_prefix
-        if block:
-            out.append(block_prefix + " ".join(block))
-            block = []
-            block_prefix = ""
+    for line in lines[fm:]:
+        in_fence, fence_marker, handled = _fence_line(line, in_fence, fence_marker, blocks)
+        if not handled:
+            _prose_line(line, blocks)
 
-    for line in lines:
-        fence = FENCE_RE.match(line)
-        if fence:
-            if not in_fence:
-                flush()
-                in_fence, fence_marker = True, fence.group(1)
-            elif line.strip().startswith(fence_marker):
-                in_fence, fence_marker = False, ""
-            out.append(line)
-            continue
-        if in_fence:
-            out.append(line)
-            continue
-
-        quote = QUOTE_RE.match(line)
-        prefix, text = (quote.group(1), quote.group(2)) if quote else ("", line)
-
-        if not text.strip():
-            flush()
-            out.append(line)
-            continue
-
-        if _is_block_start(text) or prefix != block_prefix or not block:
-            flush()
-            block_prefix = prefix
-            indent = LIST_RE.match(text)
-            if indent is None and not prefix:
-                block_prefix = re.match(r"^\s*", text).group(0)  # type: ignore[union-attr]
-                block.append(text.strip())
-            else:
-                block.append(text.rstrip())
-        else:
-            block.append(text.strip())
-
-        if HARD_BREAK_RE.search(line):
-            # explicit hard break: the author meant this line to end here
-            out.append(block_prefix + " ".join(block) + "  ")
-            block, block_prefix = [], ""
-
-    flush()
+    blocks.flush()
     return "\n".join(out)
 
 

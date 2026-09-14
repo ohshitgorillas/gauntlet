@@ -31,14 +31,27 @@ from pathlib import Path
 USAGE = "usage: symbol-closure.py --symbols-stdin <anchor>"
 
 
-def names_and_defines(text):
-    """The identifiers a file spells, and the names it defines itself."""
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        return set(), set()
+def _imported_names(node: ast.AST) -> set[str]:
+    """The names an import spells: every dotted part, and any alias.
 
-    names, defines = set(), set()
+    The dotted parts are taken one by one because a file that reaches a symbol
+    through `pkg.mod.name` spells `pkg` and `mod` as surely as it spells the
+    name, and the closure is over what a file spells.
+    """
+    if isinstance(node, ast.alias):
+        out = set(node.name.split("."))
+        if node.asname:
+            out.add(node.asname)
+        return out
+    if isinstance(node, ast.ImportFrom) and node.module:
+        return set(node.module.split("."))
+    return set()
+
+
+def _spelled_names(tree: ast.AST) -> tuple[set[str], set[str]]:
+    """Every identifier the tree spells, and the ones a `def` or `class` binds."""
+    names: set[str] = set()
+    defines: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Name):
             names.add(node.id)
@@ -49,15 +62,20 @@ def names_and_defines(text):
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             names.add(node.name)
             defines.add(node.name)
-        elif isinstance(node, ast.alias):
-            names.update(node.name.split("."))
-            if node.asname:
-                names.add(node.asname)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            names.update(node.module.split("."))
+        else:
+            names |= _imported_names(node)
+    return names, defines
 
+
+def _module_assignments(tree: ast.Module) -> set[str]:
+    """The names a module-level assignment binds.
+
+    Module level only: a name bound inside a function is that function's, and
+    a file that reaches it reaches the function's own name first.
+    """
+    out: set[str] = set()
     for node in tree.body:
-        targets = []
+        targets: list[ast.expr] = []
         if isinstance(node, ast.Assign):
             targets = node.targets
         elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
@@ -65,9 +83,19 @@ def names_and_defines(text):
         for target in targets:
             for inner in ast.walk(target):
                 if isinstance(inner, ast.Name):
-                    defines.add(inner.id)
+                    out.add(inner.id)
+    return out
 
-    return names, defines
+
+def names_and_defines(text: str) -> tuple[set[str], set[str]]:
+    """The identifiers a file spells, and the names it defines itself."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set(), set()
+
+    names, defines = _spelled_names(tree)
+    return names, defines | _module_assignments(tree)
 
 
 def closure(root, symbols):
