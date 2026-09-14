@@ -176,6 +176,10 @@ def self_test() -> int:
                 denied(bash("scripts/blind.sh status demo", "scrivener")),
             )
         ),
+        #: a hook decides a tool call, so its own crash is a denial
+        "no payload shape makes this hook block the call it is deciding": (
+            sh.survives_hostile_payloads(__file__)
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
@@ -183,4 +187,4 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else main()
+    sys.exit(self_test()) if "--self-test" in sys.argv else sh.never_block(main)

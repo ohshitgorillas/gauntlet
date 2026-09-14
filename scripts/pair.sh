@@ -5,6 +5,8 @@
 #   pair.sh open <slug>    cut the spec worktree, on the reviewed block only
 #   pair.sh red <slug>     run the suite there, and remove whole-file targets
 #   pair.sh merge <slug>   merge the spec branch, then check what landed
+#   pair.sh review <slug>  the path the next spec round is written to
+#   pair.sh review plan <slug>   the same, for the next plan round
 #   pair.sh restore <slug> <rev>   put the approved block back as it was at <rev>
 #   pair.sh impl checkout <slug>   cut the implementation tree, or name the cut one
 #   pair.sh impl merge <slug>      merge the implementation tree back
@@ -38,22 +40,31 @@ reviewer_section() {
 	sed -n '/^--- reviewer ---$/,$p' "$1" | tail -n +2
 }
 
-#: the highest <N> the reviewer has written for this slug, or nothing
-newest_round() {
-	local slug=$1 newest= best=-1 n
-	for f in gauntlet/reviews/"$slug".[0-9]*.txt; do
+#: the highest <N> on disk for a slug in one round series, or 0 for none. The
+#: series is named by its infix: empty for the spec rounds
+#: `<slug>.<N>.txt`, `plan.` for the plan rounds `<slug>.plan.<N>.txt`.
+highest_round() {
+	local slug=$1 infix=$2 best=0 n
+	for f in gauntlet/reviews/"$slug"."$infix"[0-9]*.txt; do
 		[ -e "$f" ] || continue
-		n=${f##*"$slug".}
+		n=${f##*"$slug"."$infix"}
 		n=${n%.txt}
 		case $n in
 		'' | *[!0-9]*) continue ;;
 		esac
 		if [ "$n" -gt "$best" ]; then
 			best=$n
-			newest=$f
 		fi
 	done
-	echo "$newest"
+	echo "$best"
+}
+
+#: the newest spec round the reviewer has written for this slug, or nothing
+newest_round() {
+	local slug=$1 n
+	n=$(highest_round "$slug" "")
+	[ "$n" -gt 0 ] || return 0
+	echo "gauntlet/reviews/$slug.$n.txt"
 }
 
 #: `N. excise <target>` lines of the committed block, targets only
@@ -147,6 +158,24 @@ cmd_merge() {
 	esac
 }
 
+#: the path a reviewer writes its round to, counted here and handed to it in
+#: its brief. A reviewer cannot count the directory itself: reviews-lane.py
+#: denies it every read of `gauntlet/reviews/`, so a reviewer left to pick its
+#: own `<N>` is guessing, and a guess that lands on a number already taken
+#: overwrites a round that exists in no git object and is gone.
+cmd_review() {
+	local slug=$1 infix= n
+	if [ "$slug" = plan ]; then
+		infix=plan.
+		slug=$2
+	fi
+	[ -n "$slug" ] || die "usage: pair.sh review [plan] <slug>"
+	#: the reviewer's Write is its own; the directory it writes into is not
+	mkdir -p gauntlet/reviews
+	n=$(highest_round "$slug" "$infix")
+	echo "REVIEW gauntlet/reviews/$slug.$infix$((n + 1)).txt"
+}
+
 #: the hand-carved `git restore --source` step of docs/approved-specs.md, given
 #: a name: the classifier carves out that one shell shape, and a subcommand
 #: keeps the carve-out in one place rather than in every transcript
@@ -188,12 +217,13 @@ cmd_impl() {
 	esac
 }
 
-USAGE="usage: pair.sh open|red|merge <slug> | restore <slug> <rev> | impl checkout|merge <slug>"
+USAGE="usage: pair.sh open|red|merge <slug> | review [plan] <slug> | restore <slug> <rev> | impl checkout|merge <slug>"
 
 main() {
 	[ $# -ge 2 ] || die "$USAGE"
 	case $1 in
 	open) cmd_open "$2" ;;
+	review) cmd_review "$2" "${3-}" ;;
 	restore) cmd_restore "$2" "${3-}" ;;
 	red) cmd_red "$2" ;;
 	merge) cmd_merge "$2" ;;

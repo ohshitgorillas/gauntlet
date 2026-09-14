@@ -226,6 +226,43 @@ def self_test() -> int:
                 denied(bash("scripts/blind.sh status tests")),
             )
         ),
+        "8 the lane is what a write targets, not what its text mentions": all(
+            (
+                #: the body of a heredoc is content; the target is the
+                #: redirection that opened it
+                allowed(bash("cat > drafts/x.txt <<EOF\nsee tests/t.py\nEOF")),
+                allowed(bash("echo 'tests/t.py' >> notes.txt")),
+                #: a `for` header runs no command, so its list is strings
+                allowed(bash('for c in "rm tests/t.py"; do echo "$c"; done')),
+                #: a `>` inside quotes is a character, not a redirection
+                allowed(bash("grep -n 'a > b' tests/")),
+                #: and the same shapes aimed at the lane are still writes
+                denied(bash("cat > tests/t.py <<EOF\nx\nEOF")),
+                denied(bash("echo x >> tests/t.py")),
+                denied(bash('cat impl.py > "tests/t.py"')),
+            )
+        ),
+        "9 the readers a search is made of are reads": all(
+            (
+                allowed(bash("find tests -name '*.py'")),
+                allowed(bash("find tests -name '*.py' | xargs grep -n foo")),
+                allowed(bash("awk '{print}' tests/t.py")),
+                allowed(bash("cmp tests/a.py tests/b.py")),
+                allowed(bash(".venv/bin/ruff check tests")),
+                allowed(bash(".venv/bin/ruff format --check tests")),
+                #: each of them has a form that writes, and that form is one
+                denied(bash("find tests -name '*.py' -delete")),
+                denied(bash("find tests -name '*.py' | xargs rm")),
+                denied(bash("awk '{print > \"tests/t.py\"}' a.txt")),
+                denied(bash("awk -f prog.awk tests/t.py")),
+                denied(bash(".venv/bin/ruff check --fix tests")),
+                denied(bash(".venv/bin/ruff format tests")),
+            )
+        ),
+        #: a hook decides a tool call, so its own crash is a denial
+        "no payload shape makes this hook block the call it is deciding": (
+            sh.survives_hostile_payloads(__file__)
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
@@ -233,4 +270,4 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else main()
+    sys.exit(self_test()) if "--self-test" in sys.argv else sh.never_block(main)

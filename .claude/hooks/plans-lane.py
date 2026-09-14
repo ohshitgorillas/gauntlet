@@ -174,6 +174,25 @@ def self_test() -> int:
                 denied(bash("scripts/blind.sh test tests/a/../../gauntlet/plans/approved/slug.txt")),
             )
         ),
+        "7 the lane is what a write targets, not what its text mentions": all(
+            (
+                allowed(
+                    bash(
+                        "cat > gauntlet/plans/drafts/slug.txt <<EOF\n"
+                        "cites gauntlet/plans/approved/other.txt\nEOF"
+                    )
+                ),
+                allowed(bash("echo 'gauntlet/plans/approved/slug.txt' >> notes.txt")),
+                allowed(bash("find gauntlet/plans/approved -name '*.txt'")),
+                allowed(bash("cmp gauntlet/plans/drafts/slug.txt gauntlet/plans/approved/slug.txt")),
+                denied(bash("cat draft.txt > gauntlet/plans/approved/slug.txt")),
+                denied(bash("find gauntlet/plans/approved -name '*.txt' -delete")),
+            )
+        ),
+        #: a hook decides a tool call, so its own crash is a denial
+        "no payload shape makes this hook block the call it is deciding": (
+            sh.survives_hostile_payloads(__file__)
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
@@ -181,4 +200,4 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else main()
+    sys.exit(self_test()) if "--self-test" in sys.argv else sh.never_block(main)

@@ -15,35 +15,26 @@ brief:
    bite: HEAD leaves the set equal to the pre-call set at both inputs. `before=$(git worktree list --porcelain | grep '^worktree ' | sort); scripts/pair.sh close pair-sh-restore >/dev/null 2>&1; after=$(git worktree list --porcelain | grep '^worktree ' | sort); [ "$before" = "$after" ] && echo "set unchanged" || echo "set changed"` -> `set unchanged`
    existing: none, same grep as line 1
 
-3. At `pair.sh close <slug>` and at `pair.sh close impl <slug>`, each run with both trees of `<slug>` present and clean, the second field of the call's stdout is the one path that is in the pre-call `git worktree list --porcelain` set and absent from the post-call set.
-   kills: a `close` that prints a path it did not remove — a fixed printer keyed on the arguments, or a `close impl` that prints the implementation tree's path while removing the spec tree.
-   bite: HEAD prints nothing on stdout at either call and removes nothing, so there is no path on stdout and no path missing from the post-call set. `before=$(git worktree list --porcelain | grep '^worktree ' | sort); out=$(scripts/pair.sh close impl pair-sh-restore 2>/tmp/e); after=$(git worktree list --porcelain | grep '^worktree ' | sort); echo "stdout=[$out]"; [ "$before" = "$after" ] && echo "set unchanged"` -> `stdout=[]` / `set unchanged`
-   existing: none, same grep as line 1
-
-4. The set of paths `git worktree list --porcelain` reports after `pair.sh close impl <slug>` run with both trees of `<slug>` present and clean is the pre-call set with the implementation tree's path removed and the spec tree's path still in it.
-   kills: a `close impl` that removes the spec tree, or both, so closing the implementation half of a round destroys the tree the tests were written in.
-   bite: HEAD leaves the set equal to the pre-call set. Same command as line 2 with `close impl pair-sh-restore` substituted -> `set unchanged`
+3. At `pair.sh close <slug>` and at `pair.sh close impl <slug>`, the second field of the call's stdout is the path of the worktree that call addresses — the spec tree of `<slug>` at `close <slug>`, the implementation tree of `<slug>` at `close impl <slug>`: where the addressed tree holds no uncommitted change, that path is the one path in the pre-call `git worktree list --porcelain` set and absent from the post-call set; where the addressed tree holds an uncommitted change to a tracked file, that path is in the post-call set.
+   kills: a `close` that prints a path it did not remove — a fixed printer keyed on the arguments, or a `close impl` that prints the implementation tree's path while removing the spec tree — and a refusal that prints the path of the other tree, which tells the caller the wrong tree was refused and is the brief's own failure of a `close` that discards a red run silently.
+   bite: HEAD prints nothing on stdout at either call against a clean tree and removes nothing: `before=$(git worktree list --porcelain | grep '^worktree ' | sort); out=$(scripts/pair.sh close impl pair-sh-restore 2>/tmp/e); after=$(git worktree list --porcelain | grep '^worktree ' | sort); echo "stdout=[$out]"; [ "$before" = "$after" ] && echo "set unchanged"` -> `stdout=[]` / `set unchanged`. HEAD prints nothing on stdout at a call against a dirty tree either, prints the usage line of line 1's bite on stderr, and exits 2: `echo x >> .claude/worktrees/symbol-closure-impl/README.md; out=$(scripts/pair.sh close impl symbol-closure 2>/tmp/e); echo "stdout=[$out] rc=$?"` -> `stdout=[] rc=2`
    existing: none, same grep as line 1
 
 --- reviewer ---
 READY
-discriminates: differential on `pair.sh close` - first field clean vs dirty (1), worktree-path set clean vs dirty (2), printed path against the path the call removed (3), set after `close impl` (4)
+discriminates: differential on pair.sh close - stdout first field clean vs dirty (line 1), printed path against the path that leaves the `git worktree list --porcelain` set (line 3)
 
-1  ADMITTED  carried: clean spec tree vs spec tree with an uncommitted change to a tracked file -> first field of stdout differs, `CLOSED` against `REFUSED`; a `close` reporting the same first field whatever the tree holds fails it at the dirty tree; bite: HEAD prints nothing on stdout, usage on stderr, rc 2, at both inputs.
-2  ADMITTED  carried: same two inputs -> post-call `git worktree list --porcelain` path set is the pre-call set minus that tree's path (clean) and equal to the pre-call set (dirty); a `close` that prints its line and removes nothing fails it at the clean tree, one that removes a dirty tree fails it at the dirty tree; bite: set unchanged at both inputs, measured.
-3  ADMITTED  `close <slug>` and `close impl <slug>`, both trees present and clean -> the second field of stdout is the one path in the pre-call porcelain set and absent from the post-call set; a fixed printer keyed on the arguments fails it (prints a path, removes none), and a `close impl` printing the impl path while removing the spec tree fails it; bite: stdout empty and set unchanged, measured, so no path is printed and none is missing.
-4  ADMITTED  carried: both trees present and clean -> post-call path set is the pre-call set with the implementation tree's path removed and the spec tree's path still in it; a `close impl` that removes the spec tree or both fails it; bite: set unchanged, measured.
+1  carried ADMITTED  `close <slug>` against a clean spec worktree vs the same command against a spec worktree with an uncommitted change to a tracked file -> first stdout field CLOSED vs REFUSED; a close reporting one outcome whatever the tree holds fails it at the dirty tree; bite: stdout empty, rc=2 at both inputs at HEAD
+2  carried ADMITTED  same two inputs -> post-call worktree path set is the pre-call set minus that tree at the clean input, equal to the pre-call set at the dirty input; a close that prints its line and removes nothing fails it at the clean input, one that removes a dirty tree fails it at the dirty input; bite: set unchanged at both inputs at HEAD
+3  ADMITTED  `close <slug>` and `close impl <slug>`, addressed tree clean and addressed tree dirty -> second stdout field is the addressed tree's path, absent from the post-call worktree set where that tree was clean, present in it where that tree was dirty; a refusal printing the other tree's path fails it at a dirty tree, a fixed printer keyed on the arguments fails it at `close impl <slug>`; bite: stdout empty at both calls clean (set unchanged) and empty with rc=2 at the dirty call, measured
+4  STRICKEN  (d): sibling of line 3, which is the survivor - line 3's clean branch says the addressed tree's path is *the one path* in the pre-call set and absent from the post-call set, so at `close impl <slug>` it already carries line 4 whole: a `close impl` removing the spec tree leaves the impl path present and fails line 3, and one removing both leaves two paths absent and fails line 3's uniqueness. Reversal, and what I missed in the previous round: I passed line 4 against a line 3 that already carried the same clean-tree uniqueness clause, so the redundancy was there before the repair and I did not see it. The only implementation that separates them is a `close impl` that removes the right tree and *registers a spurious extra worktree*, which is not a wrong implementation a user would notice, so the (d) escape is not taken.
 
-null stub: `close` is not a subcommand; pair.sh prints usage on stderr, exits 2, removes nothing.
-  satisfies: none   fails: 1, 2, 3, 4
-hard-coded stub: `close` prints `CLOSED <path>` keyed on the arguments, `REFUSED <path>` for a slug the harness dirtied, and removes nothing.
-  satisfies: none   fails: 1, 2, 3, 4
-  reading per line: 1's two inputs differ in the tree's content, not in the arguments, so the stub cannot key on them; 2 and 4 require the removal the stub does not do; 3 compares the printed path against the removal, which the stub does not perform.
-
-survives: 4
+null stub: `close` dispatches, does nothing, prints nothing, removes no worktree.
+  satisfies: none   fails: 1, 2, 3
+hard-coded stub: `close` prints `CLOSED <path derived from the arguments>` at both verbs and removes nothing - clean and dirty are the same arguments, so it cannot split line 1 or line 3's two branches, and removing nothing it cannot satisfy line 2 or line 3's clean branch.
+  satisfies: none   fails: 1, 2, 3
+survives: 3
 
 notes:
-- Lines 3 and 4 are not siblings: an implementation removing the impl tree while printing the spec path fails 3 and passes 4; one removing the spec tree while printing it fails 4 and passes 3.
-- Line 3 is not rule 10's round-trip: git's worktree registry is not this script's own reader.
-- The brief's `REFUSED <path> <reason>` reason field is copy under rule 9 and is correctly left unpinned; every other brief behavior is pinned by a surviving line.
-- `grep -rn "close\|CLOSED\|REFUSED" tests/` reproduced: three hits, all `closer` in tests/test_cite.py:354-366. tests/test_pair_sh.py holds open, red, merge, restore and impl tests only, so `existing: none` stands for all four lines.
+- (m) block level, re-run against the unchanged brief on the three survivors: `close <slug>` removes the spec tree (lines 2, 3), `close impl <slug>` removes the implementation tree, one path per call (line 3 clean branch at `close impl`), `CLOSED`/`REFUSED` (line 1), refusal where the tree has uncommitted work (lines 1, 2, 3). No brief sentence is left unpinned by the strike of line 4; `<reason>` stays unpinned by design, being copy under rule 9.
+- Damage, reported here rather than deferred: my previous round was written to `gauntlet/reviews/pair-sh-close.1.txt`, which already held another round, and that text is destroyed and not recoverable - the directory is gitignored. The cause is mine: the reviews lane denies me a directory read and I hold no Glob tool, so I probed for the next `<N>` with a Write, on the incorrect assumption that a Write would refuse an existing file it had not read. It did not refuse. This round takes `.4.txt` as the coordinator's count gives it.

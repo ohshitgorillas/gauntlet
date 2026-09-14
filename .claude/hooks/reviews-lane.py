@@ -35,13 +35,13 @@ Denied:
   * for everyone else, a `Bash` command that writes and that names a
     `gauntlet/reviews/` path
 
-A reviewer is denied the lane's contents as well as its writes, because a
-steering rejection burns the agent that printed it and its replacement
-continues the numbering in the same directory: the `Glob` that finds the next
-`<N>` is allowed and returns filenames, and a prior round reaches a reviewer
-only as the carried verdicts in the main agent's own return. An evasion
-rejection burns nobody — the same reviewer stays open and takes the next `<N>`
-itself — so the denial holds for the same reason either way.
+A reviewer is denied the lane's contents as well as its writes, and a prior
+round reaches a reviewer only as the carried verdicts in the main agent's own
+return. The numbering that denial used to leave to the reviewer is
+`scripts/pair.sh review <slug>`'s: it counts the directory from outside and
+prints the one path the reviewer writes, which the brief carries verbatim. A
+reviewer that picks its own `<N>` under this denial is guessing, and a guess
+that lands on a number already taken overwrites a round held in no git object.
 
 Allowed: every read-only command naming `gauntlet/reviews/` for everyone but
 those two agents, git commands that never write the working tree, `Glob` for
@@ -111,8 +111,9 @@ _REVIEWER_READ = (
     "Reviewer: gauntlet/reviews/ is not yours to read. A prior round reaches "
     "you as the carried verdicts in the main agent's return, never as a file: the round "
     "that rejected a brief printed the steering back verbatim, and it is written "
-    "nowhere for you to find. Glob for the next <N> is allowed and returns "
-    "filenames. (hooks/reviews-lane.py)"
+    "nowhere for you to find. The path you write is not yours to count either: "
+    "your brief carries it, from `scripts/pair.sh review <slug>`. "
+    "(hooks/reviews-lane.py)"
 )
 _BASH = "A shell write naming a gauntlet/reviews/ path is denied: " + _LANE
 
@@ -265,6 +266,48 @@ def self_test() -> int:
                 denied(bash("git diff --output=out.txt", SPEC_REVIEWER)),
             )
         ),
+        "8 the lane is what a write targets, not what its text mentions": all(
+            (
+                allowed(
+                    bash(
+                        "cat > state/notes.txt <<EOF\n"
+                        "round file is gauntlet/reviews/slug.1.txt\nEOF"
+                    )
+                ),
+                allowed(bash("echo 'gauntlet/reviews/slug.1.txt' >> notes.txt")),
+                allowed(bash('for c in "tee gauntlet/reviews/a.txt"; do echo "$c"; done')),
+                allowed(bash("find gauntlet/reviews -name 'slug.*'")),
+                allowed(bash("ls gauntlet/reviews/")),
+                denied(bash("printf '%s' x | tee gauntlet/reviews/slug.1.txt")),
+                denied(bash("find gauntlet/reviews -name 'slug.*' -delete")),
+            )
+        ),
+        "9 a reviewer's readers are reads, and the rounds stay closed to it": all(
+            (
+                #: the same readers, asked for the reviewer, whose shell is
+                #: judged on whether it writes at all rather than on a lane path
+                allowed(bash("find tests -name '*.py'", SPEC_REVIEWER)),
+                allowed(bash("find tests -name '*.py' | xargs grep -n foo", PLAN_REVIEWER)),
+                allowed(bash("awk '{print}' docs/testing.md", SPEC_REVIEWER)),
+                allowed(
+                    bash(
+                        "cmp gauntlet/specs/drafts/slug.txt gauntlet/specs/approved/slug.txt",
+                        SPEC_REVIEWER,
+                    )
+                ),
+                allowed(bash(".venv/bin/ruff check tests", PLAN_REVIEWER)),
+                denied(bash("find tests -name '*.py' -delete", SPEC_REVIEWER)),
+                #: reading the rounds is the denial `scripts/pair.sh review`
+                #: exists to make survivable: the path is handed to the
+                #: reviewer, so it never counts the directory itself
+                denied(bash("ls gauntlet/reviews/", SPEC_REVIEWER)),
+                denied(bash("find gauntlet/reviews -name 'slug.*'", PLAN_REVIEWER)),
+            )
+        ),
+        #: a hook decides a tool call, so its own crash is a denial
+        "no payload shape makes this hook block the call it is deciding": (
+            sh.survives_hostile_payloads(__file__)
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
@@ -272,4 +315,4 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else main()
+    sys.exit(self_test()) if "--self-test" in sys.argv else sh.never_block(main)

@@ -53,9 +53,13 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 | `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
 | `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: state/merge/<slug>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor` |
 | `pair.sh merge <slug>` | the `scripts/excision-diff.py` verdict lines | `kind:` is `excision` or `repair` |
+| `pair.sh review <slug>` | `REVIEW gauntlet/reviews/<slug>.<N>.txt` | `<N>` is one more than the highest already on disk for that slug, 1 where there is none, and `gauntlet/reviews/` exists |
+| `pair.sh review plan <slug>` | `REVIEW gauntlet/reviews/<slug>.plan.<N>.txt` | the same count over the plan rounds of that slug |
 | `pair.sh restore <slug> <rev>` | `RESTORED gauntlet/specs/approved/<slug>.txt <rev>` | the approved block on disk is the block as it stood at `<rev>` |
 | `pair.sh impl checkout <slug>` | `IMPL .claude/worktrees/<slug>-impl` | the implementation tree is cut on `impl/<slug>`, or already was and is left on the commit it is on |
 | `pair.sh impl merge <slug>` | `MERGED <slug> <commit>` | `impl/<slug>` is merged and `<commit>` is the primary checkout's HEAD, holding the implementation tree's tip as an ancestor |
+
+`review` is the reviewers' one path into their own lane. `reviews-lane.py` denies a reviewer every read of `gauntlet/reviews/`, so the reviewer cannot count the rounds it is continuing; the main agent runs `pair.sh review` before each round that will carry verdicts and hands the printed path to the reviewer verbatim in its brief. A round that writes nothing consumes no `<N>`, because the count is of what is on disk.
 
 The evidence `merge` used to print beneath that header now goes to the file the `merge output:` line names: `state/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- tests/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `state/red/<slug>.txt` is absent.
 

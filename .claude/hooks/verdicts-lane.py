@@ -296,6 +296,28 @@ def self_test() -> int:
                 denied(bash("scripts/blind.sh test tests/a/../../gauntlet/verdicts/slug.txt")),
             )
         ),
+        "10 the lane is what a write targets, not what its text mentions": all(
+            (
+                allowed(
+                    bash(
+                        "cat > state/notes.txt <<EOF\n"
+                        "the juror wrote gauntlet/verdicts/demo.txt\nEOF"
+                    )
+                ),
+                allowed(bash("echo 'gauntlet/verdicts/demo.txt' >> notes.txt")),
+                allowed(bash("find gauntlet/verdicts -name '*.txt'")),
+                allowed(bash("grep -n 'a > b' gauntlet/verdicts/")),
+                denied(bash("cat state/red/demo.txt > gauntlet/verdicts/demo.txt")),
+                denied(bash("find gauntlet/verdicts -name '*.txt' -delete")),
+            )
+        ),
+        #: a hook decides a tool call, so its own crash is a denial. The
+        #: `--stop` entry point is the sharper one: a non-zero exit there holds
+        #: the turn open, so a crash in it is a loop with no way out.
+        "no payload shape makes this hook block the call it is deciding": (
+            sh.survives_hostile_payloads(__file__)
+            and sh.survives_hostile_payloads(__file__, "--stop")
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
@@ -310,5 +332,9 @@ if __name__ == "__main__":
     # inside it would pass those four vacuously under `GAUNTLET=off`. The
     # `--self-test` branch above is reached first and is never gated at all.
     if "--stop" in sys.argv:
-        sys.exit(0 if sh.bypassed() else stop())
-    main()
+        # a hook that raises exits non-zero, and a non-zero `Stop` holds the
+        # turn open: an internal bug here would be an unbreakable loop
+        held: list[int] = []
+        sh.never_block(lambda: held.append(stop()))
+        sys.exit(0 if sh.bypassed() or not held else held[0])
+    sh.never_block(main)

@@ -172,6 +172,38 @@ def self_test() -> int:
                 denied(bash("scripts/blind.sh test tests/a/../../gauntlet/specs/approved/slug.txt")),
             )
         ),
+        "7 the lane is what a write targets, not what its text mentions": all(
+            (
+                #: drafting is the main agent's whole job here, and a draft that
+                #: quotes the approved path is a draft, not a write to the lane
+                allowed(
+                    bash(
+                        "cat > gauntlet/specs/drafts/slug.txt <<EOF\n"
+                        "see gauntlet/specs/approved/slug.txt\nEOF"
+                    )
+                ),
+                allowed(
+                    bash(
+                        "git show HEAD:gauntlet/specs/approved/slug.txt"
+                        " > gauntlet/specs/drafts/slug.txt"
+                    )
+                ),
+                allowed(bash("echo 'gauntlet/specs/approved/slug.txt' >> notes.txt")),
+                allowed(bash("cmp gauntlet/specs/drafts/slug.txt gauntlet/specs/approved/slug.txt")),
+                allowed(bash("grep -n 'a > b' gauntlet/specs/approved/")),
+                #: the same redirection pointed the other way is the lane's
+                denied(
+                    bash(
+                        "git show HEAD:gauntlet/specs/drafts/slug.txt"
+                        " > gauntlet/specs/approved/slug.txt"
+                    )
+                ),
+            )
+        ),
+        #: a hook decides a tool call, so its own crash is a denial
+        "no payload shape makes this hook block the call it is deciding": (
+            sh.survives_hostile_payloads(__file__)
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
@@ -179,4 +211,4 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else main()
+    sys.exit(self_test()) if "--self-test" in sys.argv else sh.never_block(main)

@@ -640,3 +640,63 @@ def _impl_merge_shape(tmp_path):
 
 def test_impl_merge_prints_the_slug_and_a_commit_holding_the_impl_tip(tmp_path):
     assert _impl_merge_shape(tmp_path) == (1, SLUG, True, True)
+
+
+def _review(tmp_path, rounds, args):
+    """Run `pair.sh review` over a reviews directory holding `rounds`."""
+    repo = _repo(tmp_path, _block(BODY_NEW), REVIEWER)
+    reviews = repo / "gauntlet" / "reviews"
+    for name in rounds:
+        (reviews / name).write_text("round\n")
+    return _pair(repo, "review", *args)
+
+
+@pytest.mark.parametrize(
+    "rounds,args,expected",
+    [
+        ((), (SLUG,), "REVIEW gauntlet/reviews/demo.2.txt"),
+        (("demo.2.txt", "demo.3.txt"), (SLUG,), "REVIEW gauntlet/reviews/demo.4.txt"),
+        # the count is of what is on disk, so a gap does not lower it and a
+        # round that wrote nothing leaves its number for the next one
+        (("demo.7.txt",), (SLUG,), "REVIEW gauntlet/reviews/demo.8.txt"),
+        # a slug with no round at all starts at 1
+        ((), ("other",), "REVIEW gauntlet/reviews/other.1.txt"),
+        # the plan series is counted apart from the spec series, and neither
+        # name is a round of the other
+        ((), ("plan", SLUG), "REVIEW gauntlet/reviews/demo.plan.1.txt"),
+        (
+            ("demo.plan.1.txt", "demo.plan.2.txt"),
+            ("plan", SLUG),
+            "REVIEW gauntlet/reviews/demo.plan.3.txt",
+        ),
+        (("demo.plan.9.txt",), (SLUG,), "REVIEW gauntlet/reviews/demo.2.txt"),
+        (("demo.4.txt",), ("plan", SLUG), "REVIEW gauntlet/reviews/demo.plan.1.txt"),
+        # a name that is not a numbered round is not counted
+        (("demo.draft.txt", "demo.txt"), (SLUG,), "REVIEW gauntlet/reviews/demo.2.txt"),
+    ],
+    ids=[
+        "fixture-round-only",
+        "highest-of-several",
+        "gap-in-the-numbering",
+        "slug-with-no-round",
+        "plan-series-empty",
+        "plan-series-counted",
+        "plan-rounds-are-not-spec-rounds",
+        "spec-rounds-are-not-plan-rounds",
+        "unnumbered-names-are-not-rounds",
+    ],
+)
+def test_review_prints_the_next_round_path_of_the_series_it_is_asked_for(
+    tmp_path, rounds, args, expected
+):
+    assert _review(tmp_path, rounds, args) == [expected]
+
+
+def test_review_creates_the_reviews_directory_the_reviewer_writes_into(tmp_path):
+    # The reviewer's Write is its own; the directory under it is not, and a
+    # reviewer denied every read of the lane cannot tell whether it is there.
+    repo = _repo(tmp_path, _block(BODY_NEW), REVIEWER)
+    shutil.rmtree(repo / "gauntlet" / "reviews")
+    lines = _pair(repo, "review", SLUG)
+    assert lines == ["REVIEW gauntlet/reviews/demo.1.txt"]
+    assert (repo / "gauntlet" / "reviews").is_dir()

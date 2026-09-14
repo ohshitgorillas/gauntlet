@@ -299,6 +299,11 @@ def self_test() -> int:
         "the self-test asserts nothing on the ambient variable": (
             off("off") is True and off(os.environ.get("nonexistent-by-construction")) is False
         ),
+        #: a hook decides a tool call, so its own crash is a denial. `--bash`
+        #: is the entry point that decides one; the other two only speak.
+        "no payload shape makes this hook block the call it is deciding": (
+            sh.survives_hostile_payloads(__file__, "--bash")
+        ),
     }
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
@@ -309,8 +314,8 @@ if __name__ == "__main__":
     if "--self-test" in sys.argv:
         sys.exit(self_test())
     if "--session-start" in sys.argv:
-        session_start()
+        sh.never_block(session_start)
     elif "--prompt" in sys.argv:
-        prompt()
+        sh.never_block(prompt)
     elif "--bash" in sys.argv:
-        bash()
+        sh.never_block(bash)
