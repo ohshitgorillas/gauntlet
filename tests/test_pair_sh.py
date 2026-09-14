@@ -87,9 +87,7 @@ BLOCK_SINGLE_TEST = _block(_strike_body("tests/test_a.py::test_x", ASSERTION_X))
 
 
 def _git(cwd, *args):
-    done = subprocess.run(
-        ["git", *args], cwd=cwd, env=dict(ENV), capture_output=True, text=True
-    )
+    done = subprocess.run(["git", *args], cwd=cwd, env=dict(ENV), capture_output=True, text=True)
     if done.returncode != 0:
         raise RuntimeError("git " + " ".join(args) + " failed: " + done.stderr)
     return done.stdout.strip()
@@ -424,9 +422,7 @@ def test_merge_artifact_test_files_section_names_the_files_the_merge_changed(
     ],
     ids=["alpha-suite-red-log", "bravo-suite-red-log", "no-red-log-on-disk"],
 )
-def test_merge_artifact_red_output_section_carries_the_red_run_on_disk(
-    tmp_path, suite, expected
-):
+def test_merge_artifact_red_output_section_carries_the_red_run_on_disk(tmp_path, suite, expected):
     _, artifact = _merge(tmp_path, {"test_a.py": TEST_A_OTHER}, suite=suite)
     assert _red_section_marks(artifact) == expected
 
@@ -884,9 +880,7 @@ def _converge(tmp_path, move=False, gate=GATE):
     ],
     ids=["target-branch-still", "target-branch-moved-under-the-pair"],
 )
-def test_merge_lands_the_spec_tree_on_a_target_branch_that_moved_under_it(
-    tmp_path, move, expected
-):
+def test_merge_lands_the_spec_tree_on_a_target_branch_that_moved_under_it(tmp_path, move, expected):
     lines, moved, gone, landed, carried = _converge(tmp_path, move=move)
     assert (moved, gone, landed, carried) == expected
     assert _brief_shape(lines)[0] == "TEST CHECK demo"

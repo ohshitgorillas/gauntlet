@@ -21,11 +21,7 @@ STATUSES = ("MISSING", "RANGE", "AMBIGUOUS", "ORPHAN", "QUOTE", "CROSS-REPO")
 
 
 def _statuses_in(row):
-    return [
-        token
-        for token in STATUSES
-        if re.search(r"(?<![A-Z-])" + token + r"(?![A-Z-])", row)
-    ]
+    return [token for token in STATUSES if re.search(r"(?<![A-Z-])" + token + r"(?![A-Z-])", row)]
 
 
 def _check(tmp_path, body):
@@ -89,9 +85,7 @@ def _inherited(done, candidates):
     ],
     ids=["path-in-checkout", "path-absent-from-checkout"],
 )
-def test_a_path_the_checkout_does_not_have_is_reported_missing(
-    tmp_path, citation, expected
-):
+def test_a_path_the_checkout_does_not_have_is_reported_missing(tmp_path, citation, expected):
     done = _check(tmp_path, "The gate sits at `" + citation + "` today.\n")
     assert _outcome_naming(done, citation) == expected
 
@@ -105,9 +99,7 @@ def test_a_path_the_checkout_does_not_have_is_reported_missing(
     ],
     ids=["range-ends-on-last-line", "range-ends-past-last-line"],
 )
-def test_a_range_running_off_the_end_of_the_file_is_reported(
-    tmp_path, citation, expected
-):
+def test_a_range_running_off_the_end_of_the_file_is_reported(tmp_path, citation, expected):
     done = _check(tmp_path, "The construct spans `" + citation + "` there.\n")
     assert _outcome(done) == expected
 
@@ -162,9 +154,7 @@ def _rows_for(done, basename, root):
     [False, True],
     ids=["ordinary-root", "root-under-claude-worktrees"],
 )
-def test_a_root_under_claude_worktrees_resolves_the_same_rows_as_an_ordinary_one(
-    tmp_path, nested
-):
+def test_a_root_under_claude_worktrees_resolves_the_same_rows_as_an_ordinary_one(tmp_path, nested):
     tag = uuid.uuid4().hex[:8]
     solo, dup = "zq" + tag + "solo.txt", "zq" + tag + "dup.txt"
     outer = tmp_path / "checkout"
@@ -173,9 +163,7 @@ def test_a_root_under_claude_worktrees_resolves_the_same_rows_as_an_ordinary_one
     _build_root(inner, solo, dup)
     root = inner if nested else outer
 
-    done = _check_from(
-        root, "Solo at `" + solo + ":1` and dup at `" + dup + ":1`.\n"
-    )
+    done = _check_from(root, "Solo at `" + solo + ":1` and dup at `" + dup + ":1`.\n")
 
     assert (_rows_for(done, solo, root), _rows_for(done, dup, root)) == (
         [],
@@ -192,9 +180,7 @@ def test_a_root_under_claude_worktrees_resolves_the_same_rows_as_an_ordinary_one
     ],
     ids=["bare-number-after-a-full-citation", "bare-number-with-no-antecedent"],
 )
-def test_a_bare_number_with_nothing_to_continue_is_reported_orphan(
-    tmp_path, body, expected
-):
+def test_a_bare_number_with_nothing_to_continue_is_reported_orphan(tmp_path, body, expected):
     done = _check(tmp_path, body)
     assert _outcome(done) == expected
 
@@ -205,9 +191,7 @@ def test_a_bare_number_with_nothing_to_continue_is_reported_orphan(
     [":2", ":9"],
     ids=["continuation-resolves", "continuation-past-end-of-file"],
 )
-def test_a_continuation_names_the_file_it_inherited_whether_or_not_it_resolves(
-    tmp_path, bare
-):
+def test_a_continuation_names_the_file_it_inherited_whether_or_not_it_resolves(tmp_path, bare):
     body = "The rule is at `" + ALPHA + ":1`, and the guard at `" + bare + "`.\n"
     done = _check(tmp_path, body)
     assert _inherited(done, (ALPHA,)) == [[ALPHA]]
@@ -219,12 +203,8 @@ def test_a_continuation_names_the_file_it_inherited_whether_or_not_it_resolves(
     [(ALPHA, BETA), (BETA, ALPHA)],
     ids=["alpha-then-beta", "beta-then-alpha"],
 )
-def test_a_continuation_inherits_the_nearest_preceding_citation(
-    tmp_path, first, second
-):
-    body = (
-        "First `" + first + ":1`, then `" + second + ":1`, then `:2` after it.\n"
-    )
+def test_a_continuation_inherits_the_nearest_preceding_citation(tmp_path, first, second):
+    body = "First `" + first + ":1`, then `" + second + ":1`, then `:2` after it.\n"
     done = _check(tmp_path, body)
     assert _inherited(done, (ALPHA, BETA)) == [[second]]
 
@@ -238,11 +218,7 @@ def test_a_continuation_inherits_the_nearest_preceding_citation(
 def test_a_citation_with_no_anchor_is_judged_by_its_number_not_the_prose(
     tmp_path, citation, expected_code
 ):
-    body = (
-        "The resolver walks the frozen table at `"
-        + citation
-        + "` before the gate runs.\n"
-    )
+    body = "The resolver walks the frozen table at `" + citation + "` before the gate runs.\n"
     done = _check(tmp_path, body)
     assert done.returncode == expected_code
 
@@ -251,11 +227,7 @@ def test_a_citation_with_no_anchor_is_judged_by_its_number_not_the_prose(
 def test_the_anchor_is_matched_against_the_cited_line_not_the_whole_file(tmp_path):
     target = tmp_path / "target.txt"
     citation = str(target) + ":2"
-    body = (
-        "The rule holds `"
-        + citation
-        + '`, "the anchored line" is what it carries.\n'
-    )
+    body = "The rule holds `" + citation + '`, "the anchored line" is what it carries.\n'
 
     target.write_text("first line here\nthe anchored line\nthird line here\n")
     anchor_on_the_cited_line = _quote_outcome(_check(tmp_path, body), citation)
@@ -273,22 +245,12 @@ def test_the_anchor_is_matched_against_the_cited_line_not_the_whole_file(tmp_pat
 def test_the_anchor_may_sit_on_any_line_of_the_cited_span(tmp_path):
     target = tmp_path / "target.txt"
     citation = str(target) + ":2-3"
-    body = (
-        "The construct spans `"
-        + citation
-        + '`, "the anchored line" is what it carries.\n'
-    )
+    body = "The construct spans `" + citation + '`, "the anchored line" is what it carries.\n'
 
-    target.write_text(
-        "one here\ntwo here\nthe anchored line\nfour here\nfive here\n"
-    )
-    anchor_on_the_spans_second_line = _quote_outcome(
-        _check(tmp_path, body), citation
-    )
+    target.write_text("one here\ntwo here\nthe anchored line\nfour here\nfive here\n")
+    anchor_on_the_spans_second_line = _quote_outcome(_check(tmp_path, body), citation)
 
-    target.write_text(
-        "one here\ntwo here\nthree here\nfour here\nthe anchored line\n"
-    )
+    target.write_text("one here\ntwo here\nthree here\nfour here\nthe anchored line\n")
     anchor_outside_the_span = _quote_outcome(_check(tmp_path, body), citation)
 
     assert (anchor_on_the_spans_second_line, anchor_outside_the_span) == (
@@ -301,26 +263,15 @@ def test_the_anchor_may_sit_on_any_line_of_the_cited_span(tmp_path):
 def test_fix_fills_the_number_only_where_the_anchor_matches_one_line(tmp_path):
     target = tmp_path / "target.txt"
     doc = tmp_path / "plan.md"
-    handed_in = (
-        "The rule holds `"
-        + str(target)
-        + ':1`, "the target line" is what it carries.\n'
-    )
-    filled = (
-        "The rule holds `"
-        + str(target)
-        + ':4`, "the target line" is what it carries.\n'
-    )
+    handed_in = "The rule holds `" + str(target) + ':1`, "the target line" is what it carries.\n'
+    filled = "The rule holds `" + str(target) + ':4`, "the target line" is what it carries.\n'
 
-    target.write_text(
-        "one here\ntwo here\nthree here\nthe target line\nfive here\nsix here\n"
-    )
+    target.write_text("one here\ntwo here\nthree here\nthe target line\nfive here\nsix here\n")
     doc.write_text(handed_in)
     after_a_unique_anchor = _fix(doc)
 
     target.write_text(
-        "one here\ntwo here\nthree here\nthe target line\nfive here\n"
-        "the target line\n"
+        "one here\ntwo here\nthree here\nthe target line\nfive here\n" "the target line\n"
     )
     doc.write_text(handed_in)
     after_a_repeated_anchor = _fix(doc)
@@ -359,7 +310,9 @@ def test_only_a_backticked_path_and_number_is_read_as_a_citation(
     tmp_path, opener, closer, expected_code
 ):
     body = (
-        "The rule is at `" + ALPHA + ":1` and the old draft said "
+        "The rule is at `"
+        + ALPHA
+        + ":1` and the old draft said "
         + opener
         + ALPHA
         + ":99"

@@ -106,9 +106,7 @@ def _updated_command(answer):
 def _denied(answer):
     """Whether the answer refuses the call rather than allowing or rewriting it."""
     nested = answer.get("hookSpecificOutput") or {}
-    return nested.get("permissionDecision") == "deny" or answer.get(
-        "decision"
-    ) == "block"
+    return nested.get("permissionDecision") == "deny" or answer.get("decision") == "block"
 
 
 def _carriage(repo, agent_type, command):

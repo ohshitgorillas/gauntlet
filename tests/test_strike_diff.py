@@ -57,9 +57,7 @@ def _git(repo, *args):
         "GIT_COMMITTER_NAME": "Fixture",
         "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
     }
-    done = subprocess.run(
-        ["git", *args], cwd=repo, env=env, capture_output=True, text=True
-    )
+    done = subprocess.run(["git", *args], cwd=repo, env=env, capture_output=True, text=True)
     if done.returncode != 0:
         raise RuntimeError("git " + " ".join(args) + " failed: " + done.stderr)
     return done.stdout.strip()
@@ -128,9 +126,7 @@ def _status_for(lines, target):
 def test_target_unsatisfied_only_while_its_assertion_survives_in_its_body(
     tmp_path, head_test_a, expected
 ):
-    repo, base, head = _repo(
-        tmp_path, {"test_a.py": head_test_a, "test_b.py": BASE_TEST_B}
-    )
+    repo, base, head = _repo(tmp_path, {"test_a.py": head_test_a, "test_b.py": BASE_TEST_B})
     lines = _report(tmp_path, BLOCK_TEST_X, repo, base, head)
     assert _status_for(lines, "tests/test_a.py::test_x") == expected
 
@@ -152,12 +148,8 @@ def test_assertion_left_in_a_sibling_test_does_not_hold_the_target_open(tmp_path
     ],
     ids=["named-whole-file", "named-by-no-line"],
 )
-def test_changed_test_file_is_unnamed_only_when_no_block_line_names_it(
-    tmp_path, block, expected
-):
-    repo, base, head = _repo(
-        tmp_path, {"test_a.py": SIBLING, "test_b.py": CHANGED_TEST_B}
-    )
+def test_changed_test_file_is_unnamed_only_when_no_block_line_names_it(tmp_path, block, expected):
+    repo, base, head = _repo(tmp_path, {"test_a.py": SIBLING, "test_b.py": CHANGED_TEST_B})
     lines = _report(tmp_path, block, repo, base, head)
     assert _status_for(lines, "tests/test_b.py") == expected
 
@@ -173,8 +165,6 @@ def test_changed_test_file_is_unnamed_only_when_no_block_line_names_it(
 def test_replacement_named_by_as_is_missing_only_where_head_lacks_it(
     tmp_path, head_test_a, expected
 ):
-    repo, base, head = _repo(
-        tmp_path, {"test_a.py": head_test_a, "test_b.py": BASE_TEST_B}
-    )
+    repo, base, head = _repo(tmp_path, {"test_a.py": head_test_a, "test_b.py": BASE_TEST_B})
     lines = _report(tmp_path, BLOCK_TEST_X_AS_RENAMED, repo, base, head)
     assert _status_for(lines, "tests/test_a.py::test_x_renamed") == expected

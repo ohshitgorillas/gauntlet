@@ -4,9 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = (
-    Path(__file__).resolve().parent.parent / "scripts" / "gates" / "symbol-closure.py"
-)
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "symbol-closure.py"
 
 IMPORTS_AND_CALLS_ALPHA = "from pkg import alpha\n\n\ndef test_it():\n    alpha()\n"
 
@@ -58,11 +56,7 @@ def test_the_closure_takes_one_hop_through_support_and_stops(tmp_path):
         tmp_path,
         {
             "tests/support/helper.py": (
-                "from pkg import alpha\n"
-                "\n"
-                "\n"
-                "def build_thing():\n"
-                "    return alpha()\n"
+                "from pkg import alpha\n" "\n" "\n" "def build_thing():\n" "    return alpha()\n"
             ),
             "tests/test_uses_helper.py": (
                 "from support.helper import build_thing\n"

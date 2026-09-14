@@ -192,7 +192,9 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
         # the runner from a table instead of from the lane admits the argument
         # under `tests/` in a repo whose lane is `spec/`, which is a shell the
         # writer can point at a directory no hook is guarding.
-        self.assertEqual(_bash(self.moved, "tests-lane.py", "scripts/blind.sh test spec/t.py"), SILENT)
+        self.assertEqual(
+            _bash(self.moved, "tests-lane.py", "scripts/blind.sh test spec/t.py"), SILENT
+        )
         self.assertEqual(
             _bash(self.moved, "tests-lane.py", "scripts/blind.sh test tests/t.py"), SILENT
         )
@@ -495,7 +497,11 @@ class TwoScalarsResolvedOnTheirOwn(unittest.TestCase):
         for label, conf, expected in (
             ("SLIST", {"target_branch": ["dev"], "gate_command": "gate"}, ["main", "gate"]),
             ("SEMPTY", {"target_branch": "  ", "gate_command": "gate"}, ["main", "gate"]),
-            ("SLINES", {"target_branch": "dev", "gate_command": "a\nrm -rf /"}, ["dev", "make check"]),
+            (
+                "SLINES",
+                {"target_branch": "dev", "gate_command": "a\nrm -rf /"},
+                ["dev", "make check"],
+            ),
         ):
             copy = _copy(self.tmp.name, label, conf)
             read = [

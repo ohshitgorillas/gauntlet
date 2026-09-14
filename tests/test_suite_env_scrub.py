@@ -56,9 +56,7 @@ PROBE_PAYLOAD = {"tool_name": "Bash", "tool_input": {"command": "true"}, "cwd": 
 
 def _load_suite_module(file_name, module_name):
     """Load one of the suite's own test modules by file path."""
-    spec = importlib.util.spec_from_file_location(
-        module_name, str(TESTS_DIR / file_name)
-    )
+    spec = importlib.util.spec_from_file_location(module_name, str(TESTS_DIR / file_name))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
