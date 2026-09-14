@@ -23,7 +23,11 @@ sequence unaltered, so the caller's text appears in the replacement exactly as
 typed, whatever it is.
 
 Three profiles, chosen by `agent_type`, the same payload field the lane hooks
-read:
+read. Only the kit's own agents -- an `agent_type` starting `gauntlet-` -- are
+wrapped at all. The main agent's call carries no `agent_type` and comes back
+untouched: `bwrap` sets NO_NEW_PRIVS, so `sudo` inside the wrap fails with
+"The \"no new privileges\" flag is set", and every script that calls `sudo`
+internally dies with it, which no command-text carve-out can reach.
 
   * **passthrough** for the two blind agents that keep a shell. `blind.sh` runs
     its own `bwrap`, and wrapping a wrapper gains nothing while costing a nested
@@ -31,7 +35,7 @@ read:
   * **reviewer** for the blind reviewers: the whole filesystem read-only, plus a
     tmpfs over the reviewers' own lane. A reviewer's shell cannot change the
     checkout it was spawned to judge.
-  * **default** for everyone else, the main agent included. Everything readable.
+  * **default** for every other `gauntlet-` agent. Everything readable.
     Writable: the repository, the session's own `/tmp`, and `~/.cache`.
     Read-only again inside the repository: every lane directory in every
     checkout, `state/red`, `state/merge`, `.claude/`, `scripts/`, `.git/hooks`
@@ -101,6 +105,10 @@ pair_passthrough = importlib.import_module("pair-passthrough")
 #: the two blind agents that keep a shell. `scripts/blind.sh` is their one
 #: command and it runs its own `bwrap`, so this hook leaves them alone.
 PASSTHROUGH_AGENTS = ("gauntlet-scrivener", "gauntlet-bailiff")
+
+#: the kit's own agents all carry this prefix; any other caller, the main agent
+#: included, is left unwrapped
+AGENT_PREFIX = "gauntlet-"
 
 #: the blind reviewers: read-only everywhere, with a tmpfs over their own lane
 REVIEWER_AGENTS = ("gauntlet-arbiter", "gauntlet-juror")
@@ -188,6 +196,13 @@ def _answer(payload: dict) -> dict | None:
         return None
 
     agent = payload.get("agent_type") or ""
+    # only the kit's own agents are wrapped. The main agent's shell is left
+    # alone: `bwrap` sets NO_NEW_PRIVS, so `sudo` inside the wrap dies with
+    # "The \"no new privileges\" flag is set", and so does every script that
+    # calls it internally -- a route no command-text carve-out can reach. An
+    # absent `agent_type` is the main agent; a foreign one is not this kit's.
+    if not agent.startswith(AGENT_PREFIX):
+        return None
     if agent in PASSTHROUGH_AGENTS:
         return None
     if pair_passthrough.is_pair_command(command):
@@ -508,6 +523,16 @@ def _self_test_in(tmp: str) -> int:
                 }
             )
             is not None
+        ),
+        "the main agent's command, carrying no agent_type, comes back untouched": (
+            _answer(
+                {
+                    "tool_name": "Bash",
+                    "cwd": root,
+                    "tool_input": {"command": "sudo -n true"},
+                }
+            )
+            is None
         ),
         "a tool that is not Bash is not this hook's business": (
             _answer({"tool_name": "Write", "tool_input": {"command": "x"}}) is None

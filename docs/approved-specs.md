@@ -97,6 +97,6 @@ python3 .claude/hooks/no-impl-reads.py --self-test
 
 ## Failure modes it accepts
 
-The hook keys off the caller's `agent_type`, which is present only on subagent calls. An absent key reads as the main agent and is denied. If a build omits the key for subagents too, the `gauntlet-arbiter` is denied along with everyone else: the lane fails closed, no unreviewed spec reaches the writer, and the denial message names the file to fix. That is the disposition a session with the gauntlet on gets.
+The hook keys off the caller's `agent_type`, which is present only on subagent calls. An absent key reads as the main agent and is denied. `bwrap-wrap.py` reads the same key the other way round: it wraps only an `agent_type` starting `gauntlet-`, and the main agent's absent key means its command runs unwrapped, because `bwrap` sets `NO_NEW_PRIVS` and `sudo` cannot run under it. If a build omits the key for subagents too, the `gauntlet-arbiter` is denied along with everyone else: the lane fails closed, no unreviewed spec reaches the writer, and the denial message names the file to fix. That is the disposition a session with the gauntlet on gets.
 
 The one failure mode accepted by choice rather than tolerated is the owner's switch. Under `GAUNTLET=off` the lane fails open, deliberately, on an environment variable, and an unreviewed spec does reach the writer. The switch belongs to the hand that launches the session; inside a running session it is denied, and no agent may propose it. `CLAUDE.md` carries the rule, `README.md` carries it for a consumer copying `.claude/`.
