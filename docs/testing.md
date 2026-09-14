@@ -111,6 +111,27 @@ No `bite:`. Replacement pin behavior HEAD already have = characterization, rule 
 
 Strike half empty a file (every test gone, none replaced there) → writer delete file.
 
+## Rehome motions
+
+Test that break no rule and pin behavior worth keeping, and whose file or whose body around that assertion must change anyway, walk chain as `motion: rehome`. Assertion stay byte-identical; only what surround it move.
+
+```
+N. strike <tests dir>/<file>::<test>
+   moved: <the fact outside the tests dir that moved, and what it forced>
+   assertion: <the assertion, quoted verbatim from the test file>
+   as: <tests dir>/<file>::<test_name>
+```
+
+Target always `<tests dir>/<file>::<test>`. Whole-file target malformed here: file that moves is every test in it, one line each.
+
+`moved:` name fact outside `<tests dir>/` that force move — module split, source file renamed, fixture take new home. Prose, read by reviewer, never mechanically. "Tidier over there" is not `moved:`.
+
+No `rule:`, no `removed:`, no `replace:`, no `kills:`, no `bite:`. Nothing pinned change, so no rule to cite and no wrong implementation to name. Four-line cap no apply.
+
+`as:` name where test land. It may name target itself: assertion that survive byte-identical while body around it change for reason `moved:` name have no other route, and in-place line is that route. Test name may equal target's; name that state behavior right (rule 6) stay as it is. Barred is line that record nothing — same file, same test name, body unchanged.
+
+Merge check split on `as:`. Where `as:` name file or test other than target's, line satisfied on two fact together: target gone from its own file (name gone, or name present and quoted `assertion:` gone from that test's body), and `as:` test exist with that same quoted text byte-identical in its own body. Where `as:` equal target, nothing leave the file, so check is other two fact together: quoted `assertion:` byte-identical in that test's body, and that body differ from its body at base. Body byte-identical on both side = `UNSATISFIED`: nothing moved. Assertion text that change under this motion = `STRICKEN`: it belong to `kind: refactor` or to `motion: amend`, where replacement is judged.
+
 ## Markers
 
 - Default suite: offline, deterministic, pass with no outside service up.

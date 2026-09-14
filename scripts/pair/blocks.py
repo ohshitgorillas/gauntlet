@@ -27,7 +27,7 @@ DIVIDER = "--- reviewer ---"
 #: `N. strike <target>` of a committed block, targets only
 _STRIKE = re.compile(r"^\s*\d+\.\s*strike\s+(?P<target>.*?)\s*$")
 #: the structure line: `kind:` for a block that writes tests, `motion:` for one
-#: that removes them
+#: that removes or moves them
 _KIND = re.compile(r"^(?:kind|motion):\s*(?P<kind>.*?)\s*$")
 
 #: the three headings `<gauntlet dir>/merge/<slug>.txt` carries, in this order

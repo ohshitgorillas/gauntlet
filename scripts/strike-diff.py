@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check a landed tests-only change against the block that approved it.
 
-`motion: strike` and `motion: amend` have no implementation phase, so the
+`motion: strike`, `motion: amend` and `motion: rehome` have no implementation phase, so the
 post-merge reviewer round that catches a softened test has no window to watch.
 What it watched for still happens here, in one move rather than two: the
 deletion is itself the softening. This script is that check, and it is
@@ -14,8 +14,10 @@ It reads the committed approved block for a slug and prints one line per
 target:
 
     OK <target>            the strike landed
-    UNSATISFIED <target>   the target is still there, assertion and all
+    UNSATISFIED <target>   the target is still there, assertion and all,
+                           or an in-place rehome's body never changed
     MISSING <as-name>      the replacement the line promised never landed
+    ALTERED <as-name>      a rehome's landing is there, its assertion rewritten
     UNNAMED <path>         a file under tests/ changed that no line names
 
 A strike target is satisfied on either of two facts: the test name is gone
@@ -24,8 +26,21 @@ is no longer in that test's own body. Body, not file: the same assertion text
 can sit in a sibling test -- a parametrize case, a shared line -- and a
 file-wide search would read the target as unsatisfied on a test no line names.
 
-Nothing here reads `replace:`. It holds prose, and prose has no mechanical
-reading; `as:` is the field that names what the replacement must land as.
+Nothing here reads `replace:` or `moved:`. They hold prose, and prose has no
+mechanical reading; `as:` is the field that names what the replacement must
+land as.
+
+`motion: rehome` reads its `as:` name the other way round. An amend's
+replacement pins behavior the block describes in prose, so the only mechanical
+fact is that a test of that name exists. A rehome moves an assertion it says is
+unchanged, so the landing is checked for that assertion byte-identical in its
+own body, and a landing that rewrote it is `ALTERED` rather than `OK`.
+
+A rehome whose `as:` names its own target is an in-place one: the assertion
+survives while what surrounds it moves. Nothing leaves the file, so the two
+facts that satisfy a strike cannot hold, and the target is read against `base`
+instead -- its body has to differ from the one it had there. A body that is
+byte-identical on both sides records nothing and is `UNSATISFIED`.
 """
 
 import argparse
@@ -47,6 +62,8 @@ TESTS = sh.tests_dir() + "/"
 
 _LINE = re.compile(r"^\s*\d+\.\s+strike\s+(?P<target>\S+)\s*$")
 _FIELD = re.compile(r"^\s*(?P<key>rule|assertion|replace|as):\s*(?P<value>.*)$")
+#: the structure line, `kind:` or `motion:`, whichever comes first
+_KIND = re.compile(r"^\s*(?:kind|motion):\s*(?P<kind>.*?)\s*$")
 
 
 class Line:
@@ -87,6 +104,16 @@ def parse_block(text: str) -> list[Line]:
     return lines
 
 
+def block_kind(text: str) -> str:
+    """The block's structure line, read from the contract and not the round."""
+    contract, _, _ = text.partition("--- reviewer ---")
+    for raw in contract.splitlines():
+        found = _KIND.match(raw)
+        if found:
+            return found.group("kind")
+    return ""
+
+
 def _git(*args: str) -> tuple[int, str]:
     done = subprocess.run(("git", *args), capture_output=True, text=True, check=False)
     return done.returncode, done.stdout
@@ -124,6 +151,27 @@ def test_body(source: str, name: str) -> str | None:
     return None
 
 
+def moved_in_place(before: str | None, after: str | None, name: str) -> bool:
+    """True where the named test's body differs between the two sources.
+
+    The one mechanical fact an in-place rehome can offer: the test is still
+    where it was, so what is asked is that it changed for the reason `moved:`
+    names.
+    """
+    was = test_body(before, name) if before is not None and name else None
+    now = test_body(after, name) if after is not None and name else None
+    return now is not None and now != was
+
+
+def inplace_strike_verdict(line: Line, base: str, head: str) -> str:
+    """`OK` or `UNSATISFIED` for a rehome line whose `as:` is its own target."""
+    before = file_at(base, line.path)
+    after = file_at(head, line.path)
+    if moved_in_place(before, after, line.test):
+        return f"OK {line.target}"
+    return f"UNSATISFIED {line.target}"
+
+
 def strike_verdict(line: Line, head: str) -> str:
     """`OK` or `UNSATISFIED` for one strike target."""
     source = file_at(head, line.path)
@@ -149,13 +197,37 @@ def landing_verdict(line: Line, head: str) -> str:
     return f"MISSING {line.landing}"
 
 
+def rehome_verdict(line: Line, head: str) -> str:
+    """`OK`, `MISSING` or `ALTERED` for one `as:` name under `motion: rehome`.
+
+    The motion's whole claim is that the assertion did not change, so the name
+    landing is not enough: the quoted text has to be in that test's own body,
+    byte for byte.
+    """
+    path, _, name = line.landing.partition("::")
+    source = file_at(head, path)
+    body = test_body(source, name) if source is not None and name else None
+    if body is None:
+        return f"MISSING {line.landing}"
+    if line.assertion and line.assertion in body:
+        return f"OK {line.landing}"
+    return f"ALTERED {line.landing}"
+
+
 def report(block: str, base: str, head: str) -> list[str]:
     lines = parse_block(block)
     named = {line.path for line in lines}
     named.update(line.landing.split("::", 1)[0] for line in lines if line.landing)
+    rehome = block_kind(block) == "rehome"
+    landing = rehome_verdict if rehome else landing_verdict
 
-    out = [strike_verdict(line, head) for line in lines]
-    out += [landing_verdict(line, head) for line in lines if line.landing]
+    out = [
+        inplace_strike_verdict(line, base, head)
+        if rehome and line.landing and line.landing == line.target
+        else strike_verdict(line, head)
+        for line in lines
+    ]
+    out += [landing(line, head) for line in lines if line.landing]
     out += [f"UNNAMED {path}" for path in changed_files(base, head) if path not in named]
     return out
 
@@ -176,7 +248,7 @@ def main(argv: list[str]) -> int:
 
 
 def self_test() -> int:
-    """Pin the four lines of the merge check."""
+    """Pin the eight lines of the merge check."""
     block = (
         "slug: s\nmotion: amend\n\n"
         "1. strike tests/test_a.py::test_x\n"
@@ -199,6 +271,14 @@ def self_test() -> int:
         "    assert time.monotonic() - start < 2\n"
     )
     gone = "def test_sibling():\n    assert other == 1\n"
+    softened = "def test_x():\n    assert time.monotonic() - start < 9\n"
+    in_place = (
+        "def test_x():\n"
+        "    start = clock.monotonic()\n"
+        "    assert time.monotonic() - start < 2\n\n"
+        "def test_sibling():\n"
+        "    assert other == 1\n"
+    )
 
     lines = {
         "1 a target keeping its assertion is unsatisfied, one that dropped it is OK": (
@@ -214,6 +294,22 @@ def self_test() -> int:
             and line.landing == "tests/test_a.py::test_x"
             and line.path == "tests/test_a.py"
             and line.test == "test_x"
+        ),
+        "5 a rehome landing that kept the assertion byte-identical is the only OK one": (
+            line.assertion in (test_body(kept, "test_x") or "")
+            and line.assertion not in (test_body(softened, "test_x") or "")
+        ),
+        "6 the block kind is its first kind: or motion: line": (
+            block_kind(block) == "amend"
+            and block_kind("slug: s\nmotion: rehome\n") == "rehome"
+            and block_kind("slug: s\n") == ""
+        ),
+        "7 an in-place rehome is OK where the body moved and the assertion survived": (
+            moved_in_place(kept, in_place, "test_x")
+            and line.assertion in (test_body(in_place, "test_x") or "")
+        ),
+        "8 an in-place line whose body is byte-identical moved nothing": (
+            not moved_in_place(kept, kept, "test_x")
         ),
     }
     for label, ok in lines.items():

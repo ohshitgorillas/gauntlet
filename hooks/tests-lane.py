@@ -56,9 +56,13 @@ BASH_TESTS = sh.lane_pattern(LANE)
 
 _LANE = (
     f"{LANE}/ is the gauntlet-scrivener's lane, written only in its spec tree from the "
-    "committed spec block. A test that must change goes back through the spec: "
-    "a re-approved line, a new `spec:` commit, a delta to the writer. Never by "
-    "hand, never in the impl tree, never on the branch. (hooks/tests-lane.py)"
+    "committed spec block. A test whose behavior changed goes back through the "
+    "spec: a re-approved line, a new `spec:` commit, a delta to the writer. A "
+    "test whose assertion survives unchanged goes through "
+    "`motion: rehome`, which quotes that assertion and names where it lands, its "
+    "own file included. "
+    "Either route, never by hand, never in the impl tree, never on the branch. "
+    "(hooks/tests-lane.py)"
 )
 _WRITER_LANE = (
     f"Blind writer: you write under {LANE}/ of your own spec tree and nowhere else. "

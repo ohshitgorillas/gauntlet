@@ -54,12 +54,14 @@ No hook enforces this, the same gap `docs/exemptions.md` states for the `EXEMPT`
 
 A change confined to `<tests dir>/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not fourteen:
 
-1. The main agent drafts a `motion: strike` block (the test goes) or a `motion: amend` block (the test goes, and one line names the behavior that replaces it). A strike line cites the rule the test breaks, or — where the test breaks none and the behavior it pins is one the owner dropped — quotes the owner's sentence that dropped it.
+1. The main agent drafts a `motion: strike` block (the test goes), a `motion: amend` block (the test goes, and one line names the behavior that replaces it), or a `motion: rehome` block (the assertion survives byte-identical while what surrounds it moves, to another file or in place). A strike line cites the rule the test breaks, or — where the test breaks none and the behavior it pins is one the owner dropped — quotes the owner's sentence that dropped it. A rehome line cites neither: it names the fact outside the test directory that moved.
 2. The `gauntlet-arbiter` reviews it against the test file, which it is allowed to read, and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
 3. The `gauntlet-scrivener` removes the targets and writes the replacements.
 4. `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py` checks the landed diff against the approved block at merge.
 
 No plan gate, no red run, no juror, no post-merge review round. The `Stop` hook fires on a red run that exists and never on the absence of one, so it stays silent here. Those three exist to police an implementation phase, and a tests-only change has none. What still holds is the part that matters: the main agent never writes `<tests dir>/`, and never decides on its own that a test it finds inconvenient pins nothing.
+
+A brief that puts `<tests dir>/` in scope names the structure line the change takes: `motion: strike`, `motion: amend`, `motion: rehome`, or a `kind:` block through the full chain. A brief that cannot name one is not ready to put tests in scope. The route is the decision, and a brief that leaves it to the agent holding the file is how a test gets edited in place.
 
 See `docs/agents.md` for what each agent is allowed to see and write, and `docs/approved-specs.md` for the hook that makes step 7 and step 8 a fact on disk rather than a step that happened somewhere in the transcript.
 

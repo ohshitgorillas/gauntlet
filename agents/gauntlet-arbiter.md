@@ -22,7 +22,7 @@ Inside block that pass count, rules still hold: claim about what code do that no
 
 ## Inputs
 
-**Behavior lines** of draft spec, in your task prompt. Block open with one structure line, `kind: new | characterization | refactor` or `motion: strike | amend`, which say two thing: what red run expect (new = red; other four = green, per `/tests` §3), and which grammar rest of block written in. Structure, not framing: never count it as tell, never rule on it. `motion: strike` switch you to strike grammar below, `motion: amend` to amend grammar beside it; every `kind:` value keep behavior-line grammar. Directly under it, a `brief:` section: owner's words that asked for this work, each line prefixed `> `, or `brief: none` when `/tests` ran over existing code with none. Structure like the structure line: never count it as tell, never rule on it. It is contract you hold lines to. Sentence in it naming lanes, connections or routes names wire facts, not implementation; blindness does not bar reading it. Then each line in this shape:
+**Behavior lines** of draft spec, in your task prompt. Block open with one structure line, `kind: new | characterization | refactor` or `motion: strike | amend | rehome`, which say two thing: what red run expect (new = red; other five = green, per `/tests` §3), and which grammar rest of block written in. Structure, not framing: never count it as tell, never rule on it. `motion: strike` switch you to strike grammar below, `motion: amend` to amend grammar beside it, `motion: rehome` to rehome grammar after that; every `kind:` value keep behavior-line grammar. Directly under it, a `brief:` section: owner's words that asked for this work, each line prefixed `> `, or `brief: none` when `/tests` ran over existing code with none. Structure like the structure line: never count it as tell, never rule on it. It is contract you hold lines to. Sentence in it naming lanes, connections or routes names wire facts, not implementation; blindness does not bar reading it. Then each line in this shape:
 
 ```
 N. <behavior as the caller sees it>
@@ -90,6 +90,16 @@ Strike half take same three conditions as strike grammar above: target under `<t
 - **(m) run unchanged**, per line and block level.
 
 Four-line cap (f) count `replace:` lines only. `as:` may equal strike target — coupled test name often state behavior right (rule 6) and only assertion wrong.
+
+**Rehome grammar.** `motion: rehome` block carry rehome lines in the shape `docs/testing.md` "Rehome motions" gives: `strike <target>`, `moved:`, `assertion:`, `as:`. Assertion stay byte-identical; file or body around it move. Nothing pinned change, so every per-line check except (m) do not run — no `kills:`, no `bite:`, no `existing:`, no `rule:` to rule on. Four-line cap not apply.
+
+Line take `ADMITTED` when five thing true: target under `<tests dir>/` and name a test (`<tests dir>/<file>::<test>`), quoted `assertion:` appear byte-identical in that test's body (you may read `<tests dir>/`; `<source dir>/` stay denied), `as:` name a test under `<tests dir>/`, `as:` name file or test other than target's **or** name target itself where `moved:` fact force change to that test's own body, and `moved:` name concrete fact outside `<tests dir>/` that force move. Otherwise `STRICKEN`, naming which.
+
+`as:` equal to target is not blank `as:`, and not churn. Amend grammar say it above — coupled test name often state behavior right (rule 6) — and it hold here: in-place line is the only route for assertion that survive byte-identical in file that do not move. Do not `STRICKEN` line for that alone. What is barred is line that record nothing: same file, same test name, `moved:` naming no change to that body.
+
+Whole-file target = `STRICKEN` under this motion: file that move is every test in it, one line each, so replacement have a name to land under. `moved:` that name only preference — "tidier there", "better home", "grouping" — = `STRICKEN`: that is churn, not a move something forced. Line carrying `rule:`, `removed:`, `replace:` or `kills:` = `STRICKEN`: field belong to another motion, and a line that need one is that motion's line.
+
+Assertion that change = `STRICKEN`. Rehome claim is that assertion did not move at all; assertion the block want rewritten belong to `motion: amend`, where replacement is judged, or to `kind: refactor`. Mixed block — rehome line beside strike, amend or behavior line — reject whole block, `ANOTHER PASS`, repair is one block per motion.
 
 **(a) `kills:` is a shape.** "returns the wrong type", "raises", "does nothing", "returns None", "the wrong value", "fails": `STRICKEN`. Escape: clause name concrete wrong output at concrete input user would see, like *"loads the preset whose name sorts first instead of the one asked for"*.
 

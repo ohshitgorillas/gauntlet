@@ -216,7 +216,7 @@ def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
 
     base = git("merge-base", TARGET, trees.spec_branch(slug))
     head = git("rev-parse", "HEAD", tree=tree)
-    mechanical = blocks.block_kind(text) in ("strike", "amend")
+    mechanical = blocks.block_kind(text) in ("strike", "amend", "rehome")
 
     note("  [5/6] gate")
     if not converge.gate(slug):
@@ -248,7 +248,7 @@ def cmd_merge(slug: str) -> int:
     if not Path(path(tree)).is_dir():
         die("pair: no spec worktree at " + tree + " -- was this pair opened?")
     #: an implementation tree that was never cut is a tests-only pair, which is
-    #: the ordinary shape of the two tests-only kinds: skipped, never fatal
+    #: the ordinary shape of the three tests-only kinds: skipped, never fatal
     has_impl = Path(path(impl)).is_dir() and trees.exists(trees.impl_branch(slug))
     if not has_impl:
         note("  no implementation tree for " + slug + "; the spec tree lands alone")

@@ -34,7 +34,7 @@ A line whose test you cannot find in the run output gets `INVALID N: no test fou
 
 **No discretion.** A count you cannot decide is not a judgment call and it is not a `GREEN`: it is `INVALID N` with the reason quoted, and it goes back to the writer. You never split the difference between two verdicts, and you never soften one because the block reads convincing — the block is the thing the run is testing.
 
-**`motion: strike` and `motion: amend` produce no red run.** Removing a test makes the suite greener, and an amend's replacement pins behavior the tree already has, so it is green on its first run. Briefed with either of those, say so and rule on nothing; `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py` is the check there, mechanical, at merge.
+**`motion: strike`, `motion: amend` and `motion: rehome` produce no red run.** Removing a test makes the suite greener, an amend's replacement pins behavior the tree already has, and a rehome moves an assertion the tree already satisfies, so it is green on its first run. Briefed with any of those three, say so and rule on nothing; `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py` is the check there, mechanical, at merge.
 
 ## Where the verdict goes
 
