@@ -6,6 +6,13 @@ directory that belongs to one agent, and does this shell command write
 anything. This module answers both, so that a hook is a policy over the
 answers rather than a second parser.
 
+It holds the shape of a lane hook too, at the end: the dispatch from a tool
+call to the handler for its kind, the entry point that reads a payload and
+prints a denial, the sentence a shell write into a lane is refused with, and
+the whole policy of a lane one named agent writes. Those were the same text in
+five files, which is the arrangement where one hook gets a fix and four keep
+the defect.
+
 It is deliberately standalone. These hooks travel as a unit into other repos,
 where the change budget and its `free_bash` allowlist do not exist, so the
 read-only judgment here is two small closed allowlists of its own, read in
@@ -941,39 +948,149 @@ def cwd_of(payload: dict) -> str:
     return cwd if isinstance(cwd, str) and cwd else os.getcwd()
 
 
-#: payloads a hook must answer without dying. Not a guess at what Claude Code
-#: sends: each one is a shape some hook here has assumed away -- a missing
-#: field, a field of the wrong type, a `cwd` naming a tree that was cut, a
-#: path that is not a path. A hook that raises on any of them exits non-zero,
-#: and a non-zero `PreToolUse` blocks the call.
+#: payloads a hook must answer without dying, each with the tool it names --
+#: `None` for a payload that names nothing readable at all -- and whether the
+#: fields a hook has to read are usable. Not a guess at what Claude Code sends:
+#: each one is a shape some hook here has assumed away -- a missing field, a
+#: field of the wrong type, a `cwd` naming a tree that was cut, a path that is
+#: not a path. A hook that raises on any of them exits non-zero, and a non-zero
+#: `PreToolUse` blocks the call; a hook that shrugs at one of the unusable ones
+#: runs the call it was put there to decide.
 HOSTILE_PAYLOADS = (
-    "",
-    "not json at all",
-    "null",
-    "[]",
-    "{}",
-    '{"tool_name": "Bash"}',
-    '{"tool_name": "Bash", "tool_input": null, "cwd": null}',
-    '{"tool_name": "Bash", "tool_input": {"command": 17}, "cwd": 17}',
-    '{"tool_name": "Bash", "tool_input": {"command": ""}, "cwd": ""}',
-    '{"tool_name": "Edit", "tool_input": {"file_path": null}}',
-    '{"tool_name": "Edit", "tool_input": {"file_path": "\\u0000"}}',
-    '{"tool_name": "Bash", "tool_input": {"command": "echo hi"},'
-    ' "cwd": "/nonexistent-by-construction/deeper"}',
-    '{"tool_name": "Bash", "tool_input": {"command": "echo hi"},'
-    ' "cwd": "/etc/hostname"}',
-    '{"tool_name": "Bash", "tool_input": {"command": "echo hi"},'
-    ' "agent_type": 3, "cwd": "/"}',
+    ("", None, False),
+    ("not json at all", None, False),
+    ("null", None, False),
+    ("[]", None, False),
+    #: an object naming no tool names no call this hook guards
+    ("{}", "", True),
+    ('{"tool_name": "Bash"}', "Bash", False),
+    ('{"tool_name": "Bash", "tool_input": null, "cwd": null}', "Bash", False),
+    ('{"tool_name": "Bash", "tool_input": {"command": 17}, "cwd": 17}', "Bash", False),
+    #: an empty command and an empty cwd are readable: the command runs nothing
+    #: and the cwd falls back to this process's own, which is what `cwd_of` says
+    ('{"tool_name": "Bash", "tool_input": {"command": ""}, "cwd": ""}', "Bash", True),
+    ('{"tool_name": "Edit", "tool_input": {"file_path": null}}', "Edit", False),
+    #: a NUL in a path is a string, so it is readable here and raises deeper in
+    ('{"tool_name": "Edit", "tool_input": {"file_path": "\\u0000"}}', "Edit", True),
+    (
+        '{"tool_name": "Bash", "tool_input": {"command": "echo hi"},'
+        ' "cwd": "/nonexistent-by-construction/deeper"}',
+        "Bash",
+        True,
+    ),
+    (
+        '{"tool_name": "Bash", "tool_input": {"command": "echo hi"}, "cwd": "/etc/hostname"}',
+        "Bash",
+        True,
+    ),
+    (
+        '{"tool_name": "Bash", "tool_input": {"command": "echo hi"},'
+        ' "agent_type": 3, "cwd": "/"}',
+        "Bash",
+        False,
+    ),
 )
 
+#: the field a call of this tool must carry as a string before a hook can
+#: decide it. `Bash` carries the command; a write carries its target.
+REQUIRED_FIELD = {
+    "Write": "file_path",
+    "Edit": "file_path",
+    "NotebookEdit": "notebook_path",
+    "Read": "file_path",
+    "Bash": "command",
+}
 
-def survives_hostile_payloads(hook_path: str, *argv: str) -> bool:
-    """That this hook answers every `HOSTILE_PAYLOADS` shape without blocking.
+#: a field a call may omit, but may not carry as something other than a string
+OPTIONAL_FIELD = {"Grep": "path", "Glob": "path"}
 
-    The failure mode every hook here shares: it decides a tool call, so its own
-    crash is a denial. A hook is run the way Claude Code runs it -- one JSON
-    object on stdin -- and is required to exit 0 and to write either nothing or
-    a parsable answer, whatever it is handed.
+
+def payload_fault(name: str, tool_input, payload, guarded: tuple[str, ...]) -> str | None:
+    """Why this hook cannot decide the call it was handed, or None to decide it.
+
+    A guard reads three things: which tool, what it names, and who is running
+    it. Where one of them is missing or is not the type it has to be, the hook
+    has not been handed a call it can evaluate -- and the answer to a call a
+    guard cannot evaluate is no, never silence. Coercing the field to a benign
+    default instead (an absent command, an empty path, an anonymous agent) is
+    the shape that lets exactly the malformed call through the gate.
+
+    Only a call of a tool in `guarded` is faulted. Every other tool is somebody
+    else's to decide, and a hook that refuses a call outside its own subject
+    would deny half the session over a field it never reads.
+    """
+    if name not in guarded:
+        return None
+    for field in ("cwd", "agent_type"):
+        value = (payload or {}).get(field)
+        if value is not None and not isinstance(value, str):
+            return f"the payload carries {field} as {type(value).__name__}, not a string"
+    if not isinstance(tool_input, dict):
+        return f"the {name} call carries no tool_input object"
+    required = REQUIRED_FIELD.get(name)
+    if required is not None:
+        value = tool_input.get(required)
+        if not isinstance(value, str):
+            return f"the {name} call carries {required} as {type(value).__name__}, not a string"
+        if not value and name != "Bash":
+            return f"the {name} call carries an empty {required}"
+    optional = OPTIONAL_FIELD.get(name)
+    if optional is not None:
+        value = tool_input.get(optional)
+        if value is not None and not isinstance(value, str):
+            return f"the {name} call carries {optional} as {type(value).__name__}, not a string"
+    return None
+
+
+def undecidable(why: str) -> str:
+    """The refusal a hook gives for a call it could not decide.
+
+    Names the hook, so the denial that reaches the agent says which gate spoke
+    and what it could not read, rather than arriving as an unexplained no.
+    """
+    hook = os.path.basename(sys.argv[0]) or "a gauntlet hook"
+    return (
+        f"{hook} could not decide this call, so it refuses it: {why}. A gate that "
+        "cannot read the call it was handed does not let the call through -- the "
+        "malformed payload is the one that most needs deciding. Reissue the call "
+        f"with the field it is missing. (hooks/{hook})"
+    )
+
+
+def is_denial(answer: str) -> bool:
+    """Whether a hook's stdout is a `PreToolUse` denial."""
+    import json as _json
+
+    try:
+        parsed = _json.loads(answer)
+    except ValueError:
+        return False
+    if not isinstance(parsed, dict):
+        return False
+    specific = parsed.get("hookSpecificOutput")
+    return isinstance(specific, dict) and specific.get("permissionDecision") == "deny"
+
+
+def survives_hostile_payloads(
+    hook_path: str,
+    *argv: str,
+    guards: tuple[str, ...] = ("Write", "Edit", "NotebookEdit", "Bash"),
+    refuses_undecidable: bool = True,
+) -> bool:
+    """That this hook answers every `HOSTILE_PAYLOADS` shape, and answers no.
+
+    Two failures, not one. A hook decides a tool call, so its own crash is a
+    denial of whatever it was deciding: it is run the way Claude Code runs it,
+    one JSON object on stdin, and must exit 0 and write either nothing or a
+    parsable answer, whatever it is handed. And a hook that stays alive by
+    treating every payload it cannot read as an allow has moved the defect
+    rather than fixed it, so each payload whose fields this hook needs and
+    cannot read must come back a denial. `guards` is the set of tools this hook
+    decides; a payload naming any other tool is not its call to refuse.
+
+    `refuses_undecidable` is false for an entry point that decides no tool call
+    -- a `Stop` gate reads no payload and has no permission to withhold -- and
+    there the older contract is the whole contract: stay alive, answer parsably.
 
     `GAUNTLET` is cleared for the run. Under `GAUNTLET=off` a hook returns at
     its first line, and every payload would pass without touching the code the
@@ -984,7 +1101,7 @@ def survives_hostile_payloads(hook_path: str, *argv: str) -> bool:
 
     environment = dict(os.environ)
     environment.pop("GAUNTLET", None)
-    for payload in HOSTILE_PAYLOADS:
+    for payload, tool, usable in HOSTILE_PAYLOADS:
         done = subprocess.run(
             [sys.executable, hook_path, *argv],
             input=payload,
@@ -996,10 +1113,237 @@ def survives_hostile_payloads(hook_path: str, *argv: str) -> bool:
         if done.returncode != 0:
             return False
         out = done.stdout.strip()
-        if not out:
+        if out:
+            try:
+                _json.loads(out)
+            except ValueError:
+                return False
+        if not refuses_undecidable:
             continue
-        try:
-            _json.loads(out)
-        except ValueError:
-            return False
+        #: a payload naming no readable tool at all is undecidable for every
+        #: hook; one naming a guarded tool is undecidable when its fields are not
+        if tool is None or (tool in guards and not usable):
+            if not is_denial(out):
+                return False
     return True
+
+
+# --- the shape a lane hook is ------------------------------------------------
+#
+# Five hooks here guard a directory that one named agent writes. They differ in
+# the lane, the agent and the prose of the refusal; everything around those
+# three was the same text copied five times, which is the shape where one hook
+# gets a fix and four keep the defect. The dispatch, the entry point and the
+# denial sentence live here now, and a lane hook is its constants plus whatever
+# it does that the others do not.
+
+#: tools that write a file. `NotebookEdit` names its target `notebook_path`.
+WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
+
+
+def write_target(tool_input: dict) -> str:
+    """The path a write tool names, or the empty string for no target."""
+    tool_input = tool_input or {}
+    return tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+
+
+def dispatch(
+    name: str,
+    tool_input: dict,
+    payload: dict,
+    *,
+    on_write,
+    on_bash,
+    on_read=None,
+    read_tools: tuple[str, ...] = (),
+) -> str | None:
+    """Route one tool call to the handler for its kind; None lets it through.
+
+    `on_write(target, cwd, agent)` is called only for a write that names a
+    target, since a write with no path denies nothing. `on_read(tool_input,
+    cwd, agent)` sees the whole input, because a read names its target under
+    three different keys. `on_bash(command, agent)` takes the agent whether or
+    not the lane cares who ran the command, so that every lane hook hands this
+    function the same two-argument callable.
+    """
+    cwd = cwd_of(payload)
+    agent = (payload or {}).get("agent_type") or ""
+    if name in WRITE_TOOLS:
+        target = write_target(tool_input)
+        return on_write(target, cwd, agent) if target else None
+    if on_read is not None and name in read_tools:
+        return on_read(tool_input, cwd, agent)
+    if name == "Bash":
+        return on_bash(command_of(tool_input), agent)
+    return None
+
+
+def lane_denial(lane: str, noun: str, lane_msg: str, *, restore: bool = True) -> str:
+    """The refusal a shell write into `lane` gets.
+
+    `restore` is false for a lane with no restore escape, where the sentence
+    ends at the reason.
+    """
+    denial = f"A shell write naming a {lane}/ path is denied: " + lane_msg
+    if not restore:
+        return denial
+    return (
+        denial + f" Restoring {noun} from a git object is the one shell shape "
+        f"that passes: `git restore --source <rev> -- {lane}/<file>`."
+    )
+
+
+def sole_writer_lane(lane: str, writer: str, lane_msg: str, bash_msg: str):
+    """The verdict function of a lane one named agent writes and nobody else.
+
+    Returns a `_verdict(name, tool_input, payload)`. A write whose target is in
+    the lane passes for `writer` and is refused with `lane_msg` for every other
+    hand, the main agent included; a shell command that writes into the lane is
+    refused with `bash_msg`; everything else passes.
+    """
+    pattern = lane_pattern(lane)
+
+    def on_write(target: str, cwd: str, agent: str) -> str | None:
+        if not path_in_lane(target, cwd, lane):
+            return None
+        return None if agent == writer else lane_msg
+
+    def on_bash(command: str, agent: str) -> str | None:
+        return bash_msg if lane_write_in(command, pattern) else None
+
+    def verdict(name: str, tool_input: dict, payload: dict) -> str | None:
+        return dispatch(name, tool_input, payload, on_write=on_write, on_bash=on_bash)
+
+    return verdict
+
+
+def read_payload(guards: tuple[str, ...]) -> tuple[dict | None, str | None]:
+    """One payload from stdin as `(payload, refusal)`; exactly one is not None.
+
+    Every way the payload can fail to be a call this hook can decide ends in a
+    refusal, never in silence. The three the old entry point swallowed -- stdin
+    that will not read, text that is not JSON, JSON that is not an object --
+    are each a case where the hook has no idea what it was asked to decide, and
+    no idea is not consent.
+    """
+    try:
+        raw = sys.stdin.read()
+    except OSError as exc:
+        return None, undecidable(f"its payload could not be read from stdin ({exc})")
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None, undecidable("its payload is not JSON")
+    if not isinstance(data, dict):
+        return None, undecidable("its payload is not a JSON object")
+    if not isinstance(data.get("tool_name", ""), str):
+        return None, undecidable("its payload carries tool_name as something other than a string")
+    fault = payload_fault(data.get("tool_name", ""), data.get("tool_input"), data, guards)
+    return (None, undecidable(fault)) if fault is not None else (data, None)
+
+
+def hook_main(verdict, *, guards: tuple[str, ...] = WRITE_TOOLS + ("Bash",)) -> None:
+    """Read one payload from stdin and print a denial if `verdict` names one.
+
+    `guards` is the set of tools this hook decides, and it is what makes a
+    malformed payload refusable: a call of a tool outside the set is not this
+    hook's to refuse however broken it is.
+
+    A `verdict` that raises is a denial too. It is the same failure as a
+    payload that will not parse -- the hook does not know whether the call is
+    allowed -- and the same answer follows, with the exception named in it so
+    the defect is visible rather than absorbed. `except Exception` is wide on
+    purpose: what is caught is not a known-harmless class but every way this
+    hook can fail, and none of them ends in the call being run.
+
+    The switch is read here and nowhere else: a self-test calls `verdict`
+    directly, so a bypass reachable from inside it would make every self-test
+    pass vacuously under `GAUNTLET=off`.
+    """
+    if bypassed():
+        return  # GAUNTLET=off: the owner's switch, read at the entry point only
+    data, refusal = read_payload(guards)
+    if refusal is not None:
+        print(deny(refusal))
+        return
+    try:
+        reason = verdict(data.get("tool_name", ""), data.get("tool_input") or {}, data)
+    except Exception as exc:  # noqa: BLE001 -- see the docstring: a crash is a denial
+        print(deny(undecidable(f"deciding it raised {type(exc).__name__}: {exc}")))
+        return
+    if reason is not None:
+        print(deny(reason))
+
+
+def answer_main(answer_of, *, guards: tuple[str, ...] = ("Bash",)) -> None:
+    """`hook_main` for a hook whose answer is not a denial.
+
+    `bwrap-wrap.py` rewrites the command rather than refusing it, so its answer
+    is a whole `hookSpecificOutput` object. Every failure path is the same as
+    `hook_main`'s and ends the same way: a hook that cannot build the sandbox a
+    command was going to run inside refuses the command, because the fallback
+    it would otherwise take is running that command unsandboxed.
+    """
+    if bypassed():
+        return  # GAUNTLET=off: the owner's switch, read at the entry point only
+    data, refusal = read_payload(guards)
+    if refusal is not None:
+        print(deny(refusal))
+        return
+    try:
+        answer = answer_of(data)
+    except Exception as exc:  # noqa: BLE001 -- see `hook_main`: a crash is a denial
+        print(deny(undecidable(f"answering it raised {type(exc).__name__}: {exc}")))
+        return
+    if answer is not None:
+        print(json.dumps(answer))
+
+
+def entry(self_test_fn, main_fn) -> None:
+    """The `__main__` of a hook with one gate mode and one wire mode."""
+    sys.exit(self_test_fn()) if "--self-test" in sys.argv else main_fn()
+
+
+# --- the shape a self-test is ------------------------------------------------
+
+
+def denied(verdict: str | None) -> bool:
+    """That a verdict refused the call: a refusal is its own reason."""
+    return isinstance(verdict, str)
+
+
+def allowed(verdict: str | None) -> bool:
+    """That a verdict let the call through."""
+    return verdict is None
+
+
+def probe(verdict, root: str, tool: str, key: str = "file_path", *, agent: str | None = None):
+    """A closure that calls `verdict` for one tool the way the wire does.
+
+    `key` is the field that tool carries its target in. `agent` is the default
+    `agent_type` the closure sends, overridden per call; `None` is the main
+    agent, whose payload carries no such key at all.
+    """
+
+    def call(value, who: str | None = agent) -> str | None:
+        payload = {"cwd": root}
+        if who is not None:
+            payload["agent_type"] = who
+        return verdict(tool, {key: value}, payload)
+
+    return call
+
+
+def probes(verdict, root: str = "/repo", *, agent: str | None = None):
+    """The `(write, bash)` pair every lane self-test drives its lane through."""
+    return (
+        probe(verdict, root, "Edit", agent=agent),
+        probe(verdict, root, "Bash", "command", agent=agent),
+    )
+
+
+def report(lines: dict) -> int:
+    """Print one PASS or FAIL per spec line; 0 if every line held."""
+    for label, ok in lines.items():
+        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
+    return 0 if all(lines.values()) else 1

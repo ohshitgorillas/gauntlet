@@ -30,6 +30,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - The `gauntlet-arbiter` and `gauntlet-prosecutor` no longer exempt a host conduct block from the framing count.
 - The gauntlet's artifacts leave `docs/` for `gauntlet/`: `plans/approved/`, `plans/drafts/`, `specs/approved/`, `specs/drafts/`, `reviews/`, `verdicts/`. The lane hooks, agent definitions, `scripts/` and `.gitignore` move with them; re-copy `.claude/` and `docs/` both.
 - A blind agent's allowlist is `docs/`, `tests/`, `state/` and `gauntlet/specs/approved/`, with the `gauntlet/` base denied entire. No denied subtree nests inside an allowed root.
+- Every hook fails closed on a payload it cannot decide. A payload that is not JSON, is not an object, names `tool_name` as something other than a string, or carries the field the hook has to read (`command`, `file_path`, `notebook_path`, `path`, `cwd`, `agent_type`) as the wrong type is denied, naming the hook and the field; so is a call whose verdict raises. Each hook refuses only for the tools it decides, so a malformed call of somebody else's tool still passes. A payload a gate cannot read is the one that most needs deciding, and coercing its fields to benign defaults is what lets it through.
+- `bwrap-wrap.py` denies a `Bash` call it cannot build a sandbox for, rather than letting the command run unwrapped.
+- The `Stop` gate reports a red run whose file cannot be read as a complaint. A run this gate cannot open is one nobody can be shown a verdict for, so it is a complaint and not a file to step over.
 
 ## [0.1.0] - 2026-09-10
 

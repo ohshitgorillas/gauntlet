@@ -277,17 +277,10 @@ def _heredoc(command: str) -> str:
 
 
 def main() -> None:
-    if sh.bypassed():
-        return  # GAUNTLET=off: the owner's switch, read at the entry point only
-    try:
-        payload = json.loads(sys.stdin.read())
-    except (ValueError, OSError):
-        return  # never block on our own failure
-    if not isinstance(payload, dict):
-        return  # a payload that is not an object names no tool call
-    answer = _answer(payload)
-    if answer is not None:
-        print(json.dumps(answer))
+    #: a command is the only thing this hook wraps, so a `Bash` call is the only
+    #: one it refuses for being unreadable. A wrap that cannot be built is a
+    #: denial and not a shrug: the shrug runs the command outside the sandbox.
+    sh.answer_main(_answer, guards=("Bash",))
 
 
 def self_test() -> int:
@@ -418,9 +411,10 @@ def _self_test_in(tmp: str) -> int:
             or not os.path.exists(gone)
             and f"--chdir {gone}" not in wrap("true", gone, "gauntlet-prosecutor")
         ),
-        #: a hook decides a tool call, so its own crash is a denial
-        "no payload shape makes this hook block the call it is deciding": (
-            sh.survives_hostile_payloads(__file__)
+        #: a hook decides a tool call, so its own crash is a denial -- and a
+        #: payload it cannot read is a call it cannot decide, which is a refusal
+        "every payload shape is answered, and an unreadable one is refused": (
+            sh.survives_hostile_payloads(__file__, guards=("Bash",))
         ),
     }
 
@@ -443,10 +437,8 @@ def _self_test_in(tmp: str) -> int:
     else:
         lines["bwrap is absent, so the profiles could not be run"] = True
 
-    for label, ok in lines.items():
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
-    return 0 if all(lines.values()) else 1
+    return sh.report(lines)
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else main()
+    sh.entry(self_test, main)

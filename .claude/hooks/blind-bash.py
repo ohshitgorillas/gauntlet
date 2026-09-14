@@ -39,7 +39,6 @@ hand a full shell to a caller nobody identified.
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import sys
@@ -102,17 +101,7 @@ def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
 
 
 def main() -> None:
-    if sh.bypassed():
-        return  # GAUNTLET=off: the owner's switch, read at the entry point only
-    try:
-        data = json.loads(sys.stdin.read())
-    except (ValueError, OSError):
-        return  # never block on our own failure
-    if not isinstance(data, dict):
-        return  # a payload that is not an object names no tool call
-    reason = _verdict(data.get("tool_name", ""), data.get("tool_input") or {}, data)
-    if reason is not None:
-        print(sh.deny(reason))
+    sh.hook_main(_verdict)
 
 
 def self_test() -> int:
@@ -123,13 +112,9 @@ def self_test() -> int:
     wire = "tests/test_hook_wire.py"
     plan = "gauntlet/plans/approved/bash-sandbox"
 
-    def bash(cmd: str, agent: str | None = "gauntlet-scrivener") -> str | None:
-        payload = {"cwd": "/repo"}
-        if agent is not None:
-            payload["agent_type"] = agent
-        return _verdict("Bash", {"command": cmd}, payload)
+    bash = sh.probe(_verdict, "/repo", "Bash", "command", agent="gauntlet-scrivener")
 
-    denied, allowed = (lambda v: isinstance(v, str)), (lambda v: v is None)
+    denied, allowed = sh.denied, sh.allowed
     lines = {
         "1 the whole command text is one scripts/blind.sh call, or it is denied": all(
             (
@@ -178,15 +163,14 @@ def self_test() -> int:
                 denied(bash("scripts/blind.sh status demo", "scrivener")),
             )
         ),
-        #: a hook decides a tool call, so its own crash is a denial
-        "no payload shape makes this hook block the call it is deciding": (
-            sh.survives_hostile_payloads(__file__)
+        #: a hook decides a tool call, so its own crash is a denial -- and a
+        #: payload it cannot read is a call it cannot decide, which is a refusal
+        "every payload shape is answered, and an unreadable one is refused": (
+            sh.survives_hostile_payloads(__file__, guards=("Bash",))
         ),
     }
-    for label, ok in lines.items():
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
-    return 0 if all(lines.values()) else 1
+    return sh.report(lines)
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else main()
+    sh.entry(self_test, main)

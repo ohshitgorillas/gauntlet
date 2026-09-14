@@ -14,7 +14,7 @@ An entry lands under `[Unreleased]` in the same commit as the change it describe
 
 ## The gates
 
-Green means all fourteen gates pass, not just the first. One command runs them:
+Green means every gate passes, not just the first. One command runs them:
 
 ```
 scripts/gates/check-gates.sh

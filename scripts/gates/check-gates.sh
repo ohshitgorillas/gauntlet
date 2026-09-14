@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the thirteen gates of this repository, one after another, at idle priority.
+# Run the gates of this repository, one after another, at idle priority.
 #
 # Each gate runs once. Its output is saved to state/gates/<gate>.txt and never
 # printed; what prints is one PASS or FAIL line per gate with its wall time.

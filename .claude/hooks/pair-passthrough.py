@@ -96,9 +96,7 @@ def self_test() -> int:
             for c in (f"x{ENTRY} red demo", f"/opt/{ENTRY} red demo", f"./{ENTRY} red demo")
         ),
     }
-    for label, ok in lines.items():
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
-    return 0 if all(lines.values()) else 1
+    return sh.report(lines)
 
 
 if __name__ == "__main__":

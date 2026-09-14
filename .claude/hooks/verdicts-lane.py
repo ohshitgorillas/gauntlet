@@ -54,7 +54,6 @@ that copies `.claude/` and never runs `pair.sh` is never blocked.
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 from pathlib import Path
@@ -64,9 +63,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 REVIEWER = "gauntlet-juror"
-WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
 LANE = "gauntlet/verdicts"
-BASH_VERDICTS = sh.lane_pattern(LANE)
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 RED_DIR = "state/red"
@@ -78,47 +75,15 @@ _LANE = (
     "certified it. Spawn a gauntlet-juror with the committed spec path and the path "
     "`scripts/pair.sh red` printed. (hooks/verdicts-lane.py)"
 )
-_BASH = (
-    "A shell write naming a gauntlet/verdicts/ path is denied: " + _LANE + " Restoring "
-    "a verdict from a git object is the one shell shape that passes: "
-    "`git restore --source <rev> -- gauntlet/verdicts/<file>`."
-)
+_BASH = sh.lane_denial(LANE, "a verdict", _LANE)
 
-
-def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
-    if not sh.path_in_lane(target, cwd, LANE):
-        return None
-    return None if agent == REVIEWER else _LANE
-
-
-def _bash_verdict(command: str) -> str | None:
-    return _BASH if sh.lane_write_in(command, BASH_VERDICTS) else None
-
-
-def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
-    """Why this call is refused, or None to let it through."""
-    cwd = sh.cwd_of(payload)
-    agent = payload.get("agent_type") or ""
-    if name in WRITE_TOOLS:
-        target = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
-        return _write_verdict(target, cwd, agent) if target else None
-    if name == "Bash":
-        return _bash_verdict(sh.command_of(tool_input))
-    return None
+#: the lane's whole policy: the one writer passes, every other hand is
+#: refused with the reason, and a shell write into it is refused with _BASH
+_verdict = sh.sole_writer_lane(LANE, REVIEWER, _LANE, _BASH)
 
 
 def main() -> None:
-    if sh.bypassed():
-        return  # GAUNTLET=off: the owner's switch, read at the entry point only
-    try:
-        data = json.loads(sys.stdin.read())
-    except (ValueError, OSError):
-        return  # never block on our own failure
-    if not isinstance(data, dict):
-        return  # a payload that is not an object names no tool call
-    reason = _verdict(data.get("tool_name", ""), data.get("tool_input") or {}, data)
-    if reason is not None:
-        print(sh.deny(reason))
+    sh.hook_main(_verdict)
 
 
 #: one line per unruled or unrulable red run, keyed by what is wrong with it
@@ -127,6 +92,9 @@ _EMPTY += "nothing to rule on. Re-run `scripts/pair.sh red {slug}`, or delete th
 _MISSING = "{slug}: no verdict. state/red/{slug}.txt is a red run nobody ruled on. Spawn "
 _MISSING += "a gauntlet-juror with gauntlet/specs/approved/{slug}.txt and state/red/{slug}.txt, "
 _MISSING += "or delete the red file if the slug was abandoned."
+_UNREADABLE = "{slug}: state/red/{slug}.txt could not be read ({error}). A red run this "
+_UNREADABLE += "gate cannot open is one nobody can be shown a verdict for, so it is a complaint "
+_UNREADABLE += "and not a file to step over. Fix its permissions, or delete it."
 _STALE = "{slug}: stale verdict. gauntlet/verdicts/{slug}.txt is older than "
 _STALE += "state/red/{slug}.txt, so the run it ruled on has been overwritten since. Spawn "
 _STALE += "a fresh gauntlet-juror on the run now on disk."
@@ -142,7 +110,11 @@ def _complaints(root: Path) -> list[str]:
         slug = red.stem
         try:
             red_stat = red.stat()
-        except OSError:
+        except OSError as exc:
+            #: a red run that cannot be statted is not a red run that is fine.
+            #: Stepping over it drops it out of the gate entirely, which is the
+            #: one outcome an unruled run must never have.
+            out.append(_UNREADABLE.format(slug=slug, error=exc.strerror or exc))
             continue
         if red_stat.st_size == 0:
             out.append(_EMPTY.format(slug=slug))
@@ -176,16 +148,8 @@ def self_test() -> int:
 
     root = "/repo"
 
-    def write(path: str, agent: str | None = None) -> str | None:
-        payload = {"cwd": root}
-        if agent:
-            payload["agent_type"] = agent
-        return _verdict("Edit", {"file_path": path}, payload)
-
-    def bash(cmd: str) -> str | None:
-        return _verdict("Bash", {"command": cmd}, {"cwd": root})
-
-    denied, allowed = (lambda v: isinstance(v, str)), (lambda v: v is None)
+    write, bash = sh.probes(_verdict, root)
+    denied, allowed = sh.denied, sh.allowed
 
     def tree(tmp: str, *, red: str | None, verdict: str | None, order: str = "red-first") -> Path:
         """A checkout with one red run and at most one verdict, mtimes ordered."""
@@ -313,17 +277,18 @@ def self_test() -> int:
                 denied(bash("find gauntlet/verdicts -name '*.txt' -delete")),
             )
         ),
-        #: a hook decides a tool call, so its own crash is a denial. The
-        #: `--stop` entry point is the sharper one: a non-zero exit there holds
-        #: the turn open, so a crash in it is a loop with no way out.
-        "no payload shape makes this hook block the call it is deciding": (
+        #: a hook decides a tool call, so its own crash is a denial -- and a
+        #: payload it cannot read is a call it cannot decide, which is a refusal.
+        #: The `--stop` entry point decides no call, so it withholds no
+        #: permission and has nothing to refuse; what it owes is the older half
+        #: alone, because a non-zero exit there holds the turn open and a crash
+        #: in it is a loop with no way out.
+        "every payload shape is answered, and an unreadable one is refused": (
             sh.survives_hostile_payloads(__file__)
-            and sh.survives_hostile_payloads(__file__, "--stop")
+            and sh.survives_hostile_payloads(__file__, "--stop", refuses_undecidable=False)
         ),
     }
-    for label, ok in lines.items():
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
-    return 0 if all(lines.values()) else 1
+    return sh.report(lines)
 
 
 if __name__ == "__main__":

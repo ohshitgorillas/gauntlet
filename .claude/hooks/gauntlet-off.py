@@ -225,17 +225,9 @@ def prompt() -> None:
 
 
 def bash() -> None:
-    if sh.bypassed():
-        return  # the switch is already thrown; guarding it buys nothing
-    try:
-        data = json.loads(sys.stdin.read())
-    except (ValueError, OSError):
-        return  # never block on our own failure
-    if not isinstance(data, dict):
-        return  # a payload that is not an object names no tool call
-    reason = _verdict(data.get("tool_name", ""), data.get("tool_input") or {})
-    if reason is not None:
-        print(sh.deny(reason))
+    #: this hook guards one tool, so a payload naming any other is not its call
+    #: to refuse however malformed it is
+    sh.hook_main(lambda name, tool_input, payload: _verdict(name, tool_input), guards=("Bash",))
 
 
 def self_test() -> int:
@@ -301,15 +293,14 @@ def self_test() -> int:
         "the self-test asserts nothing on the ambient variable": (
             off("off") is True and off(os.environ.get("nonexistent-by-construction")) is False
         ),
-        #: a hook decides a tool call, so its own crash is a denial. `--bash`
-        #: is the entry point that decides one; the other two only speak.
-        "no payload shape makes this hook block the call it is deciding": (
-            sh.survives_hostile_payloads(__file__, "--bash")
+        #: a hook decides a tool call, so its own crash is a denial -- and a
+        #: payload it cannot read is a call it cannot decide, which is a refusal.
+        #: `--bash` is the entry point that decides one; the other two only speak.
+        "every payload shape is answered, and an unreadable one is refused": (
+            sh.survives_hostile_payloads(__file__, "--bash", guards=("Bash",))
         ),
     }
-    for label, ok in lines.items():
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
-    return 0 if all(lines.values()) else 1
+    return sh.report(lines)
 
 
 if __name__ == "__main__":

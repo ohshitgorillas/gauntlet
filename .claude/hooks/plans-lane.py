@@ -36,7 +36,6 @@ unreviewed plan reaches the tree, and the denial names this file.
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 
@@ -45,9 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 REVIEWER = "gauntlet-prosecutor"
-WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
 LANE = "gauntlet/plans/approved"
-BASH_PLANS = sh.lane_pattern(LANE)
 
 _LANE = (
     "gauntlet/plans/approved/ is the gauntlet-prosecutor's lane. An approved plan is "
@@ -56,63 +53,23 @@ _LANE = (
     "plan gate. Draft under gauntlet/plans/drafts/ and send the draft to the "
     "gauntlet-prosecutor. (hooks/plans-lane.py)"
 )
-_BASH = (
-    "A shell write naming a gauntlet/plans/approved/ path is denied: " + _LANE + " Restoring "
-    "an approved plan from a git object is the one shell shape that passes: "
-    "`git restore --source <rev> -- gauntlet/plans/approved/<file>`."
-)
+_BASH = sh.lane_denial(LANE, "an approved plan", _LANE)
 
-
-def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
-    if not sh.path_in_lane(target, cwd, LANE):
-        return None
-    return None if agent == REVIEWER else _LANE
-
-
-def _bash_verdict(command: str) -> str | None:
-    return _BASH if sh.lane_write_in(command, BASH_PLANS) else None
-
-
-def _verdict(name: str, tool_input: dict, payload: dict) -> str | None:
-    """Why this call is refused, or None to let it through."""
-    cwd = sh.cwd_of(payload)
-    agent = payload.get("agent_type") or ""
-    if name in WRITE_TOOLS:
-        target = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
-        return _write_verdict(target, cwd, agent) if target else None
-    if name == "Bash":
-        return _bash_verdict(sh.command_of(tool_input))
-    return None
+#: the lane's whole policy: the one writer passes, every other hand is
+#: refused with the reason, and a shell write into it is refused with _BASH
+_verdict = sh.sole_writer_lane(LANE, REVIEWER, _LANE, _BASH)
 
 
 def main() -> None:
-    if sh.bypassed():
-        return  # GAUNTLET=off: the owner's switch, read at the entry point only
-    try:
-        data = json.loads(sys.stdin.read())
-    except (ValueError, OSError):
-        return  # never block on our own failure
-    if not isinstance(data, dict):
-        return  # a payload that is not an object names no tool call
-    reason = _verdict(data.get("tool_name", ""), data.get("tool_input") or {}, data)
-    if reason is not None:
-        print(sh.deny(reason))
+    sh.hook_main(_verdict)
 
 
 def self_test() -> int:
     """Pin the four spec lines of the approved-plan lane."""
     root = "/repo"
 
-    def write(path: str, agent: str | None = None) -> str | None:
-        payload = {"cwd": root}
-        if agent:
-            payload["agent_type"] = agent
-        return _verdict("Edit", {"file_path": path}, payload)
-
-    def bash(cmd: str) -> str | None:
-        return _verdict("Bash", {"command": cmd}, {"cwd": root})
-
-    denied, allowed = (lambda v: isinstance(v, str)), (lambda v: v is None)
+    write, bash = sh.probes(_verdict, root)
+    denied, allowed = sh.denied, sh.allowed
     lines = {
         "1 gauntlet/plans/approved/ closed to every agent but the gauntlet-prosecutor": all(
             (
@@ -191,15 +148,14 @@ def self_test() -> int:
                 denied(bash("find gauntlet/plans/approved -name '*.txt' -delete")),
             )
         ),
-        #: a hook decides a tool call, so its own crash is a denial
-        "no payload shape makes this hook block the call it is deciding": (
+        #: a hook decides a tool call, so its own crash is a denial -- and a
+        #: payload it cannot read is a call it cannot decide, which is a refusal
+        "every payload shape is answered, and an unreadable one is refused": (
             sh.survives_hostile_payloads(__file__)
         ),
     }
-    for label, ok in lines.items():
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
-    return 0 if all(lines.values()) else 1
+    return sh.report(lines)
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else main()
+    sh.entry(self_test, main)

@@ -393,35 +393,38 @@ def _verdict(name: str, tool_input: dict, root: str | None, cwd: str, conf: dict
     return None
 
 
+#: the tools this hook decides. A call of anything else is not its subject,
+#: and a malformed one is not its refusal to give -- see `sh.payload_fault`.
+GUARDS = ("Read", "Grep", "Glob", "Bash")
+
+
 def main() -> None:
-    if sh.bypassed():
-        return  # GAUNTLET=off: the owner's switch, read at the entry point only
+    def verdict(name: str, tool_input: dict, payload: dict) -> str | None:
+        #: inside the closure, so that a root or a config that will not resolve
+        #: is a refusal like any other rather than a crash read as one
+        cwd = sh.cwd_of(payload)
+        return _verdict(name, tool_input, repo_root(cwd), cwd, config())
+
+    sh.hook_main(verdict, guards=GUARDS)
+
+
+def _config_parses() -> bool:
+    """That the per-repo config beside this hook reads, where there is one.
+
+    `sh.config` answers a malformed file with an empty config, and that is the
+    right answer at the gate: an empty config declares nothing and so denies.
+    It is also silent, so a typo in the file costs a repo every widening it
+    declared and says nothing about it. The runtime keeps the safe direction;
+    this line is where the typo becomes visible instead of free.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blind-reads.json")
+    if not os.path.exists(path):
+        return True  # no per-repo widening here; nothing to parse
     try:
-        data = json.loads(sys.stdin.read())
-    except (ValueError, OSError):
-        return  # never block on our own failure
-    if not isinstance(data, dict):
-        return  # a payload that is not an object names no tool call
-    cwd = sh.cwd_of(data)
-    try:
-        reason = _verdict(
-            data.get("tool_name", ""), data.get("tool_input") or {}, repo_root(cwd), cwd, config()
-        )
-    except (ValueError, IndexError):
-        reason = None  # never block on our own failure
-    if reason is None:
-        return
-    print(
-        json.dumps(
-            {
-                "hookSpecificOutput": {
-                    "hookEventName": "PreToolUse",
-                    "permissionDecision": "deny",
-                    "permissionDecisionReason": reason,
-                }
-            }
-        )
-    )
+        with open(path, encoding="utf-8") as fh:
+            return isinstance(json.load(fh), dict)
+    except (OSError, ValueError):
+        return False
 
 
 def _no_denied_nesting() -> bool:
@@ -467,7 +470,7 @@ def self_test() -> int:
     def bash(cmd: str) -> str | None:
         return call("Bash", {"command": cmd})
 
-    denied, allowed = (lambda v: isinstance(v, str)), (lambda v: v is None)
+    denied, allowed = sh.denied, sh.allowed
     lines = {
         "1 the spec's own sources are readable, the rest is not": all(
             (
@@ -601,15 +604,15 @@ def self_test() -> int:
             )
         ),
         "11 no denied subtree nests inside an allowed one": _no_denied_nesting(),
-        #: a hook decides a tool call, so its own crash is a denial
-        "no payload shape makes this hook block the call it is deciding": (
-            sh.survives_hostile_payloads(__file__)
+        "12 this repo's own blind-reads.json parses, if it is there": _config_parses(),
+        #: a hook decides a tool call, so its own crash is a denial -- and a
+        #: payload it cannot read is a call it cannot decide, which is a refusal
+        "every payload shape is answered, and an unreadable one is refused": (
+            sh.survives_hostile_payloads(__file__, guards=GUARDS)
         ),
     }
-    for label, ok in lines.items():
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
-    return 0 if all(lines.values()) else 1
+    return sh.report(lines)
 
 
 if __name__ == "__main__":
-    sys.exit(self_test()) if "--self-test" in sys.argv else main()
+    sh.entry(self_test, main)
