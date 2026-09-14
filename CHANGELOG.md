@@ -23,6 +23,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - `pytest_command` and `node_command` in `.claude/hooks/blind-reads.json`, answered by `shell_shapes.py --config` one word per line. They are the invocations `scripts/blind.sh test` and `scripts/pair.sh red` run, `.venv/bin/pytest` and `node --test` by default, so a project that has to deselect a marker or import a loader names the whole invocation there instead of editing the two scripts. The test path and each script's own flags come after the configured words, a configured word carrying a slash is read as a path in the checkout, and `blind-bash.py` still admits `scripts/blind.sh test <path>` and no runner argument beside it.
 - `scripts/cite.py`. `--check` resolves every backticked `path:line` against the tree and exits 1 on one that does not; `--fix` fills a number from its quoted anchor.
 - "The approval word" in `README.md`. Plan, spec block and start of implementation each wait for a message whose first line is exactly `approved`, or `approved with revision` with the amendments below it. No hook enforces it.
+- `docs/workflow.mermaid`, a reader's diagram of stage 1: the plan gate from the brief through discovery, the citation check, the `gauntlet-prosecutor`'s rounds, the framing and evasion rejections, the eight-round leash and escalation, to the approved plan the reviewer files. It ends where stage 2 begins.
 
 **Breaking for existing installs:** re-copy `.claude/` and re-run the `--self-test` commands.
 

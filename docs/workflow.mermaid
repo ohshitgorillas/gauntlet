@@ -1,0 +1,145 @@
+%% The Gauntlet, stage 1: the plan gate.
+%% Written for a reader, not for a machine. Ends where stage 2 begins.
+%% Agent nodes are the double-edged boxes; the owner's own moves are the rounded ones.
+flowchart TD
+    brief("`**You**
+    hand the main agent a brief:
+    the problem to solve, or the feature you want`")
+    testsonly{"`Does the change touch
+    only the test suite?`"}
+    lane["`**The tests-only lane**
+    no discovery, no plan, no plan review.
+    A test is struck or amended under review instead.`"]
+
+    questions["`The main agent gathers every question it has
+    about the codebase into a single brief.`"]
+    detective[["`**Detective**
+    answers the brief. It may read the whole tree
+    and may change nothing. It returns a table of
+    file and line pointers, and no opinion.`"]]
+    cites["`Those pointers become the plan's citations:
+    every claim about the code carries the line that shows it.`"]
+    draft["`The main agent drafts the plan:
+    what is wrong, what you will see change, which files get touched,
+    what changes for callers, what it costs, what is still open.`"]
+    citecheck["`Every citation is resolved against the tree.
+    A pointer that lands nowhere, or on the wrong file, is caught here.`"]
+    citebad{"`Does every citation
+    land where the plan says?`"}
+
+    pros[["`**Prosecutor**
+    reviews the draft. It reads the plan and opens
+    every line the plan cites. It is adversarial by
+    design and fails a check by default.`"]]
+
+    framing{"`Is the plan trying to steer the reviewer?
+    Conclusions stated as settled, scope rulings,
+    questions aimed at the reviewer, rules recited back.`"}
+    steer["`The round is rejected outright and nothing is written.
+    The steering now sits in that reviewer's head.`"]
+    fresh[["`**A fresh Prosecutor**
+    gets the plain plan.
+    The tainted one never sees it again.`"]]
+
+    rereview{"`Is this a repeat round?`"}
+    evasioncheck{"`Does the return answer every earlier finding
+    with the repair asked for, or a quote that settles it?`"}
+    evasion["`The round is rejected for evasion.
+    This reviewer stays on the case, holding its findings.
+    The main agent must answer it properly.`"]
+
+    checks["`The checks run.
+    The first round is exhaustive: every collision, every unexamined
+    edge case and every open question is named at once.
+    Later rounds re-read only the sentences that changed.`"]
+    gate{"`The reviewer's verdict`"}
+
+    another["`**Another pass**
+    Some checks failed, and each names the repair it wants.
+    Nothing is approved and nothing is written.`"]
+    repair["`The main agent repairs the named sentences,
+    and says which sentences it changed.`"]
+    leash["`A cap of eight rounds.
+    A plan that cannot settle in eight comes to you.`"]
+
+    esc["`**Escalation**
+    A check failed again after the repair meant to fix it.
+    The approach itself cannot be stated so as to survive.`"]
+    design("`**You**
+    rule on the approach. You see the question
+    and the alternatives, never the plan body.`")
+
+    escq["`**Escalation with a question**
+    The plan holds something only you can decide.
+    You get the question, the recommendation,
+    the alternative, and the cost of each.`"]
+    ruling["`Your ruling goes back to the same reviewer,
+    which never closed, and this round is free.`"]
+
+    ready["`**Ready**
+    Every check passes, or is set aside with a reason.`"]
+    write[["`**The Prosecutor**, and nobody else, files the approved plan:
+    the plan as approved, with the full review beneath it.
+    Its presence on disk is the proof the plan passed.`"]]
+    owner("`**You**
+    read the plan, and only now:
+    every earlier round was between the two agents.`")
+    word{"`The first line of your reply`"}
+    hold["`Everything else holds the gate shut:
+    looks good, yep, ship it, silence,
+    or a pasted block that happens to contain the word.`"]
+    amend["`**approved with revision**
+    What you write below that line is applied before work starts.`"]
+    ok["`**approved**`"]
+
+    stage2["`**Stage 2**`"]
+
+    brief --> testsonly
+    testsonly -- yes --> lane
+    testsonly -- no --> questions
+    questions --> detective
+    detective --> cites
+    cites --> draft
+    draft --> citecheck
+    citecheck --> citebad
+    citebad -- no --> draft
+    citebad -- yes --> pros
+    pros --> framing
+    framing -- "caught" --> steer
+    steer --> fresh
+    fresh --> pros
+    framing -- "clean" --> rereview
+    rereview -- yes --> evasioncheck
+    evasioncheck -- no --> evasion
+    evasion --> repair
+    evasioncheck -- yes --> checks
+    rereview -- "first round" --> checks
+    checks --> gate
+    gate --> another
+    gate --> esc
+    gate --> escq
+    gate --> ready
+    another --> repair
+    repair --> leash
+    leash --> pros
+    esc --> design
+    design --> draft
+    escq --> ruling
+    ruling --> checks
+    ready --> write
+    write --> owner
+    owner --> word
+    word -- "anything else" --> hold
+    hold --> owner
+    word --> amend
+    word --> ok
+    amend --> stage2
+    ok --> stage2
+
+    classDef agent fill:#fff4d6,stroke:#b8860b,stroke-width:3px,color:#3a2c00
+    classDef owner fill:#e4efff,stroke:#1f5fa8,stroke-width:3px,color:#0d2a4d
+    classDef exit fill:#e8f7e8,stroke:#2f7d32,stroke-width:2px,color:#12351a
+
+    class detective,pros,fresh,write agent
+    class brief,design,owner,word owner
+    class amend,ok,stage2,lane exit
