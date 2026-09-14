@@ -4,11 +4,11 @@ This file is the repository's rule sheet. Procedure lives in the documents it na
 
 ## CHANGELOG
 
-`CHANGELOG.md` records what a consumer of this repo sees change: the agent definitions, the lane hooks, the scripts, the documented block shapes and their fields — the things someone copying `.claude/` and `docs/` into their own project gets a different behavior from.
+`CHANGELOG.md` records what a consumer of this repo sees change: the agent definitions, the lane hooks, the scripts, the documented block shapes and their fields — the things a project that installs this kit as a plugin, and reads `docs/`, gets a different behavior from.
 
 **Tests and test policy never go in it.** Not a test added, removed or rewritten, not a fixture or fake, not a change to how this repo tests itself. Nobody changelogs tests. An entry that would only matter to someone working inside this repo does not belong there at all.
 
-`pair.sh`, `strike-diff.py` and the lane hooks do get entries: they are the product this repo ships, and a consumer copying `.claude/` gets a different behavior when they change.
+`pair.sh`, `strike-diff.py` and the lane hooks do get entries: they are the product this repo ships, and a consumer running the installed plugin gets a different behavior when they change.
 
 An entry lands under `[Unreleased]` in the same commit as the change it describes, never in a sweep afterwards. Internal-only work skips the file entirely.
 
@@ -43,11 +43,11 @@ Standing reasons are not trivia and are not cut. "Why one writer" in `docs/appro
 
 The trivia gate calls the `claude` CLI once per turn that adds markdown, on Haiku, so it costs a few seconds and a small number of tokens; a turn that adds no markdown line makes no call.
 
-Both gates are this repository's own, which is why they sit in `scripts/gates/` and are wired from `settings.local.json`. `hooks/`, `agents/` and `.claude/settings.json` are the kit a consumer installs, and nothing that only matters here goes in them.
+Both gates are this repository's own, which is why they sit in `scripts/gates/` and are wired from `settings.local.json`. `hooks/`, `agents/` and `.claude-plugin/plugin.json` are the kit a consumer installs, and nothing that only matters here goes in them. `.claude/settings.json` is not kit and stays empty: a lane wired there beside the manifest fires twice and denies one call twice.
 
 ## `tests/` is not yours
 
-`.claude/settings.json:5-17` wires `specs-lane.py`, `plans-lane.py` and `tests-lane.py` session-wide, so they bind a session working **on** this repo exactly as they bind one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `gauntlet-scrivener`, like any other. Under `GAUNTLET=off` the enforcement lapses and the write is allowed; the discipline does not lapse with it, because a test that changes outside an approved spec block is an unpinned test whoever was watching.
+`.claude-plugin/plugin.json:15-26` wires `specs-lane.py`, `plans-lane.py` and `tests-lane.py` session-wide, so they bind a session working **on** this repo exactly as they bind one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `gauntlet-scrivener`, like any other. Under `GAUNTLET=off` the enforcement lapses and the write is allowed; the discipline does not lapse with it, because a test that changes outside an approved spec block is an unpinned test whoever was watching.
 
 ## Commits
 
