@@ -11,6 +11,7 @@ approved spec block ``specs/approved/shell-shape-classification.txt``.
 """
 
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -55,12 +56,20 @@ def hook_decision(hook_name, payload):
     Returns ``SILENT`` for empty stdout, the ``permissionDecision`` value when
     stdout is a hook answer, and the raw stdout otherwise so that an
     unrecognised answer shows up in the failure rather than being swallowed.
+
+    ``GAUNTLET`` is cleared for the child, and nothing else about the caller's
+    environment is. Under ``GAUNTLET=off`` a hook returns at its first line, so
+    a bypassed session would run this whole file against hooks that decide
+    nothing.
     """
+    environment = dict(os.environ)
+    environment.pop("GAUNTLET", None)
     completed = subprocess.run(
         [sys.executable, str(HOOK_DIR / hook_name)],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
+        env=environment,
     )
     stdout = completed.stdout.strip()
     if not stdout:

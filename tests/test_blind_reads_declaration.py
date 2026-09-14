@@ -17,6 +17,7 @@ approved spec block ``docs/gauntlet/specs/blind-readonly.txt``.
 """
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -152,12 +153,19 @@ def payload_decision(copy_label, hook_name, payload):
     Returns ``SILENT`` for empty stdout, the ``permissionDecision`` value when
     stdout is a hook answer, and the raw stdout otherwise so that an
     unrecognised answer shows up in the failure rather than being swallowed.
+
+    ``GAUNTLET`` is cleared for the child, and nothing else about the caller's
+    environment is. The scrub sits here rather than in the ``hook_decision``
+    wrapper above, so a payload sent straight to this helper carries it too.
     """
+    environment = dict(os.environ)
+    environment.pop("GAUNTLET", None)
     completed = subprocess.run(
         [sys.executable, str(_COPIES[copy_label] / hook_name)],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
+        env=environment,
     )
     stdout = completed.stdout.strip()
     if not stdout:
