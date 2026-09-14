@@ -67,6 +67,14 @@ Nothing about a checkout is assumed. A worktree's `.git/hooks` and `.git/config`
 simply drop out of its profile, and the protection still holds, because a
 worktree shares both with the main checkout whose copies are bound read-only.
 
+`bwrap` being on `PATH` is not the same as `bwrap` working. A host with user
+namespaces disabled, or a seccomp policy that refuses the setup, has the binary
+and fails at exec -- and since every `Bash` call is rewritten into that
+invocation, every `Bash` call in the session dies with `bwrap`'s own one-line
+complaint and no statement of what refused it. So the binary is run once, on a
+trivial profile, before anything is rewritten, and a host where it does not run
+gets a named denial instead of a session of broken commands.
+
 One shape escapes the wrap: `scripts/pair.sh`, which writes lane files by
 design. `pair_passthrough.is_pair_command` holds that decision, in its own file,
 because a wrapper that decided for itself which commands to skip would be a
@@ -75,6 +83,7 @@ classifier again.
 
 from __future__ import annotations
 
+import functools
 import importlib
 import json
 import os
@@ -120,6 +129,56 @@ _NO_BWRAP = (
 )
 
 
+_BWRAP_BROKEN = (
+    "This kit runs every Bash command inside `bwrap`. `bwrap` is installed on this host "
+    "but will not run here, so every wrapped command would die at exec. `bwrap` said: "
+    "{said}. Usual causes: unprivileged user namespaces off "
+    "(`sysctl kernel.unprivileged_userns_clone`, `user.max_user_namespaces`), or a "
+    "seccomp/LSM policy refusing the setup. The hook fails closed rather than running "
+    "the command unconfined. (hooks/bwrap-wrap.py)"
+)
+
+#: the smallest profile that still does what every real profile does: make a
+#: user namespace, bind a root, mount `/dev` and `/proc`, unshare the pid
+#: namespace. A host that refuses any of those refuses every profile here.
+_PROBE = (
+    "--ro-bind", "/", "/",
+    "--dev", "/dev",
+    "--proc", "/proc",
+    "--unshare-pid",
+    "--die-with-parent",
+    "--", "true",
+)
+
+
+def _first_line(text: str) -> str:
+    return (text or "").strip().split("\n")[0].strip()
+
+
+@functools.lru_cache(maxsize=1)
+def bwrap_fault() -> str | None:
+    """Why `bwrap` cannot be used on this host right now, or None if it can.
+
+    Installed is not the same as working: user namespaces can be off and a
+    seccomp policy can refuse the setup, and both leave a binary on `PATH` that
+    dies at exec. Nothing but running it answers that, so it is run -- once per
+    process, on `true`, which costs one process for the first `Bash` call of a
+    session and nothing for the rest.
+    """
+    if shutil.which("bwrap") is None:
+        return _NO_BWRAP
+    try:
+        done = subprocess.run(
+            ["bwrap", *_PROBE], capture_output=True, text=True, timeout=30
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return _BWRAP_BROKEN.format(said=_first_line(str(error)) or type(error).__name__)
+    if done.returncode == 0:
+        return None
+    said = _first_line(done.stderr) or f"exit status {done.returncode}"
+    return _BWRAP_BROKEN.format(said=said)
+
+
 def _answer(payload: dict) -> dict | None:
     """The hook's answer for this payload, or None to say nothing at all."""
     if payload.get("tool_name") != "Bash":
@@ -134,12 +193,13 @@ def _answer(payload: dict) -> dict | None:
     if pair_passthrough.is_pair_command(command):
         return None
 
-    if shutil.which("bwrap") is None:
+    fault = bwrap_fault()
+    if fault is not None:
         return {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
-                "permissionDecisionReason": _NO_BWRAP,
+                "permissionDecisionReason": fault,
             }
         }
 
@@ -250,7 +310,11 @@ def _profile(root: str, agent: str) -> list[str]:
         args += _checkout_readonly(root)
         args += _bind("--ro-bind-try", os.path.join(root, WORKTREES))
         for tree in worktrees(root):
-            args += _bind("--bind", tree)
+            # `--bind`, not `--bind-try`, would stake the whole invocation on a
+            # tree surviving the microseconds between the listing above and the
+            # exec. A tree cut in that window costs its own writability and
+            # nothing else; under `--bind` it killed the command outright.
+            args += _bind("--bind-try", tree)
             args += _checkout_readonly(tree)
 
     return args + ["--", "bash", "-s"]
@@ -326,6 +390,47 @@ def _runs(wrapped: str) -> tuple[bool, str]:
     return done.returncode == 0, (done.stderr or "").strip().split("\n")[0]
 
 
+def _answer_with_path(where: str, root: str) -> dict | None:
+    """`_answer` for one Bash call, with `where` as the whole of `PATH`.
+
+    The probe is cached for the life of the process, so the cache is cleared on
+    both sides: a stale answer here would test the previous case twice.
+    """
+    was = os.environ.get("PATH", "")
+    os.environ["PATH"] = where
+    bwrap_fault.cache_clear()
+    try:
+        return _answer(
+            {
+                "tool_name": "Bash",
+                "cwd": root,
+                "agent_type": "gauntlet-prosecutor",
+                "tool_input": {"command": "echo hi"},
+            }
+        )
+    finally:
+        os.environ["PATH"] = was
+        bwrap_fault.cache_clear()
+
+
+def _fake_bwrap(where: str, body: str) -> str:
+    """A real executable named `bwrap` in `where`, running `body`. Returns `where`."""
+    os.makedirs(where, exist_ok=True)
+    path = os.path.join(where, "bwrap")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("#!/bin/sh\n" + body + "\n")
+    os.chmod(path, 0o755)
+    return where
+
+
+def _reason(answer: dict | None) -> str:
+    """The denial text of an answer, or "" if it is not a denial."""
+    out = (answer or {}).get("hookSpecificOutput") or {}
+    if out.get("permissionDecision") != "deny":
+        return ""
+    return out.get("permissionDecisionReason") or ""
+
+
 def _self_test_in(tmp: str) -> int:
     root = os.path.join(tmp, "checkout")
     _make_tree(root, worktree_git_is_a_file=False)
@@ -339,8 +444,18 @@ def _self_test_in(tmp: str) -> int:
     reviewer = wrap(semicolon, root, "gauntlet-arbiter")
     awkward = wrap(heredoc, root, "gauntlet-prosecutor")
 
-    have_bwrap = shutil.which("bwrap") is not None
+    #: not `shutil.which`: a binary that will not run is the case below
+    have_bwrap = bwrap_fault() is None
     gone = os.path.join(tmp, "cut-since-the-call-began")
+
+    #: an installed `bwrap` that dies at exec -- user namespaces off, a seccomp
+    #: policy refusing the setup. A real executable, so the probe is a real run.
+    broken = _fake_bwrap(
+        os.path.join(tmp, "broken-bin"),
+        'echo "bwrap: No permissions to creating new namespace" >&2\nexit 1',
+    )
+    empty = os.path.join(tmp, "empty-bin")
+    os.makedirs(empty, exist_ok=True)
 
     lines = {
         "the caller's text survives the wrap byte for byte, whatever it is": (
@@ -406,6 +521,18 @@ def _self_test_in(tmp: str) -> int:
         "a worktree's `.git` pointer file is never named as a bind source": (
             f"{tree}/.git/hooks" not in default and f"{tree}/.git/config" not in default
         ),
+        #: the gap the probe closes: on `PATH` and unable to run is a host where
+        #: every rewritten `Bash` call dies at exec with no statement of why
+        "a bwrap that is installed but will not run is denied, by its own words": (
+            "No permissions to creating new namespace"
+            in _reason(_answer_with_path(broken, root))
+        ),
+        "a host with no bwrap at all is denied for that, and not for the other": (
+            _reason(_answer_with_path(empty, root)) == _NO_BWRAP
+        ),
+        "the worktree binds survive the tree going away under them": (
+            f"--bind-try {tree} {tree}" in default and f"--bind {tree} {tree}" not in default
+        ),
         "a bind source cut between the profile and the exec is not named": (
             gone not in wrap("true", gone, "gauntlet-prosecutor")
             or not os.path.exists(gone)
@@ -434,6 +561,18 @@ def _self_test_in(tmp: str) -> int:
             lines[label] = ran
             if not ran:
                 lines[label + f"  [bwrap said: {first}]"] = False
+
+        #: the race the listing cannot close: the profile names a tree that is
+        #: gone by the time `bwrap` reads it. Under `--bind` this killed the
+        #: whole command; the test removes the tree for real and runs it.
+        vanishing = wrap("true", root, "gauntlet-prosecutor")
+        shutil.rmtree(tree)
+        ran, first = _runs(vanishing)
+        label = "a worktree cut after the profile was built does not kill the command"
+        lines[label] = ran
+        if not ran:
+            lines[label + f"  [bwrap said: {first}]"] = False
+        _make_tree(tree, worktree_git_is_a_file=True)
     else:
         lines["bwrap is absent, so the profiles could not be run"] = True
 

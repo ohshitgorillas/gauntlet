@@ -32,6 +32,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - A blind agent's allowlist is `docs/`, `tests/`, `state/` and `gauntlet/specs/approved/`, with the `gauntlet/` base denied entire. No denied subtree nests inside an allowed root.
 - Every hook fails closed on a payload it cannot decide. A payload that is not JSON, is not an object, names `tool_name` as something other than a string, or carries the field the hook has to read (`command`, `file_path`, `notebook_path`, `path`, `cwd`, `agent_type`) as the wrong type is denied, naming the hook and the field; so is a call whose verdict raises. Each hook refuses only for the tools it decides, so a malformed call of somebody else's tool still passes. A payload a gate cannot read is the one that most needs deciding, and coercing its fields to benign defaults is what lets it through.
 - `bwrap-wrap.py` denies a `Bash` call it cannot build a sandbox for, rather than letting the command run unwrapped.
+- `bwrap-wrap.py` runs `bwrap` once, on a trivial profile, before it rewrites anything. A `bwrap` that is on `PATH` but cannot run here -- user namespaces off, a seccomp or LSM policy refusing the setup -- is a named denial quoting what `bwrap` said, instead of every `Bash` call in the session dying at exec. The denial for an absent `bwrap` is unchanged.
+- `bwrap-wrap.py` binds each writable worktree with `--bind-try`. A tree cut between the worktree listing and the exec costs its own writability rather than killing the whole command.
 - The `Stop` gate reports a red run whose file cannot be read as a complaint. A run this gate cannot open is one nobody can be shown a verdict for, so it is a complaint and not a file to step over.
 
 ## [0.1.0] - 2026-09-10
