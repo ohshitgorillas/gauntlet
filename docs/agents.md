@@ -58,12 +58,24 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 | `pair.sh restore <slug> <rev>` | `RESTORED <gauntlet dir>/specs/approved/<slug>.txt <rev>` | the approved block on disk is the block as it stood at `<rev>` |
 | `pair.sh impl checkout <slug>` | `IMPL .claude/worktrees/<slug>-impl` | the implementation tree is cut on `impl/<slug>`, or already was and is left on the commit it is on |
 | `pair.sh impl merge <slug>` | `MERGED <slug> <commit>` | `impl/<slug>` is merged and `<commit>` is the primary checkout's HEAD, holding the implementation tree's tip as an ancestor |
+| `pair.sh respec <slug>` | `RESPEC <gauntlet dir>/specs/approved/<slug>.txt <commit>` | the re-approved block is a `spec:` commit on `spec/<slug>`, and its reviewer section is a round newer than the one that branch already committed |
+| `pair.sh respec <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | the block's reviewer section differs from that round file, and nothing is committed |
+| `pair.sh abort <slug>` | `ABORTED <slug>` | both worktrees, both branches and the recorded base for the slug are gone |
+| `pair.sh list` | one `PAIR <slug> <base> <n>` line per open pair, or `NO PAIRS` | `<base>` is the commit the pair was cut at, and `<n>` is how many commits the target branch has moved since |
 
 `review` is the reviewers' one path into their own lane. `reviews-lane.py` denies a reviewer every read of `<gauntlet dir>/reviews/`, so the reviewer cannot count the rounds it is continuing; the main agent runs `pair.sh review` before each round that will carry verdicts and hands the printed path to the reviewer verbatim in its brief. A round that writes nothing consumes no `<N>`, because the count is of what is on disk.
 
 The evidence `merge` used to print beneath that header now goes to the file the `merge output:` line names: `state/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- <tests dir>/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `state/red/<slug>.txt` is absent.
 
 `open` refuses on mismatch because the spec file is editable after the reviewer passed it, and the round file is not: the comparison is what makes the approved block the reviewed block rather than the latest one. `red` removes the whole-file excision targets, which the lane hook denies every agent, and leaves single-test targets to the writer's `Edit`. `merge` routes on `kind:` because the two tests-only kinds have no implementation phase, so the blind post-merge reviewer round has no window to watch and the mechanical check takes it.
+
+`merge` converges the pair in six steps, and the target branch is touched only at the last: the lane check, which holds the spec tree to `<tests dir>/` and the implementation tree out of it; a commit in each tree; a rebase of both branches onto the target branch where it moved under them; the combine, which merges `impl/<slug>` into the spec tree; the gate, run in that combined tree; and the land, a fast-forward of the target branch onto the spec branch, after which both trees and both branches are removed. An implementation tree that was never cut is skipped rather than fatal, which is the ordinary shape of the two tests-only kinds. Steps three to six hold `flock` on `.claude/worktrees/.pair.lock`, so two sessions converging at once queue instead of racing the tip, and every land is `--ff-only`.
+
+A red gate stops at step five: nothing lands, both trees stand exactly as they are, and stdout carries no brief — the evidence goes to stderr with the failure, because a brief on stdout is the brief of a merged block. A failing test there means the block and the code disagree, and the way out is the implementation tree or a re-approved block, never an edited test.
+
+The target branch and the gate command are `target_branch` and `gate_command` of `.claude/hooks/blind-reads.json`, read through the same `shell_shapes.py --config <key>` that answers for every directory the kit names. They default to `main` and `make check`. The gate is split into arguments rather than run through a shell, so a second command written after it in that file is an argument and not a command.
+
+`respec` lands a re-approved block on the open spec branch as the `spec:` commit the writer's delta names. It makes the same comparison `open` makes and one more: the newest round has to differ from the one the spec branch already committed, because a block whose lines changed under the last `READY` would otherwise pass. It stages the block alone, so tests the writer has not committed stay out of that commit.
 
 ## The tests-only lane
 

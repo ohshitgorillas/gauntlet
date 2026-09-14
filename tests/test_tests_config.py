@@ -1,4 +1,4 @@
-"""Wire tests for the three directory keys of the sibling ``blind-reads.json``.
+"""Wire tests for the five keys of the sibling ``blind-reads.json``.
 
 The surface is a copy of ``.claude/hooks/`` that differs only in its
 ``blind-reads.json``, a JSON payload on a hook's stdin, and the hook's decision
@@ -8,9 +8,11 @@ gets.  A third is ``scripts/blind.sh``, whose ``test`` lane and whose
 ``status``/``show`` paths are read through that same reader.
 
 Every expectation here is about what a repo can and cannot move by naming a
-directory: ``tests_dir`` moves the writer's lane, ``gauntlet_dir`` moves all
-four artifact lanes at once, ``docs_dir`` moves the prose a blind agent reads,
-and any set whose names overlap moves nothing at all.
+key: ``tests_dir`` moves the writer's lane, ``gauntlet_dir`` moves all four
+artifact lanes at once, ``docs_dir`` moves the prose a blind agent reads, and
+any set whose names overlap moves nothing at all.  ``target_branch`` and
+``gate_command`` are scalars rather than paths, so they resolve one key at a
+time and a directory set that moves nothing leaves them standing.
 """
 
 import json
@@ -366,7 +368,7 @@ class AnOverlappingSetMovesNothing(unittest.TestCase):
 
 
 class OneReaderOneKeySet(unittest.TestCase):
-    """``shell_shapes.py --config`` answers the three keys, the four lanes, nothing else."""
+    """``shell_shapes.py --config`` answers the five keys, the four lanes, nothing else."""
 
     @classmethod
     def setUpClass(cls):
@@ -446,3 +448,73 @@ class BlindShellReadsTheSameKeys(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+#: the two scalars, and what each is when the file names none
+SCALARS = {"target_branch": "main", "gate_command": "make check"}
+
+
+class TwoScalarsResolvedOnTheirOwn(unittest.TestCase):
+    """``target_branch`` and ``gate_command`` fall back one key at a time.
+
+    They are what ``scripts/pair.sh merge`` converges onto, and neither can
+    collide with a lane or with the other, so an unusable value has nothing to
+    take down with it.  A directory set is the opposite case: its names overlap
+    each other, so one bad name voids all three together.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory(prefix="scalars-config-")
+        cls.bare = _copy(cls.tmp.name, "SBARE", None)
+        cls.broken = _copy(cls.tmp.name, "SBROKEN", "{not json")
+        cls.named = _copy(
+            cls.tmp.name,
+            "SNAMED",
+            {"target_branch": "dev", "gate_command": "scripts/gates/check-gates.sh"},
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_a_file_that_names_neither_is_the_defaults(self):
+        for copy in (self.bare, self.broken):
+            for key, default in SCALARS.items():
+                self.assertEqual(_config_lines(copy, key), [default], key)
+
+    def test_the_reader_answers_the_two_names_a_project_gives(self):
+        self.assertEqual(_config_lines(self.named, "target_branch"), ["dev"])
+        self.assertEqual(
+            _config_lines(self.named, "gate_command"), ["scripts/gates/check-gates.sh"]
+        )
+
+    def test_an_unusable_value_falls_back_alone(self):
+        # A newline is what separates a branch name from a second command
+        # smuggled after it, so a multi-line value is not a scalar at all.
+        for label, conf, expected in (
+            ("SLIST", {"target_branch": ["dev"], "gate_command": "gate"}, ["main", "gate"]),
+            ("SEMPTY", {"target_branch": "  ", "gate_command": "gate"}, ["main", "gate"]),
+            ("SLINES", {"target_branch": "dev", "gate_command": "a\nrm -rf /"}, ["dev", "make check"]),
+        ):
+            copy = _copy(self.tmp.name, label, conf)
+            read = [
+                _config_lines(copy, "target_branch")[0],
+                _config_lines(copy, "gate_command")[0],
+            ]
+            self.assertEqual(read, expected, conf)
+
+    def test_a_directory_set_that_moves_nothing_still_leaves_the_scalars(self):
+        # The all-or-nothing rule is about names that can collide.  A branch and
+        # a command cannot collide with a lane, so voiding the directories has
+        # no reason to reach them, and a merge that silently converged on the
+        # wrong branch is the cost of letting it.
+        copy = _copy(
+            self.tmp.name,
+            "SVOID",
+            {"tests_dir": "docs", "target_branch": "dev", "gate_command": "gate"},
+        )
+        for key, default in DEFAULTS.items():
+            self.assertEqual(_config_lines(copy, key), [default], key)
+        self.assertEqual(_config_lines(copy, "target_branch"), ["dev"])
+        self.assertEqual(_config_lines(copy, "gate_command"), ["gate"])

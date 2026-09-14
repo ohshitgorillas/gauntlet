@@ -39,14 +39,25 @@ that, matching the test-directory shape both as typed and after
 `os.path.normpath`, so an argument that opens under the lane and walks out of
 it is not a run.
 
-`blind-reads.json` beside this file carries three keys, and they are the whole
-of what varies between the projects this kit is copied into. `tests_dir` is the
-blind writer's lane, `tests` by default, and what the agent definitions and the
-docs mean by `<tests dir>`. `gauntlet_dir` is where the chain's artifacts live,
-`gauntlet` by default. `docs_dir` is the prose a blind agent may read, `docs` by
-default. The structure under `gauntlet_dir` does not move: the four lanes are
-always `plans/approved`, `specs/approved`, `verdicts` and `reviews` beneath it,
-because that shape is the kit's identity rather than a project's layout.
+`blind-reads.json` beside this file carries five keys, and they are the whole
+of what varies between the projects this kit is copied into. Three name
+directories. `tests_dir` is the blind writer's lane, `tests` by default, and what
+the agent definitions and the docs mean by `<tests dir>`. `gauntlet_dir` is where
+the chain's artifacts live, `gauntlet` by default. `docs_dir` is the prose a
+blind agent may read, `docs` by default. The structure under `gauntlet_dir` does
+not move: the four lanes are always `plans/approved`, `specs/approved`,
+`verdicts` and `reviews` beneath it, because that shape is the kit's identity
+rather than a project's layout.
+
+The other two are what `scripts/pair.sh merge` converges onto, and they are
+scalars rather than paths. `target_branch` is the branch a finished pair lands
+on, `main` by default. `gate_command` is the command that has to pass in the
+combined tree before it lands, `make check` by default. They validate
+independently of the three directories and of each other: a name a project
+cannot use falls back on its own, because neither one can collide with a lane
+the way two directories can. The default gate is a command most projects either
+have or notice the absence of at once, which is the safe direction -- a gate
+that cannot run holds the pair in its worktrees rather than landing it unchecked.
 
 No lane is a literal any more, so the bound on this file is no longer that a
 lane is code a data file cannot reach. The bound is that the three names must
@@ -60,7 +71,8 @@ lane over the prose it reads.
 
 Nothing else is in the file. The runners are `.venv/bin/pytest` and
 `node --test` in `scripts/blind.sh` and `scripts/pair.sh`, and a project with
-another runner edits the script. The readable set is `no-impl-reads.py`'s own
+another runner edits the script; the gate that runs after a merge is the one
+command of the two that a project names here instead. The readable set is `no-impl-reads.py`'s own
 table, and the agent names are the kit's identity, copied verbatim.
 
 The owner's off switch lives here too, as `bypassed()`. This module is the one
@@ -543,13 +555,21 @@ def _under(path: str, parent: str) -> bool:
 # --- the three directories a project names, and what they are when it does not
 
 
-#: every key `blind-reads.json` carries, and the value each takes when the file
-#: is absent, malformed, or names a set that cannot be used. There is no fourth
-#: key: see the module docstring for what stays in code and why.
+#: the directory keys `blind-reads.json` carries, and the value each takes when
+#: the file is absent, malformed, or names a set that cannot be used. There is no
+#: fourth directory: see the module docstring for what stays in code and why.
 DEFAULT_DIRS = {
     "tests_dir": "tests",
     "gauntlet_dir": "gauntlet",
     "docs_dir": "docs",
+}
+
+#: the two scalar keys, and the value each takes when the file names none. They
+#: are what `scripts/pair.sh merge` converges onto: the branch a finished pair
+#: lands on, and the command that has to pass before it does.
+DEFAULT_SCALARS = {
+    "target_branch": "main",
+    "gate_command": "make check",
 }
 
 
@@ -566,6 +586,35 @@ def _clean(name) -> str | None:
     if os.path.isabs(name) or name in (".", "..") or name.startswith("../"):
         return None
     return name
+
+
+def _scalar(value) -> str | None:
+    """One configured scalar, or `None` when the value cannot be one.
+
+    A scalar is a single non-empty line with no leading or trailing blanks left
+    on it. A newline inside it is what separates a branch name from a second
+    command smuggled after it, so a multi-line value is not a scalar at all.
+    """
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or "\n" in value or "\r" in value:
+        return None
+    return value
+
+
+def scalars_from(conf: dict) -> dict:
+    """The two scalars this config resolves to, defaults filled in.
+
+    Per key, unlike the directories: a scalar cannot overlap a lane or another
+    scalar, so an unusable branch name has nothing to take down with it and the
+    gate keeps whatever the project named.
+    """
+    resolved = {}
+    for key, default in DEFAULT_SCALARS.items():
+        name = _scalar(conf.get(key)) if key in conf else None
+        resolved[key] = name if name is not None else default
+    return resolved
 
 
 def dirs_from(conf: dict) -> dict:
@@ -598,6 +647,22 @@ def dirs_from(conf: dict) -> dict:
 def dirs() -> dict:
     """The resolved set, read once per process."""
     return dirs_from(config())
+
+
+@functools.lru_cache(maxsize=1)
+def scalars() -> dict:
+    """The resolved scalars, read once per process."""
+    return scalars_from(config())
+
+
+def target_branch() -> str:
+    """The branch a finished pair lands on."""
+    return scalars()["target_branch"]
+
+
+def gate_command() -> str:
+    """The command that has to pass in the combined tree before it lands."""
+    return scalars()["gate_command"]
 
 
 def tests_dir() -> str:
@@ -645,13 +710,15 @@ def reviews_lane() -> str:
 LANE_DIRS = tuple(lane(suffix) for suffix in LANE_SUFFIXES)
 
 
-#: what `--config <key>` answers: the three keys the file carries, and the four
+#: what `--config <key>` answers: the five keys the file carries, and the four
 #: derived lanes, so a shell script asks for a lane rather than rebuilding one
 #: out of the base and a suffix it would have to hardcode
 CONFIG_READERS = {
     "tests_dir": tests_dir,
     "gauntlet_dir": gauntlet_dir,
     "docs_dir": docs_dir,
+    "target_branch": target_branch,
+    "gate_command": gate_command,
     "plans_lane": plans_lane,
     "specs_lane": specs_lane,
     "verdicts_lane": verdicts_lane,

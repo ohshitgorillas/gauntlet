@@ -45,6 +45,7 @@ gates=(
     "bwrap-wrap|python3 .claude/hooks/bwrap-wrap.py --self-test"
     "pair-passthrough|python3 .claude/hooks/pair-passthrough.py"
     "excision-diff|python3 scripts/excision-diff.py --self-test"
+    "pair|python3 scripts/pair/cli.py --self-test"
     "cite|python3 scripts/cite.py --self-test"
     "symbol-closure|python3 scripts/gates/symbol-closure.py --self-test"
 )

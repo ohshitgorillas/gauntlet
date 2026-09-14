@@ -1,5 +1,7 @@
 {
   "tests_dir": "tests",
   "gauntlet_dir": "gauntlet",
-  "docs_dir": "docs"
+  "docs_dir": "docs",
+  "target_branch": "main",
+  "gate_command": "scripts/gates/check-gates.sh"
 }
