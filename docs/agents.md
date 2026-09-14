@@ -4,11 +4,11 @@ Eight agents, and the whole system is the shape of what each one is not allowed 
 
 | Agent | Sees the code | Writes | Hooks |
 | --- | --- | --- | --- |
-| `gauntlet-prosecutor` | yes, all of it | `gauntlet/reviews/<slug>.plan.<N>.txt`, `gauntlet/plans/approved/<slug>.txt` | `reviews-lane`, `plans-lane` |
+| `gauntlet-prosecutor` | yes, all of it | `<gauntlet dir>/reviews/<slug>.plan.<N>.txt`, `<gauntlet dir>/plans/approved/<slug>.txt` | `reviews-lane`, `plans-lane` |
 | `gauntlet-detective` | yes, all of it | nothing | `specs-lane`, `tests-lane`, `reviews-lane` |
 | `gauntlet-examiner` | yes, all of it | throwaway scripts outside the tree | `specs-lane`, `tests-lane` |
-| `gauntlet-arbiter` | **no** | `gauntlet/reviews/<slug>.<N>.txt`, `gauntlet/specs/approved/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
-| `gauntlet-scrivener` | **no** | `tests/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane`, `blind-bash` |
+| `gauntlet-arbiter` | **no** | `<gauntlet dir>/reviews/<slug>.<N>.txt`, `<gauntlet dir>/specs/approved/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
+| `gauntlet-scrivener` | **no** | `<tests dir>/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane`, `blind-bash` |
 | `gauntlet-bailiff` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `plans-lane`, `reviews-lane`, `verdicts-lane`, `blind-bash` |
 | `gauntlet-juror` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `reviews-lane` |
 | the main agent | yes | everything else | all of them, session-wide |
@@ -34,9 +34,9 @@ Blindness costs something, so it is paid for. The `gauntlet-examiner` measures t
 ## The chain
 
 1. The main agent drafts a plan and sends its grounding questions, all of them, to one `gauntlet-detective`.
-2. The `gauntlet-prosecutor` resolves the plan's citations and returns a pass or fail per check and, on `READY` and only then, writes `gauntlet/plans/approved/<slug>.txt`. The owner reads it only on a pass. Rules in `plans.md`.
+2. The `gauntlet-prosecutor` resolves the plan's citations and returns a pass or fail per check and, on `READY` and only then, writes `<gauntlet dir>/plans/approved/<slug>.txt`. The owner reads it only on a pass. Rules in `plans.md`.
 3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-examiner` measures it.
-4. The `gauntlet-arbiter` runs its checks blind and, on `READY` and only then, writes `gauntlet/specs/approved/<slug>.txt`.
+4. The `gauntlet-arbiter` runs its checks blind and, on `READY` and only then, writes `<gauntlet dir>/specs/approved/<slug>.txt`.
 5. The `gauntlet-scrivener` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
 6. The tests run red under `scripts/pair.sh red`, and a `gauntlet-juror` reads that saved output against the approved block and returns one verdict per line, blind.
 7. The main agent implements against the tests, and never edits them.
@@ -48,35 +48,49 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 
 | Invocation | stdout | when |
 | --- | --- | --- |
-| `pair.sh open <slug>` | `OPEN .claude/worktrees/<slug>-spec` | the approved spec's reviewer section is byte-identical to the newest `gauntlet/reviews/<slug>.<N>.txt` |
-| `pair.sh open <slug>` | `MISMATCH gauntlet/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
+| `pair.sh open <slug>` | `OPEN .claude/worktrees/<slug>-spec` | the approved spec's reviewer section is byte-identical to the newest `<gauntlet dir>/reviews/<slug>.<N>.txt` |
+| `pair.sh open <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
 | `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
 | `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: state/merge/<slug>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor` |
 | `pair.sh merge <slug>` | the `scripts/excision-diff.py` verdict lines | `kind:` is `excision` or `repair` |
-| `pair.sh review <slug>` | `REVIEW gauntlet/reviews/<slug>.<N>.txt` | `<N>` is one more than the highest already on disk for that slug, 1 where there is none, and `gauntlet/reviews/` exists |
-| `pair.sh review plan <slug>` | `REVIEW gauntlet/reviews/<slug>.plan.<N>.txt` | the same count over the plan rounds of that slug |
-| `pair.sh restore <slug> <rev>` | `RESTORED gauntlet/specs/approved/<slug>.txt <rev>` | the approved block on disk is the block as it stood at `<rev>` |
+| `pair.sh review <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.<N>.txt` | `<N>` is one more than the highest already on disk for that slug, 1 where there is none, and `<gauntlet dir>/reviews/` exists |
+| `pair.sh review plan <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.plan.<N>.txt` | the same count over the plan rounds of that slug |
+| `pair.sh restore <slug> <rev>` | `RESTORED <gauntlet dir>/specs/approved/<slug>.txt <rev>` | the approved block on disk is the block as it stood at `<rev>` |
 | `pair.sh impl checkout <slug>` | `IMPL .claude/worktrees/<slug>-impl` | the implementation tree is cut on `impl/<slug>`, or already was and is left on the commit it is on |
 | `pair.sh impl merge <slug>` | `MERGED <slug> <commit>` | `impl/<slug>` is merged and `<commit>` is the primary checkout's HEAD, holding the implementation tree's tip as an ancestor |
+| `pair.sh respec <slug>` | `RESPEC <gauntlet dir>/specs/approved/<slug>.txt <commit>` | the re-approved block is a `spec:` commit on `spec/<slug>`, and its reviewer section is a round newer than the one that branch already committed |
+| `pair.sh respec <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | the block's reviewer section differs from that round file, and nothing is committed |
+| `pair.sh abort <slug>` | `ABORTED <slug>` | both worktrees, both branches and the recorded base for the slug are gone |
+| `pair.sh list` | one `PAIR <slug> <base> <n>` line per open pair, or `NO PAIRS` | `<base>` is the commit the pair was cut at, and `<n>` is how many commits the target branch has moved since |
 
-`review` is the reviewers' one path into their own lane. `reviews-lane.py` denies a reviewer every read of `gauntlet/reviews/`, so the reviewer cannot count the rounds it is continuing; the main agent runs `pair.sh review` before each round that will carry verdicts and hands the printed path to the reviewer verbatim in its brief. A round that writes nothing consumes no `<N>`, because the count is of what is on disk.
+`review` is the reviewers' one path into their own lane. `reviews-lane.py` denies a reviewer every read of `<gauntlet dir>/reviews/`, so the reviewer cannot count the rounds it is continuing; the main agent runs `pair.sh review` before each round that will carry verdicts and hands the printed path to the reviewer verbatim in its brief. A round that writes nothing consumes no `<N>`, because the count is of what is on disk.
 
-The evidence `merge` used to print beneath that header now goes to the file the `merge output:` line names: `state/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- tests/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `state/red/<slug>.txt` is absent.
+The evidence `merge` used to print beneath that header now goes to the file the `merge output:` line names: `state/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- <tests dir>/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `state/red/<slug>.txt` is absent.
 
 `open` refuses on mismatch because the spec file is editable after the reviewer passed it, and the round file is not: the comparison is what makes the approved block the reviewed block rather than the latest one. `red` removes the whole-file excision targets, which the lane hook denies every agent, and leaves single-test targets to the writer's `Edit`. `merge` routes on `kind:` because the two tests-only kinds have no implementation phase, so the blind post-merge reviewer round has no window to watch and the mechanical check takes it.
 
+`merge` converges the pair in six steps, and the target branch is touched only at the last: the lane check, which holds the spec tree to `<tests dir>/` and the implementation tree out of it; a commit in each tree; a rebase of both branches onto the target branch where it moved under them; the combine, which merges `impl/<slug>` into the spec tree; the gate, run in that combined tree; and the land, a fast-forward of the target branch onto the spec branch, after which both trees and both branches are removed. An implementation tree that was never cut is skipped rather than fatal, which is the ordinary shape of the two tests-only kinds. Steps three to six hold `flock` on `.claude/worktrees/.pair.lock`, so two sessions converging at once queue instead of racing the tip, and every land is `--ff-only`.
+
+A red gate stops at step five: nothing lands, both trees stand exactly as they are, and stdout carries no brief — the evidence goes to stderr with the failure, because a brief on stdout is the brief of a merged block. A failing test there means the block and the code disagree, and the way out is the implementation tree or a re-approved block, never an edited test.
+
+The target branch and the gate command are `target_branch` and `gate_command` of `.claude/hooks/blind-reads.json`, read through the same `shell_shapes.py --config <key>` that answers for every directory the kit names. They default to `main` and `make check`. The gate is split into arguments rather than run through a shell, so a second command written after it in that file is an argument and not a command.
+
+The two runners are `pytest_command` and `node_command` of that same file, read through the same reader and split into arguments the same way. They default to `.venv/bin/pytest` and `node --test`, and they are what `pair.sh red` and `scripts/blind.sh test` run: a project that has to deselect a marker or import a loader names the whole invocation once there instead of editing the two scripts by hand. The test path and the flags each script adds come after the configured words, and a configured word carrying a slash is a path in the checkout while a bare word is on `PATH`. A wider runner widens nothing a blind agent may type: `blind-bash.py` admits `scripts/blind.sh test <path>` and no runner argument beside it, so the invocation is configuration and never agent input.
+
+`respec` lands a re-approved block on the open spec branch as the `spec:` commit the writer's delta names. It makes the same comparison `open` makes and one more: the newest round has to differ from the one the spec branch already committed, because a block whose lines changed under the last `READY` would otherwise pass. It stages the block alone, so tests the writer has not committed stay out of that commit.
+
 ## The tests-only lane
 
-A change confined to `tests/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
+A change confined to `<tests dir>/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
 
 1. The main agent drafts a `kind: excision` or `kind: repair` block and sends it to a `gauntlet-arbiter`.
-2. The reviewer resolves each line's quoted assertion against the test file itself — `tests/` is open to it, and the implementation is not what these lines rest on — and writes `gauntlet/specs/approved/<slug>.txt` on `READY`.
+2. The reviewer resolves each line's quoted assertion against the test file itself — `<tests dir>/` is open to it, and the implementation is not what these lines rest on — and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
 3. The `gauntlet-scrivener` removes the targets and writes the replacements its `as:` fields name.
 4. `scripts/excision-diff.py`, run by `scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither kind has an implementation phase, so the window those two watch does not exist.
 
-The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `tests/`.
+The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `<tests dir>/`.
 
-Steps 4 and 5 are the load-bearing pair, which is why a hook and not a convention stands between them: `gauntlet/specs/approved/` is written by the reviewer alone, so the file's existence is the writer's proof that the lines were reviewed. Rules in `approved-specs.md`.
+Steps 4 and 5 are the load-bearing pair, which is why a hook and not a convention stands between them: `<gauntlet dir>/specs/approved/` is written by the reviewer alone, so the file's existence is the writer's proof that the lines were reviewed. Rules in `approved-specs.md`.
 
 ## Verdicts, not grades
 

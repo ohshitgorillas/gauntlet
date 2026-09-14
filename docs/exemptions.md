@@ -7,7 +7,7 @@
 One entry per exempted test, newest last:
 
 ```
-EXEMPT tests/<file>::<test>
+EXEMPT <tests dir>/<file>::<test>
 rule: docs/testing.md rule <n> | marker: skip | xfail
 reason: <why the banned shape is the right one here>
 owner: <the owner's own sentence granting it, quoted>

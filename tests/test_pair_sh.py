@@ -4,6 +4,7 @@ The stdout contracts asserted here are documented in docs/agents.md lines
 31-42, so the literals are reachable without reading the implementation.
 """
 
+import json
 import os
 import shutil
 import stat
@@ -15,9 +16,13 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 PAIR = REPO / "scripts" / "pair.sh"
+PAIR_PACKAGE = REPO / "scripts" / "pair"
 EXCISION_DIFF = REPO / "scripts" / "excision-diff.py"
+SHELL_SHAPES = REPO / ".claude" / "hooks" / "shell_shapes.py"
 
 SLUG = "demo"
+TARGET = "main"
+GATE = "true"
 
 ENV = {
     "PATH": os.environ.get("PATH", ""),
@@ -109,6 +114,17 @@ def _repo(tmp_path, spec_text, review_text):
         landed = repo / "scripts" / source.name
         shutil.copy2(source, landed)
         landed.chmod(landed.stat().st_mode | stat.S_IXUSR)
+    shutil.copytree(PAIR_PACKAGE, repo / "scripts" / "pair")
+    #: the scripts read every directory, the target branch and the gate through
+    #: the hooks' reader, so the fixture ships that one module beside them
+    (repo / ".claude" / "hooks").mkdir(parents=True)
+    shutil.copy2(SHELL_SHAPES, repo / ".claude" / "hooks" / "shell_shapes.py")
+    #: the fixture has no `make` and no gate of its own, and the point of the
+    #: key is that the command is the project's: a gate that always passes
+    #: leaves the merge steps around it as what these tests measure
+    (repo / ".claude" / "hooks" / "blind-reads.json").write_text(
+        json.dumps({"target_branch": TARGET, "gate_command": GATE})
+    )
     (repo / "tests" / "test_a.py").write_text(TEST_A)
     (repo / "tests" / "test_b.py").write_text(TEST_B)
     (repo / "gauntlet" / "specs" / "approved" / "demo.txt").write_text(spec_text)
@@ -700,3 +716,193 @@ def test_review_creates_the_reviews_directory_the_reviewer_writes_into(tmp_path)
     lines = _pair(repo, "review", SLUG)
     assert lines == ["REVIEW gauntlet/reviews/demo.1.txt"]
     assert (repo / "gauntlet" / "reviews").is_dir()
+
+
+NEW_ROUND = (
+    "READY\n"
+    "discriminates: differential on the widget counter\n"
+    "1  KEEP  four widgets -> 4, five widgets -> 5\n"
+)
+
+
+def _with_round(body, round_text):
+    return body + "\n--- reviewer ---\n" + round_text
+
+
+def _show(tree, spec):
+    """The text of a committed object, or "" where the revision names none."""
+    done = subprocess.run(
+        ["git", "show", spec], cwd=tree, env=dict(ENV), capture_output=True, text=True
+    )
+    return done.stdout if done.returncode == 0 else ""
+
+
+def _respec(tmp_path, round_text, block_text):
+    """Open the demo pair, then re-approve it with `block_text` under `round_text`.
+
+    `round_text` lands as the newest round on disk and `block_text` as the
+    approved block, both after the pair is open. Returns the stdout lines of
+    `pair.sh respec` and the spec worktree it ran against.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    _pair(repo, "open", SLUG)
+    (repo / "gauntlet" / "reviews" / "demo.2.txt").write_text(round_text)
+    (repo / SPEC_PATH).write_text(block_text)
+    return _pair(repo, "respec", SLUG), _worktree(repo)
+
+
+def _respec_shape(lines, tree):
+    """Project `pair.sh respec` stdout onto its first field and the landed block.
+
+    The block is read from the spec branch's HEAD, which is where the writer's
+    delta reads it. Stdout that is not exactly one line collapses the field to
+    the empty string rather than raising.
+    """
+    fields = lines[0].split() if len(lines) == 1 else []
+    return (fields[0] if fields else "", _show(tree, "HEAD:" + SPEC_PATH))
+
+
+@pytest.mark.parametrize(
+    "round_text,block_text,expected",
+    [
+        (NEW_ROUND, _with_round(BODY_V2, NEW_ROUND), ("RESPEC", _with_round(BODY_V2, NEW_ROUND))),
+        # the block's reviewer section is not the round file on disk
+        (NEW_ROUND, _with_round(BODY_V2, REVIEWER), ("MISMATCH", BLOCK_NEW)),
+        # the newest round is the one the spec branch already committed
+        (REVIEWER, _with_round(BODY_V2, REVIEWER), ("", BLOCK_NEW)),
+    ],
+    ids=["new-round-lands", "reviewer-section-differs", "round-already-committed"],
+)
+def test_respec_lands_the_block_only_under_a_round_newer_than_the_committed_one(
+    tmp_path, round_text, block_text, expected
+):
+    lines, tree = _respec(tmp_path, round_text, block_text)
+    assert _respec_shape(lines, tree) == expected
+
+
+def _pair_state(repo):
+    """(`pair.sh list` stdout, the spec tree exists, the spec branch exists)."""
+    listed = _pair(repo, "list")
+    branches = subprocess.run(
+        ["git", "branch", "--list", "spec/" + SLUG],
+        cwd=repo,
+        env=dict(ENV),
+        capture_output=True,
+        text=True,
+    ).stdout
+    return (listed, _worktree(repo).is_dir(), bool(branches.strip()))
+
+
+def _opened_then(tmp_path, verb):
+    """Open the demo pair, then run `verb` on it where one is named.
+
+    Returns the pair state before and after. `verb` of None runs nothing, so the
+    two states are the same reading twice.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    _pair(repo, "open", SLUG)
+    before = _pair_state(repo)
+    if verb is not None:
+        _pair(repo, verb, SLUG)
+    return before, _pair_state(repo)
+
+
+def _listing_shape(state):
+    """Project a pair state onto the first two fields of each listed line.
+
+    Two fields rather than the whole line, because a `PAIR` line carries the
+    commit the pair was cut at and how far the target branch has moved since,
+    neither of which is fixed. The fields kept are the marker and the slug.
+    """
+    listed, tree, branch = state
+    return (tuple(" ".join(line.split()[:2]) for line in listed), tree, branch)
+
+
+@pytest.mark.parametrize(
+    "verb,expected",
+    [
+        ("abort", (("NO PAIRS",), False, False)),
+        (None, (("PAIR demo",), True, True)),
+    ],
+    ids=["abort-takes-the-pair-out", "an-open-pair-is-listed"],
+)
+def test_abort_removes_the_tree_and_the_branch_that_list_reports(tmp_path, verb, expected):
+    _, after = _opened_then(tmp_path, verb)
+    assert _listing_shape(after) == expected
+
+
+def test_list_reports_the_open_pair_before_abort_and_none_after(tmp_path):
+    before, after = _opened_then(tmp_path, "abort")
+    assert (_listing_shape(before)[0], _listing_shape(after)[0]) == (
+        ("PAIR demo",),
+        ("NO PAIRS",),
+    )
+
+
+MOVED_FILE = "moved.txt"
+MOVED_TEXT = "the target branch moved under the pair\n"
+
+
+def _converge(tmp_path, move=False, gate=GATE):
+    """Open the pair, commit a test in the spec tree, then merge.
+
+    `move` commits a file on the target branch after the pair is cut, so the
+    branch has moved under it. `gate` is the command `blind-reads.json` names,
+    so a merge can be driven onto a red gate. Returns the stdout lines, whether
+    the target branch's HEAD moved, whether the spec worktree is gone, and the
+    text of the two files at that HEAD.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    (repo / ".claude" / "hooks" / "blind-reads.json").write_text(
+        json.dumps({"target_branch": TARGET, "gate_command": gate})
+    )
+    _pair(repo, "open", SLUG)
+    worktree = _worktree(repo)
+    (worktree / "tests" / "test_a.py").write_text(TEST_A_OTHER)
+    _git(worktree, "add", "-A")
+    _git(worktree, "commit", "-m", "spec tests")
+    if move:
+        (repo / MOVED_FILE).write_text(MOVED_TEXT)
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "the target branch moves")
+    before = _git(repo, "rev-parse", "HEAD")
+    lines = _pair(repo, "merge", SLUG)
+    return (
+        lines,
+        _git(repo, "rev-parse", "HEAD") != before,
+        not worktree.is_dir(),
+        _show(repo, "HEAD:tests/test_a.py"),
+        _show(repo, "HEAD:" + MOVED_FILE),
+    )
+
+
+@pytest.mark.parametrize(
+    "move,expected",
+    [
+        (False, (True, True, TEST_A_OTHER, "")),
+        (True, (True, True, TEST_A_OTHER, MOVED_TEXT)),
+    ],
+    ids=["target-branch-still", "target-branch-moved-under-the-pair"],
+)
+def test_merge_lands_the_spec_tree_on_a_target_branch_that_moved_under_it(
+    tmp_path, move, expected
+):
+    lines, moved, gone, landed, carried = _converge(tmp_path, move=move)
+    assert (moved, gone, landed, carried) == expected
+    assert _brief_shape(lines)[0] == "TEST CHECK demo"
+
+
+@pytest.mark.parametrize(
+    "gate,expected",
+    [
+        (GATE, (5, True, True, TEST_A_OTHER)),
+        # nothing landed, so the target branch still carries the fixture's file
+        ("false", (0, False, False, TEST_A)),
+    ],
+    ids=["gate-passes", "gate-fails-and-nothing-lands"],
+)
+def test_a_red_gate_leaves_the_target_branch_and_both_trees_exactly_as_they_were(
+    tmp_path, gate, expected
+):
+    lines, moved, gone, landed, _ = _converge(tmp_path, gate=gate)
+    assert (len(lines), moved, gone, landed) == expected

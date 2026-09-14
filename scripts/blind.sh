@@ -66,15 +66,42 @@ sandbox() {
 		"$@"
 }
 
+#: the values of `.claude/hooks/blind-reads.json`, through the same reader
+#: the hooks use, so the lane this script binds writable is the lane
+#: `tests-lane.py` guards and the block it shows is the one `specs-lane.py` holds
+READER=$ROOT/.claude/hooks/shell_shapes.py
+cfg() {
+	[ -f "$READER" ] || die "no $READER: scripts/ ships with .claude/hooks/, copy both"
+	python3 "$READER" --config "$1"
+}
+SPECS=$(cfg specs_lane) || die "cannot read the approved-specs lane"
+
+#: one configured runner invocation into an array, one word per line, so an
+#: argument carrying a space stays one argument. A word with a slash is a path
+#: in this checkout and is read from $ROOT: the run happens with the tree as its
+#: working directory, and a bare word is left alone because it is on PATH.
+read_runner() {
+	local -n words=$1
+	words=()
+	local line
+	while IFS= read -r line; do words+=("$line"); done < <(cfg "$2")
+	[ ${#words[@]} -gt 0 ] || die "cannot read the $2 runner"
+	case ${words[0]} in
+	/*) ;;
+	*/*) words[0]=$ROOT/${words[0]} ;;
+	esac
+}
+
 cmd_test() {
 	[ $# -eq 1 ] || usage
-	local path=$1 tree=$ROOT rel=$1 status=0 ran=0
+	local path=$1 tree=$ROOT rel=$1 status=0 ran=0 tests ext
+	tests=$(cfg tests_dir)
 
 	#: a path into a spec worktree names the tree it runs in; anything else is
 	#: the main checkout, and the hook admits no third shape
 	if [[ $path == .claude/worktrees/*-spec/* ]]; then
-		tree=$ROOT/${path%%/tests/*}
-		rel=tests/${path#*/tests/}
+		tree=$ROOT/${path%%/$tests/*}
+		rel=$tests/${path#*/$tests/}
 	fi
 	[ -f "$tree/$rel" ] || die "no such test file: $path"
 
@@ -86,7 +113,7 @@ cmd_test() {
 			return 0
 		fi
 		echo "--- $label"
-		sandbox --bind "$tree/tests" "$tree/tests" \
+		sandbox --bind "$tree/$tests" "$tree/$tests" \
 			env -C "$tree" PYTHONPATH="$tree" PYTHONDONTWRITEBYTECODE=1 "$@"
 		local rc=$?
 		ran=1
@@ -94,12 +121,20 @@ cmd_test() {
 		return 0
 	}
 
-	if [[ $rel == *.py ]]; then
-		run_gate pytest "$ROOT/.venv/bin/pytest" "$rel" -q -p no:cacheprovider
-		run_gate ruff "$ROOT/.venv/bin/ruff" check tests
-		run_gate black "$ROOT/.venv/bin/black" --check tests
+	#: the runner for this file's extension, then the lint gates. The runner is
+	#: `pytest_command` or `node_command` from `blind-reads.json`, so a project
+	#: that deselects a marker or imports a loader names it there rather than
+	#: here; the path and the flags below it are this script's own.
+	local -a runner
+	ext=${rel##*.}
+	if [ "$ext" = py ]; then
+		read_runner runner pytest_command
+		run_gate pytest "${runner[@]}" "$rel" -q -p no:cacheprovider
+		run_gate ruff "$ROOT/.venv/bin/ruff" check "$tests"
+		run_gate black "$ROOT/.venv/bin/black" --check "$tests"
 	else
-		run_gate node node --import ./tests/js/support/vendor-resolve.js --test "$rel"
+		read_runner runner node_command
+		run_gate node "${runner[@]}" "$rel"
 		run_gate eslint npx eslint "$rel"
 	fi
 
@@ -111,14 +146,14 @@ cmd_status() {
 	[ $# -eq 1 ] || usage
 	local tree
 	tree=$(tree_for_slug "$1")
-	sandbox env -C "$tree" git status --porcelain "gauntlet/specs/approved/$1.txt"
+	sandbox env -C "$tree" git status --porcelain "$SPECS/$1.txt"
 }
 
 cmd_show() {
 	[ $# -eq 2 ] || usage
 	local tree
 	tree=$(tree_for_slug "$2")
-	sandbox env -C "$tree" git show "$1:gauntlet/specs/approved/$2.txt"
+	sandbox env -C "$tree" git show "$1:$SPECS/$2.txt"
 }
 
 [ $# -ge 1 ] || usage

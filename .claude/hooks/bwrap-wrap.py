@@ -117,7 +117,7 @@ PROTECTED_IN_CHECKOUT = sh.LANE_DIRS + (
 )
 
 #: the reviewers' own lane, which their profile answers with a tmpfs
-REVIEWS_DIR = "gauntlet/reviews"
+REVIEWS_DIR = sh.reviews_lane()
 
 WORKTREES = ".claude/worktrees"
 

@@ -10,7 +10,7 @@ mechanical so it costs no reviewer round.
 Run by `scripts/pair.sh merge`, never by a hook: a PreToolUse entry fires on a
 tool call, and a comparison of two commits has none.
 
-It reads the committed `gauntlet/specs/approved/<slug>.txt` and prints one line per
+It reads the committed approved block for a slug and prints one line per
 target:
 
     OK <target>            the excision landed
@@ -29,11 +29,21 @@ reading; `as:` is the field that names what the replacement must land as.
 """
 
 import argparse
+import os
 import re
 import subprocess
 import sys
 
-TESTS = "tests/"
+_HOOKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".claude", "hooks")
+sys.path.insert(0, _HOOKS)
+
+try:
+    import shell_shapes as sh  # noqa: E402
+except ImportError:
+    sys.exit(f"excision-diff.py: no shell_shapes.py in {_HOOKS}: scripts/ ships with .claude/hooks/")
+
+#: the blind writer's lane, `tests/` unless `blind-reads.json` names another
+TESTS = sh.tests_dir() + "/"
 
 _LINE = re.compile(r"^\s*\d+\.\s+excise\s+(?P<target>\S+)\s*$")
 _FIELD = re.compile(r"^\s*(?P<key>rule|assertion|replace|as):\s*(?P<value>.*)$")
@@ -156,7 +166,7 @@ def report(block: str, base: str, head: str) -> list[str]:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--spec", required=True, help="gauntlet/specs/approved/<slug>.txt")
+    ap.add_argument("--spec", required=True, help=sh.specs_lane() + "/<slug>.txt")
     ap.add_argument("--base", required=True, help="the commit the change started from")
     ap.add_argument("--head", required=True, help="the commit that landed it")
     args = ap.parse_args(argv)

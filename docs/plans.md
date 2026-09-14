@@ -6,11 +6,11 @@ A plan is what the owner approves before any behavior is specified. It is prose,
 
 | Path | Written by | When | Tracked |
 | --- | --- | --- | --- |
-| `gauntlet/plans/drafts/<slug>.txt` | the main agent | while drafting, every round | no |
-| `gauntlet/plans/approved/<slug>.txt` | `gauntlet-prosecutor` | on `READY`, and only then | yes |
-| `gauntlet/reviews/<slug>.plan.<N>.txt` | `gauntlet-prosecutor` | every round that carries checks | no |
+| `<gauntlet dir>/plans/drafts/<slug>.txt` | the main agent | while drafting, every round | no |
+| `<gauntlet dir>/plans/approved/<slug>.txt` | `gauntlet-prosecutor` | on `READY`, and only then | yes |
+| `<gauntlet dir>/reviews/<slug>.plan.<N>.txt` | `gauntlet-prosecutor` | every round that carries checks | no |
 
-One directory, one writer, the same rule `docs/approved-specs.md` states for the spec gate one stage later. `hooks/plans-lane.py` denies every other hand at the tool call, so the presence of `gauntlet/plans/approved/<slug>.txt` is the evidence that those words passed the plan gate — not a claim in a transcript. Under `GAUNTLET=off` the lane is silent and any hand can write that file, so the evidence is evidence about a session run under the chain; `docs/approved-specs.md` states the same bound for the spec lane.
+One directory, one writer, the same rule `docs/approved-specs.md` states for the spec gate one stage later. `hooks/plans-lane.py` denies every other hand at the tool call, so the presence of `<gauntlet dir>/plans/approved/<slug>.txt` is the evidence that those words passed the plan gate — not a claim in a transcript. Under `GAUNTLET=off` the lane is silent and any hand can write that file, so the evidence is evidence about a session run under the chain; `docs/approved-specs.md` states the same bound for the spec lane.
 
 The approved plan is tracked because a later stage reads it from disk. That is the whole point of the artifact: a fresh agent picking the chain up at implementation reads the plan it is implementing rather than inheriting it from a conversation that may not exist any more.
 
@@ -81,11 +81,11 @@ The main agent returns to a `gauntlet-prosecutor` with three things: the slug, e
 
 The main agent takes the measurement, and the command is what makes that safe. The reviewer re-runs the command rather than trusting the number, so a measured value with no command that reproduces it is not an amendment.
 
-The reviewer may be a fresh one. The approved file carries every previous verdict beneath its `--- reviewer ---` divider, and an approved plan is something a `gauntlet-prosecutor` may read, so a reviewer holding none of the original round still reads what that round carried — from the plan file, never from `gauntlet/reviews/`, which it cannot read at all.
+The reviewer may be a fresh one. The approved file carries every previous verdict beneath its `--- reviewer ---` divider, and an approved plan is something a `gauntlet-prosecutor` may read, so a reviewer holding none of the original round still reads what that round carried — from the plan file, never from `<gauntlet dir>/reviews/`, which it cannot read at all.
 
 Checks run on the amended lines and the citations they carry, and on nothing else. Every other check prints `carried` with its verdict from the most recent `--- reviewer ---` block. A new finding on unchanged text stays legal and costs one scoped round.
 
-On `READY` the reviewer rewrites `gauntlet/plans/approved/<slug>.txt`: the amended plan body, then every reviewer block in order, oldest first, each under its own divider. A slug amended twice carries three blocks, and the carried verdicts are read from the last. Any other verdict writes nothing, and the file on disk is the one that stands.
+On `READY` the reviewer rewrites `<gauntlet dir>/plans/approved/<slug>.txt`: the amended plan body, then every reviewer block in order, oldest first, each under its own divider. A slug amended twice carries three blocks, and the carried verdicts are read from the last. Any other verdict writes nothing, and the file on disk is the one that stands.
 
 An amendment whose measured value changes no plan line is not a round. No reviewer is spawned and no file is rewritten, and the main agent records the reading in its own report.
 

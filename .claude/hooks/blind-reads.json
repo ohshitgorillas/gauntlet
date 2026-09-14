@@ -1,5 +1,9 @@
 {
-  "runner_invocations": [
-    {"entry": "scripts/blind.sh", "args": ["test"], "prefix": "tests"}
-  ]
+  "tests_dir": "tests",
+  "gauntlet_dir": "gauntlet",
+  "docs_dir": "docs",
+  "target_branch": "main",
+  "gate_command": "scripts/gates/check-gates.sh",
+  "pytest_command": ".venv/bin/pytest",
+  "node_command": "node --test"
 }

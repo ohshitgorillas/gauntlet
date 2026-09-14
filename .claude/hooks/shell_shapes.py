@@ -32,15 +32,59 @@ An inline-script flag (`-e`, `-c`, `-p`, `--eval`, `--print`) is never a run,
 whatever the head word: that is the shape an agent reaches for to write a
 file with an interpreter the lane would otherwise wave through.
 
-A repo adds its own entries to that table in `blind-reads.json` beside this
-file, since a repo-local script is a path rather than a name and cannot be
-compiled in here. A declaration is an entry path, the fixed argument words
-after it, and the prefix its one remaining argument sits under, and it is
-keyed on the whole invocation and its arity like every other entry. Two
-bounds on a declaration are code rather than data: a prefix resolving to or
-under a lane directory is dropped, and the one argument is normalized before
-it is tested against the prefix. A repo that declares nothing gets the table
-above, which is the behavior it has without the file.
+The kit's own blind runner, `scripts/blind.sh test <path>`, is in the table
+too, keyed on the whole invocation and its arity like every other entry: the
+head is that script, `test` follows it, and exactly one argument follows
+that, matching the test-directory shape both as typed and after
+`os.path.normpath`, so an argument that opens under the lane and walks out of
+it is not a run.
+
+`blind-reads.json` beside this file carries seven keys, and they are the whole
+of what varies between the projects this kit is copied into. Three name
+directories. `tests_dir` is the blind writer's lane, `tests` by default, and what
+the agent definitions and the docs mean by `<tests dir>`. `gauntlet_dir` is where
+the chain's artifacts live, `gauntlet` by default. `docs_dir` is the prose a
+blind agent may read, `docs` by default. The structure under `gauntlet_dir` does
+not move: the four lanes are always `plans/approved`, `specs/approved`,
+`verdicts` and `reviews` beneath it, because that shape is the kit's identity
+rather than a project's layout.
+
+The other two are what `scripts/pair.sh merge` converges onto, and they are
+scalars rather than paths. `target_branch` is the branch a finished pair lands
+on, `main` by default. `gate_command` is the command that has to pass in the
+combined tree before it lands, `make check` by default. They validate
+independently of the three directories and of each other: a name a project
+cannot use falls back on its own, because neither one can collide with a lane
+the way two directories can. The default gate is a command most projects either
+have or notice the absence of at once, which is the safe direction -- a gate
+that cannot run holds the pair in its worktrees rather than landing it unchecked.
+
+The last two are the runner invocations `scripts/blind.sh test` and
+`scripts/pair.sh red` type. `pytest_command` is `.venv/bin/pytest` by default,
+`node_command` is `node --test`, and a project that has to deselect a marker or
+import a loader names the whole invocation once here instead of editing the two
+scripts by hand. Each is a command line split the way a shell splits it, and
+`--config` prints one word per line, so an argument carrying a space survives
+the trip into a shell array. They resolve per key like the scalars, for the same
+reason: a runner collides with nothing. The callers add the test path and their
+own trailing flags after the configured words, and a configured word carrying a
+slash is a path in the checkout while a bare word is on `PATH`. A runner is
+configuration and never agent input: `blind-bash.py` admits `scripts/blind.sh
+test <path>` and no runner argument beside it, so no shape here widens the one
+command a blind agent has.
+
+No lane is a literal any more, so the bound on this file is no longer that a
+lane is code a data file cannot reach. The bound is that the three names must
+be usable and pairwise disjoint: each a repo-relative normalized path, none of
+them the root, absolute or walking out, and none equal to, under, or over
+another. A set failing any of those is not partly honoured -- every key falls
+back to its default together. Per-key fallback is unsound once the lanes are
+data: `tests_dir` naming `docs` is legal alone and collides the moment a
+malformed `docs_dir` falls back to `docs`, which would hand the blind writer a
+lane over the prose it reads.
+
+Nothing else is in the file. The readable set is `no-impl-reads.py`'s own
+table, and the agent names are the kit's identity, copied verbatim.
 
 The owner's off switch lives here too, as `bypassed()`. This module is the one
 place all seven hooks already share, so the switch is defined once and each
@@ -146,21 +190,15 @@ PY_MODULES = frozenset({"pytest", "unittest"})
 
 #: a slug names one path segment and carries no traversal
 SLUG = r"[A-Za-z0-9][A-Za-z0-9._-]*"
-#: a spec worktree is the other place a blind agent's tests live, so a declared
-#: argument may carry that one prefix and no other: the writer runs the suite
-#: in the tree it wrote in
+#: a spec worktree is the other place a blind agent's tests live, so the blind
+#: runner's argument may carry that one prefix and no other: the writer runs
+#: the suite in the tree it wrote in
 TREE = rf"\.claude/worktrees/{SLUG}-spec/"
 
-#: the lane directories this kit's hooks guard. A declared prefix resolving to
-#: or under one is dropped when the config is read: a declaration naming a lane
-#: would turn off the hook that guards it, and every bound on what a
-#: declaration can widen is code rather than data sitting beside it.
-LANE_DIRS = (
-    "gauntlet/plans/approved",
-    "gauntlet/specs/approved",
-    "gauntlet/" + "verdicts",
-    "gauntlet/reviews",
-)
+#: the lane directories this kit's hooks guard are not literals: they are the
+#: four fixed suffixes below, under whatever `gauntlet_dir` resolves to.
+#: `LANE_DIRS` is derived beside the rest of the config, further down this file.
+LANE_SUFFIXES = ("plans/approved", "specs/approved", "verdicts", "reviews")
 
 #: git subcommands that never write the working tree in their reading forms; a
 #: commit message or a pathspec naming a lane is not a write to it. Membership
@@ -496,25 +534,20 @@ def has_inline_script(words: list[str]) -> bool:
 
 
 def path_shape(prefix: str) -> str:
-    """The regex source a declared prefix expands into.
+    """The regex source a path prefix expands into.
 
     Repo-relative, under `prefix`, optionally inside a spec worktree. The
     trailing class admits `.` and `/`, so it admits `..` as well: the shape is
-    not the whole key, and `is_declared_run` normalizes what it matches.
+    not the whole key, and `is_blind_run` normalizes what it matches.
     """
     return rf"(?:{TREE})?{re.escape(prefix)}/[A-Za-z0-9_][A-Za-z0-9._/-]*"
 
 
-#: the shape this repository's own declared entry takes, exported so that
-#: `blind-bash.py` reads the same regular expression the classifier does
-TESTPATH = path_shape("tests")
-
-
 def config() -> dict:
-    """Per-repo widening, from `blind-reads.json` beside this file.
+    """The one per-repo value, from `blind-reads.json` beside this file.
 
-    An unreadable or malformed file is an empty config, which is the safe
-    direction for a lane: an empty config declares nothing and so denies.
+    An unreadable or malformed file is an empty config, which is the default
+    lane: a typo in the file moves nothing.
     """
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blind-reads.json")
     try:
@@ -530,61 +563,277 @@ def _under(path: str, parent: str) -> bool:
     return path == parent or path.startswith(parent + "/")
 
 
-def declared_runners(conf: dict) -> tuple[tuple[str, tuple[str, ...], re.Pattern[str]], ...]:
-    """The repo's declared runner invocations, as (entry, argument words, shape).
+# --- the three directories a project names, and what they are when it does not
 
-    A declaration names an entry path, the fixed argument words that follow it,
-    and the prefix its one remaining argument sits under. A malformed
-    declaration is dropped, and so is one whose prefix resolves to or under a
-    lane directory: a declaration is data, and a declaration that could name a
-    lane would turn off the hook that guards it.
+
+#: the directory keys `blind-reads.json` carries, and the value each takes when
+#: the file is absent, malformed, or names a set that cannot be used. There is no
+#: fourth directory: see the module docstring for what stays in code and why.
+DEFAULT_DIRS = {
+    "tests_dir": "tests",
+    "gauntlet_dir": "gauntlet",
+    "docs_dir": "docs",
+}
+
+#: the two scalar keys, and the value each takes when the file names none. They
+#: are what `scripts/pair.sh merge` converges onto: the branch a finished pair
+#: lands on, and the command that has to pass before it does.
+DEFAULT_SCALARS = {
+    "target_branch": "main",
+    "gate_command": "make check",
+}
+
+#: the two runner keys, and the invocation each takes when the file names none.
+#: They are what `scripts/blind.sh test` and `scripts/pair.sh red` run, without
+#: the test path and the trailing flags a caller adds after them.
+DEFAULT_RUNNERS = {
+    "pytest_command": ".venv/bin/pytest",
+    "node_command": "node --test",
+}
+
+
+def _clean(name) -> str | None:
+    """One repo-relative directory, or `None` when the name cannot be one.
+
+    Normalized, so a traversal is judged by where it lands rather than by how
+    it is spelled. The root, an absolute path and a name walking out of the
+    checkout are all `None`: none of them names a directory inside the repo.
     """
-    out = []
-    for dec in conf.get("runner_invocations") or ():
-        if not isinstance(dec, dict):
+    if not isinstance(name, str) or not name:
+        return None
+    name = os.path.normpath(name).replace(os.sep, "/")
+    if os.path.isabs(name) or name in (".", "..") or name.startswith("../"):
+        return None
+    return name
+
+
+def _scalar(value) -> str | None:
+    """One configured scalar, or `None` when the value cannot be one.
+
+    A scalar is a single non-empty line with no leading or trailing blanks left
+    on it. A newline inside it is what separates a branch name from a second
+    command smuggled after it, so a multi-line value is not a scalar at all.
+    """
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or "\n" in value or "\r" in value:
+        return None
+    return value
+
+
+def _words(value) -> list[str] | None:
+    """One runner invocation as words, or `None` when the value cannot be one.
+
+    A command line, split the way a shell splits it, so a marker expression
+    stays one word. An unparsable line, an empty one, and anything that is not
+    a string are all `None`: none of them names a command to run.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        words = shlex.split(value, comments=False, posix=True)
+    except ValueError:
+        return None
+    return words or None
+
+
+def runners_from(conf: dict) -> dict:
+    """The two runner invocations this config resolves to, defaults filled in.
+
+    Per key, like the scalars: a runner overlaps no lane and no other runner, so
+    an unusable `pytest_command` leaves the node one standing.
+    """
+    resolved = {}
+    for key, default in DEFAULT_RUNNERS.items():
+        words = _words(conf.get(key)) if key in conf else None
+        resolved[key] = words if words is not None else shlex.split(default)
+    return resolved
+
+
+def scalars_from(conf: dict) -> dict:
+    """The two scalars this config resolves to, defaults filled in.
+
+    Per key, unlike the directories: a scalar cannot overlap a lane or another
+    scalar, so an unusable branch name has nothing to take down with it and the
+    gate keeps whatever the project named.
+    """
+    resolved = {}
+    for key, default in DEFAULT_SCALARS.items():
+        name = _scalar(conf.get(key)) if key in conf else None
+        resolved[key] = name if name is not None else default
+    return resolved
+
+
+def dirs_from(conf: dict) -> dict:
+    """The three directories this config resolves to, defaults filled in.
+
+    All or nothing. A key that cannot be a directory, or any pair that overlaps
+    -- equal, under, or over -- voids the whole set and every key takes its
+    default. A key the file omits takes its default and is still checked against
+    the rest, so naming `tests_dir` as `docs` collides with the default
+    `docs_dir` exactly as it would with a declared one.
+    """
+    resolved = {}
+    for key, default in DEFAULT_DIRS.items():
+        if key not in conf:
+            resolved[key] = default
             continue
-        entry, args, prefix = dec.get("entry"), dec.get("args") or [], dec.get("prefix")
-        if not isinstance(entry, str) or not isinstance(prefix, str) or not entry or not prefix:
-            continue
-        if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
-            continue
-        prefix = os.path.normpath(prefix)
-        if os.path.isabs(prefix) or prefix == ".." or prefix.startswith("../"):
-            continue
-        if any(_under(prefix, lane) for lane in LANE_DIRS):
-            continue
-        out.append((os.path.normpath(entry), tuple(args), re.compile(path_shape(prefix) + r"\Z")))
-    return tuple(out)
+        name = _clean(conf.get(key))
+        if name is None:
+            return dict(DEFAULT_DIRS)
+        resolved[key] = name
+    names = list(resolved.values())
+    for position, one in enumerate(names):
+        for other in names[position + 1 :]:
+            if _under(one, other) or _under(other, one):
+                return dict(DEFAULT_DIRS)
+    return resolved
 
 
 @functools.lru_cache(maxsize=1)
-def _declared() -> tuple[tuple[str, tuple[str, ...], re.Pattern[str]], ...]:
-    """The declarations, read once per process rather than once per stage."""
-    return declared_runners(config())
+def dirs() -> dict:
+    """The resolved set, read once per process."""
+    return dirs_from(config())
 
 
-def is_declared_run(words: list[str]) -> bool:
-    """Is this whole invocation one of the repo's declared runner invocations?
+@functools.lru_cache(maxsize=1)
+def scalars() -> dict:
+    """The resolved scalars, read once per process."""
+    return scalars_from(config())
 
-    The key is the whole invocation, arity included: the head normalizes to the
-    declared entry or to a path ending in it, the declared argument words come
-    next, and exactly one argument follows them. That argument matches the
-    declared shape both as typed and after `os.path.normpath`, so an argument
-    that opens under the prefix and walks out of it is not a run.
+
+@functools.lru_cache(maxsize=1)
+def runners() -> dict:
+    """The resolved runner invocations, read once per process."""
+    return runners_from(config())
+
+
+def pytest_command() -> list[str]:
+    """The python runner, without the test path a caller adds after it."""
+    return list(runners()["pytest_command"])
+
+
+def node_command() -> list[str]:
+    """The javascript runner, without the test path a caller adds after it."""
+    return list(runners()["node_command"])
+
+
+def target_branch() -> str:
+    """The branch a finished pair lands on."""
+    return scalars()["target_branch"]
+
+
+def gate_command() -> str:
+    """The command that has to pass in the combined tree before it lands."""
+    return scalars()["gate_command"]
+
+
+def tests_dir() -> str:
+    """The blind writer's lane."""
+    return dirs()["tests_dir"]
+
+
+def gauntlet_dir() -> str:
+    """The base every lane sits under."""
+    return dirs()["gauntlet_dir"]
+
+
+def docs_dir() -> str:
+    """The prose a blind agent may read."""
+    return dirs()["docs_dir"]
+
+
+def lane(suffix: str) -> str:
+    """One of the four fixed lane suffixes, under the configured base."""
+    return gauntlet_dir() + "/" + suffix
+
+
+def plans_lane() -> str:
+    """The gauntlet-prosecutor's lane."""
+    return lane("plans/approved")
+
+
+def specs_lane() -> str:
+    """The gauntlet-arbiter's lane."""
+    return lane("specs/approved")
+
+
+def verdicts_lane() -> str:
+    """The gauntlet-juror's lane."""
+    return lane("verdicts")
+
+
+def reviews_lane() -> str:
+    """The reviewers' lane."""
+    return lane("reviews")
+
+
+#: the lane directories this kit's hooks guard, in the order `LANE_SUFFIXES`
+#: gives them
+LANE_DIRS = tuple(lane(suffix) for suffix in LANE_SUFFIXES)
+
+
+#: what `--config <key>` answers: the seven keys the file carries, and the four
+#: derived lanes, so a shell script asks for a lane rather than rebuilding one
+#: out of the base and a suffix it would have to hardcode. A runner answers one
+#: word per line; every other key answers one line.
+CONFIG_READERS = {
+    "tests_dir": tests_dir,
+    "gauntlet_dir": gauntlet_dir,
+    "docs_dir": docs_dir,
+    "target_branch": target_branch,
+    "gate_command": gate_command,
+    "pytest_command": pytest_command,
+    "node_command": node_command,
+    "plans_lane": plans_lane,
+    "specs_lane": specs_lane,
+    "verdicts_lane": verdicts_lane,
+    "reviews_lane": reviews_lane,
+}
+
+
+def config_lines(key: str) -> list[str]:
+    """One config value as lines a shell reads with `read`.
+
+    A known key is one line, except a runner invocation, which is one word per
+    line: a word carrying a space is one word to the shell that reads it back.
+    An unknown key is no lines.
     """
-    if not words:
+    reader = CONFIG_READERS.get(key)
+    if not reader:
+        return []
+    value = reader()
+    return list(value) if isinstance(value, list) else [value]
+
+
+#: the shape the blind runner's one argument takes, exported so that
+#: `blind-bash.py` reads the same regular expression the classifier does
+TESTPATH = path_shape(tests_dir())
+
+
+#: the kit's own blind runner: this script, `test`, one path under the lane
+BLIND_ENTRY = "scripts/blind.sh"
+_TESTPATH_WHOLE = re.compile(TESTPATH + r"\Z")
+
+
+def is_blind_run(words: list[str]) -> bool:
+    """Is this whole invocation `scripts/blind.sh test <path under the lane>`?
+
+    The key is the whole invocation, arity included: the head normalizes to
+    the entry or to a path ending in it, `test` comes next, and exactly one
+    argument follows. That argument matches the lane shape both as typed and
+    after `os.path.normpath`, so an argument that opens under the lane and
+    walks out of it is not a run. `status` and `show` take no path the lane
+    hooks care about and fall to the path test like any other command.
+    """
+    if len(words) != 3 or words[1] != "test":
         return False
     head = os.path.normpath(words[0])
-    rest = words[1:]
-    for entry, args, shape in _declared():
-        if head != entry and not head.endswith("/" + entry):
-            continue
-        if len(rest) != len(args) + 1 or list(rest[: len(args)]) != list(args):
-            continue
-        arg = rest[-1]
-        if shape.match(arg) and shape.match(os.path.normpath(arg)):
-            return True
-    return False
+    if head != BLIND_ENTRY and not head.endswith("/" + BLIND_ENTRY):
+        return False
+    arg = words[2]
+    return bool(_TESTPATH_WHOLE.match(arg) and _TESTPATH_WHOLE.match(os.path.normpath(arg)))
 
 
 def is_runner(words: list[str]) -> bool:
@@ -594,15 +843,15 @@ def is_runner(words: list[str]) -> bool:
     accepted with arbitrary arguments; everything else names the argument that
     makes it a run. An inline-script flag disqualifies any of them.
 
-    The table the repo declares is read first and is whole invocations too: a
-    repo-local script is not a head word on any list, and asking whether a head
-    only ever prints is the wrong question for one that runs gates.
+    The kit's own `scripts/blind.sh test <path>` is in it as a whole
+    invocation: a script is not a head word on any list, and asking whether a
+    head only ever prints is the wrong question for one that runs gates.
     """
     if not words:
         return False
     if has_inline_script(words):
         return False
-    if is_declared_run(words):
+    if is_blind_run(words):
         return True
     head = os.path.basename(words[0])
     rest = words[1:]
@@ -1334,11 +1583,56 @@ def probe(verdict, root: str, tool: str, key: str = "file_path", *, agent: str |
     return call
 
 
+#: one of the three default directory names as a whole path segment, for
+#: `rebased`. The bounds are not `\b`: a name is a segment when nothing joins it
+#: on either side, and `\b` would take the `gauntlet` of `gauntlet-arbiter` and
+#: rename the agent. A trailing `/` is left to the text, so `find tests -delete`
+#: and `cd tests && rm t.py` -- a lane named with no slash at all -- respell too.
+_DEFAULT_SEGMENT = re.compile(
+    r"(?<![\w.-])(" + "|".join(sorted(set(DEFAULT_DIRS.values()))) + r")(?![\w.-])"
+)
+
+
+def respell(target: str) -> str:
+    """One self-test path or command, at the configured directories.
+
+    Exactly one pass, and never applied twice to the same string: the three
+    names are disjoint from each other but a configured name may still contain
+    a default one as a segment -- `gauntlet_dir` of `work/tests` is a legal set
+    beside `tests_dir` -- and a second pass would rewrite what the first wrote.
+    """
+    by_default = dict(zip(DEFAULT_DIRS.values(), dirs().values()))
+    if all(default == configured for default, configured in by_default.items()):
+        return target
+    return _DEFAULT_SEGMENT.sub(lambda m: by_default[m.group(1)], target)
+
+
+def rebased(one_probe):
+    """A probe that respells the kit's default directories at the configured ones.
+
+    Every self-test writes its paths at `tests/`, `docs/` and `gauntlet/`, which
+    is what the kit ships and what the prose around each line says. Under a
+    project that moved one of them those literals name nothing any hook guards,
+    so the lines would pass by naming paths outside the lane and prove nothing.
+    Rewriting the segment here means one set of lines holds at any base, and the
+    lane each line is about is the lane the hook actually resolved.
+
+    One pass, not three: with `tests_dir` at `docs` and `docs_dir` elsewhere,
+    replacing one name after another would rewrite what the previous pass had
+    just written. The names are disjoint, so a single alternation is exact.
+    """
+
+    def at_configured_dirs(target: str, *rest):
+        return one_probe(respell(target), *rest)
+
+    return at_configured_dirs
+
+
 def probes(verdict, root: str = "/repo", *, agent: str | None = None):
     """The `(write, bash)` pair every lane self-test drives its lane through."""
     return (
-        probe(verdict, root, "Edit", agent=agent),
-        probe(verdict, root, "Bash", "command", agent=agent),
+        rebased(probe(verdict, root, "Edit", agent=agent)),
+        rebased(probe(verdict, root, "Bash", "command", agent=agent)),
     )
 
 
@@ -1347,3 +1641,14 @@ def report(lines: dict) -> int:
     for label, ok in lines.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {label}")
     return 0 if all(lines.values()) else 1
+
+
+if __name__ == "__main__":
+    #: `shell_shapes.py --config tests_dir` prints the one config value for a
+    #: shell script; `scripts/blind.sh` and `scripts/pair.sh` read it through
+    #: here so one reader serves the hooks and the scripts alike
+    if len(sys.argv) == 3 and sys.argv[1] == "--config":
+        sys.stdout.write("".join(line + "\n" for line in config_lines(sys.argv[2])))
+        sys.exit(0)
+    sys.stderr.write("usage: shell_shapes.py --config <key>\n")
+    sys.exit(2)

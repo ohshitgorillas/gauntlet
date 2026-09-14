@@ -49,18 +49,20 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 WRITER = "gauntlet-scrivener"
-LANE = "tests"
+#: `tests` unless the repo names another directory under the `tests_dir` key
+#: of `blind-reads.json`; the lane hooks and the scripts read the same key
+LANE = sh.tests_dir()
 BASH_TESTS = sh.lane_pattern(LANE)
 
 _LANE = (
-    "tests/ is the gauntlet-scrivener's lane, written only in its spec tree from the "
+    f"{LANE}/ is the gauntlet-scrivener's lane, written only in its spec tree from the "
     "committed spec block. A test that must change goes back through the spec: "
     "a re-approved line, a new `spec:` commit, a delta to the writer. Never by "
     "hand, never in the impl tree, never on the branch. (hooks/tests-lane.py)"
 )
 _WRITER_LANE = (
-    "Blind writer: you write under tests/ of your own spec tree and nowhere else. "
-    "Not the source tree, not docs/, not another worktree. (hooks/tests-lane.py)"
+    f"Blind writer: you write under {LANE}/ of your own spec tree and nowhere else. "
+    f"Not the source tree, not {sh.docs_dir()}/, not another worktree. (hooks/tests-lane.py)"
 )
 _BASH = sh.lane_denial(LANE, "a test", _LANE)
 
@@ -181,21 +183,21 @@ def self_test() -> int:
                 denied(bash("git diff --output=tests/x")),
             )
         ),
-        "7 the declared runner invocation is a read, its near spellings are not": all(
+        "7 the kit's blind runner is a read, its near spellings are not": all(
             (
                 allowed(bash("scripts/blind.sh test tests/t.py")),
                 allowed(bash("scripts/blind.sh test .claude/worktrees/x-spec/tests/t.py")),
-                #: normalizes back under the declared prefix, so still a run
+                #: normalizes back under the lane, so still a run
                 allowed(bash("scripts/blind.sh test tests/support/../t.py")),
                 #: a command word in front of the entry is not the entry
                 denied(bash("bash scripts/blind.sh test tests/t.py")),
                 #: the key is the whole invocation, so a write beside it stays one
                 denied(bash("rm tests/t.py && scripts/blind.sh test tests/t.py")),
-                #: and its arity, so a second path is not the declared shape
+                #: and its arity, so a second path is not the shape
                 denied(bash("scripts/blind.sh test tests/a.py tests/b.py")),
                 #: an argument that opens under the prefix and walks out of it
                 denied(bash("scripts/blind.sh test tests/a/../../gauntlet/plans/approved/x.txt")),
-                #: an undeclared subcommand is not a run and falls to the path test
+                #: another subcommand is not a run and falls to the path test
                 denied(bash("scripts/blind.sh status tests")),
             )
         ),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `gauntlet/specs/approved/` is the gauntlet-arbiter's lane.
+"""PreToolUse hook: `<gauntlet dir>/specs/approved/` is the gauntlet-arbiter's lane.
 
 Wire it session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
@@ -13,16 +13,16 @@ So the file is written by exactly one hand, the one that holds the gate.
 
 Denied:
 
-  * `Write`/`Edit`/`NotebookEdit` whose target is under a `gauntlet/specs/approved/`
+  * `Write`/`Edit`/`NotebookEdit` whose target is under a `<gauntlet dir>/specs/approved/`
     directory, unless the caller's `agent_type` is `gauntlet-arbiter`
-  * a `Bash` command that names a `gauntlet/specs/approved/` path and is not
+  * a `Bash` command that names a `<gauntlet dir>/specs/approved/` path and is not
     read-only, except a restore from a named git object
     (`git restore --source <rev>` or `git checkout <rev> --` onto the path),
     which copies a commit and types nothing
 
-Allowed: every read of `gauntlet/specs/approved/`, by any agent and by the shell;
+Allowed: every read of `<gauntlet dir>/specs/approved/`, by any agent and by the shell;
 every write anywhere else, including a draft spec under
-`gauntlet/specs/drafts/`.
+`<gauntlet dir>/specs/drafts/`.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
 is the main agent, which is denied. If a build omits the key for subagents
@@ -40,13 +40,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shell_shapes as sh  # noqa: E402
 
 REVIEWER = "gauntlet-arbiter"
-LANE = "gauntlet/specs/approved"
+LANE = sh.specs_lane()
+#: where an unreviewed block is drafted: beside the lane, never in it
+DRAFTS = sh.gauntlet_dir() + "/specs/drafts"
 
 _LANE = (
-    "gauntlet/specs/approved/ is the gauntlet-arbiter's lane. An approved spec is "
+    f"{LANE}/ is the gauntlet-arbiter's lane. An approved spec is "
     "written there by the reviewer that approved it, and by nothing else: it is "
     "the only evidence the blind gauntlet-scrivener has that the behavior it is about "
-    "to pin was reviewed. Draft under gauntlet/specs/drafts/ and send the draft "
+    f"to pin was reviewed. Draft under {DRAFTS}/ and send the draft "
     "to the gauntlet-arbiter. (hooks/specs-lane.py)"
 )
 _BASH = sh.lane_denial(LANE, "an approved spec", _LANE)
@@ -123,9 +125,9 @@ def self_test() -> int:
                 denied(bash("git diff --output=gauntlet/specs/approved/x.txt")),
             )
         ),
-        "6 a declared runner invocation naming this lane is still denied": all(
+        "6 the blind runner naming this lane is still denied": all(
             (
-                #: the declaration names the test directory, so its one argument
+                #: the runner takes one path under the test directory, so it
                 #: reaches no other lane however the argument is spelled
                 denied(bash("scripts/blind.sh test gauntlet/specs/approved/slug.txt")),
                 denied(bash("scripts/blind.sh test tests/a/../../gauntlet/specs/approved/slug.txt")),
