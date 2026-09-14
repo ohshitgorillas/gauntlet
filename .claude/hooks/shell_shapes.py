@@ -39,8 +39,12 @@ that, matching the test-directory shape both as typed and after
 `os.path.normpath`, so an argument that opens under the lane and walks out of
 it is not a run.
 
-`blind-reads.json` beside this file carries seven keys, and they are the whole
-of what varies between the projects this kit is copied into. Three name
+`blind-reads.json` carries seven keys, and they are the whole
+of what varies between the projects this kit is copied into. It is read from
+`$CLAUDE_PROJECT_DIR/.claude/blind-reads.json`, and from beside this file when
+that one is absent: the config belongs to the project, not to wherever the hook
+file happens to sit, so a kit installed once outside the checkout still reads
+each project's own declaration. Three name
 directories. `tests_dir` is the blind writer's lane, `tests` by default, and what
 the agent definitions and the docs mean by `<tests dir>`. `gauntlet_dir` is where
 the chain's artifacts live, `gauntlet` by default. `docs_dir` is the prose a
@@ -640,12 +644,26 @@ def path_shape(prefix: str) -> str:
 
 
 def config() -> dict[str, Any]:
-    """The one per-repo value, from `blind-reads.json` beside this file.
+    """The one per-repo value, from the project's `blind-reads.json`.
+
+    `$CLAUDE_PROJECT_DIR/.claude/blind-reads.json` is the declaration, and the
+    copy beside this file is the fallback when that path names no file. The
+    project path wins because the config is the project's: the hook file may
+    live outside the checkout entirely, shared by every project it runs for,
+    and only the project path distinguishes them.
 
     An unreadable or malformed file is an empty config, which is the default
-    lane: a typo in the file moves nothing.
+    lane: a typo in the file moves nothing. That holds for whichever of the two
+    is read — a malformed project file is an empty config rather than a fall
+    back to the beside-file copy, so a broken declaration never half-applies.
     """
-    source = Path(__file__).resolve().parent / "blind-reads.json"
+    beside = Path(__file__).resolve().parent / "blind-reads.json"
+    project = os.environ.get("CLAUDE_PROJECT_DIR")
+    source = beside
+    if project:
+        candidate = Path(project) / ".claude" / "blind-reads.json"
+        if candidate.is_file():
+            source = candidate
     try:
         with source.open(encoding="utf-8") as fh:
             loaded = json.load(fh)
