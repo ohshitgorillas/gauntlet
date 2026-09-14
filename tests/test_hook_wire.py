@@ -49,6 +49,11 @@ DENY = "deny"
 # A path with no `.git` at or above it, used by the specs-lane cases.
 NOGIT_CWD = "/nogit"
 
+#: `no-impl-reads.py` and `blind-bash.py` are wired session-wide and gated on
+#: `agent_type`, so a payload naming no caller is the main agent and passes
+#: both unjudged. Every case about what a blind agent may read or run names one.
+BLIND_READER = "gauntlet-scrivener"
+
 
 def hook_decision(hook_name, payload):
     """Feed one payload to one hook on stdin; return its decision.
@@ -110,22 +115,34 @@ def write_payload(file_path, cwd, agent_type=None):
     return payload
 
 
-def grep_payload(path, cwd):
-    """A PreToolUse payload for a Grep call rooted at ``path``."""
-    return {
+def grep_payload(path, cwd, agent_type=None):
+    """A PreToolUse payload for a Grep call rooted at ``path``.
+
+    ``agent_type`` as in ``write_payload``: ``None`` leaves the key off.
+    """
+    payload = {
         "tool_name": "Grep",
         "tool_input": {"pattern": "demo", "path": str(path)},
         "cwd": str(cwd),
     }
+    if agent_type is not None:
+        payload["agent_type"] = agent_type
+    return payload
 
 
-def read_payload(file_path, cwd):
-    """A PreToolUse payload for a Read call."""
-    return {
+def read_payload(file_path, cwd, agent_type=None):
+    """A PreToolUse payload for a Read call.
+
+    ``agent_type`` as in ``write_payload``: ``None`` leaves the key off.
+    """
+    payload = {
         "tool_name": "Read",
         "tool_input": {"file_path": str(file_path)},
         "cwd": str(cwd),
     }
+    if agent_type is not None:
+        payload["agent_type"] = agent_type
+    return payload
 
 
 #: the leaves re-allowed inside the denied gauntlet base: the approved spec
@@ -314,8 +331,7 @@ class NoImplReadsShellShapes(unittest.TestCase):
         # runner list prints src/core.py to the blind agent through `node -e`
         # while refusing `python -c` printing the very same file.
         expected = {
-            "node -e \"console.log(require('fs')"
-            ".readFileSync('src/core.py','utf8'))\"": DENY,
+            "node -e \"console.log(require('fs')" ".readFileSync('src/core.py','utf8'))\"": DENY,
             "python -c \"print(open('src/core.py').read())\"": DENY,
             "pytest tests/test_lane.py -q": SILENT,
             "npx vitest run": SILENT,
@@ -329,7 +345,7 @@ class NoImplReadsShellShapes(unittest.TestCase):
         actual = sweep(
             "no-impl-reads.py",
             expected,
-            lambda command: bash_payload(command, REPO_CWD),
+            lambda command: bash_payload(command, REPO_CWD, BLIND_READER),
         )
         self.assertEqual(actual, expected)
 
@@ -362,7 +378,7 @@ class NoImplReadsShellShapes(unittest.TestCase):
         actual = sweep(
             "no-impl-reads.py",
             expected,
-            lambda command: bash_payload(command, REPO_CWD),
+            lambda command: bash_payload(command, REPO_CWD, BLIND_READER),
         )
         self.assertEqual(actual, expected)
 
@@ -380,7 +396,7 @@ class NoImplReadsShellShapes(unittest.TestCase):
         actual = sweep(
             "no-impl-reads.py",
             expected,
-            lambda command: bash_payload(command, REPO_CWD),
+            lambda command: bash_payload(command, REPO_CWD, BLIND_READER),
         )
         self.assertEqual(actual, expected)
 
@@ -407,7 +423,7 @@ class NoImplReadsShellShapes(unittest.TestCase):
         actual = sweep(
             "no-impl-reads.py",
             expected,
-            lambda path: grep_payload(path, REPO_CWD),
+            lambda path: grep_payload(path, REPO_CWD, BLIND_READER),
         )
         self.assertEqual(actual, expected)
 
@@ -438,7 +454,7 @@ class NoImplReadsShellShapes(unittest.TestCase):
         actual = sweep(
             "no-impl-reads.py",
             expected,
-            lambda file_path: read_payload(file_path, REPO_CWD),
+            lambda file_path: read_payload(file_path, REPO_CWD, BLIND_READER),
         )
         self.assertEqual(actual, expected)
 
@@ -475,7 +491,8 @@ class NoImplReadsOverTheTrackedTree(unittest.TestCase):
                 path
                 for path in ls_files(pathspec)
                 if hook_decision(
-                    "no-impl-reads.py", read_payload(REPO_CWD / path, REPO_CWD)
+                    "no-impl-reads.py",
+                    read_payload(REPO_CWD / path, REPO_CWD, BLIND_READER),
                 )
                 == DENY
             }
@@ -529,9 +546,7 @@ class LanesWithoutGitRoot(unittest.TestCase):
             ("plans-lane.py", "/nogit/gauntlet/plans/drafts/p.txt"): SILENT,
         }
         actual = {
-            (hook_name, file_path): hook_decision(
-                hook_name, write_payload(file_path, NOGIT_CWD)
-            )
+            (hook_name, file_path): hook_decision(hook_name, write_payload(file_path, NOGIT_CWD))
             for hook_name, file_path in expected
         }
         self.assertEqual(actual, expected)
@@ -558,9 +573,7 @@ class RedirectionsIntoTheOtherLanes(unittest.TestCase):
             ("verdicts-lane.py", "cat gauntlet/verdicts/demo.txt"): SILENT,
         }
         actual = {
-            (hook_name, command): hook_decision(
-                hook_name, bash_payload(command, REPO_CWD)
-            )
+            (hook_name, command): hook_decision(hook_name, bash_payload(command, REPO_CWD))
             for hook_name, command in expected
         }
         self.assertEqual(actual, expected)
@@ -589,9 +602,7 @@ class GitSubcommandsInTheOtherLanes(unittest.TestCase):
             expected[(hook_name, f"git ls-tree HEAD {lane}/")] = SILENT
             expected[(hook_name, f"git diff --output={lane}/x.txt")] = DENY
         actual = {
-            (hook_name, command): hook_decision(
-                hook_name, bash_payload(command, REPO_CWD)
-            )
+            (hook_name, command): hook_decision(hook_name, bash_payload(command, REPO_CWD))
             for hook_name, command in expected
         }
         self.assertEqual(actual, expected)
@@ -677,10 +688,13 @@ class ReviewsLaneArbiterGit(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
-#: the five hooks `.claude/settings.json` wires on `Bash` for every caller, so
-#: this is the set a main-agent shell command is actually judged by.
-#: `no-impl-reads.py` and `blind-bash.py` are wired from agent frontmatter only
-#: and answer for no main-agent call, which is why neither is swept here.
+#: the five hooks `.claude/settings.json` wires on `Bash` that judge every
+#: caller, so this is the set a main-agent shell command is actually judged by.
+#: `no-impl-reads.py` and `blind-bash.py` are wired on `Bash` session-wide too,
+#: but each gates on `agent_type` and answers `SILENT` for every caller outside
+#: its own `BLIND` tuple, so neither adds a denial here. `TheCallerGate` below
+#: is where that is pinned, and it is pinned rather than assumed because
+#: session wiring is what puts a main-agent command in front of them at all.
 SESSION_LANE_HOOKS = (
     "specs-lane.py",
     "plans-lane.py",
@@ -906,6 +920,91 @@ class ReviewsLaneOnTheReviewersOwnShell(unittest.TestCase):
         for agent in ("gauntlet-arbiter", "gauntlet-prosecutor"):
             with self.subTest(agent=agent):
                 self.assertEqual(lane_sweep(expected, REPO_CWD, agent), expected)
+
+
+class TheCallerGate(unittest.TestCase):
+    """The two caller-gated hooks, over the callers session wiring hands them.
+
+    Frontmatter wiring is gone: a plugin-shipped agent definition runs none, so
+    `no-impl-reads.py` and `blind-bash.py` are wired session-wide and every
+    caller's tool call reaches them. What keeps them off the main agent is the
+    `agent_type` key, and these cases are both directions of that one rule.
+    """
+
+    maxDiff = None
+
+    #: an implementation path on no allowlist, and a shell command that is not
+    #: the blind agents' one entry point
+    SOURCE = ".claude/hooks/shell_shapes.py"
+    COMMAND = "cat .claude/hooks/shell_shapes.py"
+
+    def test_the_blind_agents_are_read_blocked_and_the_main_agent_is_not(self):
+        # An absent `agent_type` is the main agent, which has to read the
+        # implementation to adjudicate a failing test. A guard that judged
+        # every caller would blind it the moment the hook went session-wide.
+        expected = {
+            "gauntlet-arbiter": DENY,
+            "gauntlet-scrivener": DENY,
+            "gauntlet-juror": DENY,
+            "gauntlet-bailiff": DENY,
+            None: SILENT,
+            "": SILENT,
+            "gauntlet-prosecutor": SILENT,
+            "gauntlet-examiner": SILENT,
+            "gauntlet-detective": SILENT,
+            "general-purpose": SILENT,
+        }
+        actual = {
+            agent: hook_decision(
+                "no-impl-reads.py",
+                read_payload(REPO_CWD / self.SOURCE, REPO_CWD, agent),
+            )
+            for agent in expected
+        }
+        self.assertEqual(actual, expected)
+
+    def test_the_two_shell_locked_agents_are_locked_and_no_other_caller_is(self):
+        # `blind-bash.py` is an allowlist of one entry point, so a caller it
+        # judges loses every other command. Wired session-wide without the
+        # gate it would take the main agent's shell outright.
+        expected = {
+            "gauntlet-scrivener": DENY,
+            "gauntlet-bailiff": DENY,
+            None: SILENT,
+            "": SILENT,
+            "gauntlet-arbiter": SILENT,
+            "gauntlet-juror": SILENT,
+            "gauntlet-prosecutor": SILENT,
+            "general-purpose": SILENT,
+        }
+        actual = {
+            agent: hook_decision(
+                "blind-bash.py",
+                bash_payload(self.COMMAND, REPO_CWD, agent),
+            )
+            for agent in expected
+        }
+        self.assertEqual(actual, expected)
+
+    def test_both_hooks_are_wired_session_wide_rather_than_from_frontmatter(self):
+        # The gate is only half the change: it is safe because the hook now
+        # runs for everyone, and it is load-bearing because nothing else wires
+        # these two any more. A frontmatter block left in an agent definition
+        # reads as enforcement a plugin runtime never executes.
+        settings = json.loads((WORKTREE_ROOT / ".claude" / "settings.json").read_text())
+        wired = {
+            hook["command"].rsplit("/", 1)[-1]
+            for entry in settings["hooks"]["PreToolUse"]
+            for hook in entry["hooks"]
+        }
+        self.assertIn("no-impl-reads.py", wired)
+        self.assertIn("blind-bash.py", wired)
+
+        definitions = sorted((WORKTREE_ROOT / ".claude" / "agents").glob("gauntlet-*.md"))
+        self.assertTrue(definitions)
+        for definition in definitions:
+            with self.subTest(agent=definition.name):
+                self.assertNotIn("hooks:", definition.read_text())
 
 
 if __name__ == "__main__":

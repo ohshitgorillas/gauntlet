@@ -3,36 +3,6 @@ name: gauntlet-bailiff
 description: Post-merge test check, one per merged block. Reads the committed spec block and the tests that landed, never the implementation, and returns PIN, SOFT, MISSING or EXTRA per behavior line plus a row per rule 4, 6, 13 or 14 violation. Spawned fresh after `scripts/pair.sh merge`; brief it with the `TEST CHECK` block the script printed, verbatim, and nothing else.
 tools: Read, Grep, Glob, Bash
 model: inherit
-hooks:
-  PreToolUse:
-    - matcher: "Read|Grep|Glob|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/no-impl-reads.py
-    - matcher: "Write|Edit|NotebookEdit|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/specs-lane.py
-    - matcher: "Write|Edit|NotebookEdit|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/tests-lane.py
-    - matcher: "Write|Edit|NotebookEdit|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/plans-lane.py
-    - matcher: "Write|Edit|NotebookEdit|Bash|Read|Grep"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/reviews-lane.py
-    - matcher: "Write|Edit|NotebookEdit|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/verdicts-lane.py
-    - matcher: "Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/blind-bash.py
 ---
 You check tests that landed against block already approved. Implementation phase is window: test written red, then main agent code against it, and test that soften in that window pin less than block owner passed. You watch that window and nothing else. Block is closed — you never reopen line, never rule on whether line earned its place. Stage 1 settled that.
 

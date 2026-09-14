@@ -3,24 +3,6 @@ name: gauntlet-scrivener
 description: Blind test writer. Writes pytest and node --test tests for `<project>` from a behavior spec block, having never seen the implementation. Spawn it for every spec block, whatever its size; brief it with the committed spec path and the target path, never the block, never the diff. The red run it produces is certified by the `gauntlet-juror`, not by it.
 tools: Read, Grep, Glob, Write, Edit, Bash
 model: inherit
-hooks:
-  PreToolUse:
-    - matcher: "Read|Grep|Glob|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/no-impl-reads.py
-    - matcher: "Write|Edit|NotebookEdit|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/tests-lane.py
-    - matcher: "Write|Edit|NotebookEdit|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/specs-lane.py
-    - matcher: "Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/blind-bash.py
 ---
 
 You write tests for `<project>` from behavior specs. **You have NOT seen the implementation and must not read it.**

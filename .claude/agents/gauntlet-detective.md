@@ -3,20 +3,6 @@ name: gauntlet-detective
 description: Read-only locator. Answers "where is X defined", "what calls Y", "which file holds Z", "what does this directory contain" with a file:line table and nothing else. The discovery round of the plan gate runs through it: one gauntlet-detective per plan, every question in one brief, so the pointers a plan will cite are found without the main agent reading half the tree. Refuses to propose a fix, a design or a verdict.
 tools: Read, Grep, Glob, Bash
 model: sonnet
-hooks:
-  PreToolUse:
-    - matcher: "Write|Edit|NotebookEdit|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/specs-lane.py
-    - matcher: "Write|Edit|NotebookEdit|Bash"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/tests-lane.py
-    - matcher: "Write|Edit|NotebookEdit|Bash|Read|Grep"
-      hooks:
-        - type: command
-          command: python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/reviews-lane.py
 ---
 
 You locate code. You report where it is. You stop.

@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """PreToolUse hook: the two blind agents that keep `Bash` get one command.
 
-Wire it from the `hooks:` frontmatter of `.claude/agents/gauntlet-scrivener.md`
-and `.claude/agents/gauntlet-bailiff.md`, and from nowhere else. It denies
-every caller it does not recognise, so a session-wide wiring would deny the
-main agent's shell outright.
+Wired session-wide from `.claude/settings.json`, and gated on the caller, the
+same shape `no-impl-reads.py` carries. A plugin-shipped agent definition runs
+no `hooks:` frontmatter of its own, so frontmatter wiring reaches nothing once
+the kit ships as a plugin.
+
+`BLIND` is still the two agents it always was; what inverted is the caller
+rule. A caller outside that pair returns `None` and is unjudged, so the main
+agent's shell is judged by nothing this hook does -- identical to the
+frontmatter wiring it replaces, which never saw a main-agent call either.
 
 The `gauntlet-juror` and the `gauntlet-arbiter` have no `Bash` at all. The
 `gauntlet-scrivener` and the `gauntlet-bailiff` still need one: a suite run
@@ -42,10 +47,17 @@ every other command: `.venv/bin/pytest <path>` is not a `scripts/blind.sh`
 call. That is what keeps the blind agent's suite run the run the script
 defines rather than one the agent composed.
 
-`agent_type` is present in the payload only for subagent calls. An absent key
-is denied, the same direction the other lanes fail: a build that stops
-supplying the key costs the two blind agents their one command, and does not
-hand a full shell to a caller nobody identified.
+`agent_type` is present in the payload only for subagent calls, so an absent
+key is the main agent and passes. That is the cost of session wiring, and it
+is the opposite of what frontmatter wiring gave: the old rule denied on an
+absent key, because a build that stopped supplying it cost the two blind
+agents their one command rather than handing a full shell to a caller nobody
+identified. Session-wide that guarantee is unavailable -- the main agent is
+itself the caller with no key -- so a build that stopped supplying it would
+hand the scrivener an unrestricted shell instead of denying it. Guarding by
+caller identity cannot fail closed; guarding by wiring scope could, and does
+not survive packaging. `no-impl-reads.py` pays the same price for the same
+reason, and `docs/approved-specs.md` states it once for both.
 """
 
 from __future__ import annotations
@@ -88,12 +100,6 @@ _WHY = (
     "shape its subcommand names. Everything else is denied by name, not by analysis. "
     "(hooks/blind-bash.py)"
 )
-_CALLER = (
-    "This hook did not recognise the caller. It is wired from the gauntlet-scrivener and "
-    "gauntlet-bailiff frontmatter and answers for those two agents alone; a payload naming "
-    "another agent, or naming none, is denied rather than let through. " + _WHY
-)
-
 
 def _allowed_command(command: str) -> bool:
     """Whether the whole command text is one `scripts/blind.sh` call we admit."""
@@ -106,8 +112,11 @@ def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | 
     """Why this call is refused, or None to let it through."""
     if name != "Bash":
         return None
+    #: wired session-wide, so every agent's shell arrives here. A caller
+    #: outside `BLIND` is not this hook's subject and is let through unjudged,
+    #: the main agent -- which carries no `agent_type` at all -- included
     if (payload.get("agent_type") or "") not in BLIND:
-        return _CALLER
+        return None
     return None if _allowed_command(sh.command_of(tool_input)) else _WHY
 
 
@@ -183,16 +192,28 @@ def self_test() -> int:
                 denied(bash("scripts/blind.sh")),
             )
         ),
-        "3 the caller key fails closed": all(
+        "3 the two blind agents are judged, and no other caller is": all(
             (
+                #: the one command, for the pair this hook answers for
                 allowed(bash("scripts/blind.sh status demo", "gauntlet-scrivener")),
                 allowed(bash("scripts/blind.sh status demo", "gauntlet-bailiff")),
-                denied(bash("scripts/blind.sh status demo", None)),
-                denied(bash("scripts/blind.sh status demo", "")),
-                denied(bash("scripts/blind.sh status demo", "gauntlet-juror")),
-                denied(bash("scripts/blind.sh status demo", "gauntlet-arbiter")),
-                #: an unprefixed same-named agent in the host project is not this one
-                denied(bash("scripts/blind.sh status demo", "scrivener")),
+                denied(bash(f"cat {here}{hook}", "gauntlet-scrivener")),
+                denied(bash(f"cat {here}{hook}", "gauntlet-bailiff")),
+                #: the main agent carries no `agent_type`, and session wiring
+                #: puts its every shell command here: it passes unjudged
+                allowed(bash(f"cat {here}{hook}", None)),
+                allowed(bash("", None)),
+                #: an empty string is no name, and reads as the main agent
+                allowed(bash(f"cat {here}{hook}", "")),
+                #: and so does an agent this hook does not answer for, rather
+                #: than losing a shell to a rule that is not about it
+                allowed(bash(f"cat {here}{hook}", "gauntlet-juror")),
+                allowed(bash(f"cat {here}{hook}", "gauntlet-arbiter")),
+                allowed(bash(f"cat {here}{hook}", "gauntlet-prosecutor")),
+                allowed(bash(f"cat {here}{hook}", "general-purpose")),
+                #: an unprefixed same-named agent in the host project is not
+                #: this one, so it keeps its own shell
+                allowed(bash(f"cat {here}{hook}", "scrivener")),
             )
         ),
         "4 the runner is configuration, and no runner argument widens the one command": (

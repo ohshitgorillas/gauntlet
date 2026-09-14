@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
 """PreToolUse hook: keep a blind agent out of the implementation.
 
-Wired from the `hooks:` frontmatter of `.claude/agents/gauntlet-arbiter.md` and
-`.claude/agents/gauntlet-scrivener.md`, so it binds those subagents only. The
-main agent and every other agent are untouched, deliberately: a session-wide
-`permissions.deny` would blind the one agent that has to read the code to
-adjudicate a failing test.
+Wired session-wide from `.claude/settings.json`, and gated on the caller. A
+plugin-shipped agent definition runs no `hooks:` frontmatter of its own, so
+frontmatter wiring reaches nothing once the kit ships as a plugin; session
+wiring is the only wiring a packaged hook has.
 
-The rule those two work under is that a spec is judged, and a test written,
+Session-wide is not session-blind. `agent_type` is present in the payload only
+for subagent calls, so an absent key is the main agent, which passes untouched
+-- it has to read the code to adjudicate a failing test. A caller not in
+`BLIND` passes the same way, unjudged, so nothing outside the four blind agents
+is read-blocked by this hook.
+
+The fail direction is the price of that guard, and it is the opposite of the
+lane hooks'. `reviews-lane.py` answers an absent `agent_type` by over-denying,
+which leaks nothing. Here an absent key must pass, because the main agent is
+itself the caller that carries none, so a build that stopped supplying the key
+for subagents would hand the blind agents the implementation rather than deny
+them their spec. Guarding by caller identity buys packaging and cannot fail
+closed; guarding by wiring scope failed closed and does not survive packaging.
+
+The rule the four work under is that a spec is judged, and a test written,
 from the behavior contract and never from the code under test. A test shaped
 against the implementation mirrors it, and goes green on an implementation
 that is wrong in exactly the way the main agent was wrong. A prompt alone does not
@@ -84,6 +97,15 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
+
+#: the agents this hook answers for. Every other caller, the main agent
+#: included, passes unjudged -- see the fail direction in the module docstring
+BLIND = (
+    "gauntlet-arbiter",
+    "gauntlet-scrivener",
+    "gauntlet-juror",
+    "gauntlet-bailiff",
+)
 
 #: the blind writer's lane, `tests` unless `blind-reads.json` names another
 TESTS = sh.tests_dir()
@@ -409,12 +431,31 @@ def _verdict(name: str, tool_input: dict[str, Any], root: str | None, cwd: str) 
 GUARDS = ("Read", "Grep", "Glob", "Bash")
 
 
+def _caller_verdict(
+    name: str,
+    tool_input: dict[str, Any],
+    payload: dict[str, Any],
+    root: str | None,
+    cwd: str,
+) -> str | None:
+    """Why this call is refused, or None to let it through, judged by caller.
+
+    Session wiring puts every agent's reads in front of this hook, so the
+    allowlist below runs for the four blind agents and for nobody else. An
+    absent `agent_type` is the main agent and passes; a name not in `BLIND`
+    passes too, unjudged rather than allowlisted.
+    """
+    if (payload.get("agent_type") or "") not in BLIND:
+        return None
+    return _verdict(name, tool_input, root, cwd)
+
+
 def main() -> None:
     def verdict(name: str, tool_input: dict[str, Any], payload: dict[str, Any]) -> str | None:
         #: inside the closure, so that a root that will not resolve is a
         #: refusal like any other rather than a crash read as one
         cwd = sh.cwd_of(payload)
-        return _verdict(name, tool_input, repo_root(cwd), cwd)
+        return _caller_verdict(name, tool_input, payload, repo_root(cwd), cwd)
 
     sh.hook_main(verdict, guards=GUARDS)
 
@@ -493,6 +534,17 @@ def self_test() -> int:
 
     node_reads_source = "node -e \"console.log(require('fs').readFileSync('src/core.py','utf8'))\""
     denied, allowed = sh.denied, sh.allowed
+
+    def blind(path: str, who: str | None = "gauntlet-scrivener") -> str | None:
+        """One `Read`, through the caller gate the wire goes through.
+
+        `who` is the payload's `agent_type`; `None` leaves the key off, which
+        is the shape a call from no subagent carries.
+        """
+        payload: dict[str, Any] = {}
+        if who is not None:
+            payload["agent_type"] = who
+        return _caller_verdict("Read", {"file_path": sh.respell(path)}, payload, root, root)
     lines = {
         "1 the spec's own sources are readable, the rest is not": all(
             (
@@ -634,8 +686,28 @@ def self_test() -> int:
                 denied(read(f"{root}/reference/protocol.md")),
             )
         ),
-        "11 no denied subtree nests inside an allowed one": _no_denied_nesting(),
-        "12 this repo's own blind-reads.json parses, if it is there": _config_parses(),
+        "11 the four blind agents are judged, and no other caller is": all(
+            (
+                #: the allowlist runs for a caller in BLIND, in both directions
+                denied(blind(f"{root}/src/core/manager.py")),
+                allowed(blind(f"{root}/docs/testing.md")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet-juror")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet-arbiter")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet-bailiff")),
+                #: the main agent carries no `agent_type` at all, and session
+                #: wiring puts its every read here: it passes unjudged
+                allowed(blind(f"{root}/src/core/manager.py", None)),
+                #: and so does a caller this hook does not answer for, rather
+                #: than being read-blocked by a list that is not about it
+                allowed(blind(f"{root}/src/core/manager.py", "gauntlet-prosecutor")),
+                allowed(blind(f"{root}/src/core/manager.py", "gauntlet-examiner")),
+                allowed(blind(f"{root}/src/core/manager.py", "general-purpose")),
+                #: an empty string is no name, and reads as the main agent
+                allowed(blind(f"{root}/src/core/manager.py", "")),
+            )
+        ),
+        "12 no denied subtree nests inside an allowed one": _no_denied_nesting(),
+        "13 this repo's own blind-reads.json parses, if it is there": _config_parses(),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal
         "every payload shape is answered, and an unreadable one is refused": (
