@@ -33,7 +33,7 @@ Blindness costs something, so it is paid for. The `gauntlet-examiner` measures t
 
 ## The chain
 
-1. The main agent drafts a plan and sends its grounding questions, all of them, to one `gauntlet-detective`.
+1. The main agent drafts a plan and sends its discovery questions, all of them, to one `gauntlet-detective`.
 2. The `gauntlet-prosecutor` resolves the plan's citations and returns a pass or fail per check and, on `READY` and only then, writes `<gauntlet dir>/plans/approved/<slug>.txt`. The owner reads it only on a pass. Rules in `plans.md`.
 3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-examiner` measures it.
 4. The `gauntlet-arbiter` runs its checks blind and, on `READY` and only then, writes `<gauntlet dir>/specs/approved/<slug>.txt`.
@@ -52,7 +52,7 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 | `pair.sh open <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
 | `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
 | `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: <gauntlet dir>/merge/<slug>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor` |
-| `pair.sh merge <slug>` | the `scripts/excision-diff.py` verdict lines | `kind:` is `excision` or `repair` |
+| `pair.sh merge <slug>` | the `scripts/strike-diff.py` verdict lines | the structure line is `motion: strike` or `kind: repair` |
 | `pair.sh review <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.<N>.txt` | `<N>` is one more than the highest already on disk for that slug, 1 where there is none, and `<gauntlet dir>/reviews/` exists |
 | `pair.sh review plan <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.plan.<N>.txt` | the same count over the plan rounds of that slug |
 | `pair.sh restore <slug> <rev>` | `RESTORED <gauntlet dir>/specs/approved/<slug>.txt <rev>` | the approved block on disk is the block as it stood at `<rev>` |
@@ -67,7 +67,7 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 
 The evidence sits in the file the `merge output:` line names, not beneath that header: `<gauntlet dir>/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- <tests dir>/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `<gauntlet dir>/red/<slug>.txt` is absent.
 
-`open` refuses on mismatch because the spec file is editable after the reviewer passed it, and the round file is not: the comparison is what makes the approved block the reviewed block rather than the latest one. `red` removes the whole-file excision targets, which the lane hook denies every agent, and leaves single-test targets to the writer's `Edit`. `merge` routes on `kind:` because the two tests-only kinds have no implementation phase, so the blind post-merge reviewer round has no window to watch and the mechanical check takes it.
+`open` refuses on mismatch because the spec file is editable after the reviewer passed it, and the round file is not: the comparison is what makes the approved block the reviewed block rather than the latest one. `red` removes the whole-file strike targets, which the lane hook denies every agent, and leaves single-test targets to the writer's `Edit`. `merge` routes on the structure line because the two tests-only shapes have no implementation phase, so the blind post-merge reviewer round has no window to watch and the mechanical check takes it.
 
 `merge` converges the pair in six steps, and the target branch is touched only at the last: the lane check, which holds the spec tree to `<tests dir>/` and the implementation tree out of it; a commit in each tree; a rebase of both branches onto the target branch where it moved under them; the combine, which merges `impl/<slug>` into the spec tree; the gate, run in that combined tree; and the land, a fast-forward of the target branch onto the spec branch, after which both trees and both branches are removed. An implementation tree that was never cut is skipped rather than fatal, which is the ordinary shape of the two tests-only kinds. Steps three to six hold `flock` on `.claude/worktrees/.pair.lock`, so two sessions converging at once queue instead of racing the tip, and every land is `--ff-only`.
 
@@ -83,10 +83,10 @@ The two runners are `pytest_command` and `node_command` of that same file, read 
 
 A change confined to `<tests dir>/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
 
-1. The main agent drafts a `kind: excision` or `kind: repair` block and sends it to a `gauntlet-arbiter`.
+1. The main agent drafts a `motion: strike` or `kind: repair` block and sends it to a `gauntlet-arbiter`.
 2. The reviewer resolves each line's quoted assertion against the test file itself — `<tests dir>/` is open to it, and the implementation is not what these lines rest on — and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
 3. The `gauntlet-scrivener` removes the targets and writes the replacements its `as:` fields name.
-4. `scripts/excision-diff.py`, run by `scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither kind has an implementation phase, so the window those two watch does not exist.
+4. `scripts/strike-diff.py`, run by `scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: neither shape has an implementation phase, so the window those two watch does not exist.
 
 The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `<tests dir>/`.
 

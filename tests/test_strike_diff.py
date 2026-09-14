@@ -1,4 +1,4 @@
-"""Behavior tests for the excision-diff reporter CLI."""
+"""Behavior tests for the strike-diff reporter CLI."""
 
 import os
 import subprocess
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "excision-diff.py"
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "strike-diff.py"
 
 ASSERTION = 'assert banner() == "no rows to show"'
 
@@ -27,21 +27,21 @@ BASE_TEST_A = SIBLING + TEST_X_WITH_ASSERTION
 BASE_TEST_B = "def test_b_one():\n    assert widget_count() == 3\n"
 CHANGED_TEST_B = "def test_b_one():\n    assert widget_count() == 4\n"
 
-HEADER = "slug: fixture-block\nkind: excision\nbrief: none\n\n"
+HEADER = "slug: fixture-block\nmotion: strike\nbrief: none\n\n"
 
 BLOCK_TEST_X = HEADER + (
-    "1. excise tests/test_a.py::test_x\n"
+    "1. strike tests/test_a.py::test_x\n"
     "   rule: docs/testing.md rule 9\n"
     "   assertion: " + ASSERTION + "\n"
 )
 BLOCK_TEST_X_AS_RENAMED = HEADER + (
-    "1. excise tests/test_a.py::test_x\n"
+    "1. strike tests/test_a.py::test_x\n"
     "   as: tests/test_a.py::test_x_renamed\n"
     "   rule: docs/testing.md rule 9\n"
     "   assertion: " + ASSERTION + "\n"
 )
 BLOCK_TEST_B_WHOLE = HEADER + (
-    "1. excise tests/test_b.py\n"
+    "1. strike tests/test_b.py\n"
     "   rule: docs/testing.md rule 9\n"
     "   assertion: assert widget_count() == 3\n"
 )

@@ -22,25 +22,27 @@ from trees import GAUNTLET, REVIEWS, SPECS, TESTS, git, git_out, note, path
 
 DIVIDER = "--- reviewer ---"
 
-#: `N. excise <target>` of a committed block, targets only
-_EXCISE = re.compile(r"^\s*\d+\.\s*excise\s+(?P<target>.*?)\s*$")
-_KIND = re.compile(r"^kind:\s*(?P<kind>.*?)\s*$")
+#: `N. strike <target>` of a committed block, targets only
+_STRIKE = re.compile(r"^\s*\d+\.\s*strike\s+(?P<target>.*?)\s*$")
+#: the structure line: `kind:` for a block that writes tests, `motion:` for one
+#: that removes them
+_KIND = re.compile(r"^(?:kind|motion):\s*(?P<kind>.*?)\s*$")
 
 #: the three headings `<gauntlet dir>/merge/<slug>.txt` carries, in this order
 HEADINGS = ("test files:", "diff:", "red output:")
 
 
-def _load_excision_diff():
-    """`scripts/excision-diff.py`, imported rather than run.
+def _load_strike_diff():
+    """`scripts/strike-diff.py`, imported rather than run.
 
     Its name is not an identifier, so it is loaded by path. A subprocess would
     be a second interpreter start and a second copy of the config, for a
     function this process can simply call.
     """
-    source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "excision-diff.py")
-    spec = importlib.util.spec_from_file_location("excision_diff", source)
+    source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "strike-diff.py")
+    spec = importlib.util.spec_from_file_location("strike_diff", source)
     if spec is None or spec.loader is None:  # pragma: no cover - a broken checkout
-        sys.exit("pair: no scripts/excision-diff.py beside scripts/pair/")
+        sys.exit("pair: no scripts/strike-diff.py beside scripts/pair/")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -112,10 +114,10 @@ def block_kind(text: str) -> str:
     return ""
 
 
-def excise_targets(text: str) -> list[str]:
+def strike_targets(text: str) -> list[str]:
     targets = []
     for line in text.splitlines():
-        found = _EXCISE.match(line)
+        found = _STRIKE.match(line)
         if found and found.group("target"):
             targets.append(found.group("target"))
     return targets
@@ -127,7 +129,7 @@ def whole_file_targets(text: str) -> list[str]:
     A single test is an `Edit` and the writer's; a whole file cannot be, because
     the lane hook denies every agent the shell it would take.
     """
-    return [target for target in excise_targets(text) if "::" not in target]
+    return [target for target in strike_targets(text) if "::" not in target]
 
 
 def red_run(slug: str, tree: str, runner: list[str]) -> str:
@@ -166,13 +168,13 @@ def merge_artifact(slug: str, base: str, head: str, tree: str) -> str:
     return saved
 
 
-def excision_report(block: str, base: str, head: str, tree: str) -> list[str]:
-    """The `scripts/excision-diff.py` verdicts for a landed tests-only change.
+def strike_report(block: str, base: str, head: str, tree: str) -> list[str]:
+    """The `scripts/strike-diff.py` verdicts for a landed tests-only change.
 
     That module runs git in the process's own directory, so the call is made
     from the tree being checked and the directory is put back afterwards.
     """
-    module = _load_excision_diff()
+    module = _load_strike_diff()
     here = os.getcwd()
     os.chdir(path(tree))
     try:
@@ -192,7 +194,7 @@ def committed_section(tree: str, slug: str) -> str:
     return reviewer_section(git_out("show", "HEAD:" + spec_path(slug), tree=tree))
 
 
-def excise_whole_files(tree: str, block: str) -> None:
+def strike_whole_files(tree: str, block: str) -> None:
     """Remove the whole-file targets of a block from a tree.
 
     Two passes on purpose: every target is validated before any file goes, so a
@@ -203,12 +205,12 @@ def excise_whole_files(tree: str, block: str) -> None:
     for target in targets:
         if not target.startswith(prefix):
             trees.die(
-                "pair: excision target '" + target + "' is not under " + prefix
-                + " -- an excision block removes tests, never source."
+                "pair: strike target '" + target + "' is not under " + prefix
+                + " -- a strike motion removes tests, never source."
             )
         if ".." in target:
             trees.die(
-                "pair: excision target '" + target + "' contains '..' -- name the path"
+                "pair: strike target '" + target + "' contains '..' -- name the path"
                 " as it sits under " + prefix + "."
             )
     for target in targets:
@@ -216,7 +218,7 @@ def excise_whole_files(tree: str, block: str) -> None:
             os.unlink(path(tree, target))
         except OSError:
             continue
-        note("  excised " + target)
+        note("  struck " + target)
 
 
 def spec_blob(tree: str, slug: str) -> str:

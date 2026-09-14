@@ -94,6 +94,6 @@ hard-coded stub: the script keys on the anchor path and the set of `*.py` file n
 survives: 4
 
 notes, no verdict rests on them:
-- checks (b) and (l): greps run here confirm the field. `grep -rln closure tests/`, `grep -rln symbol tests/` and `grep -rln SyntaxError tests/` each print nothing; tests/ holds only __init__.py, support/fixtures, test_bwrap_wrap.py, test_cite.py, test_excision_diff.py and test_pair_sh.py, and no file under it touches an AST scan of test sources.
+- checks (b) and (l): greps run here confirm the field. `grep -rln closure tests/`, `grep -rln symbol tests/` and `grep -rln SyntaxError tests/` each print nothing; tests/ holds only __init__.py, support/fixtures, test_bwrap_wrap.py, test_cite.py, test_strike_diff.py and test_pair_sh.py, and no file under it touches an AST scan of test sources.
 - check (m), block level: the brief also asks for a --self-test and an entry in scripts/gates/check-gates.sh. The owner's second sentence - "the block should pin the closure's behavior and not the gate wiring" - excludes both from this block, so neither is an outstanding brief behavior.
 - the four lines sit at the cap, so the "past the earlier lines" paragraphs on 3 and 4 were not required; they are read as sibling arguments under (d) and they hold.

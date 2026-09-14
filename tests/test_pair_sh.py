@@ -17,7 +17,7 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 PAIR = REPO / "scripts" / "pair.sh"
 PAIR_PACKAGE = REPO / "scripts" / "pair"
-EXCISION_DIFF = REPO / "scripts" / "excision-diff.py"
+STRIKE_DIFF = REPO / "scripts" / "strike-diff.py"
 SHELL_SHAPES = REPO / ".claude" / "hooks" / "shell_shapes.py"
 
 SLUG = "demo"
@@ -69,21 +69,21 @@ def _block(body):
     return body + "\n--- reviewer ---\n" + REVIEWER
 
 
-def _excision_body(target, assertion):
+def _strike_body(target, assertion):
     return (
         "slug: demo\n"
-        "kind: excision\n"
+        "motion: strike\n"
         "brief: none\n"
         "\n"
-        f"1. excise {target}\n"
+        f"1. strike {target}\n"
         "   rule: docs/testing.md rule 9\n"
         f"   assertion: {assertion}\n"
     )
 
 
 BLOCK_NEW = _block(BODY_NEW)
-BLOCK_WHOLE_FILE = _block(_excision_body("tests/test_b.py", ASSERTION_B))
-BLOCK_SINGLE_TEST = _block(_excision_body("tests/test_a.py::test_x", ASSERTION_X))
+BLOCK_WHOLE_FILE = _block(_strike_body("tests/test_b.py", ASSERTION_B))
+BLOCK_SINGLE_TEST = _block(_strike_body("tests/test_a.py::test_x", ASSERTION_X))
 
 
 def _git(cwd, *args):
@@ -110,7 +110,7 @@ def _repo(tmp_path, spec_text, review_text):
     (repo / "scripts").mkdir()
     (repo / "gauntlet" / "specs" / "approved").mkdir(parents=True)
     (repo / "gauntlet" / "reviews").mkdir(parents=True)
-    for source in (PAIR, EXCISION_DIFF):
+    for source in (PAIR, STRIKE_DIFF):
         landed = repo / "scripts" / source.name
         shutil.copy2(source, landed)
         landed.chmod(landed.stat().st_mode | stat.S_IXUSR)
@@ -267,7 +267,7 @@ MERGE_ARTIFACT = "gauntlet/merge/" + SLUG + ".txt"
 MERGE_HEADINGS = ("test files:", "diff:", "red output:")
 
 BRIEF_NEW = ("TEST CHECK demo", "merge output: " + MERGE_ARTIFACT, "END TEST CHECK", 5)
-BRIEF_EXCISION = (
+BRIEF_STRIKE = (
     "OK tests/test_a.py::test_x",
     None,
     "OK tests/test_a.py::test_x",
@@ -362,7 +362,7 @@ def _merge(tmp_path, changes, base=None, suite=None, block=BLOCK_NEW):
 @pytest.mark.parametrize(
     "block,changes,suite,expected",
     [
-        (BLOCK_SINGLE_TEST, {"test_a.py": TEST_A_OTHER}, None, BRIEF_EXCISION),
+        (BLOCK_SINGLE_TEST, {"test_a.py": TEST_A_OTHER}, None, BRIEF_STRIKE),
         (BLOCK_NEW, {"test_a.py": TEST_A_OTHER}, None, BRIEF_NEW),
         (
             BLOCK_NEW,
@@ -371,7 +371,7 @@ def _merge(tmp_path, changes, base=None, suite=None, block=BLOCK_NEW):
             BRIEF_NEW,
         ),
     ],
-    ids=["kind-excision", "kind-new-one-file", "kind-new-two-files-and-a-red-log"],
+    ids=["motion-strike", "kind-new-one-file", "kind-new-two-files-and-a-red-log"],
 )
 def test_merge_prints_the_five_line_brief_for_kind_new_whatever_it_merged(
     tmp_path, block, changes, suite, expected

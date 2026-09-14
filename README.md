@@ -3,7 +3,7 @@
 Gauntlet is a set of six subagents that surround the main agent, built around two blind reviewers:
 
 1. An adversarial plan reviewer (`gauntlet-prosecutor`)
-2. A grounding locator for plans (`gauntlet-detective`)
+2. A discovery locator for plans (`gauntlet-detective`)
 3. A blind adversarial spec reviewer (`gauntlet-arbiter`)
 4. A measurement agent (`gauntlet-examiner`)
 5. A blind test writer (`gauntlet-scrivener`)
@@ -20,7 +20,7 @@ Gauntlet works best with existing codebases. The `gauntlet-scrivener` writes pyt
 The workflow enforced by Gauntlet is, as its name implies, quite brutal:
 
 1. You supply an agent with a brief: the problem to solve or feature to add.
-2. The main agent sends its grounding questions, all of them, to one `gauntlet-detective`, which returns a `file:line` table and nothing else.
+2. The main agent sends its discovery questions, all of them, to one `gauntlet-detective`, which returns a `file:line` table and nothing else.
 3. The main agent drafts a plan on those pointers and provides it to a `gauntlet-prosecutor`.
 4. The `gauntlet-prosecutor` checks the drafted plan for mistakes, errors, inconsistencies, and resolves the plan's citations against the tree to return a pass or fail per check. It may also return a refusal to rule if the main agent is caught trying to game its context or evades a posed question. Any questions the agents cannot answer are escalated to you, who then approves the plan only on a pass. On `READY`, it writes the approved plan to `<gauntlet dir>/plans/approved/`, a folder only it can write to, so a later stage reads the plan from disk rather than inheriting it — the shape is in `docs/plans.md`. Where implementation later settles a value the plan estimated, the plan takes an amendment round rather than a redraft: the amendment carries the command that produced the value, the checks re-run on the amended lines alone, and the reviewer rewrites the file.
 5. The main agent drafts a testing spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-examiner` measures it.
@@ -54,10 +54,10 @@ No hook enforces this, the same gap `docs/exemptions.md` states for the `EXEMPT`
 
 A change confined to `<tests dir>/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not fourteen:
 
-1. The main agent drafts a `kind: excision` block (the test goes) or a `kind: repair` block (the test goes, and one line names the behavior that replaces it). An excision line cites the rule the test breaks, or — where the test breaks none and the behavior it pins is one the owner dropped — quotes the owner's sentence that dropped it.
+1. The main agent drafts a `motion: strike` block (the test goes) or a `kind: repair` block (the test goes, and one line names the behavior that replaces it). A strike line cites the rule the test breaks, or — where the test breaks none and the behavior it pins is one the owner dropped — quotes the owner's sentence that dropped it.
 2. The `gauntlet-arbiter` reviews it against the test file, which it is allowed to read, and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
 3. The `gauntlet-scrivener` removes the targets and writes the replacements.
-4. `scripts/excision-diff.py` checks the landed diff against the approved block at merge.
+4. `scripts/strike-diff.py` checks the landed diff against the approved block at merge.
 
 No plan gate, no red run, no juror, no post-merge review round. The `Stop` hook fires on a red run that exists and never on the absence of one, so it stays silent here. Those three exist to police an implementation phase, and a tests-only change has none. What still holds is the part that matters: the main agent never writes `<tests dir>/`, and never decides on its own that a test it finds inconvenient pins nothing.
 
@@ -76,7 +76,7 @@ python3 .claude/hooks/verdicts-lane.py --self-test
 python3 .claude/hooks/no-impl-reads.py --self-test
 python3 .claude/hooks/blind-bash.py --self-test
 python3 .claude/hooks/gauntlet-off.py --self-test
-python3 scripts/excision-diff.py --self-test
+python3 scripts/strike-diff.py --self-test
 python3 scripts/cite.py --self-test
 ```
 

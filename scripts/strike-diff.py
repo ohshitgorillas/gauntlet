@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check a landed tests-only change against the block that approved it.
 
-`kind: excision` and `kind: repair` have no implementation phase, so the
+`motion: strike` and `kind: repair` have no implementation phase, so the
 post-merge reviewer round that catches a softened test has no window to watch.
 What it watched for still happens here, in one move rather than two: the
 deletion is itself the softening. This script is that check, and it is
@@ -13,12 +13,12 @@ tool call, and a comparison of two commits has none.
 It reads the committed approved block for a slug and prints one line per
 target:
 
-    OK <target>            the excision landed
+    OK <target>            the strike landed
     UNSATISFIED <target>   the target is still there, assertion and all
     MISSING <as-name>      the replacement the line promised never landed
     UNNAMED <path>         a file under tests/ changed that no line names
 
-An excise target is satisfied on either of two facts: the test name is gone
+A strike target is satisfied on either of two facts: the test name is gone
 from the file, or the name is present and the line's quoted `assertion:` text
 is no longer in that test's own body. Body, not file: the same assertion text
 can sit in a sibling test -- a parametrize case, a shared line -- and a
@@ -40,22 +40,22 @@ sys.path.insert(0, _HOOKS)
 try:
     import shell_shapes as sh  # noqa: E402
 except ImportError:
-    sys.exit(f"excision-diff.py: no shell_shapes.py in {_HOOKS}: scripts/ ships with .claude/hooks/")
+    sys.exit(f"strike-diff.py: no shell_shapes.py in {_HOOKS}: scripts/ ships with .claude/hooks/")
 
 #: the blind writer's lane, `tests/` unless `blind-reads.json` names another
 TESTS = sh.tests_dir() + "/"
 
-_LINE = re.compile(r"^\s*\d+\.\s+excise\s+(?P<target>\S+)\s*$")
+_LINE = re.compile(r"^\s*\d+\.\s+strike\s+(?P<target>\S+)\s*$")
 _FIELD = re.compile(r"^\s*(?P<key>rule|assertion|replace|as):\s*(?P<value>.*)$")
 
 
 class Line:
-    """One excision or repair line of an approved block."""
+    """One strike or repair line of an approved block."""
 
     def __init__(self, target: str) -> None:
         self.target = target
         self.assertion = ""
-        self.landing = ""  # the `as:` field, empty on a `kind: excision` line
+        self.landing = ""  # the `as:` field, empty on a `motion: strike` line
 
     @property
     def path(self) -> str:
@@ -126,8 +126,8 @@ def test_body(source: str, name: str) -> str | None:
     return None
 
 
-def excision_verdict(line: Line, head: str) -> str:
-    """`OK` or `UNSATISFIED` for one excise target."""
+def strike_verdict(line: Line, head: str) -> str:
+    """`OK` or `UNSATISFIED` for one strike target."""
     source = file_at(head, line.path)
     if source is None:
         return f"OK {line.target}"
@@ -156,7 +156,7 @@ def report(block: str, base: str, head: str) -> list[str]:
     named = {line.path for line in lines}
     named.update(line.landing.split("::", 1)[0] for line in lines if line.landing)
 
-    out = [excision_verdict(line, head) for line in lines]
+    out = [strike_verdict(line, head) for line in lines]
     out += [landing_verdict(line, head) for line in lines if line.landing]
     out += [
         f"UNNAMED {path}" for path in changed_files(base, head) if path not in named
@@ -184,7 +184,7 @@ def self_test() -> int:
     """Pin the four lines of the merge check."""
     block = (
         "slug: s\nkind: repair\n\n"
-        "1. excise tests/test_a.py::test_x\n"
+        "1. strike tests/test_a.py::test_x\n"
         "   rule: docs/testing.md rule 7\n"
         "   assertion: assert time.monotonic() - start < 2\n"
         "   replace: the poll stops on the condition\n"

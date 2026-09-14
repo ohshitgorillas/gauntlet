@@ -36,7 +36,7 @@ Break rule = review say no. Even if test green.
    - Rendered text is copy — assert class/attribute/`data-*`/values, text only if wire identifier or number.
    - Vendored/built data blob never give expected value — test join/lookup against owned fixtures; data well-formedness is a data gate, not a behavior test.
    - Curated count/order is copy.
-   - Selector need wording → add stable test id. Nothing live through remove wording → delete via `kind: excision`, or `kind: repair` where behavior under it stay pinned. Never hand-edit `<tests dir>/`.
+   - Selector need wording → add stable test id. Nothing live through remove wording → delete via `motion: strike`, or `kind: repair` where behavior under it stay pinned. Never hand-edit `<tests dir>/`.
    - `<mechanical gate for this>`.
 
 10. **A test discriminates, or it's a tautology.** Name failing implementation and a passing one, both plausible; if failing one is only "feature absent," test pins nothing. Shapes that fail this:
@@ -66,12 +66,12 @@ Break rule = review say no. Even if test green.
 
 16. **No environment coupling.** No hostname/locale/timezone/cwd/home/fixed port. (Clock is rule 7.)
 
-## Excision blocks
+## Strike motions
 
-Kill copy-pinning test (rule 9) walk the `/tests` chain as `kind: excision`, never hand edit in `<tests dir>/`:
+Kill copy-pinning test (rule 9) walk the `/tests` chain as `motion: strike`, never hand edit in `<tests dir>/`:
 
 ```
-N. excise <target>
+N. strike <target>
    rule: docs/testing.md rule <n>
    assertion: <the offending assertion, quoted from the test file>
 ```
@@ -81,7 +81,7 @@ Target: `<tests dir>/<file>::<test>`, or `<tests dir>/<file>` (no `::`) for whol
 Second citation form, for test that break no rule and still must go: behavior it pin is behavior owner dropped. `rule:` become `removed:`, carry owner's own sentence that dropped it, verbatim, same sentence block's `brief:` quote:
 
 ```
-N. excise <target>
+N. strike <target>
    removed: <owner's sentence that dropped the behavior, quoted>
    assertion: <the assertion that pins the dropped behavior, quoted>
 ```
@@ -95,7 +95,7 @@ Every test in file gone by single-test line, none replaced there → writer dele
 Test that break rule but pin behavior worth keeping walk chain as `kind: repair`. One line carry both halves — what go, what take its place:
 
 ```
-N. excise <tests dir>/<file>::<test>
+N. strike <tests dir>/<file>::<test>
    rule: docs/testing.md rule <n>
    assertion: <the offending assertion, quoted from the test file>
    replace: <behavior as the caller sees it>
@@ -103,13 +103,13 @@ N. excise <tests dir>/<file>::<test>
    kills: <a wrong implementation a user would notice>
 ```
 
-Target always `<tests dir>/<file>::<test>`. Whole-file target belong to `kind: excision` only: replacement cannot land in file excision half delete.
+Target always `<tests dir>/<file>::<test>`. Whole-file target belong to `motion: strike` only: replacement cannot land in file strike half delete.
 
 `as:` name test replacement must land as. May equal target — coupled test name often state behavior right (rule 6) and only assertion wrong, so rename is churn. Merge check read target as satisfied on either fact: name gone from `<tests dir>/`, or name present and quoted `assertion:` gone from that test's own body. Body, not file — same assertion text can sit in sibling test (parametrize case, shared line).
 
 No `bite:`. Replacement pin behavior HEAD already have = characterization, rule 8 exempt it. Four-line cap count `replace:` lines only.
 
-Excision half empty a file (every test gone, none replaced there) → writer delete file.
+Strike half empty a file (every test gone, none replaced there) → writer delete file.
 
 ## Markers
 

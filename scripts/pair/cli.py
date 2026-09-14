@@ -155,7 +155,7 @@ def cmd_red(slug: str) -> int:
     tree = trees.spec_tree(slug)
     if not os.path.isdir(path(tree)):
         die("pair: no spec worktree at " + tree)
-    blocks.excise_whole_files(tree, text)
+    blocks.strike_whole_files(tree, text)
     out(blocks.red_run(slug, tree, _pytest_argv()))
     return 0
 
@@ -206,7 +206,7 @@ def cmd_merge(slug: str) -> int:
         base = git("merge-base", TARGET, trees.spec_branch(slug))
         head = git("rev-parse", "HEAD", tree=tree)
         kind = blocks.block_kind(text)
-        mechanical = kind in ("excision", "repair")
+        mechanical = kind in ("strike", "repair")
 
         note("  [5/6] gate")
         if not converge.gate(slug):
@@ -219,7 +219,7 @@ def cmd_merge(slug: str) -> int:
             note("wrong and the fix lands in the implementation tree, or the block is wrong")
             note("and it goes back for re-approval. Tests are not edited to pass.")
             if mechanical:
-                for line in blocks.excision_report(text, base, head, tree):
+                for line in blocks.strike_report(text, base, head, tree):
                     note("  " + line)
             else:
                 note("  merge output: " + blocks.merge_artifact(slug, base, head, tree))
@@ -228,7 +228,7 @@ def cmd_merge(slug: str) -> int:
         if mechanical:
             #: no implementation phase, so no window for a test to soften in:
             #: the mechanical check takes the gauntlet-bailiff's round
-            verdicts = blocks.excision_report(text, base, head, tree)
+            verdicts = blocks.strike_report(text, base, head, tree)
             for line in verdicts:
                 out(line)
             if not all(line.startswith("OK ") for line in verdicts):
@@ -362,10 +362,10 @@ def main(argv: list[str]) -> int:
 def self_test() -> int:
     """Pin the parsing and the stdout literals, without touching a checkout."""
     block = (
-        "slug: demo\nkind: excision\n\n"
-        "1. excise tests/test_a.py::test_x\n"
+        "slug: demo\nmotion: strike\n\n"
+        "1. strike tests/test_a.py::test_x\n"
         "   assertion: assert 2 + 2 == 4\n"
-        "2. excise tests/test_b.py\n"
+        "2. strike tests/test_b.py\n"
         "\n--- reviewer ---\nREADY\n1  KEEP  the counter\n"
     )
     source = open(os.path.abspath(__file__), encoding="utf-8").read()
@@ -374,11 +374,13 @@ def self_test() -> int:
             blocks.reviewer_section(block) == "READY\n1  KEEP  the counter\n"
             and blocks.reviewer_section("no divider here\n") == ""
         ),
-        "a block's kind is its first kind: line": (
-            blocks.block_kind(block) == "excision" and blocks.block_kind("slug: x\n") == ""
+        "a block's kind is its first kind: or motion: line": (
+            blocks.block_kind(block) == "strike"
+            and blocks.block_kind("slug: x\nkind: new\n") == "new"
+            and blocks.block_kind("slug: x\n") == ""
         ),
-        "every excise target parses, and only the whole-file ones are the script's": (
-            blocks.excise_targets(block) == ["tests/test_a.py::test_x", "tests/test_b.py"]
+        "every strike target parses, and only the whole-file ones are the script's": (
+            blocks.strike_targets(block) == ["tests/test_a.py::test_x", "tests/test_b.py"]
             and blocks.whole_file_targets(block) == ["tests/test_b.py"]
         ),
         "the merge artifact names its three headings in one order": (

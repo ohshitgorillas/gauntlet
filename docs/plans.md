@@ -16,11 +16,11 @@ The approved plan is tracked because a later stage reads it from disk. That is t
 
 ## The shape
 
-The plan opens with two metadata lines and the owner's brief, then six sections. A reviewer reads `slug:` and `grounding:` as metadata, never as framing.
+The plan opens with two metadata lines and the owner's brief, then six sections. A reviewer reads `slug:` and `discovery:` as metadata, never as framing.
 
 ```
 slug: <slug>
-grounding: gauntlet-detective
+discovery: gauntlet-detective
 
 brief:
 > <the owner's words that asked for this work, verbatim, one `> ` per line>
@@ -59,7 +59,7 @@ Where a sentence quotes the line it cites, the quote is the claim: the number mu
 
 `python3 scripts/cite.py --check <draft>` resolves all of this and exits 1 on a citation that does not. It reports a bare continuation and a cross-repo path whether they resolve or not, so a run over a clean draft prints rows rather than nothing. It says where a number landed; whether the line it landed on supports the sentence is the `gauntlet-prosecutor`'s check, and no run of the script stands in for it.
 
-## Grounding
+## Discovery
 
 The pointers a plan cites come from one `gauntlet-detective` round: every question in one brief, a `file:line` table back. The main agent does not read half the tree to write a plan, and the reviewer resolves the citations that come back.
 

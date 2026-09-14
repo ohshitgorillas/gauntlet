@@ -1,4 +1,4 @@
-slug: excision-diff
+slug: strike-diff
 kind: new
 brief:
 > How can we streamline the current process for tests-only changes? For example, I
@@ -7,16 +7,16 @@ brief:
 > "Tests are wrong; only tests/ changes"
 > "Bring pair.sh into scope now"
 
-surface: `scripts/excision-diff.py`, invoked as
-`python3 scripts/excision-diff.py --spec <path> --base <rev> --head <rev>`, one line
+surface: `scripts/strike-diff.py`, invoked as
+`python3 scripts/strike-diff.py --spec <path> --base <rev> --head <rev>`, one line
 per target on stdout.
 
-1. For a block line excising `tests/test_a.py::test_x`, the target's stdout line is
+1. For a block line striking `tests/test_a.py::test_x`, the target's stdout line is
    `OK tests/test_a.py::test_x` at a head where that test name is absent from
    `tests/test_a.py`, and `UNSATISFIED tests/test_a.py::test_x` at a head where the
    name is present and the line's quoted `assertion:` text is inside that test's body.
    kills: reports `OK tests/test_a.py::test_x` whenever the test name is present, so a
-     test that kept the offending assertion it was excised for passes the merge
+     test that kept the offending assertion it was struck for passes the merge
    bite: null stub fails at the second head (surface new)
    existing: none, `ls tests/` -> no such directory
 
@@ -48,14 +48,14 @@ per target on stdout.
 
 --- reviewer ---
 READY
-discriminates: differential on `excision-diff.py` stdout status token (lines 1+2 on assertion location at a fixed spec; line 3 on named-vs-unnamed at a fixed head; line 4 on replacement presence across two heads)
+discriminates: differential on `strike-diff.py` stdout status token (lines 1+2 on assertion location at a fixed spec; line 3 on named-vs-unnamed at a fixed head; line 4 on replacement presence across two heads)
 
 1  KEEP  carried
 2  KEEP  carried
 3  KEEP  head where tests/test_b.py exists and differs from base; block carrying a whole-file line naming it -> `UNSATISFIED tests/test_b.py`, block naming only tests/test_a.py -> `UNNAMED tests/test_b.py`; "prints a fixed UNNAMED line without reading the diff" fails it at the first run; bite: null stub fails at both runs (no stdout line at all)
 4  KEEP  carried
 
-null stub: `excision-diff.py` exists, parses nothing, exits 0 with empty stdout.
+null stub: `strike-diff.py` exists, parses nothing, exits 0 with empty stdout.
   satisfies: none   fails: 1, 2, 3, 4
 hard-coded stub: for the fixture spec, print `OK tests/test_a.py::test_x` unless the head file contains `def test_x`, plus a fixed `UNNAMED tests/test_b.py` line; no diff read, no body scoping, no `as:` lookup.
   satisfies: none   fails: 1, 2, 3, 4

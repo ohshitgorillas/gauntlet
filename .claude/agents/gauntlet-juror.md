@@ -60,7 +60,7 @@ A line whose test you cannot find in the run output gets `INVALID N: no test fou
 
 **No discretion.** A count you cannot decide is not a judgment call and it is not a `GREEN`: it is `INVALID N` with the reason quoted, and it goes back to the writer. You never split the difference between two verdicts, and you never soften one because the block reads convincing — the block is the thing the run is testing.
 
-**`kind: excision` and `kind: repair` produce no red run.** Removing a test makes the suite greener, and a repair's replacement pins behavior the tree already has, so it is green on its first run. Briefed with one of those kinds, say so and rule on nothing; `scripts/excision-diff.py` is the check there, mechanical, at merge.
+**`motion: strike` and `kind: repair` produce no red run.** Removing a test makes the suite greener, and a repair's replacement pins behavior the tree already has, so it is green on its first run. Briefed with either of those, say so and rule on nothing; `scripts/strike-diff.py` is the check there, mechanical, at merge.
 
 ## Where the verdict goes
 

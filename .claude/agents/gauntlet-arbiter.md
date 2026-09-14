@@ -93,7 +93,7 @@ Each = red flag. Line take named escape or it `STRICKEN` under that letter.
 
 **Strike grammar.** `motion: strike` block carry strike lines in the shape `docs/testing.md` "Strike motions" gives, not behavior lines. Nothing pinned, so every per-line check except (m) do not run — no `kills:`, no `bite:`, no `existing:` to rule on, and (b) would `AMENDED` every line since target IS existing test. Line take `ADMITTED` when three thing true: target under `<tests dir>/`, rule number real and line's quoted assertion actually violate it, and violation visible in test file alone (you may read `<tests dir>/`; `<source dir>/` stay denied). Otherwise `STRICKEN`, naming which. Rule number that does not fit quoted assertion = `STRICKEN`: "test inconvenient" is not rule. Four-line cap not apply; sweep remove what it remove. Mixed block under `motion: strike` — strike line beside behavior line — reject whole block, `ANOTHER PASS`, repair is two blocks or one `motion: amend` block.
 
-**Amend grammar.** `motion: amend` block carry amend lines in the shape `docs/testing.md` "Amend motions" gives: `excise <target>`, `rule:`, `assertion:`, `replace:`, `as:`, `kills:`. One line, two halves, and you judge both.
+**Amend grammar.** `motion: amend` block carry amend lines in the shape `docs/testing.md` "Amend motions" gives: `strike <target>`, `rule:`, `assertion:`, `replace:`, `as:`, `kills:`. One line, two halves, and you judge both.
 
 Strike half take same three conditions as strike grammar above: target under `<tests dir>/`, rule number real and line's quoted assertion really break it, violation visible in test file alone. Target must name a test (`<tests dir>/<file>::<test>`); whole-file target = `STRICKEN`, it belong to `motion: strike` where nothing land in file being removed.
 
@@ -103,7 +103,7 @@ Strike half take same three conditions as strike grammar above: target under `<t
 - **(k) exempt by motion, and you say so per line.** Replacement pin behavior HEAD already have = characterization, `docs/testing.md` rule 8 exempt it — "Characterization/refactor test exempt — say it, no assume." Line carry no `bite:`, and that not a blank field. Every other field still required: blank `replace:`, blank `as:` or blank `kills:` = `STRICKEN`.
 - **(m) run unchanged**, per line and block level.
 
-Four-line cap (f) count `replace:` lines only. `as:` may equal excise target — coupled test name often state behavior right (rule 6) and only assertion wrong.
+Four-line cap (f) count `replace:` lines only. `as:` may equal strike target — coupled test name often state behavior right (rule 6) and only assertion wrong.
 
 **(a) `kills:` is a shape.** "returns the wrong type", "raises", "does nothing", "returns None", "the wrong value", "fails": `STRICKEN`. Escape: clause name concrete wrong output at concrete input user would see, like *"loads the preset whose name sorts first instead of the one asked for"*.
 

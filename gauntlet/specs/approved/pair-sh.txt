@@ -29,7 +29,7 @@ files it leaves in the spec worktree.
    bite: null stub fails at the first block (surface new)
    existing: none, `grep -rn pair tests/` -> no match
 
-3. For a block whose `kind:` is `excision`, the first stdout line of
+3. For a block whose structure line is `motion: strike`, the first stdout line of
    `scripts/pair.sh merge <slug>` is `OK tests/test_a.py::test_x`, and for a block
    whose `kind:` is `new` it is `TEST CHECK <slug>`.
    kills: prints the `TEST CHECK` brief whatever the kind, so a tests-only change is
@@ -56,5 +56,5 @@ survives: 3
 findings of round 1, resolved:
 - CUT h' on line 2: repaired as named. The outcome is now one positive set comparison over the same two inputs, and it survives (g): the kills implementation yields {test_b.py} at the second block.
 - note 1 (scripts/pair.sh at HEAD): citation `git ls-files scripts/pair.sh` -> no output. Withdrawn; "surface new" stands and the null-stub bite discharges rule 8 on all three lines.
-- note 2 (OPEN / MISMATCH undocumented, rule 9 copy): resolved by docs/agents.md:31-42, a `scripts/pair.sh` section whose table carries `OPEN .claude/worktrees/<slug>-spec` and `MISMATCH state/reviews/<slug>.<N>.txt` against their conditions. Verified by my own grep. The writer reaches both literals without the implementation, so the (c) escape holds and (n)'s invariant-at-two-inputs escape holds with it: each line states one branch property at two inputs, not two design literals. Line 3's `OK tests/test_a.py::test_x` is additionally already pinned in tests/test_excision_diff.py:123,144, which is open to the writer.
-- existing: re-verified. `grep -rn pair /home/atom/dev/gauntlet/tests/` -> no match; no test under tests/ invokes pair.sh, so line 3 is not a delta to tests/test_excision_diff.py, which pins excision-diff.py's verdict text and not pair.sh's routing on `kind:`.
+- note 2 (OPEN / MISMATCH undocumented, rule 9 copy): resolved by docs/agents.md:31-42, a `scripts/pair.sh` section whose table carries `OPEN .claude/worktrees/<slug>-spec` and `MISMATCH state/reviews/<slug>.<N>.txt` against their conditions. Verified by my own grep. The writer reaches both literals without the implementation, so the (c) escape holds and (n)'s invariant-at-two-inputs escape holds with it: each line states one branch property at two inputs, not two design literals. Line 3's `OK tests/test_a.py::test_x` is additionally already pinned in tests/test_strike_diff.py:123,144, which is open to the writer.
+- existing: re-verified. `grep -rn pair /home/atom/dev/gauntlet/tests/` -> no match; no test under tests/ invokes pair.sh, so line 3 is not a delta to tests/test_strike_diff.py, which pins strike-diff.py's verdict text and not pair.sh's routing on its structure line.
