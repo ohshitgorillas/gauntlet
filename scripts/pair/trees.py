@@ -50,6 +50,8 @@ ROOT = _root()
 TESTS = sh.tests_dir()
 SPECS = sh.specs_lane()
 REVIEWS = sh.reviews_lane()
+#: the base the chain's own run artifacts sit under, beside the four lanes
+GAUNTLET = sh.gauntlet_dir()
 TARGET = sh.target_branch()
 GATE = sh.gate_command()
 

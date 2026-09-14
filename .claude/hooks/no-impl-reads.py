@@ -21,21 +21,21 @@ wrong the first time someone adds one — and it fails closed: an unlisted path
 is denied, and the denial names the file to widen.
 
 Allowed by default: `docs/`, `tests/`, `state/`, and documentation files at the
-repo root (`*.md`, `*.txt`, `*.pdf`). `state/` is the workflow's own output,
-never the repository's source: it holds the red run a blind writer must
-certify. Denying it moved the certification to the main agent, which is the
-inversion this hook exists to prevent.
+repo root (`*.md`, `*.txt`, `*.pdf`). `state/` is the workflow's own scratch,
+never the repository's source.
 
 `gauntlet/` is a base of its own at the repo root, and it is a denial, not a
 widening. Everything the gauntlet's agents write lives there, and three of the
 four kinds quote implementation citations: an approved plan resolves
 `file:line` into the source, a draft does so unreviewed, and a reviewer round
-quotes the plan back. So the base is denied entire, with `gauntlet/specs/approved/`
-re-allowed as the one subtree a blind agent works from — the approved spec
-block, which is the whole of what it is given. No denied subtree nests inside
-an allowed one: `docs/`, `tests/` and `state/` are allowed the whole way down,
-and the one re-allowed leaf sits inside the denied base, which is the harmless
-direction. Both tests run before the allow list below, so a fifth artifact
+quotes the plan back. So the base is denied entire, with three leaves re-allowed
+inside it: `gauntlet/specs/approved/`, the approved spec block a blind agent
+works from; `gauntlet/red/`, the red run a blind writer must certify; and
+`gauntlet/merge/`, the evidence the bailiff is spawned to read. Denying those
+two moved the certification to the main agent, which is the inversion this hook
+exists to prevent. No denied subtree nests inside an allowed one: `docs/`,
+`tests/` and `state/` are allowed the whole way down, and the three re-allowed
+leaves sit inside the denied base, which is the harmless direction. Both tests run before the allow list below, so a fifth artifact
 directory added later is blind-safe until someone deliberately opens it, and no
 `blind-reads.json` entry can re-open the plans, the drafts or the rounds.
 
@@ -93,8 +93,23 @@ CONFIG = ".claude/hooks/blind-reads.json"
 GAUNTLET_BASE = sh.gauntlet_dir()
 #: the one subtree of it a blind agent works from: the approved spec block
 GAUNTLET_SPECS = sh.specs_lane()
+#: the chain's own run artifacts under that base: the red run a blind writer
+#: certifies, and the merge evidence the bailiff reads
+GAUNTLET_RED = GAUNTLET_BASE + "/red"
+GAUNTLET_MERGE = GAUNTLET_BASE + "/merge"
+#: every leaf re-allowed inside the denied base, and the whole of what is
+#: readable under it
+GAUNTLET_LEAVES = (GAUNTLET_SPECS, GAUNTLET_RED, GAUNTLET_MERGE)
 #: repo-relative paths a blind agent may read; a trailing `/` means the subtree
-DEFAULT_ALLOW = (DOCS + "/", TESTS + "/", "state/", GAUNTLET_SPECS + "/", CONFIG)
+DEFAULT_ALLOW = (
+    DOCS + "/",
+    TESTS + "/",
+    "state/",
+    GAUNTLET_SPECS + "/",
+    GAUNTLET_RED + "/",
+    GAUNTLET_MERGE + "/",
+    CONFIG,
+)
 #: repo-root files a blind agent may read, by extension
 DEFAULT_ROOT_FILES = (".md", ".txt", ".pdf")
 
@@ -177,8 +192,9 @@ def readable(target: str, root: str | None, cwd: str) -> bool:
             return False
     else:
         rel = resolved.lstrip(os.sep)
-    #: the gauntlet's own base, in the one order that works. The approved spec is
-    #: tested first and is readable; the base is tested second and is denied; the
+    #: the gauntlet's own base, in the one order that works. The re-allowed
+    #: leaves are tested first and are readable; the base is tested second and is
+    #: denied; the
     #: allow list runs last. Reversing the first two refuses the blind writer the
     #: block it is spawned against, and putting either behind the allow list lets
     #: a `blind-reads.json` entry hand over the plans, the drafts and the rounds,
@@ -187,7 +203,7 @@ def readable(target: str, root: str | None, cwd: str) -> bool:
     #: the invariant self-test computes over that list: it is what makes the
     #: deliberate leaf visible to the case, which catches a later hand that
     #: rebases one of the two without the other.
-    if _under(rel, GAUNTLET_SPECS):
+    if any(_under(rel, leaf) for leaf in GAUNTLET_LEAVES):
         return True
     if _under(rel, GAUNTLET_BASE):
         return False
@@ -426,7 +442,9 @@ def _no_denied_nesting() -> bool:
             return False
         #: the root sits inside the denied base, on a branch that is not the
         #: one re-allowed leaf, so everything it names is denied to a read
-        if _under(root, GAUNTLET_BASE) and not _under(root, GAUNTLET_SPECS):
+        if _under(root, GAUNTLET_BASE) and not any(
+            _under(root, leaf) for leaf in GAUNTLET_LEAVES
+        ):
             return False
     return True
 
@@ -531,15 +549,21 @@ def self_test() -> int:
                 denied(bash(f"cd {tree}/src && cat core.py")),
             )
         ),
-        "8 the workflow's own state is readable, so the writer certifies its run": all(
+        "8 the chain's own run artifacts are readable, so the writer certifies its run": all(
             (
-                allowed(read(f"{root}/state/red/demo.txt")),
+                allowed(read(f"{root}/gauntlet/red/demo.txt")),
+                allowed(read(f"{root}/gauntlet/merge/demo.txt")),
+                allowed(read(f"{root}/state/gates/pytest.txt")),
                 denied(read(f"{root}/src/state/manager.py")),
             )
         ),
-        "9 the gauntlet's base is denied, its approved specs re-allowed": all(
+        "9 the gauntlet's base is denied, three leaves re-allowed": all(
             (
                 allowed(read(f"{root}/gauntlet/specs/approved/demo.txt")),
+                allowed(read(f"{root}/gauntlet/red/demo.txt")),
+                allowed(read(f"{root}/gauntlet/merge/demo.txt")),
+                allowed(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/red"})),
+                allowed(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/merge"})),
                 denied(read(f"{root}/gauntlet/plans/approved/demo.txt")),
                 denied(read(f"{root}/gauntlet/reviews/demo.plan.4.txt")),
                 denied(read(f"{root}/gauntlet/plans/drafts/demo.txt")),

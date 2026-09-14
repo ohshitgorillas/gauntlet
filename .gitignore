@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 state/
+gauntlet/red/
+gauntlet/merge/
 gauntlet/reviews/
 gauntlet/plans/drafts/
 gauntlet/specs/drafts/

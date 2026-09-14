@@ -18,7 +18,7 @@ import re
 import sys
 
 import trees
-from trees import REVIEWS, SPECS, TESTS, git, git_out, note, path
+from trees import GAUNTLET, REVIEWS, SPECS, TESTS, git, git_out, note, path
 
 DIVIDER = "--- reviewer ---"
 
@@ -26,7 +26,7 @@ DIVIDER = "--- reviewer ---"
 _EXCISE = re.compile(r"^\s*\d+\.\s*excise\s+(?P<target>.*?)\s*$")
 _KIND = re.compile(r"^kind:\s*(?P<kind>.*?)\s*$")
 
-#: the three headings `state/merge/<slug>.txt` carries, in this order
+#: the three headings `<gauntlet dir>/merge/<slug>.txt` carries, in this order
 HEADINGS = ("test files:", "diff:", "red output:")
 
 
@@ -51,11 +51,11 @@ def spec_path(slug: str) -> str:
 
 
 def red_path(slug: str) -> str:
-    return "state/red/" + slug + ".txt"
+    return GAUNTLET + "/red/" + slug + ".txt"
 
 
 def merge_path(slug: str) -> str:
-    return "state/merge/" + slug + ".txt"
+    return GAUNTLET + "/merge/" + slug + ".txt"
 
 
 def read(relative: str) -> str | None:
@@ -147,7 +147,7 @@ def red_run(slug: str, tree: str, runner: list[str]) -> str:
 
 
 def merge_artifact(slug: str, base: str, head: str, tree: str) -> str:
-    """Write `state/merge/<slug>.txt` and return its path.
+    """Write `<gauntlet dir>/merge/<slug>.txt` and return its path.
 
     Evidence by path, not by paste: the main agent only carries the brief, and
     the `gauntlet-bailiff` reads this file itself.

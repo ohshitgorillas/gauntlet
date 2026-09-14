@@ -38,8 +38,8 @@ internally dies with it, which no command-text carve-out can reach.
   * **default** for every other `gauntlet-` agent. Everything readable.
     Writable: the repository, the session's own `/tmp`, and `~/.cache`.
     Read-only again inside the repository: every lane directory in every
-    checkout, `state/red`, `state/merge`, `.claude/`, `scripts/`, `.git/hooks`
-    and `.git/config`. `~/.gitconfig` is read-only. `/run/user` is masked with an
+    checkout, `<gauntlet dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `scripts/`,
+    `.git/hooks` and `.git/config`. `~/.gitconfig` is read-only. `/run/user` is masked with an
     empty tmpfs, which closes the D-Bus route to `systemd --user` -- a socket
     rather than a spelling, so no string classifier could ever have caught it.
 
@@ -116,8 +116,8 @@ REVIEWER_AGENTS = ("gauntlet-arbiter", "gauntlet-juror")
 #: read-only again inside every checkout, on top of a writable repository. The
 #: lane directories come from the one place they are defined.
 PROTECTED_IN_CHECKOUT = sh.LANE_DIRS + (
-    "state/red",
-    "state/merge",
+    sh.gauntlet_dir() + "/red",
+    sh.gauntlet_dir() + "/merge",
     ".claude",
     "scripts",
     ".git/hooks",

@@ -128,6 +128,15 @@ def read_payload(file_path, cwd):
     }
 
 
+#: the leaves re-allowed inside the denied gauntlet base: the approved spec
+#: block a blind agent works from, and the two run artifacts it certifies
+ALLOWED_UNDER_GAUNTLET = (
+    "gauntlet/specs/approved/",
+    "gauntlet/red/",
+    "gauntlet/merge/",
+)
+
+
 def ls_files(pathspec):
     """Every tracked path a ``git ls-files`` of ``pathspec`` returns, as a list.
 
@@ -439,7 +448,7 @@ class NoImplReadsOverTheTrackedTree(unittest.TestCase):
 
     maxDiff = None
 
-    def test_the_denied_set_is_the_gauntlet_tree_less_the_approved_specs(self):
+    def test_the_denied_set_is_the_gauntlet_tree_less_its_allowed_leaves(self):
         # gauntlet-dir-move line 5.  One Read payload per tracked path of each
         # listing; the answer asserted is which of them come back DENY.  A base
         # constant left at docs/gauntlet alongside the move leaves a denied
@@ -458,7 +467,7 @@ class NoImplReadsOverTheTrackedTree(unittest.TestCase):
             "gauntlet/": {
                 path
                 for path in ls_files(listings["gauntlet/"])
-                if not path.startswith("gauntlet/specs/approved/")
+                if not path.startswith(ALLOWED_UNDER_GAUNTLET)
             },
         }
         actual = {

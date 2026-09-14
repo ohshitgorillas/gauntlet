@@ -32,7 +32,7 @@ is the main agent, which is denied. If a build omits the key for subagents too,
 the gauntlet-juror is over-denied, which is the safe direction: no unruled
 verdict reaches the tree, and the denial names this file.
 
-The `--stop` half reads `state/red/`, where `scripts/pair.sh red` saves the run
+The `--stop` half reads `<gauntlet dir>/red/`, where `scripts/pair.sh red` saves the run
 output. Every red file there wants a verdict file of the same slug, newer than
 it: `pair.sh` writes the run with `>`, so a second run overwrites the evidence
 in place, and a verdict older than the file it answers ruled on output no
@@ -48,7 +48,7 @@ The root is resolved from this file's own path, the way
 `scripts/gates/check_md_trivia.py` does it, and neither from the cwd, which
 moves within a turn, nor from `CLAUDE_PROJECT_DIR`, which is the main checkout
 for one session and a worktree for another. Each checkout gates its own
-`state/red/`. A missing `state/red/` is not an unruled run: a consumer project
+`<gauntlet dir>/red/`. A missing red directory is not an unruled run: a consumer project
 that copies `.claude/` and never runs `pair.sh` is never blocked.
 """
 
@@ -66,7 +66,7 @@ REVIEWER = "gauntlet-juror"
 LANE = sh.verdicts_lane()
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-RED_DIR = "state/red"
+RED_DIR = sh.gauntlet_dir() + "/red"
 
 _LANE = (
     f"{LANE}/ is the gauntlet-juror's lane. The verdict on a red run "
@@ -87,16 +87,16 @@ def main() -> None:
 
 
 #: one line per unruled or unrulable red run, keyed by what is wrong with it
-_EMPTY = "{slug}: state/red/{slug}.txt is empty. The run printed nothing, so there is "
+_EMPTY = "{slug}: " + RED_DIR + "/{slug}.txt is empty. The run printed nothing, so there is "
 _EMPTY += "nothing to rule on. Re-run `scripts/pair.sh red {slug}`, or delete the file."
-_MISSING = "{slug}: no verdict. state/red/{slug}.txt is a red run nobody ruled on. Spawn "
-_MISSING += "a gauntlet-juror with " + sh.specs_lane() + "/{slug}.txt and state/red/{slug}.txt, "
-_MISSING += "or delete the red file if the slug was abandoned."
-_UNREADABLE = "{slug}: state/red/{slug}.txt could not be read ({error}). A red run this "
+_MISSING = "{slug}: no verdict. " + RED_DIR + "/{slug}.txt is a red run nobody ruled on. Spawn "
+_MISSING += "a gauntlet-juror with " + sh.specs_lane() + "/{slug}.txt and "
+_MISSING += RED_DIR + "/{slug}.txt, or delete the red file if the slug was abandoned."
+_UNREADABLE = "{slug}: " + RED_DIR + "/{slug}.txt could not be read ({error}). A red run this "
 _UNREADABLE += "gate cannot open is one nobody can be shown a verdict for, so it is a complaint "
 _UNREADABLE += "and not a file to step over. Fix its permissions, or delete it."
 _STALE = "{slug}: stale verdict. " + LANE + "/{slug}.txt is older than "
-_STALE += "state/red/{slug}.txt, so the run it ruled on has been overwritten since. Spawn "
+_STALE += RED_DIR + "/{slug}.txt, so the run it ruled on has been overwritten since. Spawn "
 _STALE += "a fresh gauntlet-juror on the run now on disk."
 
 
@@ -239,7 +239,7 @@ def self_test() -> int:
                 slugs(alpha=("1 failed", None), bravo=("1 failed", None)) == ["alpha", "bravo"],
             )
         ),
-        "7 no state/red/ is not an unruled run": all(
+        "7 no red directory is not an unruled run": all(
             (
                 stop(Path(tempfile.gettempdir()) / "gauntlet-no-such-checkout") == 0,
                 _complaints(ROOT) is not None,
@@ -273,7 +273,7 @@ def self_test() -> int:
                 allowed(bash("echo 'gauntlet/verdicts/demo.txt' >> notes.txt")),
                 allowed(bash("find gauntlet/verdicts -name '*.txt'")),
                 allowed(bash("grep -n 'a > b' gauntlet/verdicts/")),
-                denied(bash("cat state/red/demo.txt > gauntlet/verdicts/demo.txt")),
+                denied(bash("cat gauntlet/red/demo.txt > gauntlet/verdicts/demo.txt")),
                 denied(bash("find gauntlet/verdicts -name '*.txt' -delete")),
             )
         ),

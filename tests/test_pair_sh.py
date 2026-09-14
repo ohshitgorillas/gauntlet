@@ -222,7 +222,7 @@ RED_TOKENS = (
 def _red_text(tmp_path, suite):
     """Drive open then red over a repo carrying `suite` as its only test file.
 
-    Returns the text of the repository's state/red/<slug>.txt, or the empty
+    Returns the text of the repository's gauntlet/red/<slug>.txt, or the empty
     string where no such file was written.
     """
     repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
@@ -234,7 +234,7 @@ def _red_text(tmp_path, suite):
     _pair(repo, "open", SLUG)
     _venv_shim(_worktree(repo))
     _pair(repo, "red", SLUG)
-    saved = repo / "state" / "red" / (SLUG + ".txt")
+    saved = repo / "gauntlet" / "red" / (SLUG + ".txt")
     return saved.read_text() if saved.is_file() else ""
 
 
@@ -263,7 +263,7 @@ TEST_A_BASE = "def test_x():\n    " + ASSERTION_X + "\n"
 TEST_B_TWO = "def test_b_two():\n    assert 7 + 7 == 14\n"
 TEST_B_GREW = TEST_B + "\n\n" + TEST_B_TWO
 
-MERGE_ARTIFACT = "state/merge/" + SLUG + ".txt"
+MERGE_ARTIFACT = "gauntlet/merge/" + SLUG + ".txt"
 MERGE_HEADINGS = ("test files:", "diff:", "red output:")
 
 BRIEF_NEW = ("TEST CHECK demo", "merge output: " + MERGE_ARTIFACT, "END TEST CHECK", 5)
@@ -291,7 +291,7 @@ def _brief_shape(lines):
 
 
 def _section(text, heading):
-    """Return the body under `heading` in a state/merge/<slug>.txt artifact.
+    """Return the body under `heading` in a gauntlet/merge/<slug>.txt artifact.
 
     The three headings and their order are documented at docs/agents.md line 48.
     Returns None where the artifact carries no line naming that heading.
@@ -333,9 +333,9 @@ def _merge(tmp_path, changes, base=None, suite=None, block=BLOCK_NEW):
     `base` maps a name under tests/ to its text in the repository before the
     worktree is cut; `changes` maps a name under tests/ to its text in the spec
     worktree, and those are the files the merge sees change. `suite` is the text
-    of an extra tests/test_suite.py, whose red run is saved to state/red, or None
-    to leave no saved red log. Returns the stdout lines of `pair.sh merge` and
-    the text of state/merge/<slug>.txt, empty where no such file was written.
+    of an extra tests/test_suite.py, whose red run is saved to gauntlet/red, or
+    None to leave no saved red log. Returns the stdout lines of `pair.sh merge`
+    and the text of gauntlet/merge/<slug>.txt, empty where no such file was written.
     """
     repo = _repo(tmp_path, block, REVIEWER)
     for name, text in (base or {}).items():
@@ -355,7 +355,7 @@ def _merge(tmp_path, changes, base=None, suite=None, block=BLOCK_NEW):
         _venv_shim(worktree)
         _pair(repo, "red", SLUG)
     lines = _pair(repo, "merge", SLUG)
-    artifact = repo / "state" / "merge" / (SLUG + ".txt")
+    artifact = repo / "gauntlet" / "merge" / (SLUG + ".txt")
     return lines, artifact.read_text() if artifact.is_file() else ""
 
 
