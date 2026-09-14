@@ -130,13 +130,17 @@ def whole_file_targets(text: str) -> list[str]:
     return [target for target in excise_targets(text) if "::" not in target]
 
 
-def red_run(slug: str, tree: str, pytest: str) -> str:
-    """Run the suite in the spec tree and save the output. Returns its path."""
+def red_run(slug: str, tree: str, runner: list[str]) -> str:
+    """Run the suite in the spec tree and save the output. Returns its path.
+
+    `runner` is the configured invocation, whole: the caller resolves it, and
+    the only word this function adds to it is its own.
+    """
     saved = red_path(slug)
     os.makedirs(path(os.path.dirname(saved)), exist_ok=True)
     #: verbose, so a passing test is named rather than summarized as a dot: the
     #: juror rules on the names this file carries and on nothing else
-    output = trees.capture_in_tree(tree, [pytest, "-v"])
+    output = trees.capture_in_tree(tree, list(runner) + ["-v"])
     with open(path(saved), "w", encoding="utf-8") as handle:
         handle.write(output)
     return saved

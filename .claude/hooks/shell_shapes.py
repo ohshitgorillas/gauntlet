@@ -39,7 +39,7 @@ that, matching the test-directory shape both as typed and after
 `os.path.normpath`, so an argument that opens under the lane and walks out of
 it is not a run.
 
-`blind-reads.json` beside this file carries five keys, and they are the whole
+`blind-reads.json` beside this file carries seven keys, and they are the whole
 of what varies between the projects this kit is copied into. Three name
 directories. `tests_dir` is the blind writer's lane, `tests` by default, and what
 the agent definitions and the docs mean by `<tests dir>`. `gauntlet_dir` is where
@@ -59,6 +59,20 @@ the way two directories can. The default gate is a command most projects either
 have or notice the absence of at once, which is the safe direction -- a gate
 that cannot run holds the pair in its worktrees rather than landing it unchecked.
 
+The last two are the runner invocations `scripts/blind.sh test` and
+`scripts/pair.sh red` type. `pytest_command` is `.venv/bin/pytest` by default,
+`node_command` is `node --test`, and a project that has to deselect a marker or
+import a loader names the whole invocation once here instead of editing the two
+scripts by hand. Each is a command line split the way a shell splits it, and
+`--config` prints one word per line, so an argument carrying a space survives
+the trip into a shell array. They resolve per key like the scalars, for the same
+reason: a runner collides with nothing. The callers add the test path and their
+own trailing flags after the configured words, and a configured word carrying a
+slash is a path in the checkout while a bare word is on `PATH`. A runner is
+configuration and never agent input: `blind-bash.py` admits `scripts/blind.sh
+test <path>` and no runner argument beside it, so no shape here widens the one
+command a blind agent has.
+
 No lane is a literal any more, so the bound on this file is no longer that a
 lane is code a data file cannot reach. The bound is that the three names must
 be usable and pairwise disjoint: each a repo-relative normalized path, none of
@@ -69,10 +83,7 @@ data: `tests_dir` naming `docs` is legal alone and collides the moment a
 malformed `docs_dir` falls back to `docs`, which would hand the blind writer a
 lane over the prose it reads.
 
-Nothing else is in the file. The runners are `.venv/bin/pytest` and
-`node --test` in `scripts/blind.sh` and `scripts/pair.sh`, and a project with
-another runner edits the script; the gate that runs after a merge is the one
-command of the two that a project names here instead. The readable set is `no-impl-reads.py`'s own
+Nothing else is in the file. The readable set is `no-impl-reads.py`'s own
 table, and the agent names are the kit's identity, copied verbatim.
 
 The owner's off switch lives here too, as `bypassed()`. This module is the one
@@ -572,6 +583,14 @@ DEFAULT_SCALARS = {
     "gate_command": "make check",
 }
 
+#: the two runner keys, and the invocation each takes when the file names none.
+#: They are what `scripts/blind.sh test` and `scripts/pair.sh red` run, without
+#: the test path and the trailing flags a caller adds after them.
+DEFAULT_RUNNERS = {
+    "pytest_command": ".venv/bin/pytest",
+    "node_command": "node --test",
+}
+
 
 def _clean(name) -> str | None:
     """One repo-relative directory, or `None` when the name cannot be one.
@@ -601,6 +620,35 @@ def _scalar(value) -> str | None:
     if not value or "\n" in value or "\r" in value:
         return None
     return value
+
+
+def _words(value) -> list[str] | None:
+    """One runner invocation as words, or `None` when the value cannot be one.
+
+    A command line, split the way a shell splits it, so a marker expression
+    stays one word. An unparsable line, an empty one, and anything that is not
+    a string are all `None`: none of them names a command to run.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        words = shlex.split(value, comments=False, posix=True)
+    except ValueError:
+        return None
+    return words or None
+
+
+def runners_from(conf: dict) -> dict:
+    """The two runner invocations this config resolves to, defaults filled in.
+
+    Per key, like the scalars: a runner overlaps no lane and no other runner, so
+    an unusable `pytest_command` leaves the node one standing.
+    """
+    resolved = {}
+    for key, default in DEFAULT_RUNNERS.items():
+        words = _words(conf.get(key)) if key in conf else None
+        resolved[key] = words if words is not None else shlex.split(default)
+    return resolved
 
 
 def scalars_from(conf: dict) -> dict:
@@ -653,6 +701,22 @@ def dirs() -> dict:
 def scalars() -> dict:
     """The resolved scalars, read once per process."""
     return scalars_from(config())
+
+
+@functools.lru_cache(maxsize=1)
+def runners() -> dict:
+    """The resolved runner invocations, read once per process."""
+    return runners_from(config())
+
+
+def pytest_command() -> list[str]:
+    """The python runner, without the test path a caller adds after it."""
+    return list(runners()["pytest_command"])
+
+
+def node_command() -> list[str]:
+    """The javascript runner, without the test path a caller adds after it."""
+    return list(runners()["node_command"])
 
 
 def target_branch() -> str:
@@ -710,15 +774,18 @@ def reviews_lane() -> str:
 LANE_DIRS = tuple(lane(suffix) for suffix in LANE_SUFFIXES)
 
 
-#: what `--config <key>` answers: the five keys the file carries, and the four
+#: what `--config <key>` answers: the seven keys the file carries, and the four
 #: derived lanes, so a shell script asks for a lane rather than rebuilding one
-#: out of the base and a suffix it would have to hardcode
+#: out of the base and a suffix it would have to hardcode. A runner answers one
+#: word per line; every other key answers one line.
 CONFIG_READERS = {
     "tests_dir": tests_dir,
     "gauntlet_dir": gauntlet_dir,
     "docs_dir": docs_dir,
     "target_branch": target_branch,
     "gate_command": gate_command,
+    "pytest_command": pytest_command,
+    "node_command": node_command,
     "plans_lane": plans_lane,
     "specs_lane": specs_lane,
     "verdicts_lane": verdicts_lane,
@@ -729,10 +796,15 @@ CONFIG_READERS = {
 def config_lines(key: str) -> list[str]:
     """One config value as lines a shell reads with `read`.
 
-    A known key is one line. An unknown key is no lines.
+    A known key is one line, except a runner invocation, which is one word per
+    line: a word carrying a space is one word to the shell that reads it back.
+    An unknown key is no lines.
     """
     reader = CONFIG_READERS.get(key)
-    return [reader()] if reader else []
+    if not reader:
+        return []
+    value = reader()
+    return list(value) if isinstance(value, list) else [value]
 
 
 #: the shape the blind runner's one argument takes, exported so that

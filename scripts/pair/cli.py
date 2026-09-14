@@ -133,14 +133,30 @@ def cmd_respec(slug: str) -> int:
     return 0
 
 
+def _pytest_argv() -> list[str]:
+    """The configured python runner, as this checkout runs it.
+
+    `pytest_command` from `blind-reads.json`, so a project that deselects a
+    marker names it once there instead of editing this file and
+    `scripts/blind.sh` both. A word carrying a slash is a path in the checkout
+    and is made absolute, because the run happens with a worktree as its working
+    directory; a bare word is on `PATH` and is left alone. `PYTEST` in the
+    environment replaces the head word and keeps the configured arguments.
+    """
+    words = sh.pytest_command()
+    head = os.environ.get("PYTEST") or words[0]
+    if not os.path.isabs(head) and "/" in head:
+        head = path(head)
+    return [head] + words[1:]
+
+
 def cmd_red(slug: str) -> int:
     _, text = approved(slug)
     tree = trees.spec_tree(slug)
     if not os.path.isdir(path(tree)):
         die("pair: no spec worktree at " + tree)
     blocks.excise_whole_files(tree, text)
-    pytest = os.environ.get("PYTEST") or path(".venv", "bin", "pytest")
-    out(blocks.red_run(slug, tree, pytest))
+    out(blocks.red_run(slug, tree, _pytest_argv()))
     return 0
 
 

@@ -31,6 +31,17 @@ an object name carrying its own `:path`. Either hands a blind agent an
 approved plan, which is the read `no-impl-reads.py` denies it by every other
 route.
 
+The runner a `test` run uses is configuration, never an argument. It is
+`pytest_command` or `node_command` from `blind-reads.json`, read by
+`scripts/blind.sh` after this hook has decided, so a project that has to
+deselect a marker or import a loader widens its own runner and widens nothing
+here: the admitted shape is still `scripts/blind.sh test <path>` with one
+argument, and a runner word typed after the path is a second argument and
+denied. Typing the runner itself is denied too, by the same rule that denies
+every other command: `.venv/bin/pytest <path>` is not a `scripts/blind.sh`
+call. That is what keeps the blind agent's suite run the run the script
+defines rather than one the agent composed.
+
 `agent_type` is present in the payload only for subagent calls. An absent key
 is denied, the same direction the other lanes fail: a build that stops
 supplying the key costs the two blind agents their one command, and does not
@@ -105,7 +116,7 @@ def main() -> None:
 
 
 def self_test() -> int:
-    """Pin the three spec lines of the blind agents' one command."""
+    """Pin the four spec lines of the blind agents' one command."""
     shapes = "shell_shapes.py"
     hook = "no-impl-reads.py"
     here = ".claude/hooks/"
@@ -117,6 +128,22 @@ def self_test() -> int:
     )
 
     denied, allowed = sh.denied, sh.allowed
+
+    def at_runner(words: list[str], target: str) -> bool:
+        """With `words` configured as the runner, are its own words still denied?
+
+        The runner is read by `scripts/blind.sh`, after this hook has decided,
+        so a configured invocation is not a command this hook admits. Naming
+        one here and asking again is what proves that.
+        """
+        saved = sh.runners
+        sh.runners = lambda: {"pytest_command": words, "node_command": words}
+        try:
+            typed = " ".join(words + [target])
+            return denied(bash(typed)) and denied(bash(f"scripts/blind.sh test {typed}"))
+        finally:
+            sh.runners = saved
+
     lines = {
         "1 the whole command text is one scripts/blind.sh call, or it is denied": all(
             (
@@ -163,6 +190,27 @@ def self_test() -> int:
                 denied(bash("scripts/blind.sh status demo", "gauntlet-arbiter")),
                 #: an unprefixed same-named agent in the host project is not this one
                 denied(bash("scripts/blind.sh status demo", "scrivener")),
+            )
+        ),
+        "4 the runner is configuration, and no runner argument widens the one command": (
+            all(
+                (
+                    #: the whole of what an agent may type: the path, and nothing
+                    #: after it. The flags the suite runs with are the script's.
+                    allowed(bash(f"scripts/blind.sh test {wire}")),
+                    denied(bash(f"scripts/blind.sh test {wire} -q")),
+                    denied(bash(f"scripts/blind.sh test {wire} -m 'not live and not e2e'")),
+                    denied(bash(f"scripts/blind.sh test {wire} --import ./support/resolve.js")),
+                    denied(bash(f"scripts/blind.sh test -m live {wire}")),
+                    #: nor by naming a runner directly, configured or not
+                    denied(bash(f".venv/bin/pytest {wire}")),
+                    denied(bash(f"pytest -m 'not live and not e2e' {wire}")),
+                    denied(bash(f"node --test {wire}")),
+                    #: and a project whose configured runner carries those very
+                    #: words admits no more: this hook never reads the runner
+                    at_runner(["pytest", "-m", "not live and not e2e"], wire),
+                    at_runner(["node", "--import", "./support/resolve.js", "--test"], wire),
+                )
             )
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a

@@ -3,5 +3,7 @@
   "gauntlet_dir": "gauntlet",
   "docs_dir": "docs",
   "target_branch": "main",
-  "gate_command": "scripts/gates/check-gates.sh"
+  "gate_command": "scripts/gates/check-gates.sh",
+  "pytest_command": ".venv/bin/pytest",
+  "node_command": "node --test"
 }
