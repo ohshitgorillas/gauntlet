@@ -1,5 +1,5 @@
-%% The Gauntlet, stage 1: the plan gate.
-%% Written for a reader, not for a machine. Ends where stage 2 begins.
+%% The Gauntlet, stages 1 and 2: the plan gate and the spec gate.
+%% Written for a reader, not for a machine. Ends where stage 3 begins.
 %% Agent nodes are the double-edged boxes; the owner's own moves are the rounded ones.
 flowchart TD
     brief("`**You**
@@ -136,10 +136,168 @@ flowchart TD
     amend --> stage2
     ok --> stage2
 
+
+    %% ---- Stage 2: the spec gate. Ends where stage 3 begins. ----
+
+    specdraft["`The main agent drafts the spec block:
+    a structure line, the owner's brief quoted verbatim,
+    and numbered behavior lines, each carrying
+    kills:, bite: and existing:.`"]
+    motiondraft["`The main agent drafts a motion block:
+    strike, or amend with the line that replaces the target.
+    Each line cites the test-policy rule the test breaks.`"]
+
+    measure{"`Does a bite: value need a script
+    or a rendered state space?`"}
+    examiner[["`**Examiner**
+    measures HEAD at the input the line names.
+    It reads the source freely and returns one line per behavior:
+    the value and the command that printed it, or null stub,
+    or unmeasurable. No expected value reaches it.`"]]
+    selfmeasure["`A one-command measurement is the main agent's own.`"]
+    measured["`Every bite: now carries a measured value,
+    with the command that produced it, or the null stub
+    and the input it fails at.`"]
+
+    arb[["`**Arbiter**
+    reviews the block. It reads the behavior lines,
+    docs/ and every file under the tests directory,
+    and never the implementation. Default verdict STRICKEN.`"]]
+
+    framing2{"`Is the block trying to steer the reviewer?
+    Five tells: a conclusion about implementation outside a measured bite:,
+    a scope ruling, a question aimed at the reviewer,
+    an alternative verdict offered, the reviewer's own rules recited back.`"}
+    contempt["`CONTEMPT: LEADING.
+    The round is rejected and nothing is written.
+    The steering now sits in that reviewer's head.`"]
+    fresharb[["`**A fresh Arbiter**
+    gets the bare block.
+    The tainted one never sees it again.`"]]
+
+    rereview2{"`Is this a repeat round?`"}
+    answercheck{"`Does the return answer every earlier finding
+    with the named repair, or the citation the reviewer lacked?`"}
+    evasioncount{"`Which evasion is this?`"}
+    objection["`OBJECTION: EVASION.
+    This reviewer stays open, holding its findings.
+    The main agent answers it here, never to a fresh one.`"]
+
+    discrim{"`Does the block discriminate at all?
+    All one value, all one-sided bounds, all orderings,
+    or one absolute per line with no two on a surface.`"}
+    lookup["`The block is a lookup table and is cut whole.
+    The repair is named: a differential, an anchor plus edges,
+    or a sweep with two distinct expected values.`"]
+    stubs["`Two stubs are written against the whole block.
+    Null stub: the feature is absent.
+    Hard-coded stub: the named values at the named inputs, no work.
+    A line either one satisfies is STRICKEN.`"]
+    perline["`The per-line checks run: the shape of kills:,
+    a duplicate of an existing test, copy, a sibling line,
+    implementation-shaped wording, an absence, two outcomes in one line,
+    reachability, bite, a design pin, existence only, self-consistency,
+    a golden dump, internals, the wrong lane, environment and clock.`"]
+    unread{"`Does a verdict rest on code
+    the reviewer may not read?`"}
+    note["`It is a note, never a STRICKEN. The note names the fact
+    and the file. A block whose only outstanding defect is a fact
+    the reviewer cannot read is READY, with the note for you.`"]
+
+    gate2{"`The reviewer's verdict`"}
+    roundfile["`The round is written to the reviews path the brief named.
+    A contempt, objection or second-evasion round writes nothing.`"]
+
+    another2["`**Another pass**
+    Each defect names the line it lives on and the shape of the repair.
+    Nothing is approved and nothing is written.`"]
+    repair2["`The main agent repairs the named lines and returns them,
+    carrying the previous verdicts for every line whose text is unchanged.
+    The checks re-run on the changed lines alone.`"]
+
+    esc2["`**Escalation**
+    The same block-level defect stands after the repair meant to fix it,
+    or a second evasion. The surface cannot be pinned this way.`"]
+    ownerrule("`**You**
+    rule on the question: an external reference oracle,
+    a different observable, or shipping the deltas alone.`")
+    ruling2["`Your ruling goes back to the same reviewer,
+    which never closed.`"]
+
+    ready2["`**Ready**
+    The block discriminates, every surviving line has a filled bite fact,
+    every existing: carries its grep, the count is at or under four.`"]
+    writespec[["`**The Arbiter**, and nobody else, files the approved block
+    at the specs lane: the surviving lines, then the whole review beneath them.
+    STRICKEN lines are dropped, since the file is the surviving contract.
+    Its presence on disk is the blind writer's only proof of review.`"]]
+    owner2("`**You**
+    read the block, and only now.`")
+    word2{"`The first line of your reply`"}
+    hold2["`Everything else holds the gate shut.
+    A block rewritten after your word is a new artifact,
+    and takes a new one.`"]
+    amend2["`**approved with revision**
+    What you write below that line is applied before any test is written.`"]
+    ok2["`**approved**`"]
+
+    stage3["`**Stage 3**`"]
+
+    stage2 --> specdraft
+    lane --> motiondraft
+    motiondraft --> arb
+    specdraft --> measure
+    measure -- yes --> examiner
+    measure -- "one command" --> selfmeasure
+    examiner --> measured
+    selfmeasure --> measured
+    measured --> arb
+    arb --> framing2
+    framing2 -- "caught" --> contempt
+    contempt --> fresharb
+    fresharb --> arb
+    framing2 -- "clean" --> rereview2
+    rereview2 -- yes --> answercheck
+    answercheck -- no --> evasioncount
+    evasioncount -- "first" --> objection
+    objection --> repair2
+    evasioncount -- "second" --> esc2
+    answercheck -- yes --> discrim
+    rereview2 -- "first round" --> discrim
+    discrim -- "lookup table" --> lookup
+    lookup --> another2
+    discrim -- "it discriminates" --> stubs
+    stubs --> perline
+    perline --> unread
+    unread -- yes --> note
+    note --> gate2
+    unread -- no --> gate2
+    gate2 --> roundfile
+    roundfile --> another2
+    roundfile --> esc2
+    roundfile --> ready2
+    another2 --> repair2
+    repair2 --> arb
+    esc2 --> ownerrule
+    ownerrule --> ruling2
+    ruling2 --> discrim
+    ready2 --> writespec
+    writespec --> owner2
+    owner2 --> word2
+    word2 -- "anything else" --> hold2
+    hold2 --> owner2
+    word2 --> amend2
+    word2 --> ok2
+    amend2 --> stage3
+    ok2 --> stage3
+
     classDef agent fill:#fff4d6,stroke:#b8860b,stroke-width:3px,color:#3a2c00
     classDef owner fill:#e4efff,stroke:#1f5fa8,stroke-width:3px,color:#0d2a4d
     classDef exit fill:#e8f7e8,stroke:#2f7d32,stroke-width:2px,color:#12351a
 
     class detective,pros,fresh,write agent
+    class examiner,arb,fresharb,writespec agent
     class brief,design,owner,word owner
-    class amend,ok,stage2,lane exit
+    class ownerrule,owner2,word2 owner
+    class amend,ok exit
+    class amend2,ok2,stage3 exit
