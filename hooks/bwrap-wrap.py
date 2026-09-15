@@ -202,7 +202,7 @@ def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(command, str):
         return None
 
-    agent = payload.get("agent_type") or ""
+    agent = sh.agent_of(payload)
     # only the kit's own agents are wrapped. The main agent's shell is left
     # alone: `bwrap` sets NO_NEW_PRIVS, so `sudo` inside the wrap dies with
     # "The \"no new privileges\" flag is set", and so does every script that
@@ -465,6 +465,17 @@ def _self_test_in(tmp: str) -> int:
     semicolon = "echo hi; cat /etc/hostname"
     heredoc = "echo $(cat /etc/hostname) <<'X'"
 
+    def answer_for(agent: str) -> dict[str, Any] | None:
+        """`_answer` for one ordinary command, run as `agent`."""
+        return _answer(
+            {
+                "tool_name": "Bash",
+                "cwd": root,
+                "agent_type": agent,
+                "tool_input": {"command": semicolon},
+            }
+        )
+
     default = wrap(semicolon, root, "gauntlet-prosecutor")
     reviewer = wrap(semicolon, root, "gauntlet-arbiter")
     awkward = wrap(heredoc, root, "gauntlet-prosecutor")
@@ -530,6 +541,17 @@ def _self_test_in(tmp: str) -> int:
                 }
             )
             is not None
+        ),
+        #: installed as a plugin the harness spells the name with its plugin in
+        #: front of it, and that is the same agent, profile for profile
+        "a namespaced agent_type is the agent its bare spelling names": (
+            answer_for("gauntlet-prosecutor") is not None
+            and answer_for("gauntlet:gauntlet-prosecutor") == answer_for("gauntlet-prosecutor")
+            and answer_for("gauntlet:gauntlet-arbiter") == answer_for("gauntlet-arbiter")
+            #: a namespaced passthrough agent keeps its passthrough
+            and answer_for("gauntlet:gauntlet-scrivener") is None
+            #: and an unprefixed name under a namespace is still not this kit's
+            and answer_for("gauntlet:prosecutor") is None
         ),
         "the main agent's command, carrying no agent_type, comes back untouched": (
             _answer(

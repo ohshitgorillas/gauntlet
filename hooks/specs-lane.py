@@ -78,6 +78,10 @@ def self_test() -> int:
                 #: an unprefixed same-named agent in the host project is not this one
                 denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "arbiter")),
                 allowed(write(f"{root}/gauntlet/specs/approved/slug.txt", REVIEWER)),
+                #: installed as a plugin the harness spells the name with its
+                #: plugin in front of it, and that is the same agent
+                allowed(write(f"{root}/gauntlet/specs/approved/slug.txt", f"gauntlet:{REVIEWER}")),
+                denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "gauntlet:arbiter")),
             )
         ),
         "2 every other path stays open, drafts included": all(

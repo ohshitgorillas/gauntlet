@@ -237,6 +237,10 @@ def self_test() -> int:
                 #: an unprefixed same-named agent in the host project is not this one
                 denied(write(f"{root}/gauntlet/verdicts/demo.txt", "juror")),
                 allowed(write(f"{root}/gauntlet/verdicts/demo.txt", REVIEWER)),
+                #: installed as a plugin the harness spells the name with its
+                #: plugin in front of it, and that is the same agent
+                allowed(write(f"{root}/gauntlet/verdicts/demo.txt", f"gauntlet:{REVIEWER}")),
+                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "gauntlet:juror")),
                 #: the lane denies its own directory, and no other lane's
                 denied(write("/nogit/gauntlet/verdicts")),
                 allowed(write(f"{root}/gauntlet/reviews/demo.1.txt", "gauntlet-arbiter")),

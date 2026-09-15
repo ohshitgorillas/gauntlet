@@ -122,6 +122,11 @@ def self_test() -> int:
                 denied(write(f"{spec}/tests/t.py", "scrivener")),
                 allowed(write(f"{spec}/tests/t.py", WRITER)),
                 denied(write(f"{impl}/tests/t.py", WRITER)),
+                #: installed as a plugin the harness spells the name with its
+                #: plugin in front of it, and that is the same agent
+                allowed(write(f"{spec}/tests/t.py", f"gauntlet:{WRITER}")),
+                denied(write(f"{impl}/tests/t.py", f"gauntlet:{WRITER}")),
+                denied(write(f"{spec}/tests/t.py", "gauntlet:scrivener")),
             )
         ),
         "2 writer confined to its spec tree's tests/": all(

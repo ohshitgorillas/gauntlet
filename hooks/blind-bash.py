@@ -124,7 +124,7 @@ def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | 
     #: wired session-wide, so every agent's shell arrives here. A caller
     #: outside `BLIND` is not this hook's subject and is let through unjudged,
     #: the main agent -- which carries no `agent_type` at all -- included
-    if (payload.get("agent_type") or "") not in BLIND:
+    if sh.agent_of(payload) not in BLIND:
         return None
     return None if _allowed_command(sh.command_of(tool_input)) else _WHY
 
@@ -236,6 +236,14 @@ def self_test() -> int:
                 #: an unprefixed same-named agent in the host project is not
                 #: this one, so it keeps its own shell
                 allowed(bash(f"cat {here}{hook}", "scrivener")),
+                #: installed as a plugin the harness spells the name with its
+                #: plugin in front of it, and that is the same agent
+                allowed(bash("scripts/blind.sh status demo", "gauntlet:gauntlet-scrivener")),
+                allowed(bash("scripts/blind.sh status demo", "gauntlet:gauntlet-bailiff")),
+                denied(bash(f"cat {here}{hook}", "gauntlet:gauntlet-scrivener")),
+                denied(bash(f"cat {here}{hook}", "gauntlet:gauntlet-bailiff")),
+                allowed(bash(f"cat {here}{hook}", "gauntlet:gauntlet-juror")),
+                allowed(bash(f"cat {here}{hook}", "gauntlet:scrivener")),
             )
         ),
         "4 the runner is configuration, and no runner argument widens the one command": (

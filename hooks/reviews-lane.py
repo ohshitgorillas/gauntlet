@@ -184,6 +184,11 @@ def self_test() -> int:
                 denied(write(f"{root}/gauntlet/reviews/slug.1.txt", "prosecutor")),
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", PLAN_REVIEWER)),
+                #: installed as a plugin the harness spells the name with its
+                #: plugin in front of it, and that is the same agent
+                allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{SPEC_REVIEWER}")),
+                allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{PLAN_REVIEWER}")),
+                denied(write(f"{root}/gauntlet/reviews/slug.1.txt", "gauntlet:arbiter")),
                 denied(bash("echo x > gauntlet/reviews/slug.1.txt")),
                 allowed(bash("cat gauntlet/reviews/slug.1.txt")),
             )
@@ -224,6 +229,8 @@ def self_test() -> int:
             (
                 denied(read(f"{root}/gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
                 denied(read(f"{root}/gauntlet/reviews/slug.1.txt", PLAN_REVIEWER)),
+                denied(read(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{SPEC_REVIEWER}")),
+                denied(bash("cat gauntlet/reviews/slug.1.txt", f"gauntlet:{PLAN_REVIEWER}")),
                 denied(bash("cat gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
                 allowed(read(f"{root}/gauntlet/reviews/slug.1.txt")),
                 allowed(read(f"{root}/tests/t.py", SPEC_REVIEWER)),

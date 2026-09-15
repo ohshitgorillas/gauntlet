@@ -431,7 +431,7 @@ def _caller_verdict(
     absent `agent_type` is the main agent and passes; a name not in `BLIND`
     passes too, unjudged rather than allowlisted.
     """
-    if (payload.get("agent_type") or "") not in BLIND:
+    if sh.agent_of(payload) not in BLIND:
         return None
     return _verdict(name, tool_input, root, cwd)
 
@@ -700,6 +700,15 @@ def self_test() -> int:
                 allowed(blind(f"{root}/src/core/manager.py", "general-purpose")),
                 #: an empty string is no name, and reads as the main agent
                 allowed(blind(f"{root}/src/core/manager.py", "")),
+                #: installed as a plugin the harness spells the name with its
+                #: plugin in front of it, and that is the same agent
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-scrivener")),
+                allowed(blind(f"{root}/docs/testing.md", "gauntlet:gauntlet-scrivener")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-juror")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-arbiter")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-bailiff")),
+                allowed(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-prosecutor")),
+                allowed(blind(f"{root}/src/core/manager.py", "gauntlet:scrivener")),
             )
         ),
         "12 no denied subtree nests inside an allowed one": _no_denied_nesting(),

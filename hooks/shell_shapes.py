@@ -1525,6 +1525,29 @@ def cwd_of(payload: Payload | None) -> str:
     return cwd if isinstance(cwd, str) and cwd else str(Path.cwd())
 
 
+def agent_of(payload: Payload | None) -> str:
+    """Who is running this call, as a bare agent name, or `""` for the main agent.
+
+    Installed as a plugin, the harness spells a subagent's `agent_type` with
+    the plugin it came from in front of it -- `gauntlet:gauntlet-prosecutor`
+    where a loose copy of the same kit sends `gauntlet-prosecutor`. Every hook
+    here compares the name against a bare one, so the namespace has to come off
+    before the comparison or the same agent matches nothing it should: a lane
+    denies its own writer, and a blind agent's guard finds no subject and lets
+    the call through unblinded.
+
+    An agent name carries no `:`, so everything up to the last one is the
+    namespace and the tail is the name. Which plugin the namespace names
+    is not checked: a foreign plugin shipping an agent named `gauntlet-arbiter`
+    is treated as this kit's, exactly as an unnamespaced agent of that name in
+    the host project already is.
+    """
+    agent = (payload or {}).get("agent_type") or ""
+    if not isinstance(agent, str):
+        return ""
+    return agent.rsplit(":", 1)[-1] if ":" in agent else agent
+
+
 #: payloads a hook must answer without dying, each with the tool it names --
 #: `None` for a payload that names nothing readable at all -- and whether the
 #: fields a hook has to read are usable. Not a guess at what Claude Code sends:
@@ -1760,7 +1783,7 @@ def dispatch(
     function the same two-argument callable.
     """
     cwd = cwd_of(payload)
-    agent = (payload or {}).get("agent_type") or ""
+    agent = agent_of(payload)
     if name in WRITE_TOOLS:
         target = write_target(tool_input)
         return on_write(target, cwd, agent) if target else None
