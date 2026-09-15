@@ -183,6 +183,20 @@ def self_test() -> int:
                 allowed(bash("git ls-tree HEAD tests/")),
                 denied(bash("git grep -Ovim foo -- tests/")),
                 denied(bash("git diff --output=tests/x")),
+                #: a global option says where git runs, not what it does, so
+                #: inserting one moves none of the verdicts above
+                sh.git_globals_change_nothing(
+                    bash,
+                    "git grep -n foo -- tests/",
+                    "git ls-tree HEAD tests/",
+                    "git grep -Ovim foo -- tests/",
+                    "git diff --output=tests/x",
+                    "git restore --source abc1234 -- tests/t.py",
+                ),
+                #: an alias definition and an exec path choose what the
+                #: subcommand runs, so neither reads as a known subcommand
+                denied(bash("git -c alias.ls-files=!rm ls-files tests/")),
+                denied(bash("git --exec-path=/tmp/x ls-files tests/")),
             )
         ),
         "7 the kit's blind runner is a read, its near spellings are not": all(

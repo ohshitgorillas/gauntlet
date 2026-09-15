@@ -292,26 +292,6 @@ def _unrooted_sweep(words: list[str]) -> bool:
     return all(w.rstrip(os.sep) in UNROOTED for w in _candidates(words))
 
 
-def _git_subcommand(words: list[str]) -> str | None:
-    """The subcommand of a git invocation, past any global option.
-
-    `git -C <dir> show` and `git --no-pager show` put the option in `words[1]`,
-    so reading `words[1]` as the subcommand misses both. A bare `git` has no
-    subcommand at all.
-    """
-    i = 1
-    while i < len(words):
-        word = words[i]
-        if word in ("-C", "-c", "--git-dir", "--work-tree", "--namespace"):
-            i += 2
-            continue
-        if word.startswith("-"):
-            i += 1
-            continue
-        return word
-    return None
-
-
 def _git_prints_content(words: list[str]) -> bool:
     """Does this git command print file content?
 
@@ -319,11 +299,12 @@ def _git_prints_content(words: list[str]) -> bool:
     some of the tree, and an unrecognized subcommand is treated as content --
     the same direction the rest of this hook takes, where unlisted is denied.
     """
-    sub = _git_subcommand(words)
-    if sub is None:
+    parts = sh.git_parts(words)
+    if parts is None:
         return True
+    sub, rest = parts
     if sub == "log":
-        return any(w in sh.GIT_PATCH_FLAGS for w in words[1:])
+        return any(w in sh.GIT_PATCH_FLAGS for w in rest)
     return sub not in sh.GIT_METADATA
 
 
@@ -344,6 +325,11 @@ def _git_candidates(words: list[str]) -> list[str]:
 
 def _strip_env(words: list[str]) -> list[str]:
     """Drop a leading `VAR=value` prefix, so the head word is the command.
+
+    The result goes through `sh.command_words`, which strips shell keywords and
+    folds a git invocation back to its plain spelling. `_candidates` below reads
+    every word that looks like a path, and `git -C <dir>` hands it a directory
+    that is an option's value and not a path this hook is asked about.
 
     The suite run a blind writer is told to make is `PYTHONPATH=$(pwd) pytest
     ...`. Without this the head word is the assignment, no runner is recognized,
@@ -391,7 +377,7 @@ def _bash_verdict(command: str, root: str | None, cwd: str) -> str | None:
     """
     here = cwd
     for stage in sh.segments(command):
-        words = _strip_env(sh.words_of(stage))
+        words = sh.command_words(_strip_env(sh.words_of(stage)))
         if not words:
             continue
         target = sh.cd_target(words)
@@ -659,6 +645,16 @@ def self_test() -> int:
                 #: the git-object read a blind agent is told to make
                 allowed(bash("git show HEAD:gauntlet/specs/approved/demo.txt")),
                 denied(bash("git show HEAD:gauntlet/plans/approved/demo.txt")),
+                #: a global option says where git runs, not what it does, so
+                #: inserting one moves neither verdict
+                sh.git_globals_change_nothing(
+                    bash,
+                    "git show HEAD:gauntlet/specs/approved/demo.txt",
+                    "git show HEAD:gauntlet/plans/approved/demo.txt",
+                ),
+                #: an alias definition chooses what the subcommand runs, so it
+                #: reads as no known subcommand and the content test applies
+                denied(bash("git -c alias.show=!cat show HEAD:gauntlet/specs/approved/demo.txt")),
             )
         ),
         "10 no blind-reads.json value re-opens the base or overlaps another": all(

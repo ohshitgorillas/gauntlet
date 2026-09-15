@@ -65,6 +65,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 ### Removed
 - The `allow` and `runners` keys of `.claude/hooks/blind-reads.json`. A repo that set either gets the default read allowance and the built-in runner table instead; `shell_shapes.py --config` answers neither name. `allow` could re-open the artifact base to a blind agent, which is the whole of what that base is denied for, and the runner table is code because whether an invocation only reads is not a repo's to declare. A project whose suite runs some other way edits `scripts/blind.sh`.
 
+### Fixed
+- Read-only `git` refused by the five lane hooks and by `no-impl-reads.py` when a global option came before the subcommand. `git -C <dir> ls-files <lane>`, `git --no-pager grep -- <lane>`, `git -c core.pager=cat …`, `git --git-dir=<dir> …` and `git -P diff -- <lane>` were all read as writes to every path they named, so an agent investigating a lane it may read got denied and had no spelling that worked.
+
 ## [0.1.0] - 2026-09-10
 
 ### Added

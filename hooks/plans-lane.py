@@ -125,6 +125,19 @@ def self_test() -> int:
                 allowed(bash("git ls-tree HEAD gauntlet/plans/approved/")),
                 denied(bash("git grep -Ovim foo -- gauntlet/plans/approved/")),
                 denied(bash("git diff --output=gauntlet/plans/approved/x.txt")),
+                #: a global option says where git runs, not what it does, so
+                #: inserting one moves none of the verdicts above
+                sh.git_globals_change_nothing(
+                    bash,
+                    "git grep -n foo -- gauntlet/plans/approved/",
+                    "git ls-tree HEAD gauntlet/plans/approved/",
+                    "git grep -Ovim foo -- gauntlet/plans/approved/",
+                    "git diff --output=gauntlet/plans/approved/x.txt",
+                ),
+                #: an alias definition and an exec path choose what the
+                #: subcommand runs, so neither reads as a known subcommand
+                denied(bash("git -c alias.ls-files=!rm ls-files gauntlet/plans/approved/")),
+                denied(bash("git --exec-path=/tmp/x ls-files gauntlet/plans/approved/")),
             )
         ),
         "6 the blind runner naming this lane is still denied": all(

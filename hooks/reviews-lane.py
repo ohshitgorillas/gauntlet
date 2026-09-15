@@ -236,6 +236,19 @@ def self_test() -> int:
                 allowed(bash("git ls-tree HEAD gauntlet/reviews/")),
                 denied(bash("git grep -Ovim foo -- gauntlet/reviews/")),
                 denied(bash("git diff --output=gauntlet/reviews/x.txt")),
+                #: a global option says where git runs, not what it does, so
+                #: inserting one moves none of the verdicts above
+                sh.git_globals_change_nothing(
+                    bash,
+                    "git grep -n foo -- gauntlet/reviews/",
+                    "git ls-tree HEAD gauntlet/reviews/",
+                    "git grep -Ovim foo -- gauntlet/reviews/",
+                    "git diff --output=gauntlet/reviews/x.txt",
+                ),
+                #: an alias definition and an exec path choose what the
+                #: subcommand runs, so neither reads as a known subcommand
+                denied(bash("git -c alias.ls-files=!rm ls-files gauntlet/reviews/")),
+                denied(bash("git --exec-path=/tmp/x ls-files gauntlet/reviews/")),
             )
         ),
         "7 a reviewer's read-only git passes, its write forms do not": all(

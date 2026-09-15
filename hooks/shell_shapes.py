@@ -330,6 +330,16 @@ GIT_NO_WORKTREE = frozenset(
     }
 )
 
+#: git global options that consume the word after them. Every other `-…` word
+#: before the subcommand stands alone, and `--opt=value` is already one word.
+GIT_VALUED_GLOBALS = frozenset({"-C", "-c", "--git-dir", "--work-tree", "--namespace"})
+
+#: git global options that decide what the subcommand runs, rather than where
+#: it runs. `-c alias.<name>=!<command>` redefines a subcommand into a shell
+#: command, and each of these names a program git execs. `git_parts` refuses to
+#: split an invocation carrying one, so it stays unrecognized and is denied.
+GIT_EXEC_GLOBALS = frozenset({"--exec-path", "--upload-pack", "--receive-pack"})
+
 #: `--output=<file>` writes a file wherever git takes its diff options
 GIT_OUTPUT = "output"
 #: `git grep -O[<pager>]` runs a command on the matching files
@@ -540,6 +550,13 @@ def command_words(words: list[str]) -> list[str]:
     A leading `(` is part of the head word as `shlex` splits it, so it comes off
     here: `(echo x > t)` runs `echo`, and reading its head as `(echo` makes an
     unknown command out of a known one.
+
+    A git invocation comes back in its plain spelling, global options folded
+    away by `git_words`, because every caller past this point asks what the
+    command is by looking at its words -- and `git -C <dir> ls-files` answers
+    that question wrong in the raw spelling, at every one of those callers at
+    once. Normalizing here is what makes the answer one fix rather than a fix
+    per site.
     """
     out = list(words)
     while out and out[0] in KEYWORD_PREFIXES:
@@ -547,6 +564,8 @@ def command_words(words: list[str]) -> list[str]:
     if out:
         head = out[0].lstrip("(")
         out = ([head] + out[1:]) if head else out[1:]
+    if out and Path(out[0]).name == "git":
+        out = git_words(out)
     return out
 
 
@@ -1112,18 +1131,84 @@ def is_runner(words: list[str]) -> bool:
     return _runner_by_head(Path(words[0]).name, words[1:])
 
 
+def _git_global_execs(word: str, value: str | None) -> bool:
+    """Does this global option choose what git runs, rather than where?"""
+    if word.split("=", 1)[0] in GIT_EXEC_GLOBALS:
+        return True
+    if word.startswith("-c") and not word.startswith("--"):
+        setting = word[2:] or (value or "")
+        return setting.split("=", 1)[0].startswith("alias.")
+    return False
+
+
+def git_parts(words: list[str]) -> tuple[str, list[str]] | None:
+    """A git invocation split at its subcommand: `(subcommand, the words after)`.
+
+    Global options come in front of the subcommand and five of them take a
+    value, so `words[1]` is the subcommand in the plainest spelling only. Ask
+    this split instead, never an index: it makes `git -C <dir> ls-files tests/`
+    and `git ls-files tests/` one command to every caller, and a site that asks
+    it cannot be broken by a spelling it did not think of.
+
+    `None` is a git invocation with no subcommand to find -- a bare `git`, an
+    option list that reaches no verb, or one carrying a `GIT_EXEC_GLOBALS`
+    option or an alias definition, which choose what the verb runs. Callers read
+    `None` as an unrecognized subcommand, and unrecognized denies.
+    """
+    i = 1
+    while i < len(words):
+        word = words[i]
+        valued = word in GIT_VALUED_GLOBALS
+        after = words[i + 1] if valued and i + 1 < len(words) else None
+        if _git_global_execs(word, after):
+            return None
+        if valued:
+            i += 2
+            continue
+        if word.startswith("-"):
+            i += 1
+            continue
+        return word, words[i + 1 :]
+    return None
+
+
+def git_words(words: list[str]) -> list[str]:
+    """A git invocation with its global options folded away: `[head, sub, *rest]`.
+
+    `command_words` applies this, so every walker downstream sees the plain
+    spelling. That is what keeps the fix in one place: a test that asks which
+    words look like paths cannot read `-C <dir>` as one, and a test that reads
+    `words[1]` finds the subcommand there, without either of them knowing a
+    thing about git's global options.
+
+    An invocation `git_parts` will not split comes back unchanged, so it stays
+    unrecognized rather than being turned into something recognized.
+    """
+    parts = git_parts(words)
+    if parts is None:
+        return words
+    sub, rest = parts
+    return [words[0], sub, *rest]
+
+
 def is_object_restore(words: list[str]) -> bool:
     """`git restore --source <rev> -- <paths>` or `git checkout <rev> -- <paths>`.
 
     Both copy a named commit onto a path. Neither types content, so a lane that
     has git history can be reverted without going around its writer.
     """
-    if len(words) < 4 or words[0] != "git":
+    if words[:1] != ["git"]:
         return False
-    if words[1] == "restore":
-        return "--source" in words[2:] or any(w.startswith("--source=") for w in words[2:])
-    if words[1] == "checkout":
-        return "--" in words[2:] and not words[2].startswith("-")
+    parts = git_parts(words)
+    if parts is None:
+        return False
+    sub, rest = parts
+    if len(rest) < 2:
+        return False
+    if sub == "restore":
+        return "--source" in rest or any(w.startswith("--source=") for w in rest)
+    if sub == "checkout":
+        return "--" in rest and not rest[0].startswith("-")
     return False
 
 
@@ -1150,7 +1235,10 @@ def git_write_form(words: list[str]) -> bool:
     is the safe direction. Every word after the subcommand is scanned, `--` and
     pattern arguments included, because a misread there under-denies.
     """
-    sub, rest = words[1], words[2:]
+    parts = git_parts(words)
+    if parts is None:
+        return False
+    sub, rest = parts
     if any(_long_option(w, GIT_OUTPUT, 3) for w in rest):
         return True
     if sub == "grep":
@@ -1175,7 +1263,8 @@ def segment_writes(segment: str, *, restore_ok: bool = True) -> bool:
         return False
     head = Path(words[0]).name
     if head == "git":
-        if len(words) > 1 and words[1] in GIT_NO_WORKTREE:
+        parts = git_parts(words)
+        if parts is not None and parts[0] in GIT_NO_WORKTREE:
             return git_write_form(words)
         return not (restore_ok and is_object_restore(words))
     return not reads_only(words)
@@ -1217,19 +1306,17 @@ def stage_targets(segment: str, body: str = "") -> tuple[list[str], str | None]:
     if not words or words[0] in NO_COMMAND_HEADS:
         return targets, None
     head = Path(words[0]).name
-    git_reader = (
-        head == "git"
-        and len(words) > 1
-        and words[1] in GIT_NO_WORKTREE
-        and not git_write_form(words)
-    )
+    git = git_parts(words) if head == "git" else None
+    git_reader = git is not None and git[0] in GIT_NO_WORKTREE and not git_write_form(words)
     if is_runner(words) or reads_only(words) or git_reader:
         return targets, None
     if has_inline_script(words) or body:
         return targets, STAGE
     if head == "xargs":
         return targets, STDIN
-    for word in words[1:]:
+    #: a git write acts on the words after its subcommand; the subcommand is
+    #: the verb, not a path, and its global options were folded away upstream
+    for word in git[1] if git is not None else words[1:]:
         if word.startswith("-"):
             targets.extend(_option_value(word))
         else:
@@ -1912,6 +1999,37 @@ def probes(
         rebased(probe(verdict, root, "Edit", agent=agent)),
         rebased(probe(verdict, root, "Bash", "command", agent=agent)),
     )
+
+
+#: the git global option spellings a lane self-test inserts. Between them they
+#: cover every shape the parser has to walk past: three that take a separate
+#: value, one `--opt=value`, and one bare short flag.
+GIT_GLOBAL_SPELLINGS = (
+    "-C /repo",
+    "--no-pager",
+    "-c core.pager=cat",
+    "--git-dir=/repo/.git",
+    "-P",
+)
+
+
+def git_globals_change_nothing(probe: Callable[..., str | None], *commands: str) -> bool:
+    """That a git global option in front of the subcommand moves no verdict.
+
+    A global option says where git runs, never what it does, so a lane owes the
+    same answer with one in front as without. A self-test asks it this way
+    rather than by listing spellings: any site that reads `words[1]` as the
+    subcommand fails here, under whichever spelling broke it -- including one
+    nobody has written down yet.
+    """
+    for command in commands:
+        if not command.startswith("git "):
+            return False
+        want = denied(probe(command))
+        for spelling in GIT_GLOBAL_SPELLINGS:
+            if denied(probe(f"git {spelling} {command[4:]}")) != want:
+                return False
+    return True
 
 
 def report(lines: dict[str, bool]) -> int:
