@@ -40,6 +40,11 @@ longer on disk. The comparison is the hook's rather than the juror's, which
 holds no `Bash` and could neither stat nor hash the run it ruled on, and which
 writes one verdict per line and nothing else into its file.
 
+`stop_hook_active` on the payload says this turn was itself started by this
+gate. The complaints print again, so the state still reaches the user, and the
+exit is 0: a gate that answers 2 to the turn it already held open is a loop
+with no way out, and a second 2 says nothing the first did not.
+
 A zero-byte red file is not a run to rule on — `pair.sh` redirects before the
 suite runs and appends `|| true`, so a crashed or killed run leaves one — and
 it fails with its own message rather than demanding a verdict on nothing.
@@ -54,6 +59,7 @@ that copies `.claude/` and never runs `pair.sh` is never blocked.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -130,17 +136,42 @@ def _complaints(root: Path) -> list[str]:
     return out
 
 
-def stop(root: Path = ROOT) -> int:
+def looping() -> bool:
+    """Whether this `Stop` payload says the gate already held the turn open once.
+
+    Claude Code sets `stop_hook_active` on the payload when the turn it is
+    ending was itself started by a `Stop` hook. The gate has already been read
+    by then, so a second exit 2 buys no new information and the pair of them is
+    a turn that cannot end.
+
+    A payload this cannot read is not a loop: stdin that will not read and text
+    that is not a JSON object both come back false, which holds the gate at its
+    normal strength rather than dropping it on a malformed payload.
+    """
+    try:
+        data = json.loads(sys.stdin.read())
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and data.get("stop_hook_active") is True
+
+
+def stop(root: Path = ROOT, *, loop: bool = False) -> int:
+    """The complaints on stderr, and 2 to hold the turn open -- 0 on a loop.
+
+    `loop` is the guard: the complaints still print, so the state reaches the
+    user unchanged, and the turn ends instead of being handed back to an agent
+    that has already been told once.
+    """
     complaints = _complaints(root)
     if not complaints:
         return 0
     for line in complaints:
         print(line, file=sys.stderr)
-    return 2
+    return 0 if loop else 2
 
 
 def self_test() -> int:
-    """Pin the lane's four spec lines and the `--stop` gate's four states."""
+    """Pin the lane's four spec lines and the `--stop` gate's five states."""
     import contextlib
     import io
     import tempfile
@@ -170,6 +201,17 @@ def self_test() -> int:
         #: the exit code is the subject; the block's own message is line 6's
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()):
             return stop(tree(tmp, **kw))
+
+    def loop_gate(payload: str, **kw: Any) -> tuple[int, str]:
+        """`--stop`'s exit code and its stderr, for one `Stop` payload on stdin."""
+        held, stdin = io.StringIO(), sys.stdin
+        sys.stdin = io.StringIO(payload)
+        try:
+            with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(held):
+                code = stop(tree(tmp, **kw), loop=looping())
+        finally:
+            sys.stdin = stdin
+        return code, held.getvalue()
 
     def slugs(**files: tuple[str, str | None]) -> list[str]:
         """The slugs `--stop` names, for a tree of `slug=(red, verdict)` pairs."""
@@ -290,6 +332,23 @@ def self_test() -> int:
                 denied(bash("find gauntlet/verdicts -name '*.txt' -delete")),
             )
         ),
+        "11 a second Stop on the same turn prints the complaints and ends it": all(
+            (
+                #: the complaints still reach the user; only the hold is dropped
+                loop_gate('{"stop_hook_active": true}', red="1 failed", verdict=None)
+                == (0, _MISSING.format(slug="demo") + "\n"),
+                loop_gate('{"stop_hook_active": false}', red="1 failed", verdict=None)[0] == 2,
+                #: a payload with no such key, and one this cannot read at all,
+                #: are not loops: the gate holds at its normal strength
+                loop_gate("{}", red="1 failed", verdict=None)[0] == 2,
+                loop_gate("not json", red="1 failed", verdict=None)[0] == 2,
+                loop_gate('"a string"', red="1 failed", verdict=None)[0] == 2,
+                loop_gate('{"stop_hook_active": "true"}', red="1 failed", verdict=None)[0] == 2,
+                #: a loop on a clean tree is still a clean tree
+                loop_gate('{"stop_hook_active": true}', red="1 failed", verdict="RED 1")
+                == (0, ""),
+            )
+        ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal.
         #: The `--stop` entry point decides no call, so it withholds no
@@ -312,5 +371,5 @@ if __name__ == "__main__":
     # inside it would pass those four vacuously under `GAUNTLET=off`. The
     # `--self-test` branch above is reached first and is never gated at all.
     if "--stop" in sys.argv:
-        sys.exit(0 if sh.bypassed() else stop())
+        sys.exit(0 if sh.bypassed() else stop(loop=looping()))
     main()

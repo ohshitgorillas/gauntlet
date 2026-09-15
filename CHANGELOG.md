@@ -67,6 +67,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ### Fixed
 - Read-only `git` refused by the five lane hooks and by `no-impl-reads.py` when a global option came before the subcommand. `git -C <dir> ls-files <lane>`, `git --no-pager grep -- <lane>`, `git -c core.pager=cat …`, `git --git-dir=<dir> …` and `git -P diff -- <lane>` were all read as writes to every path they named, so an agent investigating a lane it may read got denied and had no spelling that worked.
+- A turn held open by the `Stop` gate in `verdicts-lane.py` could not end. The gate answered 2 to every `Stop`, including the one ending the turn it had just started, so a session with an unruled red run and no juror to spawn looped. It now reads `stop_hook_active` from the payload: the complaints still print, and the second `Stop` exits 0 so the turn ends and the user sees the state.
 
 ## [0.1.0] - 2026-09-10
 
