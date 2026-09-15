@@ -19,9 +19,9 @@ select = ["E", "F", "B", "SIM", "UP", "RET", "ARG", "PTH", "C901", "BLE", "TRY"]
 # that is missing or the shape the judge answered with, and a subclass per
 # message buys a reader nothing. TRY004 wants a `TypeError` where a value has
 # the wrong type, but the wrong types in this tree come from a subprocess whose
-# output is parsed, and `check_md_trivia.py:358` catches `RuntimeError` to turn
-# exactly those into one clean gate line -- a `TypeError` there escapes the
-# handler and prints a traceback instead.
+# output is parsed, and a gate catches `RuntimeError` to turn exactly those into
+# one clean gate line -- a `TypeError` there escapes the handler and prints a
+# traceback instead.
 ignore = ["TRY003", "TRY004"]
 
 [tool.ruff.lint.mccabe]

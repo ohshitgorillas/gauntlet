@@ -10,3 +10,4 @@ gauntlet/specs/drafts/
 .claude/worktrees/
 .venv/
 .claude/logs/
+.triviajudge/

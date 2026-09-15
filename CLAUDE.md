@@ -34,16 +34,16 @@ Inside a `.claude/worktrees/*` tree, run that tree's own `scripts/gates/check-ga
 
 ## Markdown
 
-Two gates hold every `.md` file in the repo, wired from `.claude/settings.local.json` and living in `scripts/gates/`:
+Two gates hold every `.md` file in the repo, one this repository's own and one installed:
 
-- **Soft-wrapped.** One paragraph, list item or blockquote per logical line; wrapping is the reader's job. `scripts/gates/md-softwrap.py` blocks a hard-wrapped write, `--check FILE...` reports, `--fix FILE...` reflows.
-- **No trivia.** Markdown states what holds now, not what happened: no dated approvals, no round or phase numbers used as positions in history, no corrections that narrate the mistake they fix, no prose whose only content is that something did not change. `scripts/gates/check_md_trivia.py` judges the lines a change adds — `--stop` at the end of a turn, `--head` for the last commit — and shipped prose is not re-litigated on every touch.
+- **Soft-wrapped.** One paragraph, list item or blockquote per logical line; wrapping is the reader's job. `scripts/gates/md-softwrap.py` blocks a hard-wrapped write, `--check FILE...` reports, `--fix FILE...` reflows. It is wired from `.claude/settings.local.json`.
+- **No trivia.** Markdown states what holds now, not what happened: no dated approvals, no round or phase numbers used as positions in history, no corrections that narrate the mistake they fix, no prose whose only content is that something did not change. The `triviajudge` plugin judges the lines a change adds at the end of a turn, and shipped prose is not re-litigated on every touch. This repository carries no trivia gate of its own; install the plugin from `~/dev/triviajudge` with `/plugin`.
 
 Standing reasons are not trivia and are not cut. "Why one writer" in `docs/approved-specs.md` says in present tense why a rule is the rule, and an agent that does not hold that reason weakens the rule the first time it is inconvenient.
 
-The trivia gate calls the `claude` CLI once per turn that adds markdown, on Haiku, so it costs a few seconds and a small number of tokens; a turn that adds no markdown line makes no call.
+The plugin's markdown judge calls the `claude` CLI once per turn that adds markdown, on Haiku, so it costs a few seconds and a small number of tokens; a turn that adds no markdown line makes no call.
 
-Both gates are this repository's own, which is why they sit in `scripts/gates/` and are wired from `settings.local.json`. `hooks/`, `agents/` and `.claude-plugin/plugin.json` are the kit a consumer installs, and nothing that only matters here goes in them. `.claude/settings.json` is not kit and stays empty: a lane wired there beside the manifest fires twice and denies one call twice.
+`md-softwrap.py` is this repository's own, which is why it sits in `scripts/gates/` and is wired from `settings.local.json`. `hooks/`, `agents/` and `.claude-plugin/plugin.json` are the kit a consumer installs, and nothing that only matters here goes in them. `.claude/settings.json` is not kit and stays empty: a lane wired there beside the manifest fires twice and denies one call twice.
 
 ## `tests/` is not yours
 

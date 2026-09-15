@@ -45,7 +45,7 @@ suite runs and appends `|| true`, so a crashed or killed run leaves one — and
 it fails with its own message rather than demanding a verdict on nothing.
 
 The root is resolved from this file's own path, the way
-`scripts/gates/check_md_trivia.py` does it, and neither from the cwd, which
+`hooks/no-impl-reads.py` does it, and neither from the cwd, which
 moves within a turn, nor from `CLAUDE_PROJECT_DIR`, which is the main checkout
 for one session and a worktree for another. Each checkout gates its own
 `<gauntlet dir>/red/`. A missing red directory is not an unruled run: a consumer project
