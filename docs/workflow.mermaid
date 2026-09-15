@@ -1,5 +1,5 @@
-%% The Gauntlet, stages 1 and 2: the plan gate and the spec gate.
-%% Written for a reader, not for a machine. Ends where stage 3 begins.
+%% The Gauntlet: the whole chain, from the brief to the landed change.
+%% Written for a reader, not for a machine.
 %% Agent nodes are the double-edged boxes; the owner's own moves are the rounded ones.
 flowchart TD
     brief("`**You**
@@ -293,13 +293,309 @@ flowchart TD
     amend2 --> stage3
     ok2 --> stage3
 
+    %% ---- Stage 3: the blind writer and the red run. Ends where implementation begins. ----
+
+    pairopen["`The main agent cuts the pair with pair.sh open.
+    The approved block's reviewer section is compared
+    against the newest round file on disk.`"]
+    opencheck{"`Are those two texts byte-identical?`"}
+    mismatch["`MISMATCH, and no worktree is cut.
+    The block was edited after the reviewer passed it,
+    so the approved block is not the reviewed block.`"]
+    spectree["`The spec worktree is cut, and the block is committed
+    inside it before the writer is spawned.
+    That tree holds no implementation of the behavior,
+    and none arrives while the writer works.`"]
+
+    writerbrief["`The writer's brief is at most four things:
+    the committed spec path, the test file to write,
+    a list of known bugs to skip, and later a red-output path
+    or a delta. The block itself is never in the prompt.`"]
+    scriv[["`**Scrivener**
+    reads the block from the committed file. It may read the docs
+    and the tests directory, and never the implementation.
+    One test per behavior line, and nothing beyond the lines.`"]]
+
+    steer3{"`Is the brief carrying anything else?
+    Behavior lines inline, a paraphrase, a diff, an expected value,
+    a hint at how the code works, a spec path outside the approved lane,
+    an uncommitted spec, a delta naming no newer spec commit.`"}
+    refused3["`Refused in one line naming what the brief carried
+    and the rule it hit. Nothing is written.
+    A test that has to change without a spec change
+    is a spec that was wrong, and that goes back up the chain.`"]
+
+    ismotion{"`Is the structure line a motion?`"}
+    motionwork["`**The tests-only lane**
+    The writer removes each single-test target and writes the
+    replacement its as: field names, carrying a rehome's quoted
+    assertion byte-identical. A whole-file target is the script's,
+    since the lane hook denies every agent that shell.
+    No red run: the tree already satisfies these.`"]
+
+    writable{"`Can every line be written as a test?`"}
+    untestable["`UNTESTABLE, or CONTRADICTS where a line contradicts
+    a sentence of the owner's brief. The line goes back to the spec gate.
+    The weak test is not written instead: a weak test goes green
+    and nobody sees it.`"]
+    written["`The tests are written, one per line, plus any fixture
+    or fake capability the lines need. A helper is amended on one
+    ground only: it disagrees with a wire fact the writer can cite.`"]
+
+    redrun["`The main agent commits the tests and runs pair.sh red,
+    which saves the run's output to a file and prints its path
+    and nothing else.`"]
+    juror[["`**Juror**
+    spawned fresh for this one run, blind. Its brief is the slug,
+    the committed spec path, and that output path.
+    It finds fact, not law: never whether the code
+    or the spec is the thing that is wrong.`"]]
+    tamper{"`Does the brief carry the diff, the implementation,
+    an expected verdict, a kills: reading, or a sentence saying
+    what the run should show?`"}
+    tampered["`TAMPERING, and nothing is ruled.
+    The steering now sits in that juror's head.`"]
+    freshjuror[["`**A fresh Juror**
+    gets the bare brief.
+    The tampered one never sees it again.`"]]
+
+    verdict3{"`One verdict per behavior line`"}
+    redv["`**RED**
+    the test fails on the behavior the line pins.
+    The bite proof, and the outcome the chain exists to produce.`"]
+    errorv["`**ERROR**
+    the surface under test does not exist yet, so the test never ran.
+    It proves nothing either way, and the bite rests
+    on the block's null-stub argument.`"]
+    greenv["`**GREEN**
+    the test passed against a tree with no implementation.
+    For kind: new that is a bite failure and the block goes back
+    to the spec gate. For characterization and refactor it is expected.`"]
+    invalidv["`**INVALID**
+    the run broke on the writer's own hand: a fixture typo,
+    a bad import, a syntax error. No line was judged.`"]
+    writerfix["`The writer fixes its own hand and says what it fixed.
+    The next run goes to a fresh juror.`"]
+    verdictfile["`The verdicts are written to the verdicts lane,
+    by that juror and no other hand. A turn that leaves a red run
+    unruled does not end: the Stop hook names the slug.`"]
+
+    owner3("`**You**
+    read the certified red run: one verdict per line,
+    from an agent that wrote none of the tests
+    and has never seen the code.`")
+    word3{"`The first line of your reply`"}
+    hold3["`Everything else holds the gate shut.
+    Implementation does not start on a run
+    that only read like a pass.`"]
+    amend3["`**approved with revision**
+    What you write below that line is applied before work starts.`"]
+    ok3["`**approved**`"]
+
+    stage4["`**Stage 4**`"]
+
+    stage3 --> pairopen
+    pairopen --> opencheck
+    opencheck -- no --> mismatch
+    mismatch --> stage2
+    opencheck -- yes --> spectree
+    spectree --> writerbrief
+    writerbrief --> scriv
+    scriv --> steer3
+    steer3 -- "caught" --> refused3
+    steer3 -- "clean" --> ismotion
+    ismotion -- yes --> motionwork
+    ismotion -- no --> writable
+    writable -- no --> untestable
+    untestable --> stage2
+    writable -- yes --> written
+    written --> redrun
+    redrun --> juror
+    juror --> tamper
+    tamper -- "caught" --> tampered
+    tampered --> freshjuror
+    freshjuror --> juror
+    tamper -- "clean" --> verdict3
+    verdict3 --> redv
+    verdict3 --> errorv
+    verdict3 --> greenv
+    verdict3 --> invalidv
+    invalidv --> writerfix
+    writerfix --> redrun
+    greenv -- "kind: new" --> stage2
+    greenv -- "characterization, refactor" --> verdictfile
+    redv --> verdictfile
+    errorv --> verdictfile
+    verdictfile --> owner3
+    owner3 --> word3
+    word3 -- "anything else" --> hold3
+    hold3 --> owner3
+    word3 --> amend3
+    word3 --> ok3
+    amend3 --> stage4
+    ok3 --> stage4
+
+
+    %% ---- Stage 4: implementation, against tests nobody may edit. ----
+
+    impltree["`pair.sh impl checkout cuts the implementation tree
+    on its own branch. The two trees advance side by side:
+    the tests in one, the code in the other.`"]
+    implwork["`The main agent writes the implementation against the tests.
+    It never edits them, in any tree, and a hook denies it the attempt.`"]
+    suite{"`Does the suite pass against the implementation?`"}
+    tworoutes{"`Two routes out of a failing test, and only two`"}
+    fixcode["`Fix the code. The test is the contract,
+    and the code is what has to move.`"]
+    respec["`Send a revised block back to an **Arbiter**.
+    The reviewer that returns READY rewrites the approved file,
+    which is a new artifact and takes its own word from you.`"]
+    respeccommit["`pair.sh respec lands the re-approved block
+    as a spec commit on the spec branch. The delta brief names
+    that commit, and the writer reads the changed line from it.`"]
+    scriv2[["`**The Scrivener**
+    makes the change, and refuses a delta that names no newer
+    spec commit. Fix test 3, recompute the numbers,
+    the axis changed: all refused.`"]]
+
+    stage5["`**Stage 5**`"]
+
+    stage4 --> impltree
+    impltree --> implwork
+    implwork --> suite
+    suite -- no --> tworoutes
+    tworoutes --> fixcode
+    fixcode --> implwork
+    tworoutes --> respec
+    respec --> stage2
+    respec --> respeccommit
+    respeccommit --> scriv2
+    scriv2 --> suite
+    suite -- yes --> stage5
+
+
+    %% ---- Stage 5: the merge, and the window it closes. ----
+
+    merge["`pair.sh merge converges the pair in six steps, and the
+    target branch is touched only at the last: the lane check, a commit
+    in each tree, a rebase where the target moved underneath, the combine,
+    the gate, and the land. A lock is held from the rebase on,
+    so two sessions converging at once queue instead of racing the tip.`"]
+    gatecmd{"`Does the gate command pass in the combined tree?`"}
+    redgate["`Nothing lands. Both trees stand exactly as they are
+    and no brief is printed. The block and the code disagree,
+    and the way out is the implementation tree or a re-approved block,
+    never an edited test.`"]
+    landed["`The land is a fast-forward and nothing else.
+    Both trees and both branches are removed.`"]
+
+    route5{"`What does the structure line say?`"}
+    strikediff["`The landed diff is checked against the committed block
+    mechanically, by target name and by quoted assertion text.
+    A rewritten assertion is ALTERED, and an in-place rehome whose
+    body never changed is UNSATISFIED.
+    No red run and no reviewer round: there was no window to watch.`"]
+    testcheck["`The script prints the TEST CHECK brief:
+    the two commits, and the merge output the evidence sits in.`"]
+    bailiff[["`**Bailiff**
+    spawned fresh, blind, one per merged block. It holds nothing
+    from the spec gate, reads the committed block and the tests
+    that landed, and watches one window: the implementation phase,
+    where a test can be softened after it was approved.`"]]
+
+    lead5{"`Is there a sentence outside the printed brief?`"}
+    contempt5["`CONTEMPT: LEADING, and nothing is ruled.
+    A claim that the line was wrong, or that the test was fixed,
+    is leading whatever its length.`"]
+    freshbail[["`**A fresh Bailiff**
+    gets the bare brief.`"]]
+
+    evidence{"`Is the merge output there and not empty?`"}
+    noevidence["`NO EVIDENCE. The brief is well formed, so nobody is burned.
+    The repair is the main agent's: run the merge again
+    and spawn a fresh reviewer on the new brief.`"]
+
+    perline5["`One verdict per behavior line: PIN where the test still
+    delivers the line's input and asserts its outcome byte-identical
+    to the red commit, SOFT where either differs, MISSING where no test
+    covers the line, EXTRA past the line count. A strike line inverts
+    MISSING alone: there, the test being gone is the success.`"]
+    rules5["`Plus one row per test-policy violation the block could not see,
+    because a block carries no test code: a fake speaking over our own
+    code rather than the wire, a test name that states no behavior,
+    a fake deriving its reply by the algorithm the code uses,
+    an assert outside a test function.`"]
+    unread5{"`Does a verdict rest on code the reviewer may not read?`"}
+    note5["`It is a note, never a SOFT. The note names the fact
+    and the file, and the main agent settles it.`"]
+
+    verdict5{"`The reviewer's verdict`"}
+    ready5["`**READY**
+    Every line PIN, no rule row, no unplaceable EXTRA.
+    The window closed with the block still pinned.`"]
+    pass5["`**ANOTHER PASS**
+    and the repair is named: restore the test from the red commit,
+    or return the line to the spec gate for re-approval.
+    A verdict that says neither is malformed.`"]
+    esc5["`**Escalation**
+    The same softening stands after the repair meant to fix it,
+    with no new information between the two rounds.`"]
+    owner5("`**You**
+    see the test, the line, and both sides of the softening quoted.`")
+    restore5["`The test is restored from the red commit
+    by the main agent, never edited into shape.`"]
+
+    done["`**Landed**
+    The change is on the target branch, and every test on it
+    pins a line an adversarial reviewer passed blind.`"]
+
+    stage5 --> merge
+    merge --> gatecmd
+    gatecmd -- no --> redgate
+    redgate --> tworoutes
+    gatecmd -- yes --> landed
+    landed --> route5
+    route5 -- "motion: strike, amend, rehome" --> strikediff
+    strikediff --> done
+    route5 -- "kind: new, characterization, refactor" --> testcheck
+    testcheck --> bailiff
+    bailiff --> lead5
+    lead5 -- "caught" --> contempt5
+    contempt5 --> freshbail
+    freshbail --> bailiff
+    lead5 -- "clean" --> evidence
+    evidence -- no --> noevidence
+    noevidence --> merge
+    evidence -- yes --> perline5
+    perline5 --> rules5
+    rules5 --> unread5
+    unread5 -- yes --> note5
+    note5 --> verdict5
+    unread5 -- no --> verdict5
+    verdict5 --> ready5
+    verdict5 --> pass5
+    verdict5 --> esc5
+    pass5 --> restore5
+    restore5 --> bailiff
+    pass5 --> respec
+    esc5 --> owner5
+    owner5 --> bailiff
+    ready5 --> done
+
+    motionwork --> stage5
+
     classDef agent fill:#fff4d6,stroke:#b8860b,stroke-width:3px,color:#3a2c00
     classDef owner fill:#e4efff,stroke:#1f5fa8,stroke-width:3px,color:#0d2a4d
     classDef exit fill:#e8f7e8,stroke:#2f7d32,stroke-width:2px,color:#12351a
 
     class detective,pros,fresh,write agent
     class examiner,arb,fresharb,writespec agent
+    class scriv,juror,freshjuror,scriv2 agent
+    class bailiff,freshbail agent
     class brief,design,owner,word owner
     class ownerrule,owner2,word2 owner
+    class owner3,word3,owner5 owner
     class amend,ok exit
     class amend2,ok2,stage3 exit
+    class amend3,ok3,stage4 exit
+    class stage5,done exit
