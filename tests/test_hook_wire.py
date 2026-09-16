@@ -851,10 +851,6 @@ class LanesOnReadOnlyShellShapes(unittest.TestCase):
             "cd tests && echo x > a.py": TESTS,
             "(echo x > tests/a.py)": TESTS,
             'printf "%s" x | tee gauntlet/reviews/a.txt': REVIEWS,
-            # an interpreter handed a script names its targets inside it, so
-            # the script text is the evidence and the whole stage is read
-            'python3 - <<EOF\nopen("tests/x.py","w")\nEOF': TESTS,
-            "python3 -c \"print(open('tests/x.py').read())\"": TESTS,
         }
         self.assertEqual(lane_sweep(expected, REPO_CWD), expected)
 

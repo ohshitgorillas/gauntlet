@@ -1270,11 +1270,11 @@ def segment_writes(segment: str, *, restore_ok: bool = True) -> bool:
     return not reads_only(words)
 
 
-#: a write stage whose targets this parser cannot name, and where the evidence
-#: about them lives. `STAGE` is an interpreter handed a script: the paths are in
-#: the script text, which is the stage and any heredoc body attached to it.
-#: `STDIN` is `xargs`: the paths were produced upstream, so the evidence is the
-#: whole command and not this stage.
+#: a write stage whose targets this parser cannot name. `STAGE` is an
+#: interpreter handed a script: the paths are computed inside the script, so
+#: there is no target to test and the stage is denied. `STDIN` is `xargs`: the
+#: paths were produced upstream, so the evidence is the whole command and not
+#: this stage.
 STAGE, STDIN = "stage", "stdin"
 
 
@@ -1298,8 +1298,8 @@ def stage_targets(segment: str, body: str = "") -> tuple[list[str], str | None]:
     option carries its value after an `=`.
 
     Two shapes name nothing this parser can read, and they return a reason
-    instead of a complete list, so the caller can widen the evidence it looks
-    at rather than treat an empty list as proof of innocence.
+    instead of a complete list, so the caller can act on the gap rather than
+    treat an empty list as proof of innocence.
     """
     targets = redirect_targets(segment)
     words = command_words(words_of(segment))
@@ -1374,8 +1374,9 @@ def lane_write_in(command: str, pattern: re.Pattern[str], *, restore_ok: bool = 
     a string when the command is handed it. `grep -rn cite tests/` quoted in a
     heredoc, a lane path in a `for` list, and `echo "tests/x" >> notes.txt` all
     name a lane and write nowhere near it, and a text search cannot tell them
-    from `rm tests/x`. `stage_targets` answers what the stage writes to, and
-    only a stage that names no readable target falls back to its own text.
+    from `rm tests/x`. `stage_targets` answers what the stage writes to. A
+    write stage handed an inline script computes its paths at run time and
+    names no readable target at all, so it is denied rather than read.
 
     The stages are walked in order carrying the directory a `cd` moved them
     to, because a command that never spells the lane can still write into it:
@@ -1402,7 +1403,9 @@ def lane_write_in(command: str, pattern: re.Pattern[str], *, restore_ok: bool = 
         targets, unknown = stage_targets(stage, body)
         if any(_target_in_lane(t, here, pattern) for t in targets):
             return True
-        if unknown == STAGE and (pattern.search(stage) or pattern.search(body)):
+        if unknown == STAGE:
+            #: an interpreter computes its paths at run time, so no reading of
+            #: the stage text answers where it writes. Deny closed.
             return True
         if unknown == STDIN and pattern.search(command):
             return True
