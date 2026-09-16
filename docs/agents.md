@@ -48,7 +48,7 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 
 | Invocation | stdout | when |
 | --- | --- | --- |
-| `pair.sh open <slug>` | `OPEN .claude/worktrees/<slug>-spec` | the approved spec's reviewer section is byte-identical to the newest `<gauntlet dir>/reviews/<slug>.<N>.txt` |
+| `pair.sh open <slug>` | `OPEN .claude/worktrees/<slug>-spec` | the approved spec's reviewer section is byte-identical to the newest `<gauntlet dir>/reviews/<slug>.<N>.txt`, and the block is a `spec: <slug>` commit on `spec/<slug>` |
 | `pair.sh open <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
 | `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
 | `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: <gauntlet dir>/merge/<slug>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor` |

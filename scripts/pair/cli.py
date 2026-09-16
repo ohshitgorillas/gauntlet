@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Move a block between the reviewer, the writer and the tree.
 
-    pair.sh open <slug>      cut the spec worktree, on the reviewed block only
+    pair.sh open <slug>      cut the spec worktree and commit the reviewed block
     pair.sh respec <slug>    land a re-approved block on the open spec branch
     pair.sh red <slug>       run the suite there, and remove whole-file targets
     pair.sh merge <slug>     converge the pair and land it on the target branch
@@ -103,9 +103,30 @@ def cmd_open(slug: str) -> int:
     git("worktree", "add", "--quiet", "-b", trees.spec_branch(slug), tree)
     trees.record_base(slug, base)
     trees.link_tooling(tree)
+    _commit_block(slug, tree, relative, text)
     note("  base " + base + ", block at " + relative)
     out("OPEN " + tree)
     return 0
+
+
+def _commit_block(slug: str, tree: str, relative: str, text: str) -> None:
+    """Put the approved block on the spec branch, where the writer's brief reads it.
+
+    The block reaches the lane as a file the reviewer wrote, tracked by the
+    primary checkout or not. Every agent downstream reads it out of a commit
+    rather than off disk: the `scrivener` refuses a spec no tree HEAD holds,
+    `blocks.spec_blob` names the object the `bailiff` is briefed with, and a
+    delta names a `spec:` commit newer than this one. Staging before the
+    comparison is what makes it answer for an untracked block too, which
+    `git diff HEAD` on its own does not see. A branch already holding the block
+    byte for byte takes no second commit.
+    """
+    Path(path(tree, relative)).write_text(text, encoding="utf-8")
+    git("add", "--", relative, tree=tree)
+    if git_ok("diff", "--cached", "--quiet", "HEAD", "--", relative, tree=tree):
+        return
+    if trees.in_tree(tree, ["git", "commit", "-q", "-m", "spec: " + slug]) != 0:
+        die("pair: the spec commit in " + tree + " failed")
 
 
 def cmd_respec(slug: str) -> int:
