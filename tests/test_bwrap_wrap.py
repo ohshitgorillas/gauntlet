@@ -251,3 +251,139 @@ def test_only_a_whole_command_that_is_one_pair_subcommand_call_escapes_the_wrap(
 ):
     repo = _repo(tmp_path, trees=(TREE_ALPHA,))
     assert _carve_out(repo, command) == expected
+
+
+#: a project's own word about which commands leave the sandbox. The text of the
+#: command is the declared thing and carries a `reads` list beside it; both names
+#: are the declaration's, written by the project, never by the hook.
+UNWRAPPED_KEY = "unwrapped_commands"
+READS_KEY = "reads"
+
+RESTART_DECLARED = "sudo systemctl restart hqplayerd"
+RESTART_OTHER = "sudo systemctl restart other"
+
+DEPLOY_PAYLOAD = "scripts/deploy.sh --once"
+DEPLOY_READ = "scripts/deploy.sh"
+
+PROBE = "probe.txt"
+OTHER_PROBE = "other.txt"
+PROBE_ALREADY_THERE = "y"
+PROBE_WRITTEN = "x"
+
+
+def _declaring(repo, unwrapped):
+    """Rewrite the checkout's declaration to carry `unwrapped` commands; give `repo`.
+
+    A `None` leaves the key out of the file altogether, which is the declaration
+    as `_repo` writes it.
+    """
+    declaration = dict(DECLARATION)
+    if unwrapped is not None:
+        declaration[UNWRAPPED_KEY] = unwrapped
+    (repo / ".claude" / "blind-reads.json").write_text(json.dumps(declaration))
+    return repo
+
+
+def _reading(*paths):
+    """One declared command's value, naming the paths it reads."""
+    return {READS_KEY: list(paths)}
+
+
+@pytest.mark.parametrize(
+    "unwrapped,expected",
+    [
+        ({RESTART_DECLARED: _reading()}, "passthrough"),
+        ({RESTART_OTHER: _reading()}, "wrapped"),
+        (None, "wrapped"),
+    ],
+    ids=[
+        "the-payload-is-the-declared-command",
+        "a-different-command-is-declared",
+        "the-checkout-declares-nothing",
+    ],
+)
+def test_only_a_command_the_project_itself_declares_escapes_the_wrap(tmp_path, unwrapped, expected):
+    repo = _declaring(_repo(tmp_path, trees=(TREE_ALPHA,)), unwrapped)
+    assert _carve_out(repo, RESTART_DECLARED) == expected
+
+
+@pytest.mark.parametrize(
+    "command,expected",
+    [
+        (RESTART_DECLARED, "passthrough"),
+        (RESTART_DECLARED + " ", "wrapped"),
+        (RESTART_DECLARED + " --now", "wrapped"),
+        (RESTART_DECLARED + "; rm -rf state", "wrapped"),
+        ("cd /tmp && " + RESTART_DECLARED, "wrapped"),
+        ("echo " + RESTART_DECLARED, "wrapped"),
+    ],
+    ids=[
+        "the-declared-text-exactly",
+        "a-trailing-space",
+        "an-argument-appended",
+        "a-second-command-appended",
+        "a-directory-change-in-front",
+        "the-declared-text-as-an-argument",
+    ],
+)
+def test_a_declared_command_matches_by_the_whole_string_and_nothing_less(
+    tmp_path, command, expected
+):
+    repo = _declaring(_repo(tmp_path, trees=(TREE_ALPHA,)), {RESTART_DECLARED: _reading()})
+    assert _carve_out(repo, command) == expected
+
+
+def _probe_content_after_the_write(repo, agent_type, relative_path):
+    """Run the replacement for a write at `relative_path`; give the file's content.
+
+    The target is seeded before the run, so a write the wrap refuses leaves the
+    seeded text behind and a write it allows replaces it. Gives "unwrapped"
+    where the hook returned no replacement to run at all.
+    """
+    target = repo / relative_path
+    target.write_text(PROBE_ALREADY_THERE)
+    command = "printf " + PROBE_WRITTEN + " > " + relative_path
+    wrapped = _updated_command(_run_hook(repo, agent_type, command))
+    if wrapped is None:
+        return "unwrapped"
+    subprocess.run(wrapped, shell=True, cwd=repo, capture_output=True, text=True)
+    return target.read_text()
+
+
+@pytest.mark.parametrize(
+    "read_path,expected",
+    [
+        (PROBE, PROBE_ALREADY_THERE),
+        (OTHER_PROBE, PROBE_WRITTEN),
+    ],
+    ids=[
+        "the-declared-command-reads-the-probe",
+        "the-declared-command-reads-another-file",
+    ],
+)
+def test_a_path_a_declared_command_reads_is_read_only_inside_the_wrap(
+    tmp_path, read_path, expected
+):
+    if not _bwrap_usable():
+        pytest.skip("bwrap is not runnable on this host")
+    repo = _repo(tmp_path, trees=(TREE_ALPHA,))
+    #: both candidate paths are on disk, so the two arms differ by which one the
+    #: declaration names and not by whether the declaration resolves at all
+    (repo / OTHER_PROBE).write_text(PROBE_ALREADY_THERE)
+    _declaring(repo, {RESTART_DECLARED: _reading(read_path)})
+    assert _probe_content_after_the_write(repo, PROSECUTOR, PROBE) == expected
+
+
+def test_a_reads_entry_that_does_not_resolve_voids_the_whole_declaration(tmp_path):
+    repo = _repo(tmp_path, trees=(TREE_ALPHA,))
+    _declaring(repo, {DEPLOY_PAYLOAD: _reading(DEPLOY_READ)})
+
+    with_the_read_path_absent = _carve_out(repo, DEPLOY_PAYLOAD)
+
+    (repo / DEPLOY_READ).write_text("#!/bin/sh\n")
+    after_the_read_path_was_created = _carve_out(repo, DEPLOY_PAYLOAD)
+
+    assert (with_the_read_path_absent, after_the_read_path_was_created) == (
+        "wrapped",
+        "passthrough",
+    )
