@@ -4,12 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
-### Added
-- **`hooks/lane-audit.py`, a `PostToolUse` audit of the lane's own path comparison.** Wired on `Write|Edit|NotebookEdit`, it asks the lane table about the file the harness reports as changed, and prints one named line where a write the table refuses was admitted and landed. It never blocks and decides nothing: it turns a wrong admission into a fact on the next run rather than a silent divergence. Silent under `GAUNTLET=off`, like every other hook here.
-
 ### Changed
-- **A lane is matched on resolved paths, both sides.** A symlinked file, a symlinked parent directory, a relative path, a `..` walk and a target whose parent does not exist yet all collapse onto the one name the kernel opens, and a lane directory that is itself a symlink is still that lane. A hardlink is not resolved and cannot be, so a second name for a lane file under another directory is still admitted; the limit is named where the resolution happens.
-- **One writable set.** The lane directories `lanes.py` holds and the ones `bwrap-wrap.py` binds read-only now come from one table, `shell_shapes.lane_dirs()`, and `lanes.py --self-test` fails where the two differ. `<tests dir>` joins the set the sandbox binds read-only, which it was missing: a shell could write a test the write tools refused.
+- **A shell on the default profile cannot write `<tests dir>`.** It is bound read-only there now, with the other four lanes. A command that regenerates a file under it — a snapshot update, a fixture a test writes — fails with `EROFS` where it used to pass; run it outside the session, or through the writer. The blind agents are unaffected: they run under `scripts/blind.sh`, which builds its own sandbox with their lane writable.
 
 ## [0.2.0] - 2026-09-16
 
