@@ -325,11 +325,13 @@ class DocsDirMovesTheBlindReadAllowance(unittest.TestCase):
         self.assertEqual(_config_lines(self.moved, "docs_dir"), ["prose"])
 
     def test_the_allowance_is_anchored_at_the_repo_root(self):
-        # An entry is the repository's own directory of that name, never any
-        # directory so named: a `src/prose/impl.py` read as documentation hands
-        # the blind agent the implementation under a directory it chose.
-        self.assertEqual(_read(self.moved, "src/prose/impl.py"), DENY)
-        self.assertEqual(_read(self.moved, "prose/sub/deep.md"), SILENT)
+        # An entry is the repository's own file of that name, never any
+        # directory so named: a `src/prose/testing.md` read as documentation
+        # hands the blind agent the implementation under a directory it chose.
+        self.assertEqual(_read(self.moved, "src/prose/testing.md"), DENY)
+        # and the allowance is that one policy file, not the prose around it:
+        # a design note there quotes the code it describes.
+        self.assertEqual(_read(self.moved, "prose/sub/deep.md"), DENY)
 
 
 class AnOverlappingSetMovesNothing(unittest.TestCase):

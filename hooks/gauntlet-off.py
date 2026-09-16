@@ -47,7 +47,7 @@ commands; matching the head word denies `claude -p ...`, `env GAUNTLET=off
 claude` and `nohup claude` and lets every `.claude/` path through. The reading
 it gives up is a `claude` reached through a shell it cannot see into --
 `bash -c 'claude'`, a wrapper script named something else -- which is the same
-bound every other shape test in `shell_shapes` carries.
+bound every shape test read off a command string carries.
 
 Both halves of the denial are needed and neither is redundant. A bare
 `GAUNTLET=off` prefix on a shell command does not in fact disarm anything:
@@ -71,6 +71,7 @@ import io
 import json
 import os
 import re
+import shlex
 import sys
 import tempfile
 from pathlib import Path
@@ -157,12 +158,100 @@ def off(value: str | None) -> bool:
     return (value or "").strip().lower() == OFF
 
 
+#: The two shapes this file needs off a command string, kept here rather than
+#: in `shell_shapes.py`. That module read commands for the lane hooks once, and
+#: the lane hooks do not read commands any more; this guard still has to, because
+#: the thing it denies is a spelling rather than a path, and no mount table
+#: reaches a spelling. So the reading lives with its one caller.
+
+
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)([\w][\w.-]*)\1")
+
+
+def strip_heredocs(command: str) -> str:
+    """Drop heredoc bodies, so prose that mentions a lane is not read as a path.
+
+    The redirection that opens the heredoc stays on its own line, so
+    `cat > lane/x.txt <<EOF` is still seen as the write it is.
+    """
+    out: list[str] = []
+    terminator: str | None = None
+    for line in command.split("\n"):
+        if terminator is not None:
+            if line.strip() == terminator:
+                terminator = None
+            continue
+        out.append(line)
+        m = _HEREDOC.search(line)
+        if m:
+            terminator = m.group(2)
+    return "\n".join(out)
+
+
+def _split_unquoted(text: str) -> list[str]:
+    """Split on `&&`, `||`, `;`, `|`, a newline and a bare `&`, outside quotes.
+
+    A separator inside a quoted argument is part of the argument: splitting
+    `node -e "a && b"` on it would leave fragments whose head word is not a
+    command. A `&` next to a redirection (`2>&1`, `>&2`) is not a separator
+    either — cutting there leaves a fragment ending in `2>`, which `REDIRECT`
+    reads as an output redirection and every lane then reads as a write.
+
+    An unterminated quote quotes to the end of the string, so a malformed
+    command is one segment and falls to whatever its head word says.
+    """
+    out: list[str] = []
+    buf: list[str] = []
+    quote: str | None = None
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote is not None:
+            buf.append(ch)
+            quote = None if ch == quote else quote
+            i += 1
+        elif ch in "'\"":
+            quote = ch
+            buf.append(ch)
+            i += 1
+        elif text.startswith("&&", i) or text.startswith("||", i):
+            out.append("".join(buf))
+            buf = []
+            i += 2
+        #: a one-character separator, and the bare `&` that is one: next to a
+        #: redirection (`2>&1`, `>&2`) it duplicates a descriptor instead
+        elif ch in ";|\n" or (
+            ch == "&"
+            and not ((i and text[i - 1] in ">&") or (i + 1 < len(text) and text[i + 1] in ">&"))
+        ):
+            out.append("".join(buf))
+            buf = []
+            i += 1
+        else:
+            buf.append(ch)
+            i += 1
+    out.append("".join(buf))
+    return [s.strip() for s in out if s.strip()]
+
+
+def segments(command: str) -> list[str]:
+    """The pipeline stages of a command, heredoc bodies removed."""
+    return _split_unquoted(strip_heredocs(command))
+
+
+def words_of(segment: str) -> list[str]:
+    try:
+        return shlex.split(segment, comments=False, posix=True)
+    except ValueError:
+        return segment.split()
+
+
 def _head(segment: str) -> str:
     """The command word of a segment, past assignments and wrappers.
 
     An empty string where the segment carries no command word at all.
     """
-    words = sh.words_of(segment)
+    words = words_of(segment)
     i = 0
     wrapped = False
     while i < len(words):
@@ -188,7 +277,7 @@ def _assignment_words(segment: str) -> list[str]:
     inside a longer string is not one of these, which is what keeps the test off
     a substring search.
     """
-    words = sh.words_of(segment)
+    words = words_of(segment)
     out: list[str] = []
     i = 0
     while i < len(words) and "=" in words[i] and not words[i].startswith("="):
@@ -207,7 +296,7 @@ def _assignment_words(segment: str) -> list[str]:
 
 def sets_var(command: str) -> bool:
     """Whether the command assigns the gauntlet variable, in any spelling."""
-    for segment in sh.segments(command):
+    for segment in segments(command):
         for word in _assignment_words(segment):
             if word.split("=", 1)[0] == VAR:
                 return True
@@ -216,7 +305,7 @@ def sets_var(command: str) -> bool:
 
 def invokes_claude(command: str) -> bool:
     """Whether any segment's head word is `claude`."""
-    return any(_head(segment) == "claude" for segment in sh.segments(command))
+    return any(_head(segment) == "claude" for segment in segments(command))
 
 
 def _verdict(name: str, tool_input: sh.ToolInput) -> str | None:

@@ -110,8 +110,7 @@ _ARGS = (
 #: runtime expands into one are admitted because a brief or a doc may still
 #: carry them. A *relative* prefix is deliberately not admitted: the blind
 #: writer may write under `<tests dir>/`, so `tests/scripts/blind.sh` would be
-#: a shell of its own authoring. `sh.is_blind_run` reads the same head with
-#: `endswith`.
+#: a shell of its own authoring.
 _HEAD = r"(?:/[A-Za-z0-9_.@+:/-]*/|\$\{CLAUDE_PLUGIN_ROOT\}/)?" + re.escape(ENTRY)
 
 ALLOWED = tuple(re.compile(rf"\s*{_HEAD}\s+{a}\s*\Z") for a in _ARGS)

@@ -33,9 +33,14 @@ blocklist has to know what this repo calls its source directory, and gets it
 wrong the first time someone adds one — and it fails closed: an unlisted path
 is denied, and the denial names the file to widen.
 
-Allowed by default: `docs/`, `tests/`, `state/`, and documentation files at the
-repo root (`*.md`, `*.txt`, `*.pdf`). `state/` is the workflow's own scratch,
-never the repository's source.
+Allowed by default: the blind writer's own lane, `docs/testing.md`, the three
+re-allowed leaves under the gauntlet base, the declaration itself, and
+documentation files at the repo root (`*.md`, `*.txt`, `*.pdf`). Every entry is
+either a directory only a protected writer fills or the one policy file these
+agents are held to. The prose directory as a whole is not one: a project keeps
+design notes there, and a design note quotes the code it describes. Neither is
+`state/`, which holds gate output, and gate output is the implementation's own
+tracebacks under another name.
 
 The kit's own `docs/` is on the list too, at `${CLAUDE_PLUGIN_ROOT}/docs/`, and
 it is the one allowed path that sits outside the checkout. The kit cites its own
@@ -77,24 +82,18 @@ where the names resolve. A spec source that lives elsewhere belongs under the
 docs directory or beside the block in the approved-specs lane, not on a list
 that could grow to reach the implementation.
 
-A suite run is a read: a traceback through the code is the cost of running
-the suite at all, and running the suite is the point. `shell_shapes.is_runner`
-recognizes a run by its whole invocation, which is the only way to tell `node
---test` from `node -e`, and the kit's own `scripts/blind.sh test <path>` is in
-its table. An inline-script flag (`-e`, `-c`, `-p`, `--eval`, `--print`)
-disqualifies any command.
+No shell command is judged here. This hook read one once -- stages, `cd`
+targets, runner invocations, git forms -- and that reading is gone with every
+other command parse in the kit. A blind agent's shell is `blind-bash.py`'s one
+entry point, `scripts/blind.sh`, which admits three invocations by name; every
+other caller's shell runs inside the wrap `bwrap-wrap.py` builds. What is left
+here is the three tools that reach a file without a shell.
 
 Blocked for those agents:
 
   * `Read` of any path outside the allowlist
   * `Grep`/`Glob` rooted outside it, and `Grep`/`Glob` with no path at all
     (an unrooted search sweeps the tree and prints matching source lines)
-  * a `Bash` command naming a path outside it, by any reader the tool reaches
-  * a `Bash` command that reads recursively with nothing to root it — `grep
-    -rn x .`, `grep -rn x`, `rg x` — which sweeps the tree the same way an
-    unrooted `Grep` does
-  * a `Bash` fetch of a served source file from localhost (`.js`, `.css`,
-    `.map`, `.ts`, `.py`) — the same source by another road
 """
 
 from __future__ import annotations
@@ -158,11 +157,15 @@ GAUNTLET_MERGE = GAUNTLET_BASE + "/merge"
 #: every leaf re-allowed inside the denied base, and the whole of what is
 #: readable under it
 GAUNTLET_LEAVES = (GAUNTLET_SPECS, GAUNTLET_RED, GAUNTLET_MERGE)
-#: repo-relative paths a blind agent may read; a trailing `/` means the subtree
+#: repo-relative paths a blind agent may read; a trailing `/` means the subtree.
+#: Each one is a directory only a protected writer fills, or a named file: the
+#: test lane the blind writer owns, the test policy it is held to, the two run
+#: artifacts it certifies, the approved block it works from, and the declaration
+#: that says where those are. A directory anyone may write is not on it, which
+#: is why the prose directory is here as one file rather than as a subtree.
 DEFAULT_ALLOW = (
-    DOCS + "/",
+    DOCS + "/testing.md",
     TESTS + "/",
-    "state/",
     GAUNTLET_SPECS + "/",
     GAUNTLET_RED + "/",
     GAUNTLET_MERGE + "/",
@@ -171,24 +174,12 @@ DEFAULT_ALLOW = (
 #: repo-root files a blind agent may read, by extension
 DEFAULT_ROOT_FILES = (".md", ".txt", ".pdf")
 
-#: commands that read a whole tree; unrooted, they sweep the implementation
-RECURSIVE_ALWAYS = frozenset({"find", "rg", "tree"})
-#: commands that read a whole tree only when told to
-RECURSIVE_ON_FLAG = {"grep": "rR", "egrep": "rR", "fgrep": "rR", "ls": "R"}
-#: path candidates that root a search at the whole tree, which is no root
-UNROOTED = frozenset({".", ".."})
-
-#: a served source file fetched from a local dev server
-SERVED = re.compile(
-    r"(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?/[^\s\"']*\.(?:js|css|map|ts|py)\b"
-)
-
 _WHY = (
     "Blind agent: the implementation is out of bounds. Work from the approved spec "
-    f"block at {GAUNTLET_SPECS}/, the rest of {DOCS}/, {TESTS}/, and the kit's own prose "
+    f"block at {GAUNTLET_SPECS}/, {DOCS}/testing.md, {TESTS}/, and the kit's own prose "
     f"at ${{{PLUGIN_VAR}}}/docs/. If the spec does "
     "not say what the behavior is, report that gap instead of reading the code to "
-    f"find out. If this path is genuinely a spec source, it belongs under {DOCS}/ or in "
+    f"find out. If this path is genuinely a spec source, it belongs in "
     f"{GAUNTLET_SPECS}/, which is the only part of {GAUNTLET_BASE}/ that is yours: the "
     "plans, the drafts and the reviewer rounds quote implementation citations, and "
     "no list reaches them. (hooks/no-impl-reads.py)"
@@ -300,148 +291,6 @@ def readable(target: str, root: str | None, cwd: str) -> bool:
     )
 
 
-def _candidates(words: list[str]) -> list[str]:
-    """The words of a command that look like paths."""
-    return [
-        w
-        for w in words[1:]
-        #: a URL is not a path: `SERVED` above rules on the ones that carry source,
-        #: and an API call over HTTP reaches no file this hook is guarding
-        if "://" not in w and ("/" in w or Path(w).suffix) and not w.startswith("-")
-    ]
-
-
-def _reads_recursively(words: list[str]) -> bool:
-    """Does this command walk a whole tree?
-
-    `find`, `tree` and `rg` always do — `rg` needs no flag for it. The grep
-    family and `ls` do when told to, and they are told in three spellings: a
-    standalone `-r`, a clustered short option carrying it (`-rn`), or the long
-    `--recursive`.
-    """
-    head = Path(words[0]).name if words else ""
-    if head in RECURSIVE_ALWAYS:
-        return True
-    letters = RECURSIVE_ON_FLAG.get(head)
-    if letters is None:
-        return False
-    return any(
-        w == "--recursive"
-        or (w.startswith("-") and not w.startswith("--") and any(c in w[1:] for c in letters))
-        for w in words[1:]
-    )
-
-
-def _unrooted_sweep(words: list[str]) -> bool:
-    """A recursive reader with nothing to root it is a read of the whole tree."""
-    if not _reads_recursively(words):
-        return False
-    return all(w.rstrip(os.sep) in UNROOTED for w in _candidates(words))
-
-
-def _git_prints_content(words: list[str]) -> bool:
-    """Does this git command print file content?
-
-    Metadata subcommands print commits, refs and names. Everything else prints
-    some of the tree, and an unrecognized subcommand is treated as content --
-    the same direction the rest of this hook takes, where unlisted is denied.
-    """
-    parts = sh.git_parts(words)
-    if parts is None:
-        return True
-    sub, rest = parts
-    if sub == "log":
-        return any(w in sh.GIT_PATCH_FLAGS for w in rest)
-    return sub not in sh.GIT_METADATA
-
-
-def _git_candidates(words: list[str]) -> list[str]:
-    """The path-shaped words of a git command, with any `<rev>:` prefix removed.
-
-    `git show HEAD:gauntlet/specs/approved/<slug>.txt` is the supported way for a blind
-    agent to read an allowlisted spec out of history. Scored literally, the revision
-    prefix makes that path a filename that exists nowhere, so the read the
-    escape hatch exists for was refused.
-    """
-    out = []
-    for word in _candidates(words):
-        head, sep, tail = word.partition(":")
-        out.append(tail if sep and "/" not in head else word)
-    return out
-
-
-def _strip_env(words: list[str]) -> list[str]:
-    """Drop a leading `VAR=value` prefix, so the head word is the command.
-
-    The result goes through `sh.command_words`, which strips shell keywords and
-    folds a git invocation back to its plain spelling. `_candidates` below reads
-    every word that looks like a path, and `git -C <dir>` hands it a directory
-    that is an option's value and not a path this hook is asked about.
-
-    The suite run a blind writer is told to make is `PYTHONPATH=$(pwd) pytest
-    ...`. Without this the head word is the assignment, no runner is recognized,
-    and the run falls through to the path test.
-    """
-    i = 0
-    while i < len(words) and re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", words[i]):
-        i += 1
-    return words[i:]
-
-
-def _stage_verdict(words: list[str], root: str | None, here: str) -> str | None:
-    """Why one stage of a pipeline is refused, or None to let it through.
-
-    A stage that moves the walk -- a `cd` -- is the caller's business; this
-    rules on the stages that read.
-    """
-    head = Path(words[0]).name
-    if sh.is_runner(words):
-        return None
-    if _unrooted_sweep(words):
-        return _UNROOTED
-    if head == "git":
-        #: a git command that prints content carries no path of its own when
-        #: it is spelled `git show <rev>`, so the candidate test has nothing
-        #: to fail on and the implementation goes out whole
-        if _git_prints_content(words):
-            paths = _git_candidates(words)
-            if not paths or any(not readable(w, root, here) for w in paths):
-                return _WHY
-        return None
-    if any(not readable(w, root, here) for w in _candidates(words)):
-        return _WHY
-    return None
-
-
-def _bash_verdict(command: str, root: str | None, cwd: str) -> str | None:
-    """Why this shell command is refused, or None to let it through.
-
-    The stages are walked in order carrying the directory a `cd` moved them to,
-    because a blind agent works by `cd <its worktree> && <run>`: the tree is
-    named once, as a `cd` target, and every path after it is relative to that
-    tree. Scoring that target as a path to allowlist denied the whole idiom, and
-    with it every run of the tests the agent had just written.
-    """
-    here = cwd
-    for stage in sh.segments(command):
-        words = sh.command_words(_strip_env(sh.words_of(stage)))
-        if not words:
-            continue
-        target = sh.cd_target(words)
-        if target is not None:
-            #: `cd`, `cd -` and `cd ~...` move where this walk cannot follow
-            if target in ("", "-") or target.startswith("~"):
-                here = cwd
-            else:
-                #: lexical, for the same reason `readable` is
-                here = os.path.abspath(os.path.join(here, target))  # noqa: PTH100, PTH118
-            continue
-        why = _stage_verdict(words, root, here)
-        if why is not None:
-            return why
-    return None
-
-
 def _verdict(name: str, tool_input: dict[str, Any], root: str | None, cwd: str) -> str | None:
     """Why this call is refused, or None to let it through."""
     if name == "Read":
@@ -451,17 +300,12 @@ def _verdict(name: str, tool_input: dict[str, Any], root: str | None, cwd: str) 
         if target is None:
             return _UNROOTED
         return None if readable(target, root, cwd) else _WHY
-    if name == "Bash":
-        command = sh.command_of(tool_input)
-        if SERVED.search(command):
-            return _WHY
-        return _bash_verdict(command, root, cwd)
     return None
 
 
 #: the tools this hook decides. A call of anything else is not its subject,
 #: and a malformed one is not its refusal to give -- see `sh.payload_fault`.
-GUARDS = ("Read", "Grep", "Glob", "Bash")
+GUARDS = ("Read", "Grep", "Glob")
 
 
 def _caller_verdict(
@@ -613,10 +457,6 @@ def self_test() -> int:
     def read(path: str) -> str | None:
         return call("Read", {"file_path": path})
 
-    def bash(cmd: str) -> str | None:
-        return call("Bash", {"command": cmd})
-
-    node_reads_source = "node -e \"console.log(require('fs').readFileSync('src/core.py','utf8'))\""
     denied, allowed = sh.denied, sh.allowed
 
     def blind(path: str, who: str | None = "scrivener") -> str | None:
@@ -649,37 +489,6 @@ def self_test() -> int:
                 denied(call("Grep", {"pattern": "def resolve", "path": f"{root}/src"})),
             )
         ),
-        "3 shell readers follow the same list, runners and API calls pass": all(
-            (
-                allowed(bash(f"cat {root}/docs/testing.md")),
-                denied(bash(f"cat {root}/src/core/manager.py")),
-                denied(bash("sed -n '1,40p' src/core/manager.py")),
-                allowed(bash("pytest tests/test_lane.py -q")),
-                allowed(bash("curl -s http://127.0.0.1:8090/api/state")),
-                denied(bash("curl -s http://127.0.0.1:8090/components/copy.js")),
-            )
-        ),
-        "4 an interpreter reading source is denied, a suite run is not": all(
-            (
-                #: the runner question is the whole invocation, never the head
-                #: word: `node -e` and `node --test` share one
-                denied(bash(node_reads_source)),
-                denied(bash("python -c \"print(open('src/core.py').read())\"")),
-                allowed(bash("pytest tests/test_lane.py -q")),
-                allowed(bash("npx vitest run")),
-                allowed(bash("node --test tests/t.test.js")),
-            )
-        ),
-        "5 a recursive search with no root is denied, a rooted one is not": all(
-            (
-                denied(bash("grep -rn secret .")),
-                denied(bash("grep -rn secret")),
-                denied(bash("grep --recursive secret .")),
-                denied(bash("rg secret")),
-                allowed(bash("grep -rn secret docs/")),
-                allowed(bash("grep -n secret README.md")),
-            )
-        ),
         "6 an allowlisted directory name counts at the root and nowhere else": all(
             (
                 denied(read(f"{root}/src/docs/impl.py")),
@@ -698,17 +507,12 @@ def self_test() -> int:
                 #: spec source in either tree
                 denied(read(f"{tree}/src/core/manager.py")),
                 denied(read(f"{tree}/hooks/no-impl-reads.py")),
-                #: the run the agent is told to make, from inside its own tree
-                allowed(bash(f"cd {tree} && PYTHONPATH=$(pwd) .venv/bin/pytest tests/t.py -q")),
-                #: a `cd` does not launder a read: the path is resolved from there
-                denied(bash(f"cd {tree}/src && cat core.py")),
             )
         ),
         "8 the chain's own run artifacts are readable, so the writer certifies its run": all(
             (
                 allowed(read(f"{root}/gauntlet/red/demo.txt")),
                 allowed(read(f"{root}/gauntlet/merge/demo.txt")),
-                allowed(read(f"{root}/state/gates/pytest.txt")),
                 denied(read(f"{root}/src/state/manager.py")),
             )
         ),
@@ -735,24 +539,10 @@ def self_test() -> int:
                 #: a path boundary, not a string prefix
                 allowed(read(f"{root}/gauntlet/specs/approved/sub/x.txt")),
                 denied(read(f"{root}/gauntlet/specs/approved-old/x.txt")),
-                #: the rest of docs/ is untouched, and so is the same name nested
+                #: the test policy is untouched, and so is the same name nested
                 #: under the source tree
                 allowed(read(f"{root}/docs/testing.md")),
-                allowed(read(f"{root}/docs/plans.md")),
                 denied(read(f"{root}/src/gauntlet/specs/approved/demo.txt")),
-                #: the git-object read a blind agent is told to make
-                allowed(bash("git show HEAD:gauntlet/specs/approved/demo.txt")),
-                denied(bash("git show HEAD:gauntlet/plans/approved/demo.txt")),
-                #: a global option says where git runs, not what it does, so
-                #: inserting one moves neither verdict
-                sh.git_globals_change_nothing(
-                    bash,
-                    "git show HEAD:gauntlet/specs/approved/demo.txt",
-                    "git show HEAD:gauntlet/plans/approved/demo.txt",
-                ),
-                #: an alias definition chooses what the subcommand runs, so it
-                #: reads as no known subcommand and the content test applies
-                denied(bash("git -c alias.show=!cat show HEAD:gauntlet/specs/approved/demo.txt")),
             )
         ),
         "10 no blind-reads.json value re-opens the base or overlaps another": all(
@@ -813,6 +603,27 @@ def self_test() -> int:
         ),
         "13 no denied subtree nests inside an allowed one": _no_denied_nesting(),
         "14 this repo's own blind-reads.json parses, if it is there": _config_parses(),
+        "15 the prose directory is one file, and gate output is not readable": all(
+            (
+                #: the one policy file these agents are held to, and not the
+                #: directory around it: a design note there quotes the code it
+                #: describes
+                allowed(read(f"{root}/docs/testing.md")),
+                denied(read(f"{root}/docs/plans.md")),
+                denied(call("Grep", {"pattern": "x", "path": f"{root}/docs"})),
+                #: the entry is that file, not a prefix of its name
+                denied(read(f"{root}/docs/testing.md.bak")),
+                #: gate output is the implementation's own tracebacks under
+                #: another name
+                denied(read(f"{root}/state/gates/pytest.txt")),
+                denied(call("Grep", {"pattern": "x", "path": f"{root}/state"})),
+                #: what stays on the list beside that file: the lane the blind
+                #: writer owns and the two run artifacts it certifies
+                allowed(read(f"{root}/tests/test_lane.py")),
+                allowed(read(f"{root}/gauntlet/red/demo.txt")),
+                allowed(read(f"{root}/gauntlet/merge/demo.txt")),
+            )
+        ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal
         "every payload shape is answered, and an unreadable one is refused": (
