@@ -24,7 +24,7 @@ Brief is `TEST CHECK <slug>` through `END TEST CHECK`, verbatim as `${CLAUDE_PLU
 
 Brief carries spec commit, red commit, and `merge output: <gauntlet dir>/merge/<slug>.txt`. Read that file yourself: it holds test files, `git diff <red> HEAD -- <tests dir>/`, and saved red output, under those three head lines. Path absent or zero bytes = `NO EVIDENCE` below, and you rule on nothing. Present file whose `red output:` section is empty = complete brief, ruled on: no red log was on disk, and re-running `merge` write same file again.
 
-Block and stage 1's `READY` verdicts are on disk, never in brief: read `<gauntlet dir>/specs/approved/<slug>.txt` from spec commit named in brief (`git show <spec-commit>:<gauntlet dir>/specs/approved/<slug>.txt`, at tree brief names, or `git show` on dev after green merge). Fresh reviewer hold nothing else and need nothing else. Read test files too: `<tests dir>/` is open to you. `<source dir>/` stay denied.
+Block and stage 1's `READY` verdicts are on disk, never in brief: read `<gauntlet dir>/specs/approved/<slug>.txt` from spec commit named in brief. One command does it, and it is the only shell you have: `scripts/blind.sh show <spec-commit> <slug>`, which `git show` that path at tree brief names. `scripts/blind.sh show HEAD <slug>` after green merge. Fresh reviewer hold nothing else and need nothing else. Read test files too: `<tests dir>/` is open to you. `<source dir>/` stay denied.
 
 You may read `docs/` (`docs/testing.md` = binding policy you check against), `<tests dir>/conftest.py`, `<tests dir>/fake_*.py`, `<tests dir>/support/fixtures/*` and every file under `<tests dir>/`.
 
