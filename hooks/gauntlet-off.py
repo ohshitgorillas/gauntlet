@@ -13,10 +13,17 @@ of that question in the tree.
   * `--session-start`  silent when the gauntlet is on; a banner when it is off,
     naming the seven hooks, the `Stop` gate, and the plain statement that
     nothing in `gauntlet/` is protected from any hand.
-  * `--prompt`         emits on every turn either way. Gauntlet on: the
-    never-propose rule, stated absolutely. Gauntlet off: the standing notice
-    that the chain is not running, so the banner is not the only thing keeping
-    the state in view thirty turns deep.
+  * `--prompt`         speaks on the session's first turn and every `EVERY`th
+    turn after it, either way. Gauntlet on: the never-propose rule, stated
+    absolutely. Gauntlet off: the standing notice that the chain is not
+    running. The cadence is what holds that state in view thirty turns deep,
+    past the point where the session-start banner has left the context window,
+    and it is spaced because a line still in context is already doing its work.
+    The turn is counted in a file under the system temporary directory, named
+    for the session, so each session counts its own turns and the count lives
+    where temporary files live. A turn whose payload carries no session id, or
+    a count that cannot be read or written, speaks: losing a voice is the worse
+    failure of the two.
   * `--bash`           a `PreToolUse` hook, live only when the gauntlet is on
     and silent when it is off. It denies a `GAUNTLET=` assignment and a nested
     `claude` invocation. The bypass belongs to the hand that launches the
@@ -53,9 +60,11 @@ variable unset. That property is itself one of the lines it pins, and it is
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -72,6 +81,15 @@ WRAPPERS = ("env", "nohup", "timeout", "xargs")
 #: `timeout` takes a duration before the command it wraps, and every wrapper
 #: takes options of its own. Neither is the head word we are after.
 _DURATION = re.compile(r"\A[0-9]+(?:\.[0-9]+)?[smhd]?\Z")
+
+#: how many turns apart the `--prompt` voice speaks. One is a voice on every
+#: turn; a large number is a voice the session loses. Ten is a context window's
+#: worth of turns, near enough.
+EVERY = 10
+
+#: the characters that survive into the name of a count file. A session id
+#: arrives in a payload, so it is spelled into a flat name before it is a path.
+_TAME = re.compile(r"[^A-Za-z0-9_-]")
 
 #: the seven hooks the switch silences, by the name a reader sees in the tree
 SILENCED = (
@@ -220,8 +238,66 @@ def session_start() -> None:
         print(BANNER)
 
 
-def prompt() -> None:
-    print(NOTICE if sh.bypassed() else RULE)
+def _stdin() -> str:
+    """The payload on standard input, or an empty string where there is none.
+
+    A hook that only speaks must not die reading its own input: a closed or
+    absent stdin reads as no session, and `_speaks` answers that by speaking.
+    """
+    try:
+        if sys.stdin is None or sys.stdin.isatty():
+            return ""
+        return sys.stdin.read()
+    except (OSError, ValueError):
+        return ""
+
+
+def _session(text: str) -> str:
+    """The session id in a hook payload, tamed to a filename, or an empty string.
+
+    Every shape that is not a JSON object with a string `session_id` reads as no
+    session at all, which `_speaks` answers by speaking.
+    """
+    try:
+        payload = json.loads(text or "{}")
+    except ValueError:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    value = payload.get("session_id")
+    if not isinstance(value, str):
+        return ""
+    return _TAME.sub("", value)[:64]
+
+
+def _count_path(session: str) -> Path:
+    return Path(tempfile.gettempdir()) / ("gauntlet-off." + session)
+
+
+def _speaks(session: str, *, every: int = EVERY) -> bool:
+    """Whether this turn is one the voice speaks on, and count the turn.
+
+    True on the first turn of a session and every `every`th turn after it. No
+    session id, or a count file that cannot be read or written, is True: a voice
+    heard too often costs tokens, and a voice lost costs the rule it carries.
+    """
+    if not session or every < 1:
+        return True
+    path = _count_path(session)
+    try:
+        seen = int(path.read_text())
+    except (OSError, ValueError):
+        seen = 0
+    try:
+        path.write_text(str(seen + 1))
+    except OSError:
+        return True
+    return seen % every == 0
+
+
+def prompt(stdin: str = "") -> None:
+    if _speaks(_session(stdin)):
+        print(NOTICE if sh.bypassed() else RULE)
 
 
 def bash() -> None:
@@ -230,8 +306,23 @@ def bash() -> None:
     sh.hook_main(lambda name, tool_input, _payload: _verdict(name, tool_input), guards=("Bash",))
 
 
+def _cadence(session: str, *, every: int, turns: int) -> list[bool]:
+    """What `_speaks` answers over `turns` consecutive turns of one session.
+
+    A self-test helper, and it removes the count file it made: a self-test that
+    left one behind would pass once and fail on the next run.
+    """
+    try:
+        return [_speaks(session, every=every) for _ in range(turns)]
+    finally:
+        try:
+            _count_path(session).unlink()
+        except OSError:
+            pass
+
+
 def self_test() -> int:
-    """Pin the switch's grammar, the three voices, and the two denials."""
+    """Pin the switch's grammar, the three voices, the cadence, and the two denials."""
     lines = {
         "off() is the exact value `off`, after strip and lowercase": (
             off("off")
@@ -290,6 +381,24 @@ def self_test() -> int:
             and "not running" in NOTICE
             and BANNER != NOTICE
         ),
+        #: the cadence, on a session id no real session can collide with, and
+        #: removed after so a second run of the self-test starts from zero.
+        "the voice speaks on the first turn and every EVERY-th turn after": (
+            _cadence("cadence-" + str(os.getpid()), every=3, turns=7)
+            == [True, False, False, True, False, False, True]
+        ),
+        "a turn with an unreadable session id speaks": (
+            _session("") == ""
+            and _session("not json at all") == ""
+            and _session("[]") == ""
+            and _session('{"session_id": 7}') == ""
+            and all(_speaks("", every=3) for _ in range(4))
+        ),
+        "a session id is tamed to a filename directly under the temp directory": (
+            _session('{"session_id": "../../etc/passwd"}') == "etcpasswd"
+            and _count_path(_session('{"session_id": "a/b"}')).parent
+            == Path(tempfile.gettempdir())
+        ),
         "the self-test asserts nothing on the ambient variable": (
             off("off") is True and off(os.environ.get("NONEXISTENT-BY-CONSTRUCTION")) is False
         ),
@@ -309,6 +418,6 @@ if __name__ == "__main__":
     if "--session-start" in sys.argv:
         session_start()
     elif "--prompt" in sys.argv:
-        prompt()
+        prompt(_stdin())
     elif "--bash" in sys.argv:
         bash()
