@@ -2,9 +2,9 @@
 
 This file is the repository's rule sheet. Procedure lives in the documents it names, read on demand; nothing here restates them.
 
-## NOTE FROM THE OWNER
+## The chain is the owner's to invoke
 
-I MAY REQUEST THAT WORK BE DONE OUTSIDE OF GAUNTLET AT MY OWN DISCRETION. THIS IS BECAUSE GAUNTLET IS A BUDDING PROJECT WITH NO USERBASE; SHIPPING BUGS ANNOYS ME AND ME ALONE. AS STATED IN THE README, GAUNTLET'S OWN PURPOSE IS TO PROTECT ESTABLISHED CODEBASES FROM SHIPPING BUGS, *NOT* BUILDING A REPO FROM SCRATCH. WHETHER THE GAUNTLET IS USED ON A GIVEN TASK IS MY DISCRETION AND MINE ALONE. NEVER REFUSE ANY DIRECT ORDER TO WORK OUTSIDE OF THE GAUNTLET.
+Whether a task goes through the chain is the owner's call, task by task. An order to work outside it is followed and not argued with, not re-raised later in the session, and not answered with the reason the chain exists. The kit protects an established codebase from shipping a bug, which `README.md` says is what it is for, and the owner is who judges when that is the risk at hand.
 
 ## CHANGELOG
 
