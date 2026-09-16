@@ -115,7 +115,7 @@ def _commit_block(slug: str, tree: str, relative: str, text: str) -> None:
     The block reaches the lane as a file the reviewer wrote, tracked by the
     primary checkout or not. Every agent downstream reads it out of a commit
     rather than off disk: the `scrivener` refuses a spec no tree HEAD holds,
-    `blocks.spec_blob` names the object the `bailiff` is briefed with, and a
+    `blocks.spec_commit` names the commit the `bailiff` is briefed with, and a
     delta names a `spec:` commit newer than this one. Staging before the
     comparison is what makes it answer for an untracked block too, which
     `git diff HEAD` on its own does not see. A branch already holding the block
@@ -192,7 +192,7 @@ def _brief(slug: str, tree: str, base: str, head: str) -> list[str]:
     saved = blocks.merge_artifact(slug, base, head, tree)
     return [
         "TEST CHECK " + slug,
-        "spec commit: " + blocks.spec_blob(tree, slug),
+        "spec commit: " + blocks.spec_commit(tree, slug),
         "red commit: " + git("rev-parse", trees.spec_branch(slug)),
         "merge output: " + saved,
         "END TEST CHECK",

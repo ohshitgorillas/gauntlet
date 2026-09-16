@@ -227,7 +227,16 @@ def strike_whole_files(tree: str, block: str) -> None:
         note("  struck " + target)
 
 
-def spec_blob(tree: str, slug: str) -> str:
-    """The object name of the block as that tree's HEAD holds it."""
-    found = git("rev-parse", "HEAD:" + spec_path(slug), tree=tree, check=False)
+def spec_commit(tree: str, slug: str) -> str:
+    """The commit that last wrote the block, as that tree's HEAD reaches it.
+
+    A commit rather than the block's object name, because the one shell the
+    `bailiff` has is `scripts/blind.sh show <spec-commit> <slug>`, which spells
+    `git show <rev>:<path>`. An object name there resolves to no tree and the
+    reviewer is left reading the block off the working copy instead of the
+    landed one.
+    """
+    found = git(
+        "log", "-1", "--format=%H", "HEAD", "--", spec_path(slug), tree=tree, check=False
+    )
     return found or "unknown"
