@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-16
+
 ### Changed
 - **A shell on the default profile cannot write `<tests dir>`.** It is bound read-only there now, with the other four lanes. A command that regenerates a file under it — a snapshot update, a fixture a test writes — fails with `EROFS` where it used to pass; run it outside the session, or through the writer. The blind agents are unaffected: they run under `scripts/blind.sh`, which builds its own sandbox with their lane writable.
 
