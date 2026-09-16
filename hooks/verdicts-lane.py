@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `<gauntlet dir>/verdicts/` is the gauntlet-juror's lane.
+"""PreToolUse hook: `<gauntlet dir>/verdicts/` is the juror's lane.
 `Stop` hook, behind `--stop`: a red run with no verdict does not end a turn.
 
 Wire both session-wide from `.claude/settings.json`, so they bind the main
 agent and every subagent, and wire the lane again from the `hooks:` frontmatter
-of `agents/gauntlet-juror.md`.
+of `agents/juror.md`.
 
 The red run is a gate, so it carries an artifact. A verdict that lives in a
 transcript alone cannot be checked after the session and does not say which
@@ -18,7 +18,7 @@ Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under a
     `<gauntlet dir>/verdicts/` directory, unless the caller's `agent_type` is
-    `gauntlet-juror`
+    `juror`
   * a `Bash` command that names a `<gauntlet dir>/verdicts/` path and is not
     read-only, except a restore from a named git object
     (`git restore --source <rev>` or `git checkout <rev> --` onto the path),
@@ -29,7 +29,7 @@ shell; every write anywhere else, the other lanes included.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
 is the main agent, which is denied. If a build omits the key for subagents too,
-the gauntlet-juror is over-denied, which is the safe direction: no unruled
+the juror is over-denied, which is the safe direction: no unruled
 verdict reaches the tree, and the denial names this file.
 
 The `--stop` half reads `<gauntlet dir>/red/`, where `scripts/pair.sh red` saves the run
@@ -68,17 +68,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
-REVIEWER = "gauntlet-juror"
+REVIEWER = "juror"
 LANE = sh.verdicts_lane()
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 RED_DIR = sh.gauntlet_dir() + "/red"
 
 _LANE = (
-    f"{LANE}/ is the gauntlet-juror's lane. The verdict on a red run "
+    f"{LANE}/ is the juror's lane. The verdict on a red run "
     "is written there by the juror that issued it, and by nothing else: it is the "
     "only evidence anyone has that the run was certified and that a blind hand "
-    "certified it. Spawn a gauntlet-juror with the committed spec path and the path "
+    "certified it. Spawn a juror with the committed spec path and the path "
     "`scripts/pair.sh red` printed. (hooks/verdicts-lane.py)"
 )
 _BASH = sh.lane_denial(LANE, "a verdict", _LANE)
@@ -96,14 +96,14 @@ def main() -> None:
 _EMPTY = "{slug}: " + RED_DIR + "/{slug}.txt is empty. The run printed nothing, so there is "
 _EMPTY += "nothing to rule on. Re-run `scripts/pair.sh red {slug}`, or delete the file."
 _MISSING = "{slug}: no verdict. " + RED_DIR + "/{slug}.txt is a red run nobody ruled on. Spawn "
-_MISSING += "a gauntlet-juror with " + sh.specs_lane() + "/{slug}.txt and "
+_MISSING += "a juror with " + sh.specs_lane() + "/{slug}.txt and "
 _MISSING += RED_DIR + "/{slug}.txt, or delete the red file if the slug was abandoned."
 _UNREADABLE = "{slug}: " + RED_DIR + "/{slug}.txt could not be read ({error}). A red run this "
 _UNREADABLE += "gate cannot open is one nobody can be shown a verdict for, so it is a complaint "
 _UNREADABLE += "and not a file to step over. Fix its permissions, or delete it."
 _STALE = "{slug}: stale verdict. " + LANE + "/{slug}.txt is older than "
 _STALE += RED_DIR + "/{slug}.txt, so the run it ruled on has been overwritten since. Spawn "
-_STALE += "a fresh gauntlet-juror on the run now on disk."
+_STALE += "a fresh juror on the run now on disk."
 
 
 def _complaints(root: Path) -> list[str]:
@@ -227,24 +227,21 @@ def self_test() -> int:
             return [line.split(":", 1)[0] for line in _complaints(base)]
 
     lines = {
-        "1 gauntlet/verdicts/ closed to every agent but the gauntlet-juror": all(
+        "1 gauntlet/verdicts/ closed to every agent but the juror": all(
             (
                 denied(write(f"{root}/gauntlet/verdicts/demo.txt")),
                 denied(write("gauntlet/verdicts/demo.txt")),
-                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "gauntlet-arbiter")),
-                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "gauntlet-prosecutor")),
-                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "gauntlet-scrivener")),
-                #: an unprefixed same-named agent in the host project is not this one
-                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "juror")),
+                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "arbiter")),
+                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "prosecutor")),
+                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "scrivener")),
                 allowed(write(f"{root}/gauntlet/verdicts/demo.txt", REVIEWER)),
                 #: installed as a plugin the harness spells the name with its
                 #: plugin in front of it, and that is the same agent
                 allowed(write(f"{root}/gauntlet/verdicts/demo.txt", f"gauntlet:{REVIEWER}")),
-                denied(write(f"{root}/gauntlet/verdicts/demo.txt", "gauntlet:juror")),
                 #: the lane denies its own directory, and no other lane's
                 denied(write("/nogit/gauntlet/verdicts")),
-                allowed(write(f"{root}/gauntlet/reviews/demo.1.txt", "gauntlet-arbiter")),
-                allowed(write(f"{root}/gauntlet/specs/approved/demo.txt", "gauntlet-arbiter")),
+                allowed(write(f"{root}/gauntlet/reviews/demo.1.txt", "arbiter")),
+                allowed(write(f"{root}/gauntlet/specs/approved/demo.txt", "arbiter")),
                 allowed(write(f"{root}/state/verdicts/demo.txt")),
                 allowed(write(f"{root}/docs/testing.md")),
             )

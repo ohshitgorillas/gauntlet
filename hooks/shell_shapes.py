@@ -1004,17 +1004,17 @@ def lane(suffix: str) -> str:
 
 
 def plans_lane() -> str:
-    """The gauntlet-prosecutor's lane."""
+    """The prosecutor's lane."""
     return lane("plans/approved")
 
 
 def specs_lane() -> str:
-    """The gauntlet-arbiter's lane."""
+    """The arbiter's lane."""
     return lane("specs/approved")
 
 
 def verdicts_lane() -> str:
-    """The gauntlet-juror's lane."""
+    """The juror's lane."""
     return lane("verdicts")
 
 
@@ -1529,8 +1529,8 @@ def agent_of(payload: Payload | None) -> str:
     """Who is running this call, as a bare agent name, or `""` for the main agent.
 
     Installed as a plugin, the harness spells a subagent's `agent_type` with
-    the plugin it came from in front of it -- `gauntlet:gauntlet-prosecutor`
-    where a loose copy of the same kit sends `gauntlet-prosecutor`. Every hook
+    the plugin it came from in front of it -- `gauntlet:prosecutor`
+    where a loose copy of the same kit sends `prosecutor`. Every hook
     here compares the name against a bare one, so the namespace has to come off
     before the comparison or the same agent matches nothing it should: a lane
     denies its own writer, and a blind agent's guard finds no subject and lets
@@ -1538,7 +1538,7 @@ def agent_of(payload: Payload | None) -> str:
 
     An agent name carries no `:`, so everything up to the last one is the
     namespace and the tail is the name. Which plugin the namespace names
-    is not checked: a foreign plugin shipping an agent named `gauntlet-arbiter`
+    is not checked: a foreign plugin shipping an agent named `arbiter`
     is treated as this kit's, exactly as an unnamespaced agent of that name in
     the host project already is.
     """
@@ -1971,7 +1971,7 @@ def probe(
 
 #: one of the three default directory names as a whole path segment, for
 #: `rebased`. The bounds are not `\b`: a name is a segment when nothing joins it
-#: on either side, and `\b` would take the `gauntlet` of `gauntlet-arbiter` and
+#: on either side, and `\b` would take the `gauntlet` of `arbiter` and
 #: rename the agent. A trailing `/` is left to the text, so `find tests -delete`
 #: and `cd tests && rm t.py` -- a lane named with no slash at all -- respell too.
 _DEFAULT_SEGMENT = re.compile(

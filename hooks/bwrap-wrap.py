@@ -22,8 +22,8 @@ sequence unaltered, so the caller's text appears in the replacement exactly as
 typed, whatever it is.
 
 Three profiles, chosen by `agent_type`, the same payload field the lane hooks
-read. Only the kit's own agents -- an `agent_type` starting `gauntlet-` -- are
-wrapped at all. The main agent's call carries no `agent_type` and comes back
+read. Only the kit's own agents -- an `agent_type` named in `KIT_AGENTS` --
+are wrapped at all. The main agent's call carries no `agent_type` and comes back
 untouched: `bwrap` sets NO_NEW_PRIVS, so `sudo` inside the wrap fails with
 "The \"no new privileges\" flag is set", and every script that calls `sudo`
 internally dies with it, which no command-text carve-out can reach.
@@ -34,7 +34,7 @@ internally dies with it, which no command-text carve-out can reach.
   * **reviewer** for the blind reviewers: the whole filesystem read-only, plus a
     tmpfs over the reviewers' own lane. A reviewer's shell cannot change the
     checkout it was spawned to judge.
-  * **default** for every other `gauntlet-` agent. Everything readable.
+  * **default** for every other kit agent. Everything readable.
     Writable: the repository, the session's own `/tmp`, and `~/.cache`.
     Read-only again inside the repository: every lane directory in every
     checkout, `<gauntlet dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `hooks/`, `agents/`, `scripts/`,
@@ -104,14 +104,23 @@ pair_passthrough = importlib.import_module("pair-passthrough")
 
 #: the two blind agents that keep a shell. `scripts/blind.sh` is their one
 #: command and it runs its own `bwrap`, so this hook leaves them alone.
-PASSTHROUGH_AGENTS = ("gauntlet-scrivener", "gauntlet-bailiff")
+PASSTHROUGH_AGENTS = ("scrivener", "bailiff")
 
-#: the kit's own agents all carry this prefix; any other caller, the main agent
-#: included, is left unwrapped
-AGENT_PREFIX = "gauntlet-"
+#: the kit's own agents, named one by one; any other caller, the main agent
+#: included, is left unwrapped. A bare name carries no namespace to test, so
+#: the roster is the test.
+KIT_AGENTS = (
+    "prosecutor",
+    "detective",
+    "arbiter",
+    "examiner",
+    "scrivener",
+    "juror",
+    "bailiff",
+)
 
 #: the blind reviewers: read-only everywhere, with a tmpfs over their own lane
-REVIEWER_AGENTS = ("gauntlet-arbiter", "gauntlet-juror")
+REVIEWER_AGENTS = ("arbiter", "juror")
 
 #: read-only again inside every checkout, on top of a writable repository. The
 #: lane directories come from the one place they are defined.
@@ -208,7 +217,7 @@ def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
     # "The \"no new privileges\" flag is set", and so does every script that
     # calls it internally -- a route no command-text carve-out can reach. An
     # absent `agent_type` is the main agent; a foreign one is not this kit's.
-    if not agent.startswith(AGENT_PREFIX):
+    if agent not in KIT_AGENTS:
         return None
     if agent in PASSTHROUGH_AGENTS:
         return None
@@ -430,7 +439,7 @@ def _answer_with_path(where: str, root: str) -> dict[str, Any] | None:
             {
                 "tool_name": "Bash",
                 "cwd": root,
-                "agent_type": "gauntlet-prosecutor",
+                "agent_type": "prosecutor",
                 "tool_input": {"command": "echo hi"},
             }
         )
@@ -476,9 +485,9 @@ def _self_test_in(tmp: str) -> int:
             }
         )
 
-    default = wrap(semicolon, root, "gauntlet-prosecutor")
-    reviewer = wrap(semicolon, root, "gauntlet-arbiter")
-    awkward = wrap(heredoc, root, "gauntlet-prosecutor")
+    default = wrap(semicolon, root, "prosecutor")
+    reviewer = wrap(semicolon, root, "arbiter")
+    awkward = wrap(heredoc, root, "prosecutor")
 
     #: not `shutil.which`: a binary that will not run is the case below
     have_bwrap = bwrap_fault() is None
@@ -527,7 +536,7 @@ def _self_test_in(tmp: str) -> int:
                 {
                     "tool_name": "Bash",
                     "cwd": root,
-                    "agent_type": "gauntlet-prosecutor",
+                    "agent_type": "prosecutor",
                     "tool_input": {"command": "scripts/pair.sh red demo"},
                 }
             )
@@ -536,7 +545,7 @@ def _self_test_in(tmp: str) -> int:
                 {
                     "tool_name": "Bash",
                     "cwd": root,
-                    "agent_type": "gauntlet-prosecutor",
+                    "agent_type": "prosecutor",
                     "tool_input": {"command": "scripts/pair.sh red demo; rm -rf state"},
                 }
             )
@@ -545,13 +554,11 @@ def _self_test_in(tmp: str) -> int:
         #: installed as a plugin the harness spells the name with its plugin in
         #: front of it, and that is the same agent, profile for profile
         "a namespaced agent_type is the agent its bare spelling names": (
-            answer_for("gauntlet-prosecutor") is not None
-            and answer_for("gauntlet:gauntlet-prosecutor") == answer_for("gauntlet-prosecutor")
-            and answer_for("gauntlet:gauntlet-arbiter") == answer_for("gauntlet-arbiter")
+            answer_for("prosecutor") is not None
+            and answer_for("gauntlet:prosecutor") == answer_for("prosecutor")
+            and answer_for("gauntlet:arbiter") == answer_for("arbiter")
             #: a namespaced passthrough agent keeps its passthrough
-            and answer_for("gauntlet:gauntlet-scrivener") is None
-            #: and an unprefixed name under a namespace is still not this kit's
-            and answer_for("gauntlet:prosecutor") is None
+            and answer_for("gauntlet:scrivener") is None
         ),
         "the main agent's command, carrying no agent_type, comes back untouched": (
             _answer(
@@ -586,9 +593,9 @@ def _self_test_in(tmp: str) -> int:
             f"--bind-try {tree} {tree}" in default and f"--bind {tree} {tree}" not in default
         ),
         "a bind source cut between the profile and the exec is not named": (
-            gone not in wrap("true", gone, "gauntlet-prosecutor")
+            gone not in wrap("true", gone, "prosecutor")
             or not Path(gone).exists()
-            and f"--chdir {gone}" not in wrap("true", gone, "gauntlet-prosecutor")
+            and f"--chdir {gone}" not in wrap("true", gone, "prosecutor")
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal
@@ -603,7 +610,7 @@ def _self_test_in(tmp: str) -> int:
             ("the reviewer profile runs, against this very tree", reviewer),
             (
                 "the profile for the real checkout this gate runs in runs",
-                wrap("true", str(Path(__file__).resolve().parents[2]), "gauntlet-prosecutor"),
+                wrap("true", str(Path(__file__).resolve().parents[2]), "prosecutor"),
             ),
         ):
             #: `true` inside the sandbox, so a failure is the mount setup and
@@ -616,7 +623,7 @@ def _self_test_in(tmp: str) -> int:
         #: the race the listing cannot close: the profile names a tree that is
         #: gone by the time `bwrap` reads it. Under `--bind` this killed the
         #: whole command; the test removes the tree for real and runs it.
-        vanishing = wrap("true", root, "gauntlet-prosecutor")
+        vanishing = wrap("true", root, "prosecutor")
         shutil.rmtree(tree)
         ran, first = _runs(vanishing)
         label = "a worktree cut after the profile was built does not kill the command"

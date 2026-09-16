@@ -20,8 +20,8 @@ import pytest
 
 HOOK = Path(__file__).resolve().parent.parent / "hooks" / "bwrap-wrap.py"
 
-PROSECUTOR = "gauntlet-prosecutor"
-ARBITER = "gauntlet-arbiter"
+PROSECUTOR = "prosecutor"
+ARBITER = "arbiter"
 
 SEMICOLON_TEXT = "echo hi; cat /etc/hostname"
 HEREDOC_TEXT = "echo $(cat /etc/hostname) <<'X'"

@@ -1,5 +1,5 @@
 ---
-name: gauntlet-bailiff
+name: bailiff
 description: Post-merge test check, one per merged block. Reads the committed spec block and the tests that landed, never the implementation, and returns PIN, SOFT, MISSING or EXTRA per behavior line plus a row per rule 4, 6, 13 or 14 violation. Spawned fresh after `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`; brief it with the `TEST CHECK` block the script printed, verbatim, and nothing else.
 tools: Read, Grep, Glob, Bash
 model: inherit

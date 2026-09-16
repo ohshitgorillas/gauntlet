@@ -11,8 +11,8 @@ rule. A caller outside that pair returns `None` and is unjudged, so the main
 agent's shell is judged by nothing this hook does -- identical to the
 frontmatter wiring it replaces, which never saw a main-agent call either.
 
-The `gauntlet-juror` and the `gauntlet-arbiter` have no `Bash` at all. The
-`gauntlet-scrivener` and the `gauntlet-bailiff` still need one: a suite run
+The `juror` and the `arbiter` have no `Bash` at all. The
+`scrivener` and the `bailiff` still need one: a suite run
 against the file they wrote, the working-tree check that proves their spec is
 committed, and a `git show` of that spec. Those three are `scripts/blind.sh`,
 and this hook is what makes them the only three.
@@ -70,7 +70,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
-BLIND = ("gauntlet-scrivener", "gauntlet-bailiff")
+BLIND = ("scrivener", "bailiff")
 ENTRY = "scripts/blind.sh"
 
 #: a slug names a file inside a lane directory, so it is one path segment and
@@ -141,7 +141,7 @@ def self_test() -> int:
     wire = sh.tests_dir() + "/test_hook_wire.py"
     plan = sh.plans_lane() + "/bash-sandbox"
 
-    bash = sh.rebased(sh.probe(_verdict, "/repo", "Bash", "command", agent="gauntlet-scrivener"))
+    bash = sh.rebased(sh.probe(_verdict, "/repo", "Bash", "command", agent="scrivener"))
 
     denied, allowed = sh.denied, sh.allowed
 
@@ -217,10 +217,10 @@ def self_test() -> int:
         "3 the two blind agents are judged, and no other caller is": all(
             (
                 #: the one command, for the pair this hook answers for
-                allowed(bash("scripts/blind.sh status demo", "gauntlet-scrivener")),
-                allowed(bash("scripts/blind.sh status demo", "gauntlet-bailiff")),
-                denied(bash(f"cat {here}{hook}", "gauntlet-scrivener")),
-                denied(bash(f"cat {here}{hook}", "gauntlet-bailiff")),
+                allowed(bash("scripts/blind.sh status demo", "scrivener")),
+                allowed(bash("scripts/blind.sh status demo", "bailiff")),
+                denied(bash(f"cat {here}{hook}", "scrivener")),
+                denied(bash(f"cat {here}{hook}", "bailiff")),
                 #: the main agent carries no `agent_type`, and session wiring
                 #: puts its every shell command here: it passes unjudged
                 allowed(bash(f"cat {here}{hook}", None)),
@@ -229,21 +229,17 @@ def self_test() -> int:
                 allowed(bash(f"cat {here}{hook}", "")),
                 #: and so does an agent this hook does not answer for, rather
                 #: than losing a shell to a rule that is not about it
-                allowed(bash(f"cat {here}{hook}", "gauntlet-juror")),
-                allowed(bash(f"cat {here}{hook}", "gauntlet-arbiter")),
-                allowed(bash(f"cat {here}{hook}", "gauntlet-prosecutor")),
+                allowed(bash(f"cat {here}{hook}", "juror")),
+                allowed(bash(f"cat {here}{hook}", "arbiter")),
+                allowed(bash(f"cat {here}{hook}", "prosecutor")),
                 allowed(bash(f"cat {here}{hook}", "general-purpose")),
-                #: an unprefixed same-named agent in the host project is not
-                #: this one, so it keeps its own shell
-                allowed(bash(f"cat {here}{hook}", "scrivener")),
                 #: installed as a plugin the harness spells the name with its
                 #: plugin in front of it, and that is the same agent
-                allowed(bash("scripts/blind.sh status demo", "gauntlet:gauntlet-scrivener")),
-                allowed(bash("scripts/blind.sh status demo", "gauntlet:gauntlet-bailiff")),
-                denied(bash(f"cat {here}{hook}", "gauntlet:gauntlet-scrivener")),
-                denied(bash(f"cat {here}{hook}", "gauntlet:gauntlet-bailiff")),
-                allowed(bash(f"cat {here}{hook}", "gauntlet:gauntlet-juror")),
-                allowed(bash(f"cat {here}{hook}", "gauntlet:scrivener")),
+                allowed(bash("scripts/blind.sh status demo", "gauntlet:scrivener")),
+                allowed(bash("scripts/blind.sh status demo", "gauntlet:bailiff")),
+                denied(bash(f"cat {here}{hook}", "gauntlet:scrivener")),
+                denied(bash(f"cat {here}{hook}", "gauntlet:bailiff")),
+                allowed(bash(f"cat {here}{hook}", "gauntlet:juror")),
             )
         ),
         "4 the runner is configuration, and no runner argument widens the one command": (

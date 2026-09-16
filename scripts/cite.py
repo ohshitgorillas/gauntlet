@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Resolve the citations in a plan against the tree.
 
-A plan's citations are retyped by hand out of a `gauntlet-detective` table, and
+A plan's citations are retyped by hand out of a `detective` table, and
 nothing checks the retyping. The tree is frozen while a plan is drafted and
 reviewed, so a citation that does not resolve is a transcription error and
 nothing else: a mistyped path, a grep hit cited instead of the construct, a bare
@@ -33,7 +33,7 @@ The guarantee is one sentence: the number points at a line containing that
 quote. A citation carrying no quoted text is checked for existence only, and
 that is the majority shape. A green `--check` says nothing whatever about
 whether a cited line supports the sentence around it -- that judgment is the
-`gauntlet-prosecutor`'s check (b), and it is untouched by this script.
+`prosecutor`'s check (b), and it is untouched by this script.
 
 The checkout root is resolved from this file's own path, never from the cwd, so
 a worktree checks its own copy of a document.

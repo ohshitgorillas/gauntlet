@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `tests/` is the gauntlet-scrivener's lane, and only in its spec tree.
+"""PreToolUse hook: `tests/` is the scrivener's lane, and only in its spec tree.
 
 Wired session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`agents/gauntlet-scrivener.md`, where the same script confines that agent to
+`agents/scrivener.md`, where the same script confines that agent to
 its own tree's `tests/`.
 
 The rule it enforces: tests are written blind, from an approved spec block, by
-the `gauntlet-scrivener`, in the spec worktree cut for the run. Every other hand on a
+the `scrivener`, in the spec worktree cut for the run. Every other hand on a
 test file is the one the chain exists to keep off it: the agent that
 implements the change editing a test until it passes.
 
 Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under `tests/` of any
-    checkout, unless the caller's `agent_type` is `gauntlet-scrivener` AND the
+    checkout, unless the caller's `agent_type` is `scrivener` AND the
     target is inside a `.claude/worktrees/*-spec` tree
-  * for the `gauntlet-scrivener`, any `Write`/`Edit` outside its spec tree's `tests/`
+  * for the `scrivener`, any `Write`/`Edit` outside its spec tree's `tests/`
   * a `Bash` command that writes and that names a `tests/` path, except a
     restore from a named git object (`git restore --source <rev>` or
     `git checkout <rev> --` onto the path), which copies a commit and types
@@ -48,14 +48,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
-WRITER = "gauntlet-scrivener"
+WRITER = "scrivener"
 #: `tests` unless the repo names another directory under the `tests_dir` key
 #: of `blind-reads.json`; the lane hooks and the scripts read the same key
 LANE = sh.tests_dir()
 BASH_TESTS = sh.lane_pattern(LANE)
 
 _LANE = (
-    f"{LANE}/ is the gauntlet-scrivener's lane, written only in its spec tree from the "
+    f"{LANE}/ is the scrivener's lane, written only in its spec tree from the "
     "committed spec block. A test whose behavior changed goes back through the "
     "spec: a re-approved line, a new `spec:` commit, a delta to the writer. A "
     "test whose assertion survives unchanged goes through "
@@ -118,15 +118,12 @@ def self_test() -> int:
                 denied(write(f"{impl}/tests/t.py")),
                 denied(write(f"{spec}/tests/t.py")),
                 denied(write(f"{impl}/tests/t.py", "cavecrew-builder")),
-                #: an unprefixed same-named agent in the host project is not this one
-                denied(write(f"{spec}/tests/t.py", "scrivener")),
                 allowed(write(f"{spec}/tests/t.py", WRITER)),
                 denied(write(f"{impl}/tests/t.py", WRITER)),
                 #: installed as a plugin the harness spells the name with its
                 #: plugin in front of it, and that is the same agent
                 allowed(write(f"{spec}/tests/t.py", f"gauntlet:{WRITER}")),
                 denied(write(f"{impl}/tests/t.py", f"gauntlet:{WRITER}")),
-                denied(write(f"{spec}/tests/t.py", "gauntlet:scrivener")),
             )
         ),
         "2 writer confined to its spec tree's tests/": all(

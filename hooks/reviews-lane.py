@@ -3,7 +3,7 @@
 
 Wired session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`agents/gauntlet-arbiter.md` and `agents/gauntlet-prosecutor.md`, where
+`agents/arbiter.md` and `agents/prosecutor.md`, where
 the same script confines those two agents to what they are allowed to write.
 
 The rule it enforces: a reviewer's verdict reaches the rest of the chain from a
@@ -11,23 +11,23 @@ file the reviewer wrote itself, `<gauntlet dir>/reviews/<slug>.<N>.txt`, never
 from a transcription the main agent typed. A verdict that passes through
 another agent's hands on the way is a verdict that agent can soften.
 
-Each reviewer has a second write, and exactly one: the `gauntlet-arbiter` the
-approved block at `<gauntlet dir>/specs/approved/<slug>.txt`, and the `gauntlet-prosecutor`
+Each reviewer has a second write, and exactly one: the `arbiter` the
+approved block at `<gauntlet dir>/specs/approved/<slug>.txt`, and the `prosecutor`
 the approved plan at `<gauntlet dir>/plans/approved/<slug>.txt`, each written on `READY`
 and on nothing else. That is the same rule in the other direction — the file a
 later stage works from is written by the gate itself — so this hook must allow
 both or each reviewer is locked out of the lane `specs-lane.py` and
 `plans-lane.py` reserve for it. Neither write is the other's: the
-`gauntlet-prosecutor` approves no spec, and the `gauntlet-arbiter` approves no plan.
+`prosecutor` approves no spec, and the `arbiter` approves no plan.
 
 Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under `<gauntlet dir>/reviews/`
-    of any checkout, unless the caller's `agent_type` is `gauntlet-arbiter` or
-    `gauntlet-prosecutor`
+    of any checkout, unless the caller's `agent_type` is `arbiter` or
+    `prosecutor`
   * for those two agents, any `Write`/`Edit`/`NotebookEdit` outside
-    `<gauntlet dir>/reviews/`, except the `gauntlet-arbiter` writing under
-    `<gauntlet dir>/specs/approved/` and the `gauntlet-prosecutor` under
+    `<gauntlet dir>/reviews/`, except the `arbiter` writing under
+    `<gauntlet dir>/specs/approved/` and the `prosecutor` under
     `<gauntlet dir>/plans/approved/`
   * for those two agents, any `Bash` command that writes anything at all
   * for those two agents, a `Read` or a `Grep` aimed under
@@ -70,8 +70,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
-SPEC_REVIEWER = "gauntlet-arbiter"
-PLAN_REVIEWER = "gauntlet-prosecutor"
+SPEC_REVIEWER = "arbiter"
+PLAN_REVIEWER = "prosecutor"
 REVIEWERS = frozenset({SPEC_REVIEWER, PLAN_REVIEWER})
 #: tools that hand back a file's contents; `Glob` returns names only and is not one
 READ_TOOLS = ("Read", "Grep")
@@ -84,14 +84,14 @@ BASH_REVIEWS = sh.lane_pattern(LANE)
 
 _LANE = (
     f"{LANE}/ is the reviewers' lane: a verdict file is written by "
-    "the gauntlet-arbiter or gauntlet-prosecutor that produced it, and the chain reads "
+    "the arbiter or prosecutor that produced it, and the chain reads "
     "the verdict from that file. Nothing else writes there. "
     "(hooks/reviews-lane.py)"
 )
 _REVIEWER_LANE = (
     f"Reviewer: your verdict goes to {LANE}/<slug>.<N>.txt of the "
-    "main checkout, the gauntlet-arbiter's approved block to "
-    f"{APPROVED}/<slug>.txt, and the gauntlet-prosecutor's approved plan to "
+    "main checkout, the arbiter's approved block to "
+    f"{APPROVED}/<slug>.txt, and the prosecutor's approved plan to "
     f"{PLANS}/<slug>.txt. Nowhere else: not the source tree, not {sh.tests_dir()}/, "
     f"not the rest of {sh.docs_dir()}/, and not the other reviewer's lane. "
     "(hooks/reviews-lane.py)"
@@ -99,7 +99,7 @@ _REVIEWER_LANE = (
 _REVIEWER_BASH = (
     "Reviewer: a shell command that changes anything is denied; your writes are "
     f"the Write tool onto {LANE}/ and, on READY, {APPROVED}/ "
-    f"for the gauntlet-arbiter or {PLANS}/ for the gauntlet-prosecutor. "
+    f"for the arbiter or {PLANS}/ for the prosecutor. "
     "Read-only shell passes: cat, grep, sed -n, and a suite run "
     "in any of its recognized forms (pytest, python -m pytest, node --test, "
     "npm test, npx vitest, and the invocations this repo declares in "
@@ -178,17 +178,13 @@ def self_test() -> int:
         "1 gauntlet/reviews/ closed to everyone but the two reviewers": all(
             (
                 denied(write(f"{root}/gauntlet/reviews/slug.1.txt")),
-                denied(write(f"{root}/gauntlet/reviews/slug.1.txt", "gauntlet-scrivener")),
-                #: an unprefixed same-named agent in the host project is not this one
-                denied(write(f"{root}/gauntlet/reviews/slug.1.txt", "arbiter")),
-                denied(write(f"{root}/gauntlet/reviews/slug.1.txt", "prosecutor")),
+                denied(write(f"{root}/gauntlet/reviews/slug.1.txt", "scrivener")),
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", PLAN_REVIEWER)),
                 #: installed as a plugin the harness spells the name with its
                 #: plugin in front of it, and that is the same agent
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{SPEC_REVIEWER}")),
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{PLAN_REVIEWER}")),
-                denied(write(f"{root}/gauntlet/reviews/slug.1.txt", "gauntlet:arbiter")),
                 denied(bash("echo x > gauntlet/reviews/slug.1.txt")),
                 allowed(bash("cat gauntlet/reviews/slug.1.txt")),
             )
@@ -211,14 +207,14 @@ def self_test() -> int:
                 denied(bash("make clean", SPEC_REVIEWER)),
             )
         ),
-        "3 the gauntlet-arbiter alone also writes gauntlet/specs/approved/": all(
+        "3 the arbiter alone also writes gauntlet/specs/approved/": all(
             (
                 allowed(write(f"{root}/gauntlet/specs/approved/slug.txt", SPEC_REVIEWER)),
                 denied(write(f"{root}/gauntlet/specs/approved/slug.txt", PLAN_REVIEWER)),
                 denied(write(f"{root}/gauntlet/specs/drafts/slug.txt", SPEC_REVIEWER)),
             )
         ),
-        "4 the gauntlet-prosecutor alone also writes gauntlet/plans/approved/": all(
+        "4 the prosecutor alone also writes gauntlet/plans/approved/": all(
             (
                 allowed(write(f"{root}/gauntlet/plans/approved/slug.txt", PLAN_REVIEWER)),
                 denied(write(f"{root}/gauntlet/plans/approved/slug.txt", SPEC_REVIEWER)),

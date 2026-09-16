@@ -1,5 +1,5 @@
 ---
-name: gauntlet-arbiter
+name: arbiter
 description: Adversarial reviewer for a draft spec block, run before the user sees it. Reads the behavior lines and the existing tests, never the implementation, and returns ADMITTED, AMENDED or STRICKEN per line. Every check is a red flag with one named escape; the default verdict is STRICKEN.
 tools: Read, Grep, Glob, Bash, Write
 model: inherit
@@ -43,7 +43,7 @@ N. <behavior as the caller sees it>
 
 **On `READY`, and only on `READY`, you write the approved block to `<gauntlet dir>/specs/approved/<slug>.txt` of the main checkout.** `<slug>` is the `slug:` line at the top of the block. The file carries the block as approved — structure line, `brief:` section, surviving behavior lines in spec order — then a `--- reviewer ---` divider and your whole output verbatim beneath it. `STRICKEN` lines do not go in it: the file is the surviving contract, and the writer's one-test-per-line rule counts what is in the file. An `AMENDED` line stays, since it names a test that changes. An `ANOTHER PASS` or `ESCALATE` round writes no spec file at all; nothing but a passed block reaches that folder.
 
-That folder is yours alone. `hooks/specs-lane.py` denies every other agent, the main agent included, every write under `<gauntlet dir>/specs/approved/`, so the file's existence is the only proof the blind `gauntlet-scrivener` has that the lines it is about to pin were reviewed at all. Write nothing there you did not pass, and never a block you have not run the checks on: a main agent that cannot get you to `READY` has no other route to that path, which is the whole reason the gate holds. Rules in `${CLAUDE_PLUGIN_ROOT}/docs/approved-specs.md`.
+That folder is yours alone. `hooks/specs-lane.py` denies every other agent, the main agent included, every write under `<gauntlet dir>/specs/approved/`, so the file's existence is the only proof the blind `scrivener` has that the lines it is about to pin were reviewed at all. Write nothing there you did not pass, and never a block you have not run the checks on: a main agent that cannot get you to `READY` has no other route to that path, which is the whole reason the gate holds. Rules in `${CLAUDE_PLUGIN_ROOT}/docs/approved-specs.md`.
 
 You may read `docs/` (`docs/testing.md` = binding policy you check against), `<tests dir>/conftest.py`, `<tests dir>/fake_*.py`, `<tests dir>/support/fixtures/*` and every file under `<tests dir>/`, plus `<external protocol/vendor docs, if any>`.
 

@@ -4,13 +4,13 @@ Eight agents, and the whole system is the shape of what each one is not allowed 
 
 | Agent | Sees the code | Writes | Hooks |
 | --- | --- | --- | --- |
-| `gauntlet-prosecutor` | yes, all of it | `<gauntlet dir>/reviews/<slug>.plan.<N>.txt`, `<gauntlet dir>/plans/approved/<slug>.txt` | `reviews-lane`, `plans-lane` |
-| `gauntlet-detective` | yes, all of it | nothing | `specs-lane`, `tests-lane`, `reviews-lane` |
-| `gauntlet-examiner` | yes, all of it | throwaway scripts outside the tree | `specs-lane`, `tests-lane` |
-| `gauntlet-arbiter` | **no** | `<gauntlet dir>/reviews/<slug>.<N>.txt`, `<gauntlet dir>/specs/approved/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
-| `gauntlet-scrivener` | **no** | `<tests dir>/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane`, `blind-bash` |
-| `gauntlet-bailiff` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `plans-lane`, `reviews-lane`, `verdicts-lane`, `blind-bash` |
-| `gauntlet-juror` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `reviews-lane` |
+| `prosecutor` | yes, all of it | `<gauntlet dir>/reviews/<slug>.plan.<N>.txt`, `<gauntlet dir>/plans/approved/<slug>.txt` | `reviews-lane`, `plans-lane` |
+| `detective` | yes, all of it | nothing | `specs-lane`, `tests-lane`, `reviews-lane` |
+| `examiner` | yes, all of it | throwaway scripts outside the tree | `specs-lane`, `tests-lane` |
+| `arbiter` | **no** | `<gauntlet dir>/reviews/<slug>.<N>.txt`, `<gauntlet dir>/specs/approved/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
+| `scrivener` | **no** | `<tests dir>/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane`, `blind-bash` |
+| `bailiff` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `plans-lane`, `reviews-lane`, `verdicts-lane`, `blind-bash` |
+| `juror` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `reviews-lane` |
 | the main agent | yes | everything else | all of them, session-wide |
 
 ## The switch
@@ -21,26 +21,26 @@ One statement here covers every sentence in this file that says a hook denies so
 
 ## Who is blind, and why
 
-The `gauntlet-arbiter`, the `gauntlet-scrivener`, the `gauntlet-juror` and the `gauntlet-bailiff` are the four that never read the implementation. Everything else in the repo exists to keep that true.
+The `arbiter`, the `scrivener`, the `juror` and the `bailiff` are the four that never read the implementation. Everything else in the repo exists to keep that true.
 
-Under `GAUNTLET=off` it is not true. `no-impl-reads.py` and `blind-bash.py` are two of the seven hooks the switch silences, so a `gauntlet-arbiter` or a `gauntlet-scrivener` spawned in a bypassed session can read the implementation and can run any shell command, and nothing denies it. Blindness is the property the whole chain rests on, so a spec block or a test produced in such a session is worth what an unblind agent's work is worth, and it lands in a tracked file that looks like any other. A session with the gauntlet off should not run the chain.
+Under `GAUNTLET=off` it is not true. `no-impl-reads.py` and `blind-bash.py` are two of the seven hooks the switch silences, so a `arbiter` or a `scrivener` spawned in a bypassed session can read the implementation and can run any shell command, and nothing denies it. Blindness is the property the whole chain rests on, so a spec block or a test produced in such a session is worth what an unblind agent's work is worth, and it lands in a tracked file that looks like any other. A session with the gauntlet off should not run the chain.
 
 A reviewer that can read the code will rationalize a spec line that merely describes what the code already does — the line looks true, because it is, and it pins nothing. A test writer that can read the code writes a test that mirrors it: the test and the implementation share the same mistake, so it goes green on a wrong implementation and nobody sees. A certifier that can read the code reads a `GREEN` as the implementation already being right rather than as the test failing to bite, which is the one reading the red run exists to rule out. A post-merge checker that can read the code reads a softened assertion as matching what the code turned out to do, which is exactly the change it is there to catch.
 
-The certifier is also blind to the test it is judging in a second sense: it did not write it. The `gauntlet-scrivener` grading its own red run is the same conflict one stage down from an agent testing its own code, so the run output goes to a fresh agent that holds none of the reasons the test was written the way it was.
+The certifier is also blind to the test it is judging in a second sense: it did not write it. The `scrivener` grading its own red run is the same conflict one stage down from an agent testing its own code, so the run output goes to a fresh agent that holds none of the reasons the test was written the way it was.
 
-Blindness costs something, so it is paid for. The `gauntlet-examiner` measures the values a blind reviewer cannot look up, and the `gauntlet-detective` finds the lines a plan needs to cite. Both can read everything. Neither issues a verdict, which is why letting them see is safe.
+Blindness costs something, so it is paid for. The `examiner` measures the values a blind reviewer cannot look up, and the `detective` finds the lines a plan needs to cite. Both can read everything. Neither issues a verdict, which is why letting them see is safe.
 
 ## The chain
 
-1. The main agent drafts a plan and sends its discovery questions, all of them, to one `gauntlet-detective`.
-2. The `gauntlet-prosecutor` resolves the plan's citations and returns a pass or fail per check and, on `READY` and only then, writes `<gauntlet dir>/plans/approved/<slug>.txt`. The owner reads it only on a pass. Rules in `plans.md`.
-3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `gauntlet-examiner` measures it.
-4. The `gauntlet-arbiter` runs its checks blind and, on `READY` and only then, writes `<gauntlet dir>/specs/approved/<slug>.txt`.
-5. The `gauntlet-scrivener` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
-6. The tests run red under `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh red`, and a `gauntlet-juror` reads that saved output against the approved block and returns one verdict per line, blind.
+1. The main agent drafts a plan and sends its discovery questions, all of them, to one `detective`.
+2. The `prosecutor` resolves the plan's citations and returns a pass or fail per check and, on `READY` and only then, writes `<gauntlet dir>/plans/approved/<slug>.txt`. The owner reads it only on a pass. Rules in `plans.md`.
+3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `examiner` measures it.
+4. The `arbiter` runs its checks blind and, on `READY` and only then, writes `<gauntlet dir>/specs/approved/<slug>.txt`.
+5. The `scrivener` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
+6. The tests run red under `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh red`, and a `juror` reads that saved output against the approved block and returns one verdict per line, blind.
 7. The main agent implements against the tests, and never edits them.
-8. After `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`, a `gauntlet-bailiff` reads the `TEST CHECK` brief the script printed, and the `<gauntlet dir>/merge/<slug>.txt` that brief names, against the committed block, and returns `PIN`, `SOFT`, `MISSING` or `EXTRA` per behavior line, blind. It is the only round that holds test code, so rules 4, 6, 13 and 14 are checked there and nowhere else.
+8. After `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`, a `bailiff` reads the `TEST CHECK` brief the script printed, and the `<gauntlet dir>/merge/<slug>.txt` that brief names, against the committed block, and returns `PIN`, `SOFT`, `MISSING` or `EXTRA` per behavior line, blind. It is the only round that holds test code, so rules 4, 6, 13 and 14 are checked there and nowhere else.
 
 ## `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh`
 
@@ -81,11 +81,11 @@ The two runners are `pytest_command` and `node_command` of that same file, read 
 
 ## The tests-only lane
 
-A change confined to `<tests dir>/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `gauntlet-detective`, no plan, no `gauntlet-prosecutor`, no owner plan approval.
+A change confined to `<tests dir>/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `detective`, no plan, no `prosecutor`, no owner plan approval.
 
-1. The main agent drafts a `motion: strike`, `motion: amend` or `motion: rehome` block and sends it to a `gauntlet-arbiter`.
+1. The main agent drafts a `motion: strike`, `motion: amend` or `motion: rehome` block and sends it to a `arbiter`.
 2. The reviewer resolves each line's quoted assertion against the test file itself — `<tests dir>/` is open to it, and the implementation is not what these lines rest on — and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
-3. The `gauntlet-scrivener` removes the targets and writes the replacements its `as:` fields name.
+3. The `scrivener` removes the targets and writes the replacements its `as:` fields name.
 4. `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py`, run by `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: none of the three shapes has an implementation phase, so the window those two watch does not exist.
 
 The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `<tests dir>/`.
@@ -94,7 +94,7 @@ Steps 4 and 5 are the load-bearing pair, which is why a hook and not a conventio
 
 ## Verdicts, not grades
 
-None of the reviewers hands back a score. `gauntlet-prosecutor` and `gauntlet-arbiter` return a gate token and a finding per check, and the default on every check is the failing one: a check the reviewer cannot decide fails. That is deliberate. A reviewer with discretion between pass and fail spends it on being agreeable, and an under-cut spec costs more than an over-cut one — the main agent can argue a cut back cheaply, and nobody ever argues back a line that should not have shipped.
+None of the reviewers hands back a score. `prosecutor` and `arbiter` return a gate token and a finding per check, and the default on every check is the failing one: a check the reviewer cannot decide fails. That is deliberate. A reviewer with discretion between pass and fail spends it on being agreeable, and an under-cut spec costs more than an over-cut one — the main agent can argue a cut back cheaply, and nobody ever argues back a line that should not have shipped.
 
 Every reviewer also refuses a brief that steers it: a conclusion offered as settled fact, a ruling on scope, a question addressed to the reviewer, an alternative verdict, its own rules recited back. A steering rejection burns that agent — the steering is in its context now — so the bare brief goes to a fresh one.
 

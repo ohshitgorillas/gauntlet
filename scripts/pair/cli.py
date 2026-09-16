@@ -167,7 +167,7 @@ def cmd_red(slug: str) -> int:
 
 
 def _brief(slug: str, tree: str, base: str, head: str) -> list[str]:
-    """The five lines a `gauntlet-bailiff` is briefed with, and the file they name."""
+    """The five lines a `bailiff` is briefed with, and the file they name."""
     saved = blocks.merge_artifact(slug, base, head, tree)
     return [
         "TEST CHECK " + slug,
@@ -225,7 +225,7 @@ def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
 
     if mechanical:
         #: no implementation phase, so no window for a test to soften in:
-        #: the mechanical check takes the gauntlet-bailiff's round
+        #: the mechanical check takes the bailiff's round
         verdicts = blocks.strike_report(text, base, head, tree)
         for line in verdicts:
             out(line)

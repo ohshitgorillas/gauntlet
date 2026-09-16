@@ -163,7 +163,7 @@ def _bash(hook_dir, hook_name, command, agent=None):
     return _decision(hook_dir, hook_name, payload)
 
 
-def _read(hook_dir, path, agent="gauntlet-scrivener"):
+def _read(hook_dir, path, agent="scrivener"):
     return _decision(
         hook_dir,
         "no-impl-reads.py",
@@ -206,7 +206,7 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
 
     def test_writer_writes_the_named_dir_of_its_spec_tree_only(self):
         tree = "/repo/.claude/worktrees/x-spec"
-        writer = "gauntlet-scrivener"
+        writer = "scrivener"
         self.assertEqual(_write(self.moved, "tests-lane.py", f"{tree}/spec/t.py", writer), SILENT)
         self.assertEqual(_write(self.moved, "tests-lane.py", f"{tree}/tests/t.py", writer), DENY)
         self.assertEqual(_write(self.moved, "tests-lane.py", "/repo/spec/t.py", writer), DENY)
@@ -260,10 +260,10 @@ class GauntletDirMovesEveryLane(unittest.TestCase):
 
     def test_each_lane_hook_guards_the_lane_under_the_named_base(self):
         for hook, suffix, reviewer in (
-            ("specs-lane.py", "specs/approved", "gauntlet-arbiter"),
-            ("plans-lane.py", "plans/approved", "gauntlet-prosecutor"),
-            ("verdicts-lane.py", "verdicts", "gauntlet-juror"),
-            ("reviews-lane.py", "reviews", "gauntlet-arbiter"),
+            ("specs-lane.py", "specs/approved", "arbiter"),
+            ("plans-lane.py", "plans/approved", "prosecutor"),
+            ("verdicts-lane.py", "verdicts", "juror"),
+            ("reviews-lane.py", "reviews", "arbiter"),
         ):
             with self.subTest(hook=hook):
                 moved_path = f"/repo/work/chain/{suffix}/slug.txt"

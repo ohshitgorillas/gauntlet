@@ -57,7 +57,7 @@ NOGIT_CWD = "/nogit"
 #: `no-impl-reads.py` and `blind-bash.py` are wired session-wide and gated on
 #: `agent_type`, so a payload naming no caller is the main agent and passes
 #: both unjudged. Every case about what a blind agent may read or run names one.
-BLIND_READER = "gauntlet-scrivener"
+BLIND_READER = "scrivener"
 
 
 def hook_decision(hook_name, payload):
@@ -518,8 +518,8 @@ class SpecsLaneCallers(unittest.TestCase):
         # passed reaches the folder the blind writer works from.
         expected = {
             None: DENY,
-            "gauntlet-prosecutor": DENY,
-            "gauntlet-arbiter": SILENT,
+            "prosecutor": DENY,
+            "arbiter": SILENT,
         }
         block = REPO_CWD / "gauntlet" / "specs" / "approved" / "demo.txt"
         actual = sweep(
@@ -620,17 +620,17 @@ class PlansLaneCallers(unittest.TestCase):
 
     def test_only_the_plan_reviewer_may_write_an_approved_plan(self):
         # gauntlet-dir-move line 1.  One tool, one path, one cwd: only the
-        # caller varies, and `prosecutor` sits beside `gauntlet-prosecutor` so
+        # caller varies, and `prosecutor` sits beside `prosecutor` so
         # both sides of the boundary are in the same sweep.  A lane constant
         # left at the old plans path answers SILENT for every caller at the new
         # one, and an approved plan is then typed by a hand that did not hold
         # the plan gate.
         expected = {
             None: DENY,
-            "gauntlet-arbiter": DENY,
-            "gauntlet-scrivener": DENY,
+            "arbiter": DENY,
+            "scrivener": DENY,
             "prosecutor": DENY,
-            "gauntlet-prosecutor": SILENT,
+            "prosecutor": SILENT,
         }
         plan = REPO_CWD / "gauntlet" / "plans" / "approved" / "demo.txt"
         actual = sweep(
@@ -649,11 +649,11 @@ class ReviewsLaneOnAnApprovedPlan(unittest.TestCase):
     def test_the_plan_reviewer_is_carved_out_where_the_spec_one_is_not(self):
         # gauntlet-dir-move line 8.  Same tool, same path, same cwd, two
         # reviewers.  A reviewer carve-out left at the old plans path answers
-        # DENY for the gauntlet-prosecutor too, so the one agent that may write
+        # DENY for the prosecutor too, so the one agent that may write
         # an approved plan is locked out of its own lane.
         expected = {
-            "gauntlet-prosecutor": SILENT,
-            "gauntlet-arbiter": DENY,
+            "prosecutor": SILENT,
+            "arbiter": DENY,
         }
         plan = REPO_CWD / "gauntlet" / "plans" / "approved" / "demo.txt"
         actual = sweep(
@@ -671,7 +671,7 @@ class ReviewsLaneArbiterGit(unittest.TestCase):
 
     def test_the_arbiters_git_commands_are_judged_by_form_not_name(self):
         # gauntlet-dir-move line 14.  Every payload carries `agent_type`
-        # gauntlet-arbiter.  Judged by subcommand name alone, `git grep foo`
+        # arbiter.  Judged by subcommand name alone, `git grep foo`
         # is refused with no lane named while `git diff --output=out.txt`
         # writes a file and is allowed; `grep` sits on both sides of this
         # sweep, and with the reviewer's lane constant left at the old reviews
@@ -688,7 +688,7 @@ class ReviewsLaneArbiterGit(unittest.TestCase):
         actual = sweep(
             "reviews-lane.py",
             expected,
-            lambda command: bash_payload(command, REPO_CWD, "gauntlet-arbiter"),
+            lambda command: bash_payload(command, REPO_CWD, "arbiter"),
         )
         self.assertEqual(actual, expected)
 
@@ -870,7 +870,7 @@ class LanesOnReadOnlyShellShapes(unittest.TestCase):
             'echo "tests/x" >> notes.txt',
         )
         expected = {command: PASSES for command in reads}
-        self.assertEqual(lane_sweep(expected, REPO_CWD, "gauntlet-scrivener"), expected)
+        self.assertEqual(lane_sweep(expected, REPO_CWD, "scrivener"), expected)
 
     def test_the_blind_writer_shell_is_one_command_whatever_the_lanes_say(self):
         # Every command above is denied for the writer by blind-bash.py, which
@@ -886,7 +886,7 @@ class LanesOnReadOnlyShellShapes(unittest.TestCase):
         actual = sweep(
             "blind-bash.py",
             expected,
-            lambda command: bash_payload(command, REPO_CWD, "gauntlet-scrivener"),
+            lambda command: bash_payload(command, REPO_CWD, "scrivener"),
         )
         self.assertEqual(actual, expected)
 
@@ -909,7 +909,7 @@ class ReviewsLaneOnTheReviewersOwnShell(unittest.TestCase):
             "awk '{print}' docs/testing.md": PASSES,
             ".venv/bin/ruff check tests": PASSES,
         }
-        for agent in ("gauntlet-arbiter", "gauntlet-prosecutor"):
+        for agent in ("arbiter", "prosecutor"):
             with self.subTest(agent=agent):
                 self.assertEqual(lane_sweep(expected, REPO_CWD, agent), expected)
 
@@ -922,7 +922,7 @@ class ReviewsLaneOnTheReviewersOwnShell(unittest.TestCase):
             " > gauntlet/specs/drafts/x.txt": REVIEWS,
             "git cat-file -p 0123456789abcdef > gauntlet/specs/drafts/x.txt": REVIEWS,
         }
-        for agent in ("gauntlet-arbiter", "gauntlet-prosecutor"):
+        for agent in ("arbiter", "prosecutor"):
             with self.subTest(agent=agent):
                 self.assertEqual(lane_sweep(expected, REPO_CWD, agent), expected)
 
@@ -948,15 +948,15 @@ class TheCallerGate(unittest.TestCase):
         # implementation to adjudicate a failing test. A guard that judged
         # every caller would blind it the moment the hook went session-wide.
         expected = {
-            "gauntlet-arbiter": DENY,
-            "gauntlet-scrivener": DENY,
-            "gauntlet-juror": DENY,
-            "gauntlet-bailiff": DENY,
+            "arbiter": DENY,
+            "scrivener": DENY,
+            "juror": DENY,
+            "bailiff": DENY,
             None: SILENT,
             "": SILENT,
-            "gauntlet-prosecutor": SILENT,
-            "gauntlet-examiner": SILENT,
-            "gauntlet-detective": SILENT,
+            "prosecutor": SILENT,
+            "examiner": SILENT,
+            "detective": SILENT,
             "general-purpose": SILENT,
         }
         actual = {
@@ -973,13 +973,13 @@ class TheCallerGate(unittest.TestCase):
         # judges loses every other command. Wired session-wide without the
         # gate it would take the main agent's shell outright.
         expected = {
-            "gauntlet-scrivener": DENY,
-            "gauntlet-bailiff": DENY,
+            "scrivener": DENY,
+            "bailiff": DENY,
             None: SILENT,
             "": SILENT,
-            "gauntlet-arbiter": SILENT,
-            "gauntlet-juror": SILENT,
-            "gauntlet-prosecutor": SILENT,
+            "arbiter": SILENT,
+            "juror": SILENT,
+            "prosecutor": SILENT,
             "general-purpose": SILENT,
         }
         actual = {
@@ -1037,7 +1037,7 @@ class TheCallerGate(unittest.TestCase):
                 script = command.split("/hooks/", 1)[1].split()[0]
                 self.assertTrue((HOOK_DIR / script).is_file())
 
-        definitions = sorted((WORKTREE_ROOT / "agents").glob("gauntlet-*.md"))
+        definitions = sorted((WORKTREE_ROOT / "agents").glob("*.md"))
         self.assertTrue(definitions)
         for definition in definitions:
             with self.subTest(agent=definition.name):

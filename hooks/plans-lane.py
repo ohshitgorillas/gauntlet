@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `<gauntlet dir>/plans/approved/` is the gauntlet-prosecutor's lane.
+"""PreToolUse hook: `<gauntlet dir>/plans/approved/` is the prosecutor's lane.
 
 Wire it session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`agents/gauntlet-prosecutor.md`.
+`agents/prosecutor.md`.
 
 This is the rule `specs-lane.py` holds for the spec gate, one stage earlier.
 A plan that reached `READY` is the thing the implementation is measured
@@ -18,7 +18,7 @@ Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under a
     `<gauntlet dir>/plans/approved/` directory, unless the caller's `agent_type` is
-    `gauntlet-prosecutor`
+    `prosecutor`
   * a `Bash` command that names a `<gauntlet dir>/plans/approved/` path and is not
     read-only, except a restore from a named git object
     (`git restore --source <rev>` or `git checkout <rev> --` onto the path),
@@ -30,7 +30,7 @@ every write anywhere else, including a draft plan under
 
 `agent_type` is present in the payload only for subagent calls; an absent key
 is the main agent, which is denied. If a build omits the key for subagents
-too, the gauntlet-prosecutor is over-denied, which is the safe direction: no
+too, the prosecutor is over-denied, which is the safe direction: no
 unreviewed plan reaches the tree, and the denial names this file.
 """
 
@@ -43,17 +43,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
-REVIEWER = "gauntlet-prosecutor"
+REVIEWER = "prosecutor"
 LANE = sh.plans_lane()
 #: where an unreviewed plan is drafted: beside the lane, never in it
 DRAFTS = sh.gauntlet_dir() + "/plans/drafts"
 
 _LANE = (
-    f"{LANE}/ is the gauntlet-prosecutor's lane. An approved plan is "
+    f"{LANE}/ is the prosecutor's lane. An approved plan is "
     "written there by the reviewer that approved it, and by nothing else: it is "
     "the only evidence a later stage has that the plan it works from passed the "
     f"plan gate. Draft under {DRAFTS}/ and send the draft to the "
-    "gauntlet-prosecutor. (hooks/plans-lane.py)"
+    "prosecutor. (hooks/plans-lane.py)"
 )
 _BASH = sh.lane_denial(LANE, "an approved plan", _LANE)
 
@@ -73,25 +73,22 @@ def self_test() -> int:
     write, bash = sh.probes(_verdict, root)
     denied, allowed = sh.denied, sh.allowed
     lines = {
-        "1 gauntlet/plans/approved/ closed to every agent but the gauntlet-prosecutor": all(
+        "1 gauntlet/plans/approved/ closed to every agent but the prosecutor": all(
             (
                 denied(write(f"{root}/gauntlet/plans/approved/slug.txt")),
                 denied(write("gauntlet/plans/approved/slug.txt")),
-                denied(write(f"{root}/gauntlet/plans/approved/slug.txt", "gauntlet-arbiter")),
-                denied(write(f"{root}/gauntlet/plans/approved/slug.txt", "gauntlet-scrivener")),
-                #: an unprefixed same-named agent in the host project is not this one
-                denied(write(f"{root}/gauntlet/plans/approved/slug.txt", "prosecutor")),
+                denied(write(f"{root}/gauntlet/plans/approved/slug.txt", "arbiter")),
+                denied(write(f"{root}/gauntlet/plans/approved/slug.txt", "scrivener")),
                 allowed(write(f"{root}/gauntlet/plans/approved/slug.txt", REVIEWER)),
                 #: installed as a plugin the harness spells the name with its
                 #: plugin in front of it, and that is the same agent
                 allowed(write(f"{root}/gauntlet/plans/approved/slug.txt", f"gauntlet:{REVIEWER}")),
-                denied(write(f"{root}/gauntlet/plans/approved/slug.txt", "gauntlet:prosecutor")),
             )
         ),
         "2 every other path stays open, drafts included": all(
             (
                 allowed(write(f"{root}/gauntlet/plans/drafts/slug.txt")),
-                allowed(write(f"{root}/gauntlet/specs/approved/slug.txt", "gauntlet-arbiter")),
+                allowed(write(f"{root}/gauntlet/specs/approved/slug.txt", "arbiter")),
                 allowed(write(f"{root}/docs/plans.md")),
                 allowed(write(f"{root}/tests/plans/t.py")),
             )

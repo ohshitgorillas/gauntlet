@@ -6,8 +6,8 @@
 #   blind.sh status <slug>           is that block's approved spec committed
 #   blind.sh show <commit> <slug>    print that block's approved spec
 #
-# `hooks/blind-bash.py` denies the gauntlet-scrivener and the
-# gauntlet-bailiff every command but these, matching the whole command text
+# `hooks/blind-bash.py` denies the scrivener and the
+# bailiff every command but these, matching the whole command text
 # against one anchored pattern per subcommand. This script is the other half:
 # the hook decides nothing about what a subcommand does, and this file offers
 # no way to say anything the hook did not already admit.

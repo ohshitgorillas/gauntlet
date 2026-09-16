@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: `<gauntlet dir>/specs/approved/` is the gauntlet-arbiter's lane.
+"""PreToolUse hook: `<gauntlet dir>/specs/approved/` is the arbiter's lane.
 
 Wire it session-wide from `.claude/settings.json`, so it binds the main agent
 and every subagent, and again from the `hooks:` frontmatter of
-`agents/gauntlet-arbiter.md` and `agents/gauntlet-scrivener.md`.
+`agents/arbiter.md` and `agents/scrivener.md`.
 
-An approved spec is the only thing the blind `gauntlet-scrivener` works from. If the
+An approved spec is the only thing the blind `scrivener` works from. If the
 agent that wants a test can also write the file the test is generated from,
 approval is a formality: the main agent states the behavior, hands it to the
 writer, and the adversarial review it was supposed to survive never happened.
@@ -14,7 +14,7 @@ So the file is written by exactly one hand, the one that holds the gate.
 Denied:
 
   * `Write`/`Edit`/`NotebookEdit` whose target is under a `<gauntlet dir>/specs/approved/`
-    directory, unless the caller's `agent_type` is `gauntlet-arbiter`
+    directory, unless the caller's `agent_type` is `arbiter`
   * a `Bash` command that names a `<gauntlet dir>/specs/approved/` path and is not
     read-only, except a restore from a named git object
     (`git restore --source <rev>` or `git checkout <rev> --` onto the path),
@@ -26,7 +26,7 @@ every write anywhere else, including a draft spec under
 
 `agent_type` is present in the payload only for subagent calls; an absent key
 is the main agent, which is denied. If a build omits the key for subagents
-too, the gauntlet-arbiter is over-denied, which is the safe direction: no
+too, the arbiter is over-denied, which is the safe direction: no
 unreviewed spec reaches the writer, and the denial names this file.
 """
 
@@ -39,17 +39,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import shell_shapes as sh  # noqa: E402
 
-REVIEWER = "gauntlet-arbiter"
+REVIEWER = "arbiter"
 LANE = sh.specs_lane()
 #: where an unreviewed block is drafted: beside the lane, never in it
 DRAFTS = sh.gauntlet_dir() + "/specs/drafts"
 
 _LANE = (
-    f"{LANE}/ is the gauntlet-arbiter's lane. An approved spec is "
+    f"{LANE}/ is the arbiter's lane. An approved spec is "
     "written there by the reviewer that approved it, and by nothing else: it is "
-    "the only evidence the blind gauntlet-scrivener has that the behavior it is about "
+    "the only evidence the blind scrivener has that the behavior it is about "
     f"to pin was reviewed. Draft under {DRAFTS}/ and send the draft "
-    "to the gauntlet-arbiter. (hooks/specs-lane.py)"
+    "to the arbiter. (hooks/specs-lane.py)"
 )
 _BASH = sh.lane_denial(LANE, "an approved spec", _LANE)
 
@@ -69,19 +69,16 @@ def self_test() -> int:
     write, bash = sh.probes(_verdict, root)
     denied, allowed = sh.denied, sh.allowed
     lines = {
-        "1 gauntlet/specs/approved/ closed to every agent but the gauntlet-arbiter": all(
+        "1 gauntlet/specs/approved/ closed to every agent but the arbiter": all(
             (
                 denied(write(f"{root}/gauntlet/specs/approved/slug.txt")),
                 denied(write("gauntlet/specs/approved/slug.txt")),
-                denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "gauntlet-scrivener")),
+                denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "scrivener")),
                 denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "cavecrew-builder")),
-                #: an unprefixed same-named agent in the host project is not this one
-                denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "arbiter")),
                 allowed(write(f"{root}/gauntlet/specs/approved/slug.txt", REVIEWER)),
                 #: installed as a plugin the harness spells the name with its
                 #: plugin in front of it, and that is the same agent
                 allowed(write(f"{root}/gauntlet/specs/approved/slug.txt", f"gauntlet:{REVIEWER}")),
-                denied(write(f"{root}/gauntlet/specs/approved/slug.txt", "gauntlet:arbiter")),
             )
         ),
         "2 every other path stays open, drafts included": all(
@@ -89,7 +86,7 @@ def self_test() -> int:
                 allowed(write(f"{root}/gauntlet/specs/drafts/slug.txt")),
                 allowed(write(f"{root}/gauntlet/plans/approved/slug.txt")),
                 allowed(write(f"{root}/tests/specs/t.py")),
-                allowed(write(f"{root}/docs/lane.txt", "gauntlet-scrivener")),
+                allowed(write(f"{root}/docs/lane.txt", "scrivener")),
             )
         ),
         "3 shell writes naming the lane denied, reads and object restores pass": all(

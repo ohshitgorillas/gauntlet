@@ -2,7 +2,7 @@
 
 Break rule = review say no. Even if test green.
 
-`gauntlet-arbiter` point at rule number. Number no change — new rule go end or get letter, never renumber.
+`arbiter` point at rule number. Number no change — new rule go end or get letter, never renumber.
 
 `<...>` = you fill in for project. Swap in real name before rule bind.
 
@@ -145,7 +145,7 @@ No merge gate. `<mutation test command(s)>`. Survivor = untested line, equivalen
 
 ## Stack-specific addenda
 
-Fill per project. Below core rules, out of numbering — `gauntlet-arbiter` never point into this part.
+Fill per project. Below core rules, out of numbering — `arbiter` never point into this part.
 
 - Test framework(s), sweep mechanism.
 - Render/harness mechanic: what fire event handler, what visible server side.

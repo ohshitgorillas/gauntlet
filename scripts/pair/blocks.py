@@ -153,7 +153,7 @@ def merge_artifact(slug: str, base: str, head: str, tree: str) -> str:
     """Write `<gauntlet dir>/merge/<slug>.txt` and return its path.
 
     Evidence by path, not by paste: the main agent only carries the brief, and
-    the `gauntlet-bailiff` reads this file itself.
+    the `bailiff` reads this file itself.
     """
     saved = merge_path(slug)
     where = Path(path(saved))

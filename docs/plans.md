@@ -7,8 +7,8 @@ A plan is what the owner approves before any behavior is specified. It is prose,
 | Path | Written by | When | Tracked |
 | --- | --- | --- | --- |
 | `<gauntlet dir>/plans/drafts/<slug>.txt` | the main agent | while drafting, every round | no |
-| `<gauntlet dir>/plans/approved/<slug>.txt` | `gauntlet-prosecutor` | on `READY`, and only then | yes |
-| `<gauntlet dir>/reviews/<slug>.plan.<N>.txt` | `gauntlet-prosecutor` | every round that carries checks | no |
+| `<gauntlet dir>/plans/approved/<slug>.txt` | `prosecutor` | on `READY`, and only then | yes |
+| `<gauntlet dir>/reviews/<slug>.plan.<N>.txt` | `prosecutor` | every round that carries checks | no |
 
 One directory, one writer, the same rule `docs/approved-specs.md` states for the spec gate one stage later. `hooks/plans-lane.py` denies every other hand at the tool call, so the presence of `<gauntlet dir>/plans/approved/<slug>.txt` is the evidence that those words passed the plan gate — not a claim in a transcript. Under `GAUNTLET=off` the lane is silent and any hand can write that file, so the evidence is evidence about a session run under the chain; `docs/approved-specs.md` states the same bound for the spec lane.
 
@@ -20,7 +20,7 @@ The plan opens with two metadata lines and the owner's brief, then six sections.
 
 ```
 slug: <slug>
-discovery: gauntlet-detective
+discovery: detective
 
 brief:
 > <the owner's words that asked for this work, verbatim, one `> ` per line>
@@ -43,11 +43,11 @@ brief:
 
 ## Register, and where a fact lives
 
-A plan body is written in the compressed register the agent definitions under `agents/` use — clipped articles, fragments, dense — and not in the full English of this file. `CLAUDE.md:68` sets the register of the repository's own prose and does not reach the artifacts under `<gauntlet dir>/`; this line sets theirs. The reason is arithmetic rather than taste: a plan is paid for in three contexts — the `gauntlet-prosecutor`'s every round, the implementation stage that reads the approved file from disk, and the owner's on `READY` — so a word of narration costs three times what it reads like.
+A plan body is written in the compressed register the agent definitions under `agents/` use — clipped articles, fragments, dense — and not in the full English of this file. `CLAUDE.md:68` sets the register of the repository's own prose and does not reach the artifacts under `<gauntlet dir>/`; this line sets theirs. The reason is arithmetic rather than taste: a plan is paid for in three contexts — the `prosecutor`'s every round, the implementation stage that reads the approved file from disk, and the owner's on `READY` — so a word of narration costs three times what it reads like.
 
 Each fact lands in exactly one section, and a section that needs it again names the section carrying it rather than restating it. The rationale for a design choice belongs under **Which files get touched**; the price of that choice belongs under **What it costs**; a defect in the tree belongs under **What is wrong** and is cited, not re-narrated, where the change to it is described. A plan that states one reading in two sections has said nothing more and has made the reviewer resolve the same citation twice.
 
-Escape prose is owed after a `FAIL`, not before. Every check the plan gate runs is a red flag with one named escape, and a plan that pre-argues a check which has not fired pays that round's words on every plan to save a round on some. Write the plan, let the reviewer name the check it fails, and answer that check then. An escape argued against a check nobody raised is itself a restatement, and `gauntlet-prosecutor`'s check (l) fails it as one.
+Escape prose is owed after a `FAIL`, not before. Every check the plan gate runs is a red flag with one named escape, and a plan that pre-argues a check which has not fired pays that round's words on every plan to save a round on some. Write the plan, let the reviewer name the check it fails, and answer that check then. An escape argued against a check nobody raised is itself a restatement, and `prosecutor`'s check (l) fails it as one.
 
 ## Citations
 
@@ -67,15 +67,15 @@ Where a sentence quotes the line it cites, the quote is the claim: the number mu
 
 A citation stands for its content. The reviewer opens every line a plan cites, so a sentence that paraphrases the cited line beside the citation spends words on text its only reader reads anyway. Quote at most the decisive fragment — the words the claim turns on — and leave the rest to the citation.
 
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/cite.py --check <draft>` resolves all of this and exits 1 on a citation that does not. It reports a bare continuation and a cross-repo path whether they resolve or not, so a run over a clean draft prints rows rather than nothing. It says where a number landed; whether the line it landed on supports the sentence is the `gauntlet-prosecutor`'s check, and no run of the script stands in for it.
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/cite.py --check <draft>` resolves all of this and exits 1 on a citation that does not. It reports a bare continuation and a cross-repo path whether they resolve or not, so a run over a clean draft prints rows rather than nothing. It says where a number landed; whether the line it landed on supports the sentence is the `prosecutor`'s check, and no run of the script stands in for it.
 
 ## Discovery
 
-The pointers a plan cites come from one `gauntlet-detective` round: every question in one brief, a `file:line` table back. The main agent does not read half the tree to write a plan, and the reviewer resolves the citations that come back.
+The pointers a plan cites come from one `detective` round: every question in one brief, a `file:line` table back. The main agent does not read half the tree to write a plan, and the reviewer resolves the citations that come back.
 
 ## The gate
 
-`gauntlet-prosecutor` reads the plan prose and resolves its citations. Its gate token is one of `READY`, `ANOTHER PASS`, `ESCALATE` or `ESCALATE: QUESTION`, and the default on every check is the failing one. `PASS` and `FAIL` are per-check tokens beneath the gate line, never the gate itself.
+`prosecutor` reads the plan prose and resolves its citations. Its gate token is one of `READY`, `ANOTHER PASS`, `ESCALATE` or `ESCALATE: QUESTION`, and the default on every check is the failing one. `PASS` and `FAIL` are per-check tokens beneath the gate line, never the gate itself.
 
 The owner reads the plan only on `READY`. Rounds before that are between the main agent and the reviewer, and they are cheap; a plan passed carelessly costs the owner directly.
 
@@ -87,11 +87,11 @@ An approved plan takes an amendment where implementation settles a value the pla
 
 This departs from `docs/approved-specs.md:48`, which has an approved spec amended the same way it was created. A spec amendment is still a full re-review. A plan amendment is scoped, and the scope is stated here because the plan gate's rule lives here.
 
-The main agent returns to a `gauntlet-prosecutor` with three things: the slug, each amended line named by its first words with its new text, and the measured value with the command that produced it and that command's output. Nothing else — the plan body is on disk and the reviewer reads it there.
+The main agent returns to a `prosecutor` with three things: the slug, each amended line named by its first words with its new text, and the measured value with the command that produced it and that command's output. Nothing else — the plan body is on disk and the reviewer reads it there.
 
 The main agent takes the measurement, and the command is what makes that safe. The reviewer re-runs the command rather than trusting the number, so a measured value with no command that reproduces it is not an amendment.
 
-The reviewer may be a fresh one. The approved file carries every previous verdict beneath its `--- reviewer ---` divider, and an approved plan is something a `gauntlet-prosecutor` may read, so a reviewer holding none of the original round still reads what that round carried — from the plan file, never from `<gauntlet dir>/reviews/`, which it cannot read at all.
+The reviewer may be a fresh one. The approved file carries every previous verdict beneath its `--- reviewer ---` divider, and an approved plan is something a `prosecutor` may read, so a reviewer holding none of the original round still reads what that round carried — from the plan file, never from `<gauntlet dir>/reviews/`, which it cannot read at all.
 
 Checks run on the amended lines and the citations they carry, and on nothing else. Every other check prints `carried` with its verdict from the most recent `--- reviewer ---` block. A new finding on unchanged text stays legal and costs one scoped round.
 

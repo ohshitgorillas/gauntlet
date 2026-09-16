@@ -113,10 +113,10 @@ import shell_shapes as sh  # noqa: E402
 #: the agents this hook answers for. Every other caller, the main agent
 #: included, passes unjudged -- see the fail direction in the module docstring
 BLIND = (
-    "gauntlet-arbiter",
-    "gauntlet-scrivener",
-    "gauntlet-juror",
-    "gauntlet-bailiff",
+    "arbiter",
+    "scrivener",
+    "juror",
+    "bailiff",
 )
 
 #: the blind writer's lane, `tests` unless `blind-reads.json` names another
@@ -579,7 +579,7 @@ def _plugin_docs_case(root: str) -> bool:
                 #: the list
                 sh.denied(read(f"{PLUGIN_ROOT}/hooks/no-impl-reads.py")),
                 sh.denied(read(f"{PLUGIN_ROOT}/scripts/pair.sh")),
-                sh.denied(read(f"{PLUGIN_ROOT}/agents/gauntlet-scrivener.md")),
+                sh.denied(read(f"{PLUGIN_ROOT}/agents/scrivener.md")),
                 sh.denied(read("${CLAUDE_PLUGIN_ROOT}/hooks/no-impl-reads.py")),
                 sh.denied(_verdict("Grep", {"pattern": "x", "path": PLUGIN_ROOT}, root, root)),
                 #: a path boundary, not a string prefix
@@ -619,7 +619,7 @@ def self_test() -> int:
     node_reads_source = "node -e \"console.log(require('fs').readFileSync('src/core.py','utf8'))\""
     denied, allowed = sh.denied, sh.allowed
 
-    def blind(path: str, who: str | None = "gauntlet-scrivener") -> str | None:
+    def blind(path: str, who: str | None = "scrivener") -> str | None:
         """One `Read`, through the caller gate the wire goes through.
 
         `who` is the payload's `agent_type`; `None` leaves the key off, which
@@ -785,28 +785,27 @@ def self_test() -> int:
                 #: the allowlist runs for a caller in BLIND, in both directions
                 denied(blind(f"{root}/src/core/manager.py")),
                 allowed(blind(f"{root}/docs/testing.md")),
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet-juror")),
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet-arbiter")),
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet-bailiff")),
+                denied(blind(f"{root}/src/core/manager.py", "juror")),
+                denied(blind(f"{root}/src/core/manager.py", "arbiter")),
+                denied(blind(f"{root}/src/core/manager.py", "bailiff")),
                 #: the main agent carries no `agent_type` at all, and session
                 #: wiring puts its every read here: it passes unjudged
                 allowed(blind(f"{root}/src/core/manager.py", None)),
                 #: and so does a caller this hook does not answer for, rather
                 #: than being read-blocked by a list that is not about it
-                allowed(blind(f"{root}/src/core/manager.py", "gauntlet-prosecutor")),
-                allowed(blind(f"{root}/src/core/manager.py", "gauntlet-examiner")),
+                allowed(blind(f"{root}/src/core/manager.py", "prosecutor")),
+                allowed(blind(f"{root}/src/core/manager.py", "examiner")),
                 allowed(blind(f"{root}/src/core/manager.py", "general-purpose")),
                 #: an empty string is no name, and reads as the main agent
                 allowed(blind(f"{root}/src/core/manager.py", "")),
                 #: installed as a plugin the harness spells the name with its
                 #: plugin in front of it, and that is the same agent
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-scrivener")),
-                allowed(blind(f"{root}/docs/testing.md", "gauntlet:gauntlet-scrivener")),
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-juror")),
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-arbiter")),
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-bailiff")),
-                allowed(blind(f"{root}/src/core/manager.py", "gauntlet:gauntlet-prosecutor")),
-                allowed(blind(f"{root}/src/core/manager.py", "gauntlet:scrivener")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet:scrivener")),
+                allowed(blind(f"{root}/docs/testing.md", "gauntlet:scrivener")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet:juror")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet:arbiter")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet:bailiff")),
+                allowed(blind(f"{root}/src/core/manager.py", "gauntlet:prosecutor")),
             )
         ),
         "12 the kit's own docs/ is readable, the rest of the plugin is not": _plugin_docs_case(

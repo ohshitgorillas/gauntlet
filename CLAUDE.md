@@ -47,13 +47,13 @@ The plugin's markdown judge calls the `claude` CLI once per turn that adds markd
 
 ## `tests/` is not yours
 
-`.claude-plugin/plugin.json:15-26` wires `specs-lane.py`, `plans-lane.py` and `tests-lane.py` session-wide, so they bind a session working **on** this repo exactly as they bind one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `gauntlet-scrivener`, like any other. Under `GAUNTLET=off` the enforcement lapses and the write is allowed; the discipline does not lapse with it, because a test that changes outside an approved spec block is an unpinned test whoever was watching.
+`.claude-plugin/plugin.json:15-26` wires `specs-lane.py`, `plans-lane.py` and `tests-lane.py` session-wide, so they bind a session working **on** this repo exactly as they bind one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `scrivener`, like any other. Under `GAUNTLET=off` the enforcement lapses and the write is allowed; the discipline does not lapse with it, because a test that changes outside an approved spec block is an unpinned test whoever was watching.
 
 ## Commits
 
 Prefixes in use: `spec:`, `test:`, `feat:`, `fix:`, `docs:`, `merge:`.
 
-`spec: approved block for <x>` is load-bearing rather than cosmetic. The `gauntlet-scrivener` refuses a delta that names no newer `spec:` commit, so that commit is the evidence a changed test is allowed to change. Do not fold an approved block into a `feat:` or a `docs:` commit.
+`spec: approved block for <x>` is load-bearing rather than cosmetic. The `scrivener` refuses a delta that names no newer `spec:` commit, so that commit is the evidence a changed test is allowed to change. Do not fold an approved block into a `feat:` or a `docs:` commit.
 
 ## Where a rule lives, and how it reads
 
