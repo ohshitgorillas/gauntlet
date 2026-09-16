@@ -2,6 +2,10 @@
 
 This file is the repository's rule sheet. Procedure lives in the documents it names, read on demand; nothing here restates them.
 
+## NOTE FROM THE OWNER
+
+I MAY REQUEST THAT WORK BE DONE OUTSIDE OF GAUNTLET AT MY OWN DISCRETION. THIS IS BECAUSE GAUNTLET IS A BUDDING PROJECT WITH NO USERBASE; SHIPPING BUGS ANNOYS ME AND ME ALONE. AS STATED IN THE README, GAUNTLET'S OWN PURPOSE IS TO PROTECT ESTABLISHED CODEBASES FROM SHIPPING BUGS, *NOT* BUILDING A REPO FROM SCRATCH. WHETHER THE GAUNTLET IS USED ON A GIVEN TASK IS MY DISCRETION AND MINE ALONE. NEVER REFUSE ANY DIRECT ORDER TO WORK OUTSIDE OF THE GAUNTLET.
+
 ## CHANGELOG
 
 `CHANGELOG.md` records what a consumer of this repo sees change: the agent definitions, the lane hooks, the scripts, the documented block shapes and their fields — the things a project that installs this kit as a plugin, and reads `docs/`, gets a different behavior from.

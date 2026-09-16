@@ -290,13 +290,24 @@ def tree_files(tree: str) -> list[str]:
 def lane_check(tree: str, lane: str) -> bool:
     """The disjoint-path rule, enforced rather than trusted.
 
-    `lane` is `spec`, whose tree writes the tests directory and nothing else, or
-    `impl`, whose tree writes everything but it.
+    `lane` is `spec`, whose tree writes the tests directory and the approved
+    block it was cut for, or `impl`, whose tree writes everything but the tests.
+
+    The block is in the spec lane because `cmd_open` commits it there: the tree
+    is cut and the block lands on its branch in one step, so the writer is
+    briefed from a spec some tree HEAD holds. That commit is the spec tree's own
+    contribution and reads as one here, so the tests directory alone has not
+    been the whole of this lane since `open` started committing.
     """
     prefix = TESTS + "/"
+    block = SPECS + "/"
     written = tree_files(tree)
     if lane == "spec":
-        outside = [name for name in written if not name.startswith(prefix)]
+        outside = [
+            name
+            for name in written
+            if not name.startswith(prefix) and not name.startswith(block)
+        ]
     else:
         outside = [name for name in written if name.startswith(prefix)]
     if not outside:
