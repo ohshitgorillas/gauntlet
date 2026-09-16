@@ -591,7 +591,7 @@ class TheCallerGate(unittest.TestCase):
             for entry in event
             for hook in entry["hooks"]
         ]
-        self.assertEqual(len(commands), 8)
+        self.assertEqual(len(commands), 9)
         for command in commands:
             with self.subTest(command=command):
                 self.assertIn("${CLAUDE_PLUGIN_ROOT}", command)

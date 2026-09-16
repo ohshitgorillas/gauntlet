@@ -75,7 +75,9 @@ Session-wide, in `.claude-plugin/plugin.json`, so the lane binds the main agent 
 }
 ```
 
-The matcher carries `Read` and `Grep` because one lane blocks reads as well as writes: a reviewer is kept out of the round files in its own lane. No lane hook is wired on `Bash` and none reads a command string; a shell is held out of a lane by the mount table `bwrap-wrap.py` builds, which binds every lane directory read-only.
+The matcher carries `Read` and `Grep` because one lane blocks reads as well as writes: a reviewer is kept out of the round files in its own lane. No lane hook is wired on `Bash` and none reads a command string; a shell is held out of a lane by the mount table `bwrap-wrap.py` builds, which binds every lane directory read-only. Both read the same lane set, from `shell_shapes.lane_dirs()`: a lane the table holds and the mount table leaves writable is a lane a shell walks into, so `lanes.py --self-test` fails on any difference between the two.
+
+One hook runs after a write rather than before it. `lane-audit.py` is wired `PostToolUse` on `Write|Edit|NotebookEdit`, takes the path the harness reports as changed, and asks the same table about that path. A file the table refuses, changed by a call the gate admitted, means the two disagree about one path, and the hook prints one named line saying so. It never blocks and it cannot: the write has happened. What it buys is that a path the lane compared wrongly is a line in the next run instead of a hole nobody finds.
 
 `no-impl-reads.py` and `blind-bash.py` are wired session-wide too, and gated on the caller instead. Each carries a `BLIND` tuple — the four blind agents for the read block, the two that keep a shell for the command lock — and a caller outside it passes unjudged. That is what makes session wiring safe for them: a session-wide read block with no such gate would blind the main agent itself, which has to read the implementation to adjudicate a failing test, and a session-wide command lock with no such gate would take the main agent's shell outright.
 
@@ -98,6 +100,7 @@ python3 hooks/lanes.py --self-test
 python3 hooks/no-impl-reads.py --self-test
 python3 hooks/blind-bash.py --self-test
 python3 hooks/bwrap-wrap.py --self-test
+python3 hooks/lane-audit.py --self-test
 ```
 
 ## Failure modes it accepts

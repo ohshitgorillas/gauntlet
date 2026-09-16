@@ -100,11 +100,15 @@ JUROR = "juror"
 #: tools that hand back a file's contents; `Glob` returns names only and is not one
 READ_TOOLS = ("Read", "Grep")
 
-SPECS = sh.specs_lane()
-PLANS = sh.plans_lane()
-TESTS = sh.tests_dir()
-REVIEWS = sh.reviews_lane()
-VERDICTS = sh.verdicts_lane()
+#: the lane directories, from the one table that also drives the mount table
+#: `bwrap-wrap.py` builds. A lane added to one and not the other is a hook and
+#: a sandbox that disagree, and `--self-test` fails on the difference.
+_DIRS = sh.lane_dirs()
+SPECS = _DIRS["specs"]
+PLANS = _DIRS["plans"]
+TESTS = _DIRS["tests"]
+REVIEWS = _DIRS["reviews"]
+VERDICTS = _DIRS["verdicts"]
 #: where an unreviewed artifact is drafted: beside its lane, never in it
 SPEC_DRAFTS = sh.gauntlet_dir() + "/specs/drafts"
 PLAN_DRAFTS = sh.gauntlet_dir() + "/plans/drafts"
@@ -377,6 +381,7 @@ def stop(root: Path = ROOT, *, loop: bool = False) -> int:
 def self_test() -> int:  # noqa: PLR0915
     """Pin the spec lines of every lane in the table, and the `--stop` gate."""
     import contextlib
+    import importlib
     import io
     import tempfile
     import time
@@ -391,6 +396,56 @@ def self_test() -> int:  # noqa: PLR0915
     read = sh.rebased(sh.probe(_verdict, root, "Read"))
     grep = sh.rebased(sh.probe(_verdict, root, "Grep", "path"))
     denied, allowed = sh.denied, sh.allowed
+
+    def spellings(tmp: str) -> dict[str, bool]:
+        """The path spellings a lane has to collapse, on a tree that exists.
+
+        Every line here is the same file under a different name. They need a
+        real tree rather than `/repo`: a symlink is resolved by the kernel, so
+        a check for one is only a check when there is something to resolve.
+        """
+        base = Path(tmp) / "repo"
+        (base / ".git").mkdir(parents=True)
+        (base / SPECS).mkdir(parents=True)
+        (base / "src").mkdir()
+        (base / SPECS / "x.txt").write_text("")
+        (base / "link.txt").symlink_to(base / SPECS / "x.txt")
+        (base / "alias").symlink_to(base / SPECS)
+        (base / "out.txt").symlink_to(base / "src" / "s.py")
+
+        #: the other direction: the lane directory is itself the symlink, and
+        #: its contents sit outside the tree the repo-relative path shows
+        moved = Path(tmp) / "moved"
+        (moved / ".git").mkdir(parents=True)
+        (moved / SPECS).parent.mkdir(parents=True)
+        (moved / "elsewhere").mkdir()
+        (moved / SPECS).symlink_to(moved / "elsewhere")
+
+        at_root = sh.probe(_verdict, str(base), "Edit")
+        at_lane = sh.probe(_verdict, str(base / SPECS), "Edit")
+        at_moved = sh.probe(_verdict, str(moved), "Edit")
+        return {
+            "path 1 a symlinked file is the file it points at": denied(at_root("link.txt")),
+            "path 2 a symlinked parent directory is the directory it points at": denied(
+                at_root("alias/x.txt")
+            ),
+            "path 3 a relative path is read against the cwd of the call": denied(at_lane("x.txt")),
+            "path 4 a `..` walk back into the lane is in the lane": denied(
+                at_root("src/../" + SPECS + "/x.txt")
+            ),
+            "path 5 a target whose parent does not exist yet still resolves": denied(
+                at_root(SPECS + "/not/here/yet/x.txt")
+            ),
+            "path 6 a lane directory that is a symlink is still the lane": denied(
+                at_moved(SPECS + "/x.txt")
+            ),
+            #: resolving both sides collapses spellings onto one file; it does
+            #: not widen the lane to whatever a link happens to sit beside
+            "path 7 a symlink that lands outside the lane stays open": allowed(at_root("out.txt")),
+        }
+
+    with tempfile.TemporaryDirectory() as paths_tmp:
+        by_spelling = spellings(paths_tmp)
 
     def tree(tmp: str, *, red: str | None, verdict: str | None, order: str = "red-first") -> Path:
         """A checkout with one red run and at most one verdict, mtimes ordered."""
@@ -662,6 +717,16 @@ def self_test() -> int:  # noqa: PLR0915
             agent in row.writers and any(other.lane == second for other in LANES)
             for row in LANES
             for agent, second in row.second.items()
+        ),
+        **by_spelling,
+        #: the mount table and this table are one fact stated twice. A lane the
+        #: write tools hold and `bwrap` leaves writable is a lane a shell walks
+        #: into; a lane bound read-only and held by no row is a directory
+        #: nothing explains. Both are edits to one of the two that missed the
+        #: other, and both fail here rather than in a session.
+        "one writable set: these rows are the lanes bwrap binds read-only": (
+            {row.lane for row in LANES} == set(sh.LANE_DIRS)
+            and set(sh.LANE_DIRS) <= set(importlib.import_module("bwrap-wrap").PROTECTED_IN_CHECKOUT)
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal.

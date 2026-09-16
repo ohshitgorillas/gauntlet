@@ -129,9 +129,10 @@ SLUG = r"[A-Za-z0-9][A-Za-z0-9._-]*"
 #: the suite in the tree it wrote in
 TREE = rf"\.claude/worktrees/{SLUG}-spec/"
 
-#: the lane directories this kit's hooks guard are not literals: they are the
-#: four fixed suffixes below, under whatever `gauntlet_dir` resolves to.
-#: `LANE_DIRS` is derived beside the rest of the config, further down this file.
+#: the lane directories this kit's hooks guard are not literals: four of them
+#: are the fixed suffixes below, under whatever `gauntlet_dir` resolves to, and
+#: the fifth is `tests_dir`, which is the project's own. `lane_dirs()` is the
+#: whole table, derived beside the rest of the config further down this file.
 LANE_SUFFIXES = ("plans/approved", "specs/approved", "verdicts", "reviews")
 
 def path_shape(prefix: str) -> str:
@@ -541,9 +542,32 @@ def reviews_lane() -> str:
     return lane("reviews")
 
 
-#: the lane directories this kit's hooks guard, in the order `LANE_SUFFIXES`
-#: gives them
-LANE_DIRS = tuple(lane(suffix) for suffix in LANE_SUFFIXES)
+def lane_dirs() -> dict[str, str]:
+    """Every lane directory this kit guards, by the name its row carries.
+
+    One table with two consumers, which must not drift apart: `lanes.py` builds
+    its rows from this, and `bwrap-wrap.py` binds each of these read-only
+    inside every wrapped profile. A lane the write tools hold and the mount
+    table leaves writable -- or the reverse -- is a hook and a sandbox that
+    disagree about the same directory, and a shell reaches the lane the write
+    tools were guarding. `lanes.py --self-test` asserts the two sets are equal,
+    so an edit to one that misses the other fails a gate.
+
+    Four are the fixed suffixes under `gauntlet_dir`, because that shape is the
+    kit's identity rather than a project's layout; `tests_dir` is the project's
+    own directory and is read from the declaration like any other.
+    """
+    return {
+        "specs": specs_lane(),
+        "plans": plans_lane(),
+        "tests": tests_dir(),
+        "reviews": reviews_lane(),
+        "verdicts": verdicts_lane(),
+    }
+
+
+#: the lane directories, as the tuple the mount table binds
+LANE_DIRS = tuple(lane_dirs().values())
 
 
 #: what `--config <key>` answers: the eight keys the file carries, and the four
@@ -620,19 +644,50 @@ def root_by_name(path: str) -> str | None:
     return None
 
 
+def real_path(target: str, cwd: str) -> str:
+    """One absolute path for `target`, with every symlink on it followed.
+
+    Both sides of every lane comparison come through here, so a symlinked
+    file, a symlinked parent directory, a relative spelling and a `..` walk all
+    collapse onto the one name the kernel will open. A lexical answer is a
+    different answer for each of those spellings, and a lane that admits one
+    spelling of a file and refuses another guards nothing.
+
+    `os.path.realpath` resolves the longest prefix that exists and rejoins the
+    tail lexically, which is what a write to a file whose parent does not exist
+    yet needs: the nearest existing ancestor is resolved and the rest is
+    carried.
+
+    LIMIT, left open on purpose: `realpath` does not resolve a hardlink, and
+    cannot -- a hardlink is a second name of equal standing, not a pointer. A
+    second name for a lane file, made under another directory, resolves to
+    itself and is admitted. Closing it means comparing `st_dev`/`st_ino`
+    against the lane's contents, which costs a `stat` per call and per lane
+    file; the owner decides whether the lane is worth that, and until then the
+    hole is here rather than hidden.
+    """
+    return os.path.realpath(os.path.join(cwd, target))  # noqa: PTH118
+
+
 def split_root(target: str, cwd: str) -> tuple[str | None, str | None]:
-    """(checkout root, path relative to it) for a write target, or (None, None)."""
-    #: lexical: the `..` collapse is the whole job, and resolving would follow a
-    #: symlink into another checkout
-    resolved = os.path.abspath(os.path.join(cwd, target))  # noqa: PTH100, PTH118
-    root = root_by_name(resolved) or checkout_root(str(Path(resolved).parent))
+    """(checkout root, path relative to it) for a write target, or (None, None).
+
+    The target is resolved first, so the root is the checkout the write really
+    lands in rather than the one its spelling suggests. Every ancestor of a
+    resolved path is itself resolved, so the root needs no second pass.
+    """
+    real = real_path(target, cwd)
+    root = root_by_name(real) or checkout_root(str(Path(real).parent))
     if root is None:
         return None, None
-    return root, os.path.relpath(resolved, root)
+    return root, os.path.relpath(real, root)
 
 
 def under(rel: str, lane: str) -> bool:
-    """Is this repo-relative path the lane directory or inside it?"""
+    """Is this path the lane directory or inside it? Both sides spelled alike.
+
+    Two repo-relative paths, or two resolved absolute ones. Never one of each.
+    """
     prefix = lane.replace("/", os.sep)
     return rel == prefix or rel.startswith(prefix + os.sep)
 
@@ -640,15 +695,21 @@ def under(rel: str, lane: str) -> bool:
 def path_in_lane(target: str, cwd: str, lane: str) -> bool:
     """Does the resolved target land inside a `<lane>` directory of any checkout?
 
+    Both sides are resolved. Resolving the target alone answers a symlink that
+    points into the lane; resolving the lane root as well answers the other
+    direction, a lane directory that is itself a symlink and whose contents
+    therefore sit somewhere the repo-relative path never shows.
+
     Falls back to a segment match when the path is in no checkout at all, so
     the lane holds before `git init` and outside a repo.
     """
-    _, rel = split_root(target, cwd)
+    real = real_path(target, cwd)
+    root, rel = split_root(target, cwd)
+    if root is not None and under(real, real_path(lane, root)):
+        return True
     if rel is not None and not rel.startswith(".."):
         return under(rel, lane)
-    #: lexical, as in `split_root`
-    resolved = os.path.abspath(os.path.join(cwd, target))  # noqa: PTH100, PTH118
-    parts = list(Path(resolved).parts)
+    parts = list(Path(real).parts)
     lane_parts = lane.split("/")
     return any(
         parts[i : i + len(lane_parts)] == lane_parts

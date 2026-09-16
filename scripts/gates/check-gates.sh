@@ -39,6 +39,7 @@ gates=(
     "blind-bash|python3 hooks/blind-bash.py --self-test"
     "gauntlet-off|python3 hooks/gauntlet-off.py --self-test"
     "bwrap-wrap|python3 hooks/bwrap-wrap.py --self-test"
+    "lane-audit|python3 hooks/lane-audit.py --self-test"
     "pair-passthrough|python3 hooks/pair-passthrough.py"
     "strike-diff|python3 scripts/strike-diff.py --self-test"
     "pair|python3 scripts/pair/cli.py --self-test"
