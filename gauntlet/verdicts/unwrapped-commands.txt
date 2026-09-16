@@ -1,0 +1,4 @@
+RED 1: assert 'wrapped' == 'passthrough' (tests/test_bwrap_wrap.py:307, test_only_a_command_the_project_itself_declares_escapes_the_wrap[the-payload-is-the-declared-command])
+RED 2: assert 'wrapped' == 'passthrough' (tests/test_bwrap_wrap.py:333, test_a_declared_command_matches_by_the_whole_string_and_nothing_less[the-declared-text-exactly])
+RED 3: assert 'x' == 'y' (tests/test_bwrap_wrap.py:374, test_a_path_a_declared_command_reads_is_read_only_inside_the_wrap[the-declared-command-reads-the-probe])
+RED 4: assert ('wrapped', 'wrapped') == ('wrapped', 'passthrough') (tests/test_bwrap_wrap.py:386, test_a_reads_entry_that_does_not_resolve_voids_the_whole_declaration)
