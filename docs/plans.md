@@ -33,13 +33,21 @@ brief:
 ## Open questions
 ```
 
-- **`brief:`** is the owner's words and nothing else. Quote every sentence that asked for work, including the ones that changed the owner's mind: a plan that quotes only the final instruction hides the reversal that produced it. Where a later sentence overrides an earlier one, both are quoted and the plan says which it followed.
+- **`brief:`** is the owner's words and nothing else. Quote every sentence that asked for work, including the ones that changed the owner's mind: a plan that quotes only the final instruction hides the reversal that produced it. Where a later sentence overrides an earlier one, both are quoted and the plan says which it followed. Beneath the quote, one line per brief sentence, and exactly one line: `delivered:` naming the element of the plan body that delivers it, or `dropped:` naming why, repeated under **Open questions**. Nothing sits beneath either line. The element a `delivered:` names is where its argument already lives, and the reviewer checking coverage needs the name, not the case for it.
 - **What is wrong** states the defect or the want, with citations. A claim about the tree carries `file:line`.
 - **What the owner sees change** is the delta as the owner experiences it, not as the diff expresses it.
 - **Which files get touched, and roughly how** names files and the shape of the change in each. It is not a diff, and it is not a promise of line counts.
 - **Caller-side delta** applies where anything outside the changed files has to change with them — an interface, a path, an agent's own instructions. `none` where nothing does.
 - **What it costs** names the work the change forces, the tests it breaks, and what was deliberately left out, with the owner's own words where a scope instruction produced the cut.
 - **Open questions** is `None` or a numbered list. A question here reaches the owner; a question addressed to the reviewer is a steering tell and burns the round.
+
+## Register, and where a fact lives
+
+A plan body is written in the compressed register the agent definitions under `agents/` use — clipped articles, fragments, dense — and not in the full English of this file. `CLAUDE.md:68` sets the register of the repository's own prose and does not reach the artifacts under `<gauntlet dir>/`; this line sets theirs. The reason is arithmetic rather than taste: a plan is paid for in three contexts — the `gauntlet-prosecutor`'s every round, the implementation stage that reads the approved file from disk, and the owner's on `READY` — so a word of narration costs three times what it reads like.
+
+Each fact lands in exactly one section, and a section that needs it again names the section carrying it rather than restating it. The rationale for a design choice belongs under **Which files get touched**; the price of that choice belongs under **What it costs**; a defect in the tree belongs under **What is wrong** and is cited, not re-narrated, where the change to it is described. A plan that states one reading in two sections has said nothing more and has made the reviewer resolve the same citation twice.
+
+Escape prose is owed after a `FAIL`, not before. Every check the plan gate runs is a red flag with one named escape, and a plan that pre-argues a check which has not fired pays that round's words on every plan to save a round on some. Write the plan, let the reviewer name the check it fails, and answer that check then. An escape argued against a check nobody raised is itself a restatement, and `gauntlet-prosecutor`'s check (l) fails it as one.
 
 ## Citations
 
@@ -56,6 +64,8 @@ Five forms, and one of them carries no path:
 The continuation is the form a plan uses most, and it is the one that goes wrong silently: a run of `` `:46` ``-shaped numbers under a path the prose changed in between resolves against the wrong file and reports nothing. Where a paragraph moves to another file, the first citation under it is written in full.
 
 Where a sentence quotes the line it cites, the quote is the claim: the number must point at a line containing that text, and for a range, at one line of the span. A citation with no quotation beside it claims only that the line exists.
+
+A citation stands for its content. The reviewer opens every line a plan cites, so a sentence that paraphrases the cited line beside the citation spends words on text its only reader reads anyway. Quote at most the decisive fragment — the words the claim turns on — and leave the rest to the citation.
 
 `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/cite.py --check <draft>` resolves all of this and exits 1 on a citation that does not. It reports a bare continuation and a cross-repo path whether they resolve or not, so a run over a clean draft prints rows rather than nothing. It says where a number landed; whether the line it landed on supports the sentence is the `gauntlet-prosecutor`'s check, and no run of the script stands in for it.
 
