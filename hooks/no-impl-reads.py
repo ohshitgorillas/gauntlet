@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PreToolUse hook: keep a blind agent out of the implementation.
 
-Wired session-wide from `.claude/settings.json`, and gated on the caller. A
+Wired session-wide from `.claude-plugin/plugin.json`, and gated on the caller. A
 plugin-shipped agent definition runs no `hooks:` frontmatter of its own, so
 frontmatter wiring reaches nothing once the kit ships as a plugin; session
 wiring is the only wiring a packaged hook has.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PreToolUse hook: the two blind agents that keep `Bash` get one command.
 
-Wired session-wide from `.claude/settings.json`, and gated on the caller, the
+Wired session-wide from `.claude-plugin/plugin.json`, and gated on the caller, the
 same shape `no-impl-reads.py` carries. A plugin-shipped agent definition runs
 no `hooks:` frontmatter of its own, so frontmatter wiring reaches nothing once
 the kit ships as a plugin.

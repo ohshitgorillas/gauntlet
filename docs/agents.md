@@ -4,18 +4,18 @@ Eight agents, and the whole system is the shape of what each one is not allowed 
 
 | Agent | Sees the code | Writes | Hooks |
 | --- | --- | --- | --- |
-| `prosecutor` | yes, all of it | `<gauntlet dir>/reviews/<slug>.plan.<N>.txt`, `<gauntlet dir>/plans/approved/<slug>.txt` | `reviews-lane`, `plans-lane` |
-| `detective` | yes, all of it | nothing | `specs-lane`, `tests-lane`, `reviews-lane` |
-| `examiner` | yes, all of it | throwaway scripts outside the tree | `specs-lane`, `tests-lane` |
-| `arbiter` | **no** | `<gauntlet dir>/reviews/<slug>.<N>.txt`, `<gauntlet dir>/specs/approved/<slug>.txt` | `no-impl-reads`, `reviews-lane`, `specs-lane` |
-| `scrivener` | **no** | `<tests dir>/` of its own spec worktree | `no-impl-reads`, `tests-lane`, `specs-lane`, `blind-bash` |
-| `bailiff` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `plans-lane`, `reviews-lane`, `verdicts-lane`, `blind-bash` |
-| `juror` | **no** | nothing | `no-impl-reads`, `specs-lane`, `tests-lane`, `reviews-lane` |
+| `prosecutor` | yes, all of it | `<gauntlet dir>/reviews/<slug>.plan.<N>.txt`, `<gauntlet dir>/plans/approved/<slug>.txt` | `lanes` |
+| `detective` | yes, all of it | nothing | `lanes` |
+| `examiner` | yes, all of it | throwaway scripts outside the tree | `lanes` |
+| `arbiter` | **no** | `<gauntlet dir>/reviews/<slug>.<N>.txt`, `<gauntlet dir>/specs/approved/<slug>.txt` | `lanes`, `no-impl-reads` |
+| `scrivener` | **no** | `<tests dir>/` of its own spec worktree | `lanes`, `no-impl-reads`, `blind-bash` |
+| `bailiff` | **no** | nothing | `lanes`, `no-impl-reads`, `blind-bash` |
+| `juror` | **no** | nothing | `lanes`, `no-impl-reads` |
 | the main agent | yes | everything else | all of them, session-wide |
 
 ## The switch
 
-"All of them, session-wide" holds for a session with the gauntlet on, which is every session the owner does not start with `GAUNTLET=off claude`. That variable silences the seven lane hooks and the `Stop` gate for one session, so the owner can work outside the chain — repairing a lane file, demoing the kit, working on the hooks themselves — without weakening a hook in the tree. It is not an agent and takes no row: it belongs to the hand that launches the session, an agent inside one may never propose it, set it, or suggest the owner set it, and `gauntlet-off.py --bash` denies a `GAUNTLET=` assignment and a nested `claude` invocation so the session cannot reach it.
+"All of them, session-wide" holds for a session with the gauntlet on, which is every session the owner does not start with `GAUNTLET=off claude`. That variable silences `lanes.py`, `no-impl-reads.py`, `blind-bash.py` and the `Stop` gate for one session, so the owner can work outside the chain — repairing a lane file, demoing the kit, working on the hooks themselves — without weakening a hook in the tree. It is not an agent and takes no row: it belongs to the hand that launches the session, an agent inside one may never propose it, set it, or suggest the owner set it, and `gauntlet-off.py --bash` denies a `GAUNTLET=` assignment and a nested `claude` invocation so the session cannot reach it.
 
 One statement here covers every sentence in this file that says a hook denies something, including `pair.sh red` below. Each is a statement about a session with the gauntlet on.
 
@@ -23,7 +23,7 @@ One statement here covers every sentence in this file that says a hook denies so
 
 The `arbiter`, the `scrivener`, the `juror` and the `bailiff` are the four that never read the implementation. Everything else in the repo exists to keep that true.
 
-Under `GAUNTLET=off` it is not true. `no-impl-reads.py` and `blind-bash.py` are two of the seven hooks the switch silences, so a `arbiter` or a `scrivener` spawned in a bypassed session can read the implementation and can run any shell command, and nothing denies it. Blindness is the property the whole chain rests on, so a spec block or a test produced in such a session is worth what an unblind agent's work is worth, and it lands in a tracked file that looks like any other. A session with the gauntlet off should not run the chain.
+Under `GAUNTLET=off` it is not true. `no-impl-reads.py` and `blind-bash.py` are two of the three hooks the switch silences, so a `arbiter` or a `scrivener` spawned in a bypassed session can read the implementation and can run any shell command, and nothing denies it. Blindness is the property the whole chain rests on, so a spec block or a test produced in such a session is worth what an unblind agent's work is worth, and it lands in a tracked file that looks like any other. A session with the gauntlet off should not run the chain.
 
 A reviewer that can read the code will rationalize a spec line that merely describes what the code already does — the line looks true, because it is, and it pins nothing. A test writer that can read the code writes a test that mirrors it: the test and the implementation share the same mistake, so it goes green on a wrong implementation and nobody sees. A certifier that can read the code reads a `GREEN` as the implementation already being right rather than as the test failing to bite, which is the one reading the red run exists to rule out. A post-merge checker that can read the code reads a softened assertion as matching what the code turned out to do, which is exactly the change it is there to catch.
 
@@ -61,9 +61,11 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 | `pair.sh respec <slug>` | `RESPEC <gauntlet dir>/specs/approved/<slug>.txt <commit>` | the re-approved block is a `spec:` commit on `spec/<slug>`, and its reviewer section is a round newer than the one that branch already committed |
 | `pair.sh respec <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | the block's reviewer section differs from that round file, and nothing is committed |
 | `pair.sh abort <slug>` | `ABORTED <slug>` | both worktrees, both branches and the recorded base for the slug are gone |
+| `pair.sh close <slug>` | `CLOSED <path>` per worktree removed | that tree held no uncommitted work, and its branch and the recorded base are left where they are |
+| `pair.sh close <slug>` | `REFUSED <path> uncommitted` per worktree kept | that tree holds work no commit holds, so it is left standing and the command exits 1 |
 | `pair.sh list` | one `PAIR <slug> <base> <n>` line per open pair, or `NO PAIRS` | `<base>` is the commit the pair was cut at, and `<n>` is how many commits the target branch has moved since |
 
-`review` is the reviewers' one path into their own lane. `reviews-lane.py` denies a reviewer every read of `<gauntlet dir>/reviews/`, so the reviewer cannot count the rounds it is continuing; the main agent runs `pair.sh review` before each round that will carry verdicts and hands the printed path to the reviewer verbatim in its brief. A round that writes nothing consumes no `<N>`, because the count is of what is on disk.
+`review` is the reviewers' one path into their own lane. The reviewers' row of `lanes.py` denies a reviewer every read of `<gauntlet dir>/reviews/`, so the reviewer cannot count the rounds it is continuing; the main agent runs `pair.sh review` before each round that will carry verdicts and hands the printed path to the reviewer verbatim in its brief. A round that writes nothing consumes no `<N>`, because the count is of what is on disk.
 
 The evidence sits in the file the `merge output:` line names, not beneath that header: `<gauntlet dir>/merge/<slug>.txt` carries the changed test file names under `test files:`, `git diff <base> HEAD -- <tests dir>/` under `diff:`, and the saved red log under `red output:`, in that order and under those three headings. The section is empty where `<gauntlet dir>/red/<slug>.txt` is absent.
 

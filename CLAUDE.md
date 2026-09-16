@@ -24,7 +24,7 @@ Green means every gate passes, not just the first. One command runs them:
 scripts/gates/check-gates.sh
 ```
 
-It runs `pytest` on `tests/` and the `--self-test` of `plans-lane.py`, `specs-lane.py`, `tests-lane.py`, `reviews-lane.py`, `verdicts-lane.py`, `no-impl-reads.py`, `blind-bash.py`, `gauntlet-off.py`, `bwrap-wrap.py`, `pair-passthrough.py`, `strike-diff.py`, `pair/cli.py`, `cite.py` and `symbol-closure.py`, one after another under `nice -n 19 ionice -c3`. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
+It runs `pytest` on `tests/` and the `--self-test` of `lanes.py`, `no-impl-reads.py`, `blind-bash.py`, `gauntlet-off.py`, `bwrap-wrap.py`, `pair-passthrough.py`, `strike-diff.py`, `pair/cli.py`, `cite.py`, `init.py` and `symbol-closure.py`, one after another under `nice -n 19 ionice -c3`. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
 
 Each `--self-test` prints one `PASS` or `FAIL` per rule that script exists to hold, and they cover cases the suite does not. A hook change that passes `pytest` and fails its own `--self-test` is exactly what this bar catches.
 
@@ -51,7 +51,7 @@ The plugin's markdown judge calls the `claude` CLI once per turn that adds markd
 
 ## `tests/` is not yours
 
-`.claude-plugin/plugin.json:15-26` wires `specs-lane.py`, `plans-lane.py` and `tests-lane.py` session-wide, so they bind a session working **on** this repo exactly as they bind one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `scrivener`, like any other. Under `GAUNTLET=off` the enforcement lapses and the write is allowed; the discipline does not lapse with it, because a test that changes outside an approved spec block is an unpinned test whoever was watching.
+`.claude-plugin/plugin.json:12-20` wires `lanes.py` session-wide, and the tests row is one of its five lanes, so it binds a session working **on** this repo exactly as it binds one using it. A write to `tests/` from the main agent comes back denied, in this repo, on this repo's own tests. That is the rule working, not a broken tool: a test here changes through an approved spec block and the `scrivener`, like any other. Under `GAUNTLET=off` the enforcement lapses and the write is allowed; the discipline does not lapse with it, because a test that changes outside an approved spec block is an unpinned test whoever was watching.
 
 ## Commits
 

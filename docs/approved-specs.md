@@ -6,7 +6,7 @@
 
 One directory, one writer.
 
-- **`<gauntlet dir>/specs/approved/<slug>.txt` is written by the `arbiter` and by no one else.** Not the main agent, not the `scrivener`, not the person driving the session through an agent. `hooks/specs-lane.py` denies every other hand at the tool call, in any session the owner has not started with `GAUNTLET=off`.
+- **`<gauntlet dir>/specs/approved/<slug>.txt` is written by the `arbiter` and by no one else.** Not the main agent, not the `scrivener`, not the person driving the session through an agent. `hooks/lanes.py` denies every other hand at the tool call, in any session the owner has not started with `GAUNTLET=off`.
 - **A file appears there only when that reviewer's gate verdict is `READY`.** The reviewer writes the block it just passed, verbatim, with its own per-line verdicts beneath it. An `ANOTHER PASS` or `ESCALATE` round writes nothing.
 - **The `scrivener` reads from there and refuses a spec path anywhere else.** The path being under `<gauntlet dir>/specs/approved/` is the writer's proof that the behavior it is about to pin survived review; a draft handed to it directly is a spec that skipped the gate.
 - **Reads are open.** Any agent, and the shell, may read the folder. The lane governs writing.
@@ -55,18 +55,18 @@ Reverting is the exception the shell keeps: `git restore --source <rev> -- <gaun
 
 ## Wiring
 
-Session-wide, in `.claude/settings.json`, so the lane binds the main agent and every subagent. That file also carries `tests-lane.py` and `reviews-lane.py` on the same matcher, since all three lanes bind the same way; only the `specs-lane.py` entry is shown here:
+Session-wide, in `.claude-plugin/plugin.json`, so the lane binds the main agent and every subagent. One entry carries every lane: `lanes.py` holds the specs lane, the plans lane, the tests lane, the reviewers' lane and the verdicts lane as rows of one table, so the wiring names one command rather than one per lane.
 
 ```json
 {
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit|Bash",
+        "matcher": "Write|Edit|NotebookEdit|Read|Grep",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/hooks/specs-lane.py"
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/lanes.py"
           }
         ]
       }
@@ -75,28 +75,29 @@ Session-wide, in `.claude/settings.json`, so the lane binds the main agent and e
 }
 ```
 
+The matcher carries `Read` and `Grep` because one lane blocks reads as well as writes: a reviewer is kept out of the round files in its own lane. No lane hook is wired on `Bash` and none reads a command string; a shell is held out of a lane by the mount table `bwrap-wrap.py` builds, which binds every lane directory read-only.
+
 `no-impl-reads.py` and `blind-bash.py` are wired session-wide too, and gated on the caller instead. Each carries a `BLIND` tuple — the four blind agents for the read block, the two that keep a shell for the command lock — and a caller outside it passes unjudged. That is what makes session wiring safe for them: a session-wide read block with no such gate would blind the main agent itself, which has to read the implementation to adjudicate a failing test, and a session-wide command lock with no such gate would take the main agent's shell outright.
 
 Gate on the caller, not on where the hook is wired, because a plugin-shipped agent definition runs no `hooks:` frontmatter of its own. Frontmatter wiring reaches nothing once the kit ships as a plugin, so a hook that binds one agent binds it by reading `agent_type` or it binds nobody.
 
-Session wiring is the whole of the wiring, and that is a known gap. The kit used to wire `specs-lane.py` a second time from the `hooks:` frontmatter of every agent that could reach the folder, so the lane held even where a build did not apply session hooks to subagent calls; a plugin runs no per-agent frontmatter, so that second copy is gone and cannot come back. A build that stops applying session hooks to subagent calls now has no lane at all.
+Session wiring is the whole of the wiring, and that is a known gap. The kit used to wire the specs lane a second time from the `hooks:` frontmatter of every agent that could reach the folder, so the lane held even where a build did not apply session hooks to subagent calls; a plugin runs no per-agent frontmatter, so that second copy is gone and cannot come back. A build that stops applying session hooks to subagent calls now has no lane at all.
 
-The `agent_type` gate has a fail direction, and it is the opposite of the lane hooks'. `reviews-lane.py` answers an absent `agent_type` by over-denying, which leaks nothing: a reviewer loses a write it would have been allowed. `no-impl-reads.py` and `blind-bash.py` cannot do that, because the main agent is itself the caller that carries no `agent_type`, so an absent key must pass. A build that stopped supplying the key for subagents would hand the blind agents the implementation and an unrestricted shell rather than deny them. Guarding by caller identity is what packaging costs; guarding by wiring scope failed closed and does not survive it.
+The `agent_type` gate has a fail direction, and it is the opposite of the lane hook's. The reviewers' row of `lanes.py` answers an absent `agent_type` by over-denying, which leaks nothing: a reviewer loses a write it would have been allowed. `no-impl-reads.py` and `blind-bash.py` cannot do that, because the main agent is itself the caller that carries no `agent_type`, so an absent key must pass. A build that stopped supplying the key for subagents would hand the blind agents the implementation and an unrestricted shell rather than deny them. Guarding by caller identity is what packaging costs; guarding by wiring scope failed closed and does not survive it.
 
-Copy the whole `hooks/` directory, not the one file. `specs-lane.py` imports `shell_shapes.py` from beside it, and it has three siblings that enforce the other half of the same rule: `plans-lane.py`, which holds this same one-directory-one-writer rule for the plan gate one stage earlier (`<gauntlet dir>/plans/approved/`, the `prosecutor` alone — rules in `plans.md`); `tests-lane.py`, which keeps every hand but the blind writer's off `<tests dir>/`; and `reviews-lane.py`, which keeps a reviewer's verdict a file the reviewer wrote. `reviews-lane.py` is the one that must know about both lanes: it confines each reviewer to `<gauntlet dir>/reviews/`, so it carries the explicit carve-outs that let the `arbiter` write `<gauntlet dir>/specs/approved/` and the `prosecutor` write `<gauntlet dir>/plans/approved/`, each and nothing else besides. Ship them together or a reviewer is locked out of the folder reserved for it.
+Copy the whole `hooks/` directory, not the one file. `lanes.py` imports `shell_shapes.py` from beside it, and it holds four more rows that enforce the other half of the same rule: the plans lane, which holds this same one-directory-one-writer rule for the plan gate one stage earlier (`<gauntlet dir>/plans/approved/`, the `prosecutor` alone — rules in `plans.md`); the tests lane, which keeps every hand but the blind writer's off `<tests dir>/`; the verdicts lane, which keeps a red run's certificate a file the `juror` wrote; and the reviewers' lane, which keeps a reviewer's verdict a file the reviewer wrote. That last row is the one that must know about two lanes at once: it confines each reviewer to `<gauntlet dir>/reviews/`, so it carries the `second` field that lets the `arbiter` also write `<gauntlet dir>/specs/approved/` and the `prosecutor` also write `<gauntlet dir>/plans/approved/`, each and nothing else besides.
 
-Nothing in `hooks/` imports anything outside `hooks/`. There is no allowlist to import and no budget to configure, and the one repo layout the hooks know is the one a repo writes down for itself: `blind-reads.json`, beside them, carrying three directories. `tests_dir` is the writer's lane, which is what `<tests dir>` means everywhere it is written; `gauntlet_dir` is the base every lane in this document sits under, which is what `<gauntlet dir>` means everywhere it is written; `docs_dir` is the prose a blind agent may read. Each defaults to the name the kit ships — `tests`, `gauntlet`, `docs` — which is why the file may be absent. The shape under `gauntlet_dir` is not a repo's to name: `specs/approved`, `plans/approved`, `reviews` and `verdicts` are the kit's identity, and so are the agent names.
+Nothing in `hooks/` imports anything outside `hooks/`, and one thing in it runs something outside the kit entirely: `bwrap-wrap.py` puts every `Bash` call inside `bubblewrap`, so `bwrap` on the host is a hard dependency a consumer takes on with the kit, and an absent or unusable binary is a named denial on every `Bash` call rather than a command that runs unwrapped. `blind-bash.py` and `pair-passthrough.py` name `scripts/blind.sh` and `scripts/pair.sh`, which ship beside `hooks/` rather than inside it. There is no allowlist to import and no budget to configure, and the one repo layout the hooks know is the one a repo writes down for itself: `blind-reads.json`, beside them, carrying three directories. `tests_dir` is the writer's lane, which is what `<tests dir>` means everywhere it is written; `gauntlet_dir` is the base every lane in this document sits under, which is what `<gauntlet dir>` means everywhere it is written; `docs_dir` is the prose a blind agent may read. Each defaults to the name the kit ships — `tests`, `gauntlet`, `docs` — which is why the file may be absent. The shape under `gauntlet_dir` is not a repo's to name: `specs/approved`, `plans/approved`, `reviews` and `verdicts` are the kit's identity, and so are the agent names.
 
 A repo that moves one of the three moves it everywhere at once, because every hook and every script resolves the path through `shell_shapes.py` rather than typing it. What bounds the file is that the three names must be pairwise disjoint — none equal to, under, or over another, none the root or an absolute path — and that a set failing the check moves nothing at all rather than moving part of a layout. `shell_shapes.py` says why the fallback is all-or-nothing: a name that is legal read alone can still land on the default another key would have taken.
 
 Check them after wiring. Each prints one `PASS` or `FAIL` per line it exists to hold:
 
 ```
-python3 hooks/plans-lane.py --self-test
-python3 hooks/specs-lane.py --self-test
-python3 hooks/tests-lane.py --self-test
-python3 hooks/reviews-lane.py --self-test
+python3 hooks/lanes.py --self-test
 python3 hooks/no-impl-reads.py --self-test
+python3 hooks/blind-bash.py --self-test
+python3 hooks/bwrap-wrap.py --self-test
 ```
 
 ## Failure modes it accepts
