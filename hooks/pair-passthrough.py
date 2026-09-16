@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The one carve-out from the sandbox: `scripts/pair.sh`.
+"""The two carve-outs from the sandbox: `scripts/pair.sh`, and what a project declares.
 
 `pair.sh` writes lane files by design -- it is the route by which a lane file
 changes on disk -- so it must run unwrapped, and something has to decide that.
@@ -28,13 +28,31 @@ command in front, a command behind, an environment assignment, a redirection, a
 The argument grammar is the other half. A slug is one path segment carrying no
 traversal, so `scripts/pair.sh red ../../etc` is not a `pair.sh` call this
 module admits, and it goes through the sandbox like any other command.
+
+The second predicate is over `unwrapped_commands`, which is the project's own
+word rather than this kit's. A hook holding that set as its own constant would
+unwrap a command no project asked for and ignore every command a project did
+ask for, so nothing here names a command: the declaration does. The match is by
+equality on the whole command text as the project wrote it -- not a prefix, not
+a regex, not a word split, nothing parsed -- so no argument can be appended to a
+declared command and no shape of it is read.
+
+A declared command names the paths it reads, and they are the other half of the
+guarantee: `bwrap-wrap.py` binds each of them read-only inside every wrapped
+profile, so the shell that runs inside the sandbox cannot rewrite the input of
+the one command that runs outside it. A `reads` entry that does not resolve in
+this checkout voids its declaration, and the command is wrapped like any other:
+binding what resolves and skipping the rest would leave the project holding a
+guarantee the mount table does not make, exactly where a typo put it.
 """
 
 from __future__ import annotations
 
 import re
 import sys
+import tempfile
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -65,9 +83,128 @@ def is_pair_command(command: str) -> bool:
     return any(pattern.match(command) for pattern in ALLOWED)
 
 
+def _resolved(root: str, path: str) -> str | None:
+    """One declared `reads` path as it is on disk now, or `None` where it is not.
+
+    Relative to the checkout, because that is what a project writes down; an
+    absolute path is taken as it is spelled. `Path.exists` answers False for
+    every reason a bind would fail on the source, which is the whole of what a
+    read-only bind of it needs to know.
+    """
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = Path(root) / candidate
+    return str(candidate) if candidate.exists() else None
+
+
+def declared_reads(root: str) -> dict[str, list[str]]:
+    """The declared commands whose `reads` all resolve in `root`, and those paths.
+
+    An entry naming a path that is not there is left out altogether, so it is
+    wrapped and its paths are bound nowhere.
+    """
+    live: dict[str, list[str]] = {}
+    for command, reads in sh.unwrapped_commands().items():
+        paths = [_resolved(root, one) for one in reads]
+        if any(path is None for path in paths):
+            continue
+        live[command] = [path for path in paths if path is not None]
+    return live
+
+
+def is_declared_command(command: str, root: str) -> bool:
+    """Whether this whole command text is one the project declared unwrapped."""
+    return command in declared_reads(root)
+
+
+def read_only_paths(root: str) -> list[str]:
+    """Every path a live declaration reads, sorted, each named once."""
+    paths: set[str] = set()
+    for reads in declared_reads(root).values():
+        paths.update(reads)
+    return sorted(paths)
+
+
+def _with_declaration(declared: dict[str, Any], body):
+    """Run `body` with `declared` standing in for the project's own word."""
+    original = sh.unwrapped_commands
+    sh.unwrapped_commands = lambda: declared  # type: ignore[assignment]
+    try:
+        return body()
+    finally:
+        sh.unwrapped_commands = original  # type: ignore[assignment]
+
+
 def self_test() -> int:
-    """Pin the whole-string match and the slug grammar."""
+    """Pin the whole-string match, the slug grammar, and the declared set."""
+    declared_text = "sudo systemctl restart hqplayerd"
+    with tempfile.TemporaryDirectory() as root:
+        (Path(root) / "present.txt").write_text("", encoding="utf-8")
+
+        def declared_answers(declaration: dict[str, Any], command: str) -> bool:
+            return _with_declaration(
+                declaration, lambda: is_declared_command(command, root)
+            )
+
+        declaration_rules = {
+            "the declared text exactly is the project's command": declared_answers(
+                {declared_text: []}, declared_text
+            ),
+            "nothing less than the whole declared string matches": not any(
+                declared_answers({declared_text: []}, spelling)
+                for spelling in (
+                    declared_text + " ",
+                    declared_text + " --now",
+                    declared_text + "; rm -rf state",
+                    "cd /tmp && " + declared_text,
+                    "echo " + declared_text,
+                )
+            ),
+            "a command the project did not declare is not declared": not declared_answers(
+                {"sudo systemctl restart other": []}, declared_text
+            ),
+            "a declaration carrying nothing declares nothing": not declared_answers(
+                {}, declared_text
+            ),
+            "a reads path that resolves keeps its declaration": declared_answers(
+                {declared_text: ["present.txt"]}, declared_text
+            ),
+            "a reads path that does not resolve voids its declaration": not declared_answers(
+                {declared_text: ["absent.txt"]}, declared_text
+            ),
+            "a voided declaration binds none of its paths": _with_declaration(
+                {declared_text: ["present.txt", "absent.txt"]},
+                lambda: read_only_paths(root),
+            )
+            == [],
+            "a live declaration's paths are bound, each named once": _with_declaration(
+                {declared_text: ["present.txt"], "other": ["present.txt"]},
+                lambda: read_only_paths(root),
+            )
+            == [str(Path(root) / "present.txt")],
+        }
+
+    shape_rules = {
+        "an unusable entry voids the whole mapping": all(
+            sh.unwrapped_from({"unwrapped_commands": bad}) == {}
+            for bad in (
+                [declared_text],
+                {declared_text: ["present.txt"]},
+                {declared_text: {"reads": "present.txt"}},
+                {declared_text: {"reads": [1]}},
+                {"": {"reads": []}},
+            )
+        ),
+        "a key the file omits declares nothing": sh.unwrapped_from({}) == {},
+        "a declaration the file carries is read as written": sh.unwrapped_from(
+            {"unwrapped_commands": {declared_text: {"reads": ["a", "b"]}}}
+        )
+        == {declared_text: ["a", "b"]},
+    }
+
     lines = {
+        **declaration_rules,
+        **shape_rules,
         "one whole subcommand call, for each subcommand": all(
             is_pair_command(f"{ENTRY} {sub} demo") for sub in SUBCOMMANDS
         ),

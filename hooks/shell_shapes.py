@@ -39,7 +39,7 @@ that, matching the test-directory shape both as typed and after
 `os.path.normpath`, so an argument that opens under the lane and walks out of
 it is not a run.
 
-`blind-reads.json` carries seven keys, and they are the whole
+`blind-reads.json` carries eight keys, and they are the whole
 of what varies between the projects this kit is copied into. It is read from
 `$CLAUDE_PROJECT_DIR/.claude/blind-reads.json`, and from beside this file when
 the project names no file at all: the config belongs to the project, not to
@@ -835,6 +835,11 @@ DEFAULT_SCALARS = {
     "gate_command": "make check",
 }
 
+#: the commands a project declares run outside the sandbox, and the paths each
+#: of them reads. The key is the command text exactly as it is typed, and the
+#: default is the empty mapping: a project that declares none unwraps none.
+DEFAULT_UNWRAPPED: dict[str, list[str]] = {}
+
 #: the two runner keys, and the invocation each takes when the file names none.
 #: They are what `scripts/blind.sh test` and `scripts/pair.sh red` run, without
 #: the test path and the trailing flags a caller adds after them.
@@ -905,6 +910,39 @@ def runners_from(conf: dict[str, Any]) -> dict[str, list[str]]:
     return resolved
 
 
+def unwrapped_from(conf: dict[str, Any]) -> dict[str, list[str]]:
+    """The commands this config declares unwrapped, and the paths each reads.
+
+    All or nothing, like the directories. A key that is not a command text, a
+    value that is not an object, a `reads` that is not a list of paths: any one
+    of them voids the whole mapping. Per-entry fallback would leave a project
+    unwrapping the neighbours of the entry it got wrong, which is the one place
+    in this design where a command runs outside the sandbox.
+
+    The paths are carried as the project spelled them. Whether one resolves is a
+    question about a checkout rather than about the declaration, and it is asked
+    where the checkout is known.
+    """
+    if "unwrapped_commands" not in conf:
+        return {}
+    declared = conf.get("unwrapped_commands")
+    if not isinstance(declared, dict):
+        return {}
+    resolved: dict[str, list[str]] = {}
+    for command, value in declared.items():
+        if not isinstance(command, str) or not command.strip():
+            return {}
+        if not isinstance(value, dict):
+            return {}
+        reads = value.get("reads", [])
+        if not isinstance(reads, list):
+            return {}
+        if any(not isinstance(one, str) or not one for one in reads):
+            return {}
+        resolved[command] = list(reads)
+    return resolved
+
+
 def scalars_from(conf: dict[str, Any]) -> dict[str, str]:
     """The two scalars this config resolves to, defaults filled in.
 
@@ -961,6 +999,17 @@ def scalars() -> dict[str, str]:
 def runners() -> dict[str, list[str]]:
     """The resolved runner invocations, read once per process."""
     return runners_from(_declared()[0])
+
+
+@functools.lru_cache(maxsize=1)
+def unwrapped_commands() -> dict[str, list[str]]:
+    """The declared unwrapped commands, read once per process."""
+    return unwrapped_from(_declared()[0])
+
+
+def unwrapped_command_texts() -> list[str]:
+    """One declared command per line, in the order the declaration gives them."""
+    return list(unwrapped_commands())
 
 
 def pytest_command() -> list[str]:
@@ -1028,7 +1077,7 @@ def reviews_lane() -> str:
 LANE_DIRS = tuple(lane(suffix) for suffix in LANE_SUFFIXES)
 
 
-#: what `--config <key>` answers: the seven keys the file carries, and the four
+#: what `--config <key>` answers: the eight keys the file carries, and the four
 #: derived lanes, so a shell script asks for a lane rather than rebuilding one
 #: out of the base and a suffix it would have to hardcode. A runner answers one
 #: word per line; every other key answers one line.
@@ -1040,6 +1089,7 @@ CONFIG_READERS: dict[str, Callable[[], str | list[str]]] = {
     "gate_command": gate_command,
     "pytest_command": pytest_command,
     "node_command": node_command,
+    "unwrapped_commands": unwrapped_command_texts,
     "plans_lane": plans_lane,
     "specs_lane": specs_lane,
     "verdicts_lane": verdicts_lane,

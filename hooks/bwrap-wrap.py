@@ -224,6 +224,15 @@ def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
     if pair_passthrough.is_pair_command(command):
         return None
 
+    root = sh.cwd_of(payload)
+    # the project's own word, not this hook's: a command it declared under
+    # `unwrapped_commands` runs outside the sandbox, and the paths that command
+    # reads are bound read-only inside every wrapped profile. A declaration
+    # naming a path this checkout does not hold is not live here and the
+    # command is wrapped like any other.
+    if pair_passthrough.is_declared_command(command, root):
+        return None
+
     fault = bwrap_fault()
     if fault is not None:
         return {
@@ -234,7 +243,6 @@ def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
             }
         }
 
-    root = sh.cwd_of(payload)
     wrapped = wrap(command, root, agent)
     return {
         "hookSpecificOutput": {
@@ -352,6 +360,13 @@ def _profile(root: str, agent: str) -> list[str]:
             # nothing else; under `--bind` it killed the command outright.
             args += _bind("--bind-try", tree)
             args += _checkout_readonly(tree)
+
+        # last, so they stand over the writable binds above: a path a declared
+        # command reads is read-only to every wrapped shell. The one command
+        # that runs outside the sandbox would otherwise run whatever a shell
+        # inside it wrote into that file.
+        for path in pair_passthrough.read_only_paths(root):
+            args += _bind("--ro-bind", path)
 
     return args + ["--", "bash", "-s"]
 
