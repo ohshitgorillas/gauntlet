@@ -13,7 +13,7 @@ for subagent calls, so an absent key is the main agent, which passes untouched
 is read-blocked by this hook.
 
 The fail direction is the price of that guard, and it is the opposite of the
-lane hooks'. `reviews-lane.py` answers an absent `agent_type` by over-denying,
+lane hook's. `lanes.py` answers an absent `agent_type` by over-denying,
 which leaks nothing. Here an absent key must pass, because the main agent is
 itself the caller that carries none, so a build that stopped supplying the key
 for subagents would hand the blind agents the implementation rather than deny

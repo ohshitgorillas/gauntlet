@@ -10,37 +10,16 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/specs-lane.py"
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/plans-lane.py"
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/tests-lane.py"
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/verdicts-lane.py"
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit|NotebookEdit|Read|Grep",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/reviews-lane.py"
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/lanes.py"
           }
         ]
       },
       {
-        "matcher": "Read|Grep|Glob|Bash",
+        "matcher": "Read|Grep|Glob",
         "hooks": [
           {
             "type": "command",
@@ -71,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/verdicts-lane.py --stop"
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/lanes.py --stop"
           }
         ]
       }

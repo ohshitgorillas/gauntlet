@@ -58,9 +58,9 @@ def _root() -> str:
 ROOT = _root()
 
 #: every directory the kit names comes from `blind-reads.json`, through the
-#: reader the hooks use: the lane this script diffs is the lane `tests-lane.py`
-#: guards, and the two it reads are the lanes `specs-lane.py` and
-#: `reviews-lane.py` hold. The branch and the gate come from the same file.
+#: reader the hooks use: the lane this script diffs and the two it reads are
+#: rows of the table `lanes.py` holds. The branch and the gate come from the
+#: same file.
 TESTS = sh.tests_dir()
 SPECS = sh.specs_lane()
 REVIEWS = sh.reviews_lane()

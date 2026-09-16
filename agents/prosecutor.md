@@ -40,7 +40,7 @@ Last action, every round that carries checks: Write your whole output, verbatim,
 
 On amendment round that write is rewrite of file already there: amended plan body, then every reviewer block in order, oldest first, each under its own `--- reviewer ---` divider, yours last. Older blocks stay. Replacing one hides text owner approved, and next reviewer reads carried verdicts from last block. Rewritten plan is new artifact and waits for owner's word again.
 
-That folder is yours alone. `hooks/plans-lane.py` denies every other agent, main agent included, every write under `<gauntlet dir>/plans/approved/`, so file's existence is only proof a later stage has that plan it reads passed this gate. Write nothing there you did not pass. Rules in `${CLAUDE_PLUGIN_ROOT}/docs/plans.md`.
+That folder is yours alone. `hooks/lanes.py` denies every other agent, main agent included, every write under `<gauntlet dir>/plans/approved/`, so file's existence is only proof a later stage has that plan it reads passed this gate. Write nothing there you did not pass. Rules in `${CLAUDE_PLUGIN_ROOT}/docs/plans.md`.
 
 ## The checks
 

@@ -34,11 +34,7 @@ mkdir -p "$out"
 
 gates=(
     "pytest|env PYTHONPATH=$root $pytest tests -q"
-    "plans-lane|python3 hooks/plans-lane.py --self-test"
-    "specs-lane|python3 hooks/specs-lane.py --self-test"
-    "tests-lane|python3 hooks/tests-lane.py --self-test"
-    "reviews-lane|python3 hooks/reviews-lane.py --self-test"
-    "verdicts-lane|python3 hooks/verdicts-lane.py --self-test"
+    "lanes|python3 hooks/lanes.py --self-test"
     "no-impl-reads|python3 hooks/no-impl-reads.py --self-test"
     "blind-bash|python3 hooks/blind-bash.py --self-test"
     "gauntlet-off|python3 hooks/gauntlet-off.py --self-test"

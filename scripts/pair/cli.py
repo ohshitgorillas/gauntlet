@@ -309,7 +309,7 @@ def cmd_list() -> int:
 def cmd_review(first: str, second: str | None) -> int:
     """The path a reviewer writes its round to, counted here and handed to it.
 
-    A reviewer cannot count the directory itself: `reviews-lane.py` denies it
+    A reviewer cannot count the directory itself: `lanes.py` denies it
     every read of the reviewers' lane, so a reviewer left to pick its own `<N>`
     is guessing, and a guess that lands on a number already taken overwrites a
     round that exists in no git object and is gone.

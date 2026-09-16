@@ -177,7 +177,7 @@ def _read(hook_dir, path, agent="scrivener"):
 
 
 class TestsDirMovesTheWritersLane(unittest.TestCase):
-    """``tests_dir`` names the directory ``tests-lane.py`` guards."""
+    """``tests_dir`` names the directory ``lanes.py`` guards."""
 
     @classmethod
     def setUpClass(cls):
@@ -190,21 +190,21 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_default_lane_is_tests_when_no_declaration_names_one(self):
-        self.assertEqual(_write(self.bare, "tests-lane.py", "/repo/tests/t.py"), DENY)
-        self.assertEqual(_write(self.bare, "tests-lane.py", "/repo/spec/t.py"), SILENT)
+        self.assertEqual(_write(self.bare, "lanes.py", "/repo/tests/t.py"), DENY)
+        self.assertEqual(_write(self.bare, "lanes.py", "/repo/spec/t.py"), SILENT)
         self.assertEqual(_config_lines(self.bare, "tests_dir"), ["tests"])
 
     def test_named_dir_is_the_lane_and_tests_is_not(self):
-        self.assertEqual(_write(self.moved, "tests-lane.py", "/repo/spec/t.py"), DENY)
-        self.assertEqual(_write(self.moved, "tests-lane.py", "/repo/tests/t.py"), SILENT)
+        self.assertEqual(_write(self.moved, "lanes.py", "/repo/spec/t.py"), DENY)
+        self.assertEqual(_write(self.moved, "lanes.py", "/repo/tests/t.py"), SILENT)
         self.assertEqual(_config_lines(self.moved, "tests_dir"), ["spec"])
 
     def test_writer_writes_the_named_dir_of_its_spec_tree_only(self):
         tree = "/repo/.claude/worktrees/x-spec"
         writer = "scrivener"
-        self.assertEqual(_write(self.moved, "tests-lane.py", f"{tree}/spec/t.py", writer), SILENT)
-        self.assertEqual(_write(self.moved, "tests-lane.py", f"{tree}/tests/t.py", writer), DENY)
-        self.assertEqual(_write(self.moved, "tests-lane.py", "/repo/spec/t.py", writer), DENY)
+        self.assertEqual(_write(self.moved, "lanes.py", f"{tree}/spec/t.py", writer), SILENT)
+        self.assertEqual(_write(self.moved, "lanes.py", f"{tree}/tests/t.py", writer), DENY)
+        self.assertEqual(_write(self.moved, "lanes.py", "/repo/spec/t.py", writer), DENY)
 
     def test_the_blind_runner_reads_the_named_lane_and_not_the_default(self):
         # `scripts/blind.sh test <path>` is the blind agents' one entry point,
@@ -272,10 +272,10 @@ class GauntletDirMovesEveryLane(unittest.TestCase):
 
     def test_each_lane_hook_guards_the_lane_under_the_named_base(self):
         for hook, suffix, reviewer in (
-            ("specs-lane.py", "specs/approved", "arbiter"),
-            ("plans-lane.py", "plans/approved", "prosecutor"),
-            ("verdicts-lane.py", "verdicts", "juror"),
-            ("reviews-lane.py", "reviews", "arbiter"),
+            ("lanes.py", "specs/approved", "arbiter"),
+            ("lanes.py", "plans/approved", "prosecutor"),
+            ("lanes.py", "verdicts", "juror"),
+            ("lanes.py", "reviews", "arbiter"),
         ):
             with self.subTest(hook=hook):
                 moved_path = f"/repo/work/chain/{suffix}/slug.txt"
@@ -350,9 +350,9 @@ class AnOverlappingSetMovesNothing(unittest.TestCase):
         copy = _copy(self.tmp.name, label, conf)
         for key, default in DEFAULTS.items():
             self.assertEqual(_config_lines(copy, key), [default], (conf, key))
-        self.assertEqual(_write(copy, "tests-lane.py", "/repo/tests/t.py"), DENY, conf)
+        self.assertEqual(_write(copy, "lanes.py", "/repo/tests/t.py"), DENY, conf)
         self.assertEqual(
-            _write(copy, "specs-lane.py", "/repo/gauntlet/specs/approved/s.txt"), DENY, conf
+            _write(copy, "lanes.py", "/repo/gauntlet/specs/approved/s.txt"), DENY, conf
         )
 
     def test_a_lane_directory_itself(self):
@@ -512,12 +512,12 @@ class ADeclarationThatIsAFault(unittest.TestCase):
         # declaration does not know which directory it guards, so it refuses
         # instead of guarding the kit's and calling that a decision.
         for label, copy in (("absent", self.absent), ("malformed", self.broken)):
-            self.assertEqual(_write(copy, "tests-lane.py", "/repo/src/main.py"), DENY, label)
-            self.assertEqual(_write(copy, "specs-lane.py", "/repo/README.md"), DENY, label)
+            self.assertEqual(_write(copy, "lanes.py", "/repo/src/main.py"), DENY, label)
+            self.assertEqual(_write(copy, "lanes.py", "/repo/README.md"), DENY, label)
 
     def test_the_denial_names_the_file_and_the_way_out(self):
         completed = subprocess.run(
-            [sys.executable, str(self.absent / "tests-lane.py")],
+            [sys.executable, str(self.absent / "lanes.py")],
             input=json.dumps(
                 {
                     "hook_event_name": "PreToolUse",
@@ -540,8 +540,8 @@ class ADeclarationThatIsAFault(unittest.TestCase):
         # separates "declared nothing" from "declared the defaults".
         for key, default in DEFAULTS.items():
             self.assertEqual(_config_lines(self.empty, key), [default], key)
-        self.assertEqual(_write(self.empty, "tests-lane.py", "/repo/tests/t.py"), DENY)
-        self.assertEqual(_write(self.empty, "tests-lane.py", "/repo/src/main.py"), SILENT)
+        self.assertEqual(_write(self.empty, "lanes.py", "/repo/tests/t.py"), DENY)
+        self.assertEqual(_write(self.empty, "lanes.py", "/repo/src/main.py"), SILENT)
 
 
 if __name__ == "__main__":

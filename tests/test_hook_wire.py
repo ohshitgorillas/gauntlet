@@ -1,4 +1,4 @@
-"""Wire tests for the four PreToolUse hooks in hooks/.
+"""Wire tests for the PreToolUse hooks in hooks/.
 
 Each hook is invoked exactly as Claude Code invokes it: one JSON object on
 stdin carrying ``tool_name``, ``tool_input`` and ``cwd``, and the hook answers
@@ -51,7 +51,7 @@ REPO_CWD = _main_checkout_root()
 SILENT = ""
 DENY = "deny"
 
-# A path with no `.git` at or above it, used by the specs-lane cases.
+# A path with no `.git` at or above it, used by the approved-spec cases.
 NOGIT_CWD = "/nogit"
 
 #: `no-impl-reads.py` and `blind-bash.py` are wired session-wide and gated on
@@ -333,7 +333,7 @@ class NoImplReadsOverTheTrackedTree(unittest.TestCase):
 
 
 class SpecsLaneCallers(unittest.TestCase):
-    """specs-lane.py, the lane that owns writes under the approved specs."""
+    """The lane table's row for the approved specs."""
 
     maxDiff = None
 
@@ -349,7 +349,7 @@ class SpecsLaneCallers(unittest.TestCase):
         }
         block = REPO_CWD / "gauntlet" / "specs" / "approved" / "demo.txt"
         actual = sweep(
-            "specs-lane.py",
+            "lanes.py",
             expected,
             lambda agent_type: write_payload(block, REPO_CWD, agent_type),
         )
@@ -357,7 +357,7 @@ class SpecsLaneCallers(unittest.TestCase):
 
 
 class LanesWithoutGitRoot(unittest.TestCase):
-    """specs-lane.py and plans-lane.py, where no `.git` sits above the cwd."""
+    """The approved-spec and approved-plan rows, where no `.git` sits above the cwd."""
 
     maxDiff = None
 
@@ -370,11 +370,11 @@ class LanesWithoutGitRoot(unittest.TestCase):
         # approved one inside it answers DENY for the main agent's own draft,
         # which now sits under that stage rather than beside it.
         expected = {
-            ("specs-lane.py", "/nogit/gauntlet/specs/approved"): DENY,
-            ("specs-lane.py", "/nogit/gauntlet/specs/approved/s.txt"): DENY,
-            ("specs-lane.py", "/nogit/gauntlet/specs/drafts/s.txt"): SILENT,
-            ("plans-lane.py", "/nogit/gauntlet/plans/approved/p.txt"): DENY,
-            ("plans-lane.py", "/nogit/gauntlet/plans/drafts/p.txt"): SILENT,
+            ("lanes.py", "/nogit/gauntlet/specs/approved"): DENY,
+            ("lanes.py", "/nogit/gauntlet/specs/approved/s.txt"): DENY,
+            ("lanes.py", "/nogit/gauntlet/specs/drafts/s.txt"): SILENT,
+            ("lanes.py", "/nogit/gauntlet/plans/approved/p.txt"): DENY,
+            ("lanes.py", "/nogit/gauntlet/plans/drafts/p.txt"): SILENT,
         }
         actual = {
             (hook_name, file_path): hook_decision(hook_name, write_payload(file_path, NOGIT_CWD))
@@ -384,7 +384,7 @@ class LanesWithoutGitRoot(unittest.TestCase):
 
 
 class PlansLaneCallers(unittest.TestCase):
-    """plans-lane.py, the lane that owns writes under docs/gauntlet/plans/."""
+    """The lane table's row for the approved plans."""
 
     maxDiff = None
 
@@ -404,7 +404,7 @@ class PlansLaneCallers(unittest.TestCase):
         }
         plan = REPO_CWD / "gauntlet" / "plans" / "approved" / "demo.txt"
         actual = sweep(
-            "plans-lane.py",
+            "lanes.py",
             expected,
             lambda agent_type: write_payload(plan, REPO_CWD, agent_type),
         )
@@ -412,7 +412,7 @@ class PlansLaneCallers(unittest.TestCase):
 
 
 class ReviewsLaneOnAnApprovedPlan(unittest.TestCase):
-    """reviews-lane.py, on the plan path the plan reviewer owns."""
+    """The reviewers' row, on the plan path the plan reviewer owns."""
 
     maxDiff = None
 
@@ -427,24 +427,19 @@ class ReviewsLaneOnAnApprovedPlan(unittest.TestCase):
         }
         plan = REPO_CWD / "gauntlet" / "plans" / "approved" / "demo.txt"
         actual = sweep(
-            "reviews-lane.py",
+            "lanes.py",
             expected,
             lambda agent_type: write_payload(plan, REPO_CWD, agent_type),
         )
         self.assertEqual(actual, expected)
 
 
-#: the five lane hooks, none of them wired on `Bash` any more. They are run
-#: against a shell payload here anyway, because a hook answers what it is
-#: handed whatever the manifest says, and the answer that has to hold is
-#: silence: the mount table is what stops a shell write into a lane now.
-SESSION_LANE_HOOKS = (
-    "specs-lane.py",
-    "plans-lane.py",
-    "tests-lane.py",
-    "reviews-lane.py",
-    "verdicts-lane.py",
-)
+#: the lane hook, wired on the write tools and on `Read`/`Grep` and not on
+#: `Bash`. It is run against a shell payload here anyway, because a hook
+#: answers what it is handed whatever the manifest says, and the answer that
+#: has to hold is silence: the mount table is what stops a shell write into a
+#: lane now.
+SESSION_LANE_HOOKS = ("lanes.py",)
 
 
 def lane_denials(command, cwd, agent_type=None):
@@ -596,7 +591,7 @@ class TheCallerGate(unittest.TestCase):
             for entry in event
             for hook in entry["hooks"]
         ]
-        self.assertEqual(len(commands), 12)
+        self.assertEqual(len(commands), 8)
         for command in commands:
             with self.subTest(command=command):
                 self.assertIn("${CLAUDE_PLUGIN_ROOT}", command)

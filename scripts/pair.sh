@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # The pair driver. Its name is a literal in `${CLAUDE_PLUGIN_ROOT}/docs/agents.md`, in the five agent
-# definitions, in `tests-lane.py`, in `verdicts-lane.py` and in the `bwrap`
+# definitions, in `lanes.py` and in the `bwrap`
 # carve-out `pair-passthrough.py` matches end to end, so the name stays here
 # and the work lives beside it in `scripts/pair/`.
 #

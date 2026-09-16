@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """The owner's off switch, in its three voices.
 
-`GAUNTLET=off claude` starts a session with the seven lane hooks silent and the
-`Stop` gate silent. The switch itself is `bypassed()` in `shell_shapes.py`, read
+`GAUNTLET=off claude` starts a session with the lane hook, the two blind-agent
+hooks and the `Stop` gate silent. The switch itself is `bypassed()` in `shell_shapes.py`, read
 at the top of each hook's `main()`; this file is what the switch says out loud
 and what keeps it out of the hands of the session it governs.
 
@@ -11,7 +11,7 @@ question asked of the same variable, and splitting them would put three copies
 of that question in the tree.
 
   * `--session-start`  silent when the gauntlet is on; a banner when it is off,
-    naming the seven hooks, the `Stop` gate, and the plain statement that
+    naming the three hooks, the `Stop` gate, and the plain statement that
     nothing in `gauntlet/` is protected from any hand.
   * `--prompt`         silent when the gauntlet is on. When it is off, the
     standing notice that the chain is not running, on the session's first turn
@@ -100,13 +100,9 @@ EVERY = 10
 #: arrives in a payload, so it is spelled into a flat name before it is a path.
 _TAME = re.compile(r"[^A-Za-z0-9_-]")
 
-#: the seven hooks the switch silences, by the name a reader sees in the tree
+#: the three hooks the switch silences, by the name a reader sees in the tree
 SILENCED = (
-    "specs-lane.py",
-    "plans-lane.py",
-    "tests-lane.py",
-    "reviews-lane.py",
-    "verdicts-lane.py",
+    "lanes.py",
     "no-impl-reads.py",
     "blind-bash.py",
 )
@@ -114,7 +110,7 @@ SILENCED = (
 BANNER = (
     "GAUNTLET=off -- the chain is not running in this session.\n"
     "Silent: " + ", ".join(SILENCED) + ", and the `Stop` gate "
-    "(`verdicts-lane.py --stop`), which no longer holds a turn open for an "
+    "(`lanes.py --stop`), which no longer holds a turn open for an "
     "unruled red run.\n"
     "Nothing under `gauntlet/` is protected from any hand, this agent's "
     "included. A blind subagent spawned in this session is not blind: it can "
@@ -126,7 +122,7 @@ BANNER = (
 )
 
 NOTICE = (
-    "GAUNTLET=off is in force: the seven lane hooks and the `Stop` gate are "
+    "GAUNTLET=off is in force: the three hooks and the `Stop` gate are "
     "silent this session -- the chain is not running. Any write into `gauntlet/` "
     "will be allowed whoever "
     "makes it, and no blind agent is blind. Artifacts produced here are not "
@@ -498,7 +494,7 @@ def self_test() -> int:
         "a .claude/ path is not a claude invocation": all(
             _verdict("Bash", {"command": c}) is None
             for c in (
-                "python3 hooks/plans-lane.py --self-test",
+                "python3 hooks/lanes.py --self-test",
                 "python3 hooks/gauntlet-off.py --self-test",
                 "cat .claude/settings.json",
                 "ls .claude/worktrees",

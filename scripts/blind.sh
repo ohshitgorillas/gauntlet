@@ -15,7 +15,7 @@
 # Every subcommand runs under `bwrap` with the whole filesystem read-only,
 # because a blind agent's one command is not a way to write. The exception is
 # the agent's own lane: a `test` run binds the tree's `tests/` back writable,
-# which is the directory `tests-lane.py` already lets that agent write.
+# which is the directory `lanes.py` already lets that agent write.
 #
 # It does not mask the implementation. A test run needs the code it tests on
 # disk, and a mask turns the suite into a collect error, which separates
@@ -82,7 +82,7 @@ sandbox() {
 
 #: the values of `.claude/blind-reads.json`, through the same reader
 #: the hooks use, so the lane this script binds writable is the lane
-#: `tests-lane.py` guards and the block it shows is the one `specs-lane.py` holds
+#: `lanes.py` guards, and the block it shows is the one the same file holds
 #:
 #: The reader is found beside this script rather than under `$ROOT`, because
 #: `scripts/` and `hooks/` travel together as the plugin and `$ROOT` is the
