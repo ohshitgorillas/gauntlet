@@ -13,17 +13,23 @@ of that question in the tree.
   * `--session-start`  silent when the gauntlet is on; a banner when it is off,
     naming the seven hooks, the `Stop` gate, and the plain statement that
     nothing in `gauntlet/` is protected from any hand.
-  * `--prompt`         speaks on the session's first turn and every `EVERY`th
-    turn after it, either way. Gauntlet on: the never-propose rule, stated
-    absolutely. Gauntlet off: the standing notice that the chain is not
-    running. The cadence is what holds that state in view thirty turns deep,
+  * `--prompt`         silent when the gauntlet is on. When it is off, the
+    standing notice that the chain is not running, on the session's first turn
+    and every `EVERY`th turn after it. The never-propose rule is not spoken
+    here. `gauntlet/CLAUDE.md` states it once in a file loaded once per session,
+    and a per-turn copy is paid for again in every turn that follows it.
+    The cadence is what holds that state in view thirty turns deep,
     past the point where the session-start banner has left the context window,
     and it is spaced because a line still in context is already doing its work.
     The turn is counted in a file under the system temporary directory, named
     for the session, so each session counts its own turns and the count lives
-    where temporary files live. A turn whose payload carries no session id, or
-    a count that cannot be read or written, speaks: losing a voice is the worse
-    failure of the two.
+    where temporary files live. A payload carrying no readable `session_id`
+    falls back to its `transcript_path`, and then to the id of the process that
+    spawned the hook: each is stable across the turns of one session and
+    distinct between two, which is all a count file's name has to be. Only a
+    count that cannot be read or written speaks unconditionally -- a voice on
+    every turn is paid for in every turn after it, so the fallback is a key and
+    not a shrug.
   * `--bash`           a `PreToolUse` hook, live only when the gauntlet is on
     and silent when it is off. It denies a `GAUNTLET=` assignment and a nested
     `claude` invocation. The bypass belongs to the hand that launches the
@@ -60,6 +66,8 @@ variable unset. That property is itself one of the lines it pins, and it is
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import re
@@ -122,16 +130,6 @@ NOTICE = (
     "will be allowed whoever "
     "makes it, and no blind agent is blind. Artifacts produced here are not "
     "evidence of anything."
-)
-
-RULE = (
-    "You may never propose the gauntlet bypass. Do not set GAUNTLET, do not "
-    "suggest the owner set it, and do not name it as an option -- not to "
-    "unblock yourself, not to save a turn, not as one alternative among "
-    "several. The rule has no exception and no cost/benefit case attached to "
-    "it, because a rule an agent can argue its way past is a rule the agent "
-    "will argue its way past on the one turn it matters. The switch belongs "
-    "to the hand that launches the session."
 )
 
 _WHY_ASSIGN = (
@@ -256,7 +254,16 @@ def _session(text: str) -> str:
     """The session id in a hook payload, tamed to a filename, or an empty string.
 
     Every shape that is not a JSON object with a string `session_id` reads as no
-    session at all, which `_speaks` answers by speaking.
+    session at all, which `_key` answers with a fallback name.
+    """
+    return _string_field(text, "session_id")
+
+
+def _string_field(text: str, field: str) -> str:
+    """One string field of a hook payload, tamed to a filename.
+
+    Every shape that is not a JSON object with that field a string reads as an
+    empty string.
     """
     try:
         payload = json.loads(text or "{}")
@@ -264,10 +271,22 @@ def _session(text: str) -> str:
         return ""
     if not isinstance(payload, dict):
         return ""
-    value = payload.get("session_id")
+    value = payload.get(field)
     if not isinstance(value, str):
         return ""
     return _TAME.sub("", value)[:64]
+
+
+def _key(text: str) -> str:
+    """The name this session's count file takes, and never an empty string.
+
+    `session_id` where the payload carries one, its `transcript_path` where it
+    does not, and the spawning process where it carries neither. A hook is a
+    child of the session that runs it, so that id is stable across the turns of
+    one session and distinct between two -- which is the whole of what the name
+    has to be.
+    """
+    return _session(text) or _string_field(text, "transcript_path") or ("ppid-" + str(os.getppid()))
 
 
 def _count_path(session: str) -> Path:
@@ -277,9 +296,10 @@ def _count_path(session: str) -> Path:
 def _speaks(session: str, *, every: int = EVERY) -> bool:
     """Whether this turn is one the voice speaks on, and count the turn.
 
-    True on the first turn of a session and every `every`th turn after it. No
-    session id, or a count file that cannot be read or written, is True: a voice
-    heard too often costs tokens, and a voice lost costs the rule it carries.
+    True on the first turn of a session and every `every`th turn after it. A
+    count file that cannot be read or written is True: a voice lost costs the
+    rule it carries. The caller passes a name from `_key`, which is never empty,
+    so an unnameable session no longer reads as a first turn on every turn.
     """
     if not session or every < 1:
         return True
@@ -296,8 +316,8 @@ def _speaks(session: str, *, every: int = EVERY) -> bool:
 
 
 def prompt(stdin: str = "") -> None:
-    if _speaks(_session(stdin)):
-        print(NOTICE if sh.bypassed() else RULE)
+    if sh.bypassed() and _speaks(_key(stdin)):
+        print(NOTICE)
 
 
 def bash() -> None:
@@ -321,8 +341,37 @@ def _cadence(session: str, *, every: int, turns: int) -> list[bool]:
             pass
 
 
+def _spoken(*, value: str | None) -> str:
+    """What one `--prompt` turn prints with the variable set to `value`.
+
+    A self-test helper. The value is set explicitly and restored, so the
+    assertion never depends on the variable the developer is running under, and
+    the session id is one no real session collides with.
+    """
+    before = os.environ.get(VAR)
+    buffer = io.StringIO()
+    try:
+        if value is None:
+            os.environ.pop(VAR, None)
+        else:
+            os.environ[VAR] = value
+        session = "spoken-" + str(os.getpid())
+        with contextlib.redirect_stdout(buffer):
+            prompt(json.dumps({"session_id": session}))
+        try:
+            _count_path(session).unlink()
+        except OSError:
+            pass
+    finally:
+        if before is None:
+            os.environ.pop(VAR, None)
+        else:
+            os.environ[VAR] = before
+    return buffer.getvalue().strip()
+
+
 def self_test() -> int:
-    """Pin the switch's grammar, the three voices, the cadence, and the two denials."""
+    """Pin the switch's grammar, the two voices, the cadence, and the two denials."""
     lines = {
         "off() is the exact value `off`, after strip and lowercase": (
             off("off")
@@ -372,14 +421,17 @@ def self_test() -> int:
             _verdict("Write", {"command": "claude"}) is None
             and _verdict("Read", {"file_path": "GAUNTLET=off"}) is None
         ),
-        "the three voices differ, and each says what it is for": (
+        "the two voices differ, and each says what it is for": (
             VAR + "=" + OFF in BANNER
             and "Stop" in BANNER
             and all(h in BANNER for h in SILENCED)
-            and "never propose" in RULE.lower()
-            and "no exception" in RULE
             and "not running" in NOTICE
             and BANNER != NOTICE
+        ),
+        #: a gauntlet-on session pays nothing per turn. The `--prompt` voice
+        #: carries the off-switch notice and nothing else.
+        "the prompt voice speaks only when the gauntlet is off": (
+            _spoken(value="off") == NOTICE and _spoken(value=None) == ""
         ),
         #: the cadence, on a session id no real session can collide with, and
         #: removed after so a second run of the self-test starts from zero.
@@ -387,12 +439,16 @@ def self_test() -> int:
             _cadence("cadence-" + str(os.getpid()), every=3, turns=7)
             == [True, False, False, True, False, False, True]
         ),
-        "a turn with an unreadable session id speaks": (
+        "a turn with an unreadable session id is still counted, not spoken on": (
             _session("") == ""
             and _session("not json at all") == ""
             and _session("[]") == ""
             and _session('{"session_id": 7}') == ""
-            and all(_speaks("", every=3) for _ in range(4))
+            and _key('{"transcript_path": "/x/y/z.jsonl"}') == "xyzjsonl"
+            and _key("[]") == "ppid-" + str(os.getppid())
+            and _key('{"session_id": "s"}') == "s"
+            and _cadence(_key("not json at all"), every=3, turns=7)
+            == [True, False, False, True, False, False, True]
         ),
         "a session id is tamed to a filename directly under the temp directory": (
             _session('{"session_id": "../../etc/passwd"}') == "etcpasswd"
