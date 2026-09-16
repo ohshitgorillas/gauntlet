@@ -19,7 +19,7 @@ replace by accident. `--print` writes nothing and prints what would be written.
 
 The values it writes are the kit's defaults, read out of `shell_shapes` rather
 than retyped here, so a project starts from the shipped layout and edits the
-file by hand from there. All seven keys are written out, present and explicit,
+file by hand from there. All eight keys are written out, present and explicit,
 because a key a project can see is a key it can change.
 
 It also creates the skeleton under `gauntlet_dir`: the four lanes the agents
@@ -39,6 +39,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 _HOOKS = str(Path(__file__).resolve().parent / ".." / "hooks")
 sys.path.insert(0, _HOOKS)
@@ -67,20 +68,21 @@ SKELETON = (
 )
 
 
-def declaration() -> dict[str, str]:
-    """The seven keys and the kit's default for each, in a stable order.
+def declaration() -> dict[str, Any]:
+    """The eight keys and the kit's default for each, in a stable order.
 
     The defaults are `shell_shapes`' own tables, not a copy: a second copy of
     `target_branch` here is a second answer the day the first one changes.
     """
-    written: dict[str, str] = {}
+    written: dict[str, Any] = {}
     written.update(sh.DEFAULT_DIRS)
     written.update(sh.DEFAULT_SCALARS)
     written.update(sh.DEFAULT_RUNNERS)
+    written["unwrapped_commands"] = dict(sh.DEFAULT_UNWRAPPED)
     return written
 
 
-def body(conf: dict[str, str]) -> str:
+def body(conf: dict[str, Any]) -> str:
     """The file's text: pretty JSON with a trailing newline, for hand editing."""
     return json.dumps(conf, indent=2) + "\n"
 
@@ -173,10 +175,15 @@ def self_test() -> int:
         )
 
         loaded = json.loads(target.read_text(encoding="utf-8"))
-        expected = set(sh.DEFAULT_DIRS) | set(sh.DEFAULT_SCALARS) | set(sh.DEFAULT_RUNNERS)
-        rules["2 it carries all seven keys, explicitly"] = set(loaded) == expected and len(
+        expected = (
+            set(sh.DEFAULT_DIRS)
+            | set(sh.DEFAULT_SCALARS)
+            | set(sh.DEFAULT_RUNNERS)
+            | {"unwrapped_commands"}
+        )
+        rules["2 it carries all eight keys, explicitly"] = set(loaded) == expected and len(
             expected
-        ) == 7
+        ) == 8
 
         rules["3 every value is the kit's default, not a second copy"] = loaded == declaration()
 
@@ -254,7 +261,7 @@ def _fault_of(project: Path) -> str | None:
     return printed or None
 
 
-def _reads_back(project: Path) -> dict[str, str]:
+def _reads_back(project: Path) -> dict[str, Any]:
     """The declaration `shell_shapes` reads back out of that project."""
     import json as _json
 
