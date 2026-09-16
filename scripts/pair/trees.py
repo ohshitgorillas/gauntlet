@@ -8,7 +8,7 @@ tree that already holds the implementation proves nothing -- and the disjoint
 lanes are what make the combine in `converge.py` conflict-free by construction.
 
 Everything here prints to stderr. The stdout of `scripts/pair.sh` is contract,
-documented in `docs/agents.md`, and a library that printed to it would be
+documented in `${CLAUDE_PLUGIN_ROOT}/docs/agents.md`, and a library that printed to it would be
 writing that contract from underneath the one file that owns it.
 """
 

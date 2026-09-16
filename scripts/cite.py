@@ -116,7 +116,7 @@ def quotes_in(line: str) -> list[re.Match[str]]:
 def anchor_pairs(line: str, cites: list[Citation]) -> None:
     """Bind each quote on the line to at most one citation, and set anchors.
 
-    A plan writes the quote after the citation -- `docs/plans.md:37` requires
+    A plan writes the quote after the citation -- `${CLAUDE_PLUGIN_ROOT}/docs/plans.md:37` requires
     them, "A claim about the tree carries `file:line`" -- far more often than
     before it, so a following quote is claimed first and a preceding one only
     by a citation that found none. One quote binds once: where two citations

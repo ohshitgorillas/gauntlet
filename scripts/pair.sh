@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# The pair driver. Its name is a literal in `docs/agents.md`, in the five agent
+# The pair driver. Its name is a literal in `${CLAUDE_PLUGIN_ROOT}/docs/agents.md`, in the five agent
 # definitions, in `tests-lane.py`, in `verdicts-lane.py` and in the `bwrap`
 # carve-out `pair-passthrough.py` matches end to end, so the name stays here
 # and the work lives beside it in `scripts/pair/`.
 #
 # `exec`, so the driver is this process: an exit status, a signal and a
 # terminal all reach it unchanged, and stdout stays the contract stream
-# `docs/agents.md` documents.
+# `${CLAUDE_PLUGIN_ROOT}/docs/agents.md` documents.
 
 #: `shell_shapes.config()` reads the declaration from `$CLAUDE_PROJECT_DIR`, and
 #: the variable is set for a hook but not for a `Bash` child. So the checkout is

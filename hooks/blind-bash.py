@@ -57,7 +57,7 @@ itself the caller with no key -- so a build that stopped supplying it would
 hand the scrivener an unrestricted shell instead of denying it. Guarding by
 caller identity cannot fail closed; guarding by wiring scope could, and does
 not survive packaging. `no-impl-reads.py` pays the same price for the same
-reason, and `docs/approved-specs.md` states it once for both.
+reason, and `${CLAUDE_PLUGIN_ROOT}/docs/approved-specs.md` states it once for both.
 """
 
 from __future__ import annotations

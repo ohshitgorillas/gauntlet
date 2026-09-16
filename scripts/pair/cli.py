@@ -13,7 +13,7 @@
     pair.sh impl checkout <slug>   cut the implementation tree, or name the cut one
     pair.sh impl merge <slug>      merge the implementation tree back
 
-The stdout of each is contract, and `docs/agents.md` carries the table. A blind
+The stdout of each is contract, and `${CLAUDE_PLUGIN_ROOT}/docs/agents.md` carries the table. A blind
 writer reads these literals there, never here. This file owns every line of
 that stdout: the three modules beside it print to stderr only, so a progress
 line can never be read as a contract line.
@@ -307,7 +307,7 @@ def cmd_review(first: str, second: str | None) -> int:
 
 
 def cmd_restore(slug: str, rev: str | None) -> int:
-    """The hand-carved `git restore --source` step of `docs/approved-specs.md`.
+    """The hand-carved `git restore --source` step of `${CLAUDE_PLUGIN_ROOT}/docs/approved-specs.md`.
 
     The classifier carves out that one shell shape, and a subcommand keeps the
     carve-out in one place rather than in every transcript.

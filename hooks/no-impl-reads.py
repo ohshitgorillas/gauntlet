@@ -37,6 +37,18 @@ Allowed by default: `docs/`, `tests/`, `state/`, and documentation files at the
 repo root (`*.md`, `*.txt`, `*.pdf`). `state/` is the workflow's own scratch,
 never the repository's source.
 
+The kit's own `docs/` is on the list too, at `${CLAUDE_PLUGIN_ROOT}/docs/`, and
+it is the one allowed path that sits outside the checkout. The kit cites its own
+prose there — the plan shape, the spec-gate rules, the roster — so a consumer
+installs the plugin and holds only `docs/testing.md`, which is genuinely its own
+policy, rather than a copy of the kit's prose kept in step by hand. A citation a
+blind agent cannot follow is a rule it does not hold, so the allowlist reaches
+that directory and nothing else beside it: `${CLAUDE_PLUGIN_ROOT}/hooks/` and
+`${CLAUDE_PLUGIN_ROOT}/scripts/` are the kit's implementation and stay denied.
+The variable is expanded where it appears in a path, because the citation is
+written that way and an agent following it literally reads a path that resolves
+nowhere.
+
 `gauntlet/` is a base of its own at the repo root, and it is a denial, not a
 widening. Everything the gauntlet's agents write lives there, and three of the
 four kinds quote implementation citations: an approved plan resolves
@@ -114,6 +126,27 @@ DOCS = sh.docs_dir()
 #: the one file that says where those are, readable by a blind agent whose
 #: definition names them as `<tests dir>` and `<docs dir>` and nothing more concrete
 CONFIG = ".claude/blind-reads.json"
+#: the variable the kit's citations are written with, expanded before a path is
+#: scored so a citation followed literally reaches the file it names
+PLUGIN_VAR = "CLAUDE_PLUGIN_ROOT"
+
+
+def _plugin_root() -> str:
+    """Where the kit is installed.
+
+    The harness sets `CLAUDE_PLUGIN_ROOT` for a hook it launches from a plugin
+    manifest. The hook's own location is the fallback, for a run that carries no
+    environment -- a self-test, or a checkout wired by hand -- and both name the
+    same directory, so neither spelling is the privileged one.
+    """
+    return os.path.abspath(os.environ.get(PLUGIN_VAR) or str(Path(__file__).resolve().parents[1]))  # noqa: PTH100
+
+
+#: the kit's own prose, the one allowed path outside the checkout. Its siblings
+#: -- `hooks/`, `scripts/`, `agents/` -- are the kit's implementation and are not
+#: on the list, so the entry is the `docs` directory and never the plugin root
+PLUGIN_ROOT = _plugin_root()
+PLUGIN_DOCS = os.path.join(PLUGIN_ROOT, "docs")  # noqa: PTH118
 #: the gauntlet's own artifact base at the repo root, denied entire
 GAUNTLET_BASE = sh.gauntlet_dir()
 #: the one subtree of it a blind agent works from: the approved spec block
@@ -152,7 +185,8 @@ SERVED = re.compile(
 
 _WHY = (
     "Blind agent: the implementation is out of bounds. Work from the approved spec "
-    f"block at {GAUNTLET_SPECS}/, the rest of {DOCS}/, and {TESTS}/. If the spec does "
+    f"block at {GAUNTLET_SPECS}/, the rest of {DOCS}/, {TESTS}/, and the kit's own prose "
+    f"at ${{{PLUGIN_VAR}}}/docs/. If the spec does "
     "not say what the behavior is, report that gap instead of reading the code to "
     f"find out. If this path is genuinely a spec source, it belongs under {DOCS}/ or in "
     f"{GAUNTLET_SPECS}/, which is the only part of {GAUNTLET_BASE}/ that is yours: the "
@@ -205,10 +239,23 @@ def readable(target: str, root: str | None, cwd: str) -> bool:
     """
     if not target:
         return True
+    #: the kit writes its citations with the variable in them, so expand it
+    #: before anything is scored. Only this one name, and only to the directory
+    #: the manifest already points every hook command at
+    target = target.replace("${" + PLUGIN_VAR + "}", PLUGIN_ROOT).replace(
+        "$" + PLUGIN_VAR, PLUGIN_ROOT
+    )
     #: lexical again: the `..` collapse is the whole job here, and
     #: `Path.resolve()` would follow a symlink out of the lane the allowlist
     #: anchors on
     resolved = os.path.abspath(os.path.join(cwd or (root or "."), target))  # noqa: PTH100, PTH118
+    #: the kit's own prose, judged absolute and ahead of the repo-relative work
+    #: below. It has to be: the plugin is installed outside the checkout, so
+    #: `os.path.relpath` against the repo root answers with a `..` path and the
+    #: allowlist never sees it. The test is anchored at `docs` and not at the
+    #: plugin root, so the kit's hooks, scripts and agent definitions stay denied
+    if resolved == PLUGIN_DOCS or resolved.startswith(PLUGIN_DOCS + os.sep):
+        return True
     #: a path inside `.claude/worktrees/<slug>` is anchored at that worktree, not
     #: at the checkout the session was started in. A blind agent is handed the
     #: absolute paths of files in its own worktree, and against the session root
@@ -494,6 +541,57 @@ def _no_denied_nesting() -> bool:
     return True
 
 
+def _plugin_docs_case(root: str) -> bool:
+    """That a blind agent can follow a citation into the installed kit, and no further.
+
+    Run against a plugin root of its own rather than this checkout's, because the
+    two coincide here and a test that cannot tell them apart pins nothing: in a
+    consumer's tree the kit sits somewhere else entirely, and that is the layout
+    the entry exists for.
+
+    Both directions are the case. The citation resolves, spelled absolute or with
+    the variable the kit writes it with, and the plugin's siblings do not -- the
+    hooks and the scripts beside that `docs/` are the implementation, and reading
+    them is the thing this hook is for. `respell` is left off deliberately: the
+    kit's own directory is named by the kit, and no `blind-reads.json` value
+    moves it.
+    """
+    global PLUGIN_ROOT, PLUGIN_DOCS  # noqa: PLW0603
+    keep_root, keep_docs = PLUGIN_ROOT, PLUGIN_DOCS
+    PLUGIN_ROOT = "/opt/plugins/gauntlet"
+    PLUGIN_DOCS = PLUGIN_ROOT + "/docs"
+    try:
+
+        def read(path: str) -> str | None:
+            return _verdict("Read", {"file_path": path}, root, root)
+
+        return all(
+            (
+                sh.allowed(read(f"{PLUGIN_ROOT}/docs/plans.md")),
+                sh.allowed(read(f"{PLUGIN_ROOT}/docs/approved-specs.md")),
+                sh.allowed(read(f"{PLUGIN_ROOT}/docs/agents.md")),
+                sh.allowed(read("${CLAUDE_PLUGIN_ROOT}/docs/plans.md")),
+                sh.allowed(read("$CLAUDE_PLUGIN_ROOT/docs/approved-specs.md")),
+                sh.allowed(
+                    _verdict("Grep", {"pattern": "x", "path": f"{PLUGIN_ROOT}/docs"}, root, root)
+                ),
+                #: the kit's implementation sits beside its prose and is not on
+                #: the list
+                sh.denied(read(f"{PLUGIN_ROOT}/hooks/no-impl-reads.py")),
+                sh.denied(read(f"{PLUGIN_ROOT}/scripts/pair.sh")),
+                sh.denied(read(f"{PLUGIN_ROOT}/agents/gauntlet-scrivener.md")),
+                sh.denied(read("${CLAUDE_PLUGIN_ROOT}/hooks/no-impl-reads.py")),
+                sh.denied(_verdict("Grep", {"pattern": "x", "path": PLUGIN_ROOT}, root, root)),
+                #: a path boundary, not a string prefix
+                sh.denied(read(f"{PLUGIN_ROOT}/docs-old/plans.md")),
+                #: and the variable buys no way back out of the directory
+                sh.denied(read("${CLAUDE_PLUGIN_ROOT}/docs/../hooks/no-impl-reads.py")),
+            )
+        )
+    finally:
+        PLUGIN_ROOT, PLUGIN_DOCS = keep_root, keep_docs
+
+
 def self_test() -> int:
     """Pin the spec lines of the blind-read allowlist."""
     root = "/repo"
@@ -711,8 +809,11 @@ def self_test() -> int:
                 allowed(blind(f"{root}/src/core/manager.py", "gauntlet:scrivener")),
             )
         ),
-        "12 no denied subtree nests inside an allowed one": _no_denied_nesting(),
-        "13 this repo's own blind-reads.json parses, if it is there": _config_parses(),
+        "12 the kit's own docs/ is readable, the rest of the plugin is not": _plugin_docs_case(
+            root
+        ),
+        "13 no denied subtree nests inside an allowed one": _no_denied_nesting(),
+        "14 this repo's own blind-reads.json parses, if it is there": _config_parses(),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal
         "every payload shape is answered, and an unreadable one is refused": (
