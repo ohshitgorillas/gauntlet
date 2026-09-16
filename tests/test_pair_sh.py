@@ -903,3 +903,133 @@ def test_a_red_gate_leaves_the_target_branch_and_both_trees_exactly_as_they_were
 ):
     lines, moved, gone, landed, _ = _converge(tmp_path, gate=gate)
     assert (len(lines), moved, gone, landed) == expected
+
+
+def _merge_stderr(tmp_path, tracked):
+    """Open, write a test in the spec tree, merge, and return the merge's stderr.
+
+    `tracked` decides whether the checkout carries the block at the base
+    commit. Untracked is the shape the chain produces: the block is a file the
+    reviewer wrote, and `pair.sh open` is what puts it on the spec branch, so
+    that commit is a write the spec tree makes outside the tests directory. The
+    lane check is step 1 and prints its refusal on stderr, which is why stderr
+    rather than stdout is what this measures.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    if not tracked:
+        #: the lane directory stays tracked, which is what the `.gitkeep`
+        #: `scripts/init.py` writes is for; the block alone leaves the index
+        (repo / "gauntlet" / "specs" / "approved" / ".gitkeep").write_text("")
+        _git(repo, "add", "-A")
+        _git(repo, "rm", "--cached", "-q", "--", SPEC_PATH)
+        _git(repo, "commit", "-m", "the block is the reviewer's, untracked here")
+    _pair(repo, "open", SLUG)
+    worktree = _worktree(repo)
+    (worktree / "tests" / "test_a.py").write_text(TEST_A_OTHER)
+    _git(worktree, "add", "-A")
+    _git(worktree, "commit", "-m", "spec tests")
+    env = dict(ENV)
+    env["HOME"] = str(repo)
+    done = subprocess.run(
+        [str(repo / "scripts" / "pair.sh"), "merge", SLUG],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    return done.stderr
+
+
+@pytest.mark.parametrize(
+    "tracked",
+    [True, False],
+    ids=["block-tracked-at-the-base", "block-committed-by-open"],
+)
+def test_the_block_open_commits_is_inside_the_spec_lane_the_merge_checks(tmp_path, tracked):
+    stderr = _merge_stderr(tmp_path, tracked)
+    outside = [line for line in stderr.splitlines() if "wrote outside its lane" in line]
+    assert (outside, "[2/6] commit both trees" in stderr) == ([], True)
+
+
+def _spec_commit_field(lines):
+    """The revision on the brief's `spec commit:` line, or "" where there is none."""
+    head = "spec commit: "
+    for line in lines:
+        if line.startswith(head):
+            return line[len(head) :]
+    return ""
+
+
+def test_the_brief_names_a_revision_that_resolves_the_block_as_git_show_spells_it(tmp_path):
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    _pair(repo, "open", SLUG)
+    worktree = _worktree(repo)
+    (worktree / "tests" / "test_a.py").write_text(TEST_A_OTHER)
+    _git(worktree, "add", "-A")
+    _git(worktree, "commit", "-m", "spec tests")
+    revision = _spec_commit_field(_pair(repo, "merge", SLUG))
+    #: the `bailiff`'s one shell is `blind.sh show <rev> <slug>`, which spells
+    #: `git show <rev>:<path>`; an object name resolves no tree there
+    assert _show(repo, revision + ":" + SPEC_PATH) == BLOCK_NEW
+
+
+SHADOW_FILE = "tests/test_c.py"
+SHADOW_LANDING = "def test_c():\n    assert 9 + 9 == 18\n"
+SHADOW_OTHER = "def test_c():\n    assert 9 + 9 == 19\n"
+
+
+def _pair_with_untracked(tmp_path, on_disk):
+    """Open a pair whose block is untracked, land a second file over `on_disk`.
+
+    The spec tree commits `SHADOW_FILE` carrying `SHADOW_LANDING`, and the
+    primary checkout holds `on_disk` at that path, untracked, or nothing where
+    `on_disk` is None. Returns the repository and the merge's stdout lines.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    #: the lane directory stays tracked, the block does not: the shape the
+    #: chain produces, where the reviewer wrote the block and `open` commits it
+    (repo / "gauntlet" / "specs" / "approved" / ".gitkeep").write_text("")
+    _git(repo, "add", "-A")
+    _git(repo, "rm", "--cached", "-q", "--", SPEC_PATH)
+    _git(repo, "commit", "-m", "the block is the reviewer's, untracked here")
+    _pair(repo, "open", SLUG)
+    worktree = _worktree(repo)
+    (worktree / SHADOW_FILE).write_text(SHADOW_LANDING)
+    _git(worktree, "add", "-A")
+    _git(worktree, "commit", "-m", "spec tests")
+    if on_disk is not None:
+        (repo / SHADOW_FILE).write_text(on_disk)
+    return repo, _pair(repo, "merge", SLUG)
+
+
+def test_a_pair_whose_block_is_untracked_in_the_checkout_lands_on_the_target_branch(tmp_path):
+    repo, lines = _pair_with_untracked(tmp_path, None)
+    landed = (_show(repo, "HEAD:" + SPEC_PATH), _show(repo, "HEAD:" + SHADOW_FILE))
+    assert (len(lines), landed) == (5, (BLOCK_NEW, SHADOW_LANDING))
+
+
+@pytest.mark.parametrize(
+    "on_disk,expected",
+    [
+        (SHADOW_LANDING, (SHADOW_LANDING, True)),
+        # a differing untracked file is the owner's work: nothing lands over it
+        (SHADOW_OTHER, ("", False)),
+    ],
+    ids=["untracked-copy-of-what-lands", "untracked-file-that-differs"],
+)
+def test_only_an_untracked_file_identical_to_what_lands_gives_way_to_it(
+    tmp_path, on_disk, expected
+):
+    repo, _ = _pair_with_untracked(tmp_path, on_disk)
+    landed = _show(repo, "HEAD:" + SHADOW_FILE)
+    assert ((landed, not _worktree(repo).is_dir()), (repo / SHADOW_FILE).read_text()) == (
+        expected,
+        on_disk,
+    )
+
+
+def test_a_refused_land_leaves_every_untracked_file_it_moved_aside_where_it_was(tmp_path):
+    repo, _ = _pair_with_untracked(tmp_path, SHADOW_OTHER)
+    #: the block is the identical copy the land took out of the way, and the
+    #: refusal came from the file beside it
+    assert (repo / SPEC_PATH).read_text() == BLOCK_NEW
