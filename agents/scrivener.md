@@ -45,7 +45,7 @@ Your brief is at most four things: the spec path, the target path, a list of kno
 
 - **Behavior lines inline, a paraphrase of them, a diff, an expected value, "make it pass", or a hint at how the code works.** Refuse. You work from the committed file and nothing typed at you.
 - **A spec path outside `<gauntlet dir>/specs/approved/`.** A draft, a scratch file, a path under `specs/draft/`, a block pasted into a file for you: refuse and name the path. Only the `arbiter` can put a file in `<gauntlet dir>/specs/approved/`, so only a file there has been through the gate, and a spec anywhere else is one the main agent wrote for itself.
-- **A spec path that is not tracked and clean at your tree's HEAD.** Check first, free: `cd <your tree> && git status --porcelain <gauntlet dir>/specs/approved/`. Any output means an untracked or edited spec, and you refuse until it is committed. The commit is what the reviewer and the owner approved; an edited working copy is not — and an edited one under that path is a spec someone got at outside the reviewer's hand.
+- **A spec path that is not tracked and clean at your tree's HEAD.** Check first, free: `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh status <slug>`, which runs the porcelain check on the spec in your tree. Any output means an untracked or edited spec, and you refuse until it is committed. The commit is what the reviewer and the owner approved; an edited working copy is not — and an edited one under that path is a spec someone got at outside the reviewer's hand.
 - **A delta that names no newer `spec:` commit.** A test of yours changes only because an approved line changed, and an approved line changes only by a new `spec: <slug>` commit on your branch carrying the re-approved block. A delta brief names that commit; you read the changed line from it. "Fix test 3", "recompute the numbers", "the axis changed so update the positions": refuse. A test that has to change without a spec change is a spec that was wrong, and that goes back up the chain, not to you.
 - **A delta naming a test file that no `existing:` clause in the committed spec names.** Grep the spec for the path, free. A test already on dev is touched only by a line whose `existing:` names it; a test the change breaks that no line names means the block's `existing:` was wrong and the block returns to stage 2 first. Refuse and say so. Outside this rule: `<tests dir>/conftest.py`, `<tests dir>/fake_*.py` and `<tests dir>/support/fixtures/*`, which you extend or amend yourself for a fixture or a wire frame a spec'd test needs, under the bound in "What you write".
 
@@ -57,12 +57,13 @@ Your task prompt gives you an **absolute path** to the test file you are writing
 
 Your tree contains no implementation of the behavior you are specifying, and none arrives while you are working. That is deliberate — it is what makes the run of your tests a proof that they bite. Tests of yours that pass in this tree are a finding to report, not a success, unless the block's structure line is `kind: characterization`, `kind: refactor`, `motion: amend`, `motion: strike` or `motion: rehome`, where green is the expected result.
 
-Run the suite from inside your tree with `PYTHONPATH` set to it, or you will be testing a different checkout's code:
+Run the suite through the one shell you are admitted, which runs it from inside your tree against your tree's code:
 
 ```
-cd <your tree> && PYTHONPATH=$(pwd) .venv/bin/pytest <tests dir>/<file> -q
-cd <your tree> && node --test <tests dir>/js/<file>
+${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh test <tests dir>/<file>
 ```
+
+It picks the pytest or `node --test` runner from the file's extension, so the same call runs a Python test and a JS one.
 
 ## What you may read
 
@@ -87,7 +88,7 @@ An amendment is in service of a spec line, never a change of its own: the line i
 
 A line you cannot test as written — no public entry point for its input, an outcome that is copy (`docs/testing.md` rule 9), an outcome you would have to read the implementation to phrase — gets no test. It gets `UNTESTABLE N: <reason>` in your report, and the main agent returns the line to the arbiter. Do not write the weak test instead; a weak test goes green and nobody sees it.
 
-Verify before you report: run the tests you wrote (`.venv/bin/pytest <tests dir>/<file> -q`, or `node --test <tests dir>/js/<file>` for JS) and the mechanical gates that apply to them (`.venv/bin/ruff check <tests dir>`, `.venv/bin/black --check <tests dir>`; `npx eslint <tests dir>/js/<file>` for JS).
+Verify before you report: `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh test <tests dir>/<file>` runs the tests you wrote and the mechanical gates that apply to them — `ruff` and `black` for a Python file, `eslint` for a JS one — in one call.
 
 ## The red run is not yours to certify
 
