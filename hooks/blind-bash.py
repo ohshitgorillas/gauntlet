@@ -47,6 +47,20 @@ every other command: `.venv/bin/pytest <path>` is not a `scripts/blind.sh`
 call. That is what keeps the blind agent's suite run the run the script
 defines rather than one the agent composed.
 
+A bare head is resolved here rather than typed. `scripts/blind.sh` names
+nothing in a consumer's checkout -- the script ships in the plugin, beside this
+file -- so a bare call passes this hook and then dies at exec with "no such
+file or directory". The alternative was prose: every brief and every doc
+spelling `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh` at each of the blind agents'
+call sites, a prefix an agent has to carry through every command it types. So
+the hook answers with `updatedInput` instead, the mechanism `bwrap-wrap.py`
+takes, and spells the bare head at this file's own sibling: `Path(__file__)`
+is inside the kit wherever the kit is installed, which is exactly the fact the
+agent lacks. Only a bare head is rewritten, only for a caller in `BLIND`, and
+only after the admitted-shape match has already decided the call -- the
+resolution moves no boundary, because the shapes it runs behind are the same
+three and a denied command is never resolved.
+
 `agent_type` is present in the payload only for subagent calls, so an absent
 key is the main agent and passes. That is the cost of session wiring, and it
 is the opposite of what frontmatter wiring gave: the old rule denied on an
@@ -65,6 +79,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -90,13 +105,13 @@ _ARGS = (
     rf"status\s+{SLUG}",
     rf"show\s+{COMMIT}\s+{SLUG}",
 )
-#: the head, as a blind agent can type it once the kit ships as a plugin. The
-#: entry is `scripts/blind.sh` relative to a checkout that holds the kit; a
-#: plugin sits outside the checkout, so the agent types an absolute path to it
-#: or the `${CLAUDE_PLUGIN_ROOT}` the runtime expands into one. A *relative*
-#: prefix is deliberately not admitted: the blind writer may write under
-#: `<tests dir>/`, so `tests/scripts/blind.sh` would be a shell of its own
-#: authoring. `sh.is_blind_run` reads the same head with `endswith`.
+#: the head, in the three spellings admitted. `scripts/blind.sh` bare is the
+#: one an agent types; the absolute path and the `${CLAUDE_PLUGIN_ROOT}` the
+#: runtime expands into one are admitted because a brief or a doc may still
+#: carry them. A *relative* prefix is deliberately not admitted: the blind
+#: writer may write under `<tests dir>/`, so `tests/scripts/blind.sh` would be
+#: a shell of its own authoring. `sh.is_blind_run` reads the same head with
+#: `endswith`.
 _HEAD = r"(?:/[A-Za-z0-9_.@+:/-]*/|\$\{CLAUDE_PLUGIN_ROOT\}/)?" + re.escape(ENTRY)
 
 ALLOWED = tuple(re.compile(rf"\s*{_HEAD}\s+{a}\s*\Z") for a in _ARGS)
@@ -117,6 +132,31 @@ def _allowed_command(command: str) -> bool:
     return any(p.match(command) for p in ALLOWED)
 
 
+def kit_entry() -> str:
+    """This kit's own `scripts/blind.sh`, absolute.
+
+    `hooks/` and `scripts/` are siblings in the plugin, so the entry is found
+    from this file rather than from the checkout the command runs in -- which,
+    for an installed plugin, holds no copy of the script at all.
+    """
+    return str(Path(__file__).resolve().parent.parent / ENTRY)
+
+
+def _resolved(command: str) -> str | None:
+    """The same command with a bare head spelled at this kit's own entry.
+
+    None where the head is already absolute or `${CLAUDE_PLUGIN_ROOT}`: those
+    name a script themselves and are left exactly as typed. The command has
+    matched an admitted shape before this runs, so the head is the first word
+    and a leading occurrence of the entry is that word.
+    """
+    head = command.lstrip()
+    if not head.startswith(ENTRY):
+        return None
+    lead = command[: len(command) - len(head)]
+    return lead + kit_entry() + head[len(ENTRY) :]
+
+
 def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | None:
     """Why this call is refused, or None to let it through."""
     if name != "Bash":
@@ -129,8 +169,39 @@ def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | 
     return None if _allowed_command(sh.command_of(tool_input)) else _WHY
 
 
+def _answer(payload: sh.Payload) -> dict[str, Any] | None:
+    """The hook's answer for this payload: a denial, a resolved head, or nothing.
+
+    The denial is the whole of the rule and runs first. A call it lets through
+    is resolved only for a caller in `BLIND`, so the main agent's shell is
+    untouched here exactly as it is untouched by the verdict.
+    """
+    name = payload.get("tool_name", "")
+    tool_input = payload.get("tool_input") or {}
+    reason = _verdict(name, tool_input, payload)
+    if reason is not None:
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": reason,
+            }
+        }
+    if name != "Bash" or sh.agent_of(payload) not in BLIND:
+        return None
+    resolved = _resolved(sh.command_of(tool_input))
+    if resolved is None:
+        return None
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "updatedInput": {"command": resolved},
+        }
+    }
+
+
 def main() -> None:
-    sh.hook_main(_verdict)
+    sh.answer_main(_answer)
 
 
 def self_test() -> int:
@@ -165,6 +236,25 @@ def self_test() -> int:
         finally:
             sh.runners = saved
 
+    entry = kit_entry()
+
+    def _answered(command: str, who: str | None = "scrivener") -> dict[str, Any]:
+        """What this hook hands back for one Bash call, as the wire sends it."""
+        payload: sh.Payload = {"cwd": "/repo", "tool_name": "Bash"}
+        payload["tool_input"] = {"command": sh.respell(command)}
+        if who is not None:
+            payload["agent_type"] = who
+        answer = _answer(payload) or {}
+        return answer.get("hookSpecificOutput") or {}
+
+    def resolved(command: str, who: str | None = "scrivener") -> str | None:
+        """The command text the hook rewrote this call to, or None for neither."""
+        return (_answered(command, who).get("updatedInput") or {}).get("command")
+
+    def answers_deny(command: str, who: str | None = "scrivener") -> bool:
+        """That the answer is a denial, which is the only other answer there is."""
+        return _answered(command, who).get("permissionDecision") == "deny"
+
     lines = {
         "1 the whole command text is one scripts/blind.sh call, or it is denied": all(
             (
@@ -189,6 +279,32 @@ def self_test() -> int:
                 denied(bash("../scripts/blind.sh status demo")),
                 denied(bash("/opt/gauntlet/scripts/blind.sh.bak status demo")),
                 denied(bash("/opt/g;x/scripts/blind.sh status demo")),
+            )
+        ),
+        "1b a bare head is resolved to this kit's own copy, and nothing else is": all(
+            (
+                #: the spelling every agent definition and doc now carries,
+                #: answered with the script's real path so it runs where the
+                #: kit is installed rather than dying at exec
+                resolved("scripts/blind.sh status demo") == f"{entry} status demo",
+                resolved(f"scripts/blind.sh test {wire}") == f"{entry} test {wire}",
+                resolved("  scripts/blind.sh show HEAD demo  ")
+                == f"  {entry} show HEAD demo  ",
+                #: the entry is beside this hook, so the answer names a file
+                #: that is there
+                Path(kit_entry()).is_file(),
+                #: a head that already names a script is left as typed
+                resolved("${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh status demo") is None,
+                resolved("/opt/gauntlet/scripts/blind.sh status demo") is None,
+                #: a denied command is never resolved, the traversal head
+                #: line 1a refuses included: the denial is the whole answer
+                answers_deny(f"{sh.tests_dir()}/scripts/blind.sh status demo"),
+                resolved(f"{sh.tests_dir()}/scripts/blind.sh status demo") is None,
+                resolved(f"cat {here}{hook}") is None,
+                #: and a caller this hook does not answer for keeps its own
+                #: command text, resolution included
+                resolved("scripts/blind.sh status demo", None) is None,
+                resolved("scripts/blind.sh status demo", "prosecutor") is None,
             )
         ),
         "2 each subcommand admits only its own argument shape": all(
