@@ -13,7 +13,7 @@ Gauntlet is a set of six subagents that surround the main agent, built around tw
 
 Together, they ensure that agents are kept in line, honest, and incapable of de-fanging your testing suite. Nothing writes to `<tests dir>/` except the `scrivener`, which takes instructions only from the `arbiter` — and neither can read source code, so tests are grounded in behavior, not implementation, and never patched to pass after the fact.
 
-Gauntlet works best with existing codebases. The `scrivener` writes pytest and `node --test` tests; other stacks are not supported yet.
+Gauntlet works best with existing, established codebases for which shipping bugs has real consequences. Budding projects are better served by lighter, less restricted workflows.
 
 ## Workflow
 
