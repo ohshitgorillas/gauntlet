@@ -6,6 +6,7 @@
     pair.sh red <slug>       run the suite there, and remove whole-file targets
     pair.sh merge <slug>     converge the pair and land it on the target branch
     pair.sh abort <slug>     take the pair back out, trees and branches alike
+    pair.sh close <slug>     remove the pair's worktrees, keeping every commit
     pair.sh list             the pairs with a recorded base
     pair.sh review <slug>    the path the next spec round is written to
     pair.sh review plan <slug>     the same, for the next plan round
@@ -45,7 +46,7 @@ from trees import REVIEWS, TARGET, die, git, git_ok, note, path  # noqa: E402
 import shell_shapes as sh  # noqa: E402
 
 USAGE = (
-    "usage: pair.sh open|respec|red|merge|abort <slug> | list"
+    "usage: pair.sh open|respec|red|merge|abort|close <slug> | list"
     " | review [plan] <slug> | restore <slug> <rev> | impl checkout|merge <slug>"
 )
 
@@ -292,6 +293,40 @@ def cmd_abort(slug: str) -> int:
     return 0
 
 
+def cmd_close(slug: str) -> int:
+    """Remove the pair's worktrees, and leave every commit where it is.
+
+    `abort` throws the pair away -- trees, branches and the recorded base. This
+    is the other half: the trees go, the branches and the base stay, so what a
+    pair committed is still on its branch to merge or read afterwards, and
+    `list` still names the pair.
+
+    A tree holding uncommitted work is refused, not removed. A red run the
+    writer has not committed exists in no git object, so removing the tree that
+    holds it is the one loss this script cannot undo. One line per tree, so a
+    pair whose spec tree is clean and whose implementation tree is not gets
+    both readings rather than one.
+    """
+    named = [
+        tree
+        for tree in (trees.spec_tree(slug), trees.impl_tree(slug))
+        if Path(path(tree)).is_dir()
+    ]
+    if not named:
+        die("pair: no worktree for " + slug)
+    status = 0
+    for tree in named:
+        if trees.dirty_files(tree):
+            out("REFUSED " + tree + " uncommitted")
+            status = 1
+            continue
+        trees.unlink_tooling(tree)
+        git("worktree", "remove", tree)
+        out("CLOSED " + tree)
+    git("worktree", "prune", check=False)
+    return status
+
+
 def cmd_list() -> int:
     slugs = trees.open_pairs()
     if not slugs:
@@ -399,6 +434,7 @@ def main(argv: list[str]) -> int:
         "red": cmd_red,
         "merge": cmd_merge,
         "abort": cmd_abort,
+        "close": cmd_close,
     }.get(verb)
     if one is None or len(rest) != 1:
         die(USAGE)
@@ -450,6 +486,8 @@ def self_test() -> int:
                     "IMPL ",
                     "MERGED ",
                     "ABORTED ",
+                    "CLOSED ",
+                    "REFUSED ",
                     "PAIR ",
                     "NO PAIRS",
                     "TEST CHECK ",
