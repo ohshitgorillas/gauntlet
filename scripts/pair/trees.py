@@ -31,17 +31,28 @@ except ImportError:  # pragma: no cover - a checkout missing half the kit
 
 
 def _root() -> str:
-    """The primary checkout, found from this file rather than from the caller's cwd."""
-    here = str(Path(__file__).resolve().parent)
-    done = subprocess.run(
-        ("git", "-C", here, "rev-parse", "--show-toplevel"),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if done.returncode != 0:
+    """The primary checkout the caller is working in, never this file's own tree.
+
+    Installed as a plugin, this file sits in the plugin cache, which is not a
+    git checkout at all: a root resolved from `__file__` finds no `.git` there
+    and kills every command with "not inside a git checkout". The kit is shared
+    by every project it runs for, so the checkout is the caller's, exactly as
+    `config_path()` reads the declaration from the project rather than from
+    beside the kit.
+
+    `scripts/pair.sh` resolves the same checkout at entry and exports it as
+    `CLAUDE_PROJECT_DIR`, so that is the first source and the walk from the
+    working directory is the fallback. `--git-common-dir` and `project_checkout`
+    both answer the main checkout from inside a linked worktree, which is what
+    `WORKTREES` is relative to; `--show-toplevel` answers the worktree.
+    """
+    project = os.environ.get("CLAUDE_PROJECT_DIR")
+    if project and (Path(project) / ".git").exists():
+        return str(Path(project).resolve())
+    root = sh.project_checkout(Path.cwd().resolve())
+    if root is None:
         sys.exit("pair: not inside a git checkout")
-    return done.stdout.strip()
+    return str(root)
 
 
 ROOT = _root()
