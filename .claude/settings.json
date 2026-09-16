@@ -1,1 +1,6 @@
-{}
+{
+  "enabledPlugins": {
+    "gauntlet@gauntlet": true,
+    "triviajudge@triviajudge": true
+  }
+}
