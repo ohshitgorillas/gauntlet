@@ -29,31 +29,28 @@ Denied:
     `<gauntlet dir>/reviews/`, except the `arbiter` writing under
     `<gauntlet dir>/specs/approved/` and the `prosecutor` under
     `<gauntlet dir>/plans/approved/`
-  * for those two agents, any `Bash` command that writes anything at all
   * for those two agents, a `Read` or a `Grep` aimed under
-    `<gauntlet dir>/reviews/`, and a read-only `Bash` command naming such a path
-  * for everyone else, a `Bash` command that writes and that names a
-    `<gauntlet dir>/reviews/` path
+    `<gauntlet dir>/reviews/`
 
 A reviewer is denied the lane's contents as well as its writes, and a prior
 round reaches a reviewer only as the carried verdicts in the main agent's own
-return. That denial puts the numbering out of the reviewer's reach, so it
+return. A shell is no way round that: the reviewer profile mounts a tmpfs over
+this lane, so a reviewer's `ls` of it lists an empty directory rather than the
+rounds. That denial puts the numbering out of the reviewer's reach, so it
 belongs to `scripts/pair.sh review <slug>`: it counts the directory from
 outside and prints the one path the reviewer writes, which the brief carries
 verbatim. A
 reviewer that picks its own `<N>` under this denial is guessing, and a guess
 that lands on a number already taken overwrites a round held in no git object.
 
-Allowed: every read-only command naming `<gauntlet dir>/reviews/` for everyone but
-those two agents, git commands that never write the working tree, `Glob` for
-anyone, and every write elsewhere by every non-reviewer. A reviewer's suite
-run counts as read-only in every form `shell_shapes.is_runner` recognizes —
-`pytest`, `python -m pytest`, `node --test`, `npm test`, `npx vitest`, and the
-invocations this repo declares in `blind-reads.json` — and an
-interpreter handed an inline script (`-e`, `-c`, `--eval`) counts as a write
-in all of them, which is the distinction a head word cannot make.
-`<gauntlet dir>/reviews/` is meant to be gitignored, so there is no git object to
-restore from and no restore carve-out.
+Allowed: `Glob` for anyone, and every write elsewhere by every non-reviewer.
+
+`Bash` is not this hook's business. A reviewer's shell is held by the mount
+table instead: `bwrap-wrap.py` gives the two blind reviewers a profile with the
+whole filesystem read-only and a tmpfs over this lane, so a reviewer's command
+changes nothing and reads no round file, whatever it says. A non-reviewer's
+shell write into the lane is stopped by the same table, which binds every lane
+directory read-only in every wrapped profile.
 
 `agent_type` is present in the payload only for subagent calls; an absent key
 is the main agent. If a build omits the key for subagents too, a reviewer is
@@ -80,7 +77,6 @@ APPROVED = sh.specs_lane()
 PLANS = sh.plans_lane()
 #: the one approved-artifact lane each reviewer writes, and no other's
 SECOND_WRITE = {SPEC_REVIEWER: APPROVED, PLAN_REVIEWER: PLANS}
-BASH_REVIEWS = sh.lane_pattern(LANE)
 
 _LANE = (
     f"{LANE}/ is the reviewers' lane: a verdict file is written by "
@@ -96,16 +92,6 @@ _REVIEWER_LANE = (
     f"not the rest of {sh.docs_dir()}/, and not the other reviewer's lane. "
     "(hooks/reviews-lane.py)"
 )
-_REVIEWER_BASH = (
-    "Reviewer: a shell command that changes anything is denied; your writes are "
-    f"the Write tool onto {LANE}/ and, on READY, {APPROVED}/ "
-    f"for the arbiter or {PLANS}/ for the prosecutor. "
-    "Read-only shell passes: cat, grep, sed -n, and a suite run "
-    "in any of its recognized forms (pytest, python -m pytest, node --test, "
-    "npm test, npx vitest, and the invocations this repo declares in "
-    "blind-reads.json). An interpreter given an inline script (-e, -c, "
-    "--eval) is a write, whatever it does. (hooks/reviews-lane.py)"
-)
 _REVIEWER_READ = (
     f"Reviewer: {LANE}/ is not yours to read. A prior round reaches "
     "you as the carried verdicts in the main agent's return, never as a file: the round "
@@ -114,7 +100,6 @@ _REVIEWER_READ = (
     "your brief carries it, from `scripts/pair.sh review <slug>`. "
     "(hooks/reviews-lane.py)"
 )
-_BASH = sh.lane_denial(LANE, "", _LANE, restore=False)
 
 
 def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
@@ -139,14 +124,6 @@ def _read_verdict(tool_input: sh.ToolInput, cwd: str, agent: str) -> str | None:
     return _REVIEWER_READ if aimed else None
 
 
-def _bash_verdict(command: str, agent: str) -> str | None:
-    if agent in REVIEWERS:
-        if sh.command_writes(command, restore_ok=False):
-            return _REVIEWER_BASH
-        return _REVIEWER_READ if BASH_REVIEWS.search(command) else None
-    return _BASH if sh.lane_write_in(command, BASH_REVIEWS, restore_ok=False) else None
-
-
 def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | None:
     """Why this call is refused, or None to let it through."""
     return sh.dispatch(
@@ -154,14 +131,13 @@ def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | 
         tool_input,
         payload,
         on_write=_write_verdict,
-        on_bash=_bash_verdict,
         on_read=_read_verdict,
         read_tools=READ_TOOLS,
     )
 
 
 def main() -> None:
-    sh.hook_main(_verdict)
+    sh.hook_main(_verdict, guards=sh.WRITE_TOOLS + READ_TOOLS)
 
 
 def self_test() -> int:
@@ -185,8 +161,6 @@ def self_test() -> int:
                 #: plugin in front of it, and that is the same agent
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{SPEC_REVIEWER}")),
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{PLAN_REVIEWER}")),
-                denied(bash("echo x > gauntlet/reviews/slug.1.txt")),
-                allowed(bash("cat gauntlet/reviews/slug.1.txt")),
             )
         ),
         "2 a reviewer writes its verdict and nothing else": all(
@@ -195,16 +169,6 @@ def self_test() -> int:
                 denied(write(f"{root}/tests/t.py", SPEC_REVIEWER)),
                 denied(write(f"{root}/docs/testing.md", PLAN_REVIEWER)),
                 denied(write(f"{root}/gauntlet/plans/drafts/slug.txt", PLAN_REVIEWER)),
-                denied(bash("sed -i 's/a/b/' src/m.py", SPEC_REVIEWER)),
-                allowed(bash("git show HEAD:gauntlet/specs/approved/slug.txt", SPEC_REVIEWER)),
-                allowed(bash("grep -rn 'def test_' tests/", SPEC_REVIEWER)),
-                #: the suite run this file promises a reviewer, in the spellings
-                #: a head-word reader list cannot tell apart from a write
-                allowed(bash("pytest tests/ -q", SPEC_REVIEWER)),
-                allowed(bash("python -m pytest tests/ -q", SPEC_REVIEWER)),
-                denied(bash("python -c \"open('x','w')\"", SPEC_REVIEWER)),
-                denied(bash("node -e \"require('fs').writeFileSync('x','')\"", SPEC_REVIEWER)),
-                denied(bash("make clean", SPEC_REVIEWER)),
             )
         ),
         "3 the arbiter alone also writes gauntlet/specs/approved/": all(
@@ -226,84 +190,25 @@ def self_test() -> int:
                 denied(read(f"{root}/gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
                 denied(read(f"{root}/gauntlet/reviews/slug.1.txt", PLAN_REVIEWER)),
                 denied(read(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{SPEC_REVIEWER}")),
-                denied(bash("cat gauntlet/reviews/slug.1.txt", f"gauntlet:{PLAN_REVIEWER}")),
-                denied(bash("cat gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
                 allowed(read(f"{root}/gauntlet/reviews/slug.1.txt")),
                 allowed(read(f"{root}/tests/t.py", SPEC_REVIEWER)),
             )
         ),
-        "6 read-only git naming the lane passes, its write forms do not": all(
+        #: the classifier is gone: a reviewer's shell is held by its own bwrap
+        #: profile, read-only everywhere with a tmpfs over this lane, and every
+        #: other hand's by the read-only lane binds of the default profile
+        "6 a Bash call is not this lane's business, whoever runs it": all(
             (
-                allowed(bash("git grep -n foo -- gauntlet/reviews/")),
-                allowed(bash("git grep -n 'gauntlet/reviews/' -- hooks")),
-                allowed(bash("git ls-tree HEAD gauntlet/reviews/")),
-                denied(bash("git grep -Ovim foo -- gauntlet/reviews/")),
-                denied(bash("git diff --output=gauntlet/reviews/x.txt")),
-                #: a global option says where git runs, not what it does, so
-                #: inserting one moves none of the verdicts above
-                sh.git_globals_change_nothing(
-                    bash,
-                    "git grep -n foo -- gauntlet/reviews/",
-                    "git ls-tree HEAD gauntlet/reviews/",
-                    "git grep -Ovim foo -- gauntlet/reviews/",
-                    "git diff --output=gauntlet/reviews/x.txt",
-                ),
-                #: an alias definition and an exec path choose what the
-                #: subcommand runs, so neither reads as a known subcommand
-                denied(bash("git -c alias.ls-files=!rm ls-files gauntlet/reviews/")),
-                denied(bash("git --exec-path=/tmp/x ls-files gauntlet/reviews/")),
-            )
-        ),
-        "7 a reviewer's read-only git passes, its write forms do not": all(
-            (
-                allowed(bash("git grep foo", SPEC_REVIEWER)),
-                denied(bash("git grep foo -- gauntlet/reviews/", SPEC_REVIEWER)),
-                denied(bash("git reflog expire --all", SPEC_REVIEWER)),
-                denied(bash("git diff --output=out.txt", SPEC_REVIEWER)),
-            )
-        ),
-        "8 the lane is what a write targets, not what its text mentions": all(
-            (
-                allowed(
-                    bash(
-                        "cat > state/notes.txt <<EOF\n"
-                        "round file is gauntlet/reviews/slug.1.txt\nEOF"
-                    )
-                ),
-                allowed(bash("echo 'gauntlet/reviews/slug.1.txt' >> notes.txt")),
-                allowed(bash('for c in "tee gauntlet/reviews/a.txt"; do echo "$c"; done')),
-                allowed(bash("find gauntlet/reviews -name 'slug.*'")),
-                allowed(bash("ls gauntlet/reviews/")),
-                denied(bash("printf '%s' x | tee gauntlet/reviews/slug.1.txt")),
-                denied(bash("find gauntlet/reviews -name 'slug.*' -delete")),
-            )
-        ),
-        "9 a reviewer's readers are reads, and the rounds stay closed to it": all(
-            (
-                #: the same readers, asked for the reviewer, whose shell is
-                #: judged on whether it writes at all rather than on a lane path
-                allowed(bash("find tests -name '*.py'", SPEC_REVIEWER)),
-                allowed(bash("find tests -name '*.py' | xargs grep -n foo", PLAN_REVIEWER)),
-                allowed(bash("awk '{print}' docs/testing.md", SPEC_REVIEWER)),
-                allowed(
-                    bash(
-                        "cmp gauntlet/specs/drafts/slug.txt gauntlet/specs/approved/slug.txt",
-                        SPEC_REVIEWER,
-                    )
-                ),
-                allowed(bash(".venv/bin/ruff check tests", PLAN_REVIEWER)),
-                denied(bash("find tests -name '*.py' -delete", SPEC_REVIEWER)),
-                #: reading the rounds is the denial `scripts/pair.sh review`
-                #: exists to make survivable: the path is handed to the
-                #: reviewer, so it never counts the directory itself
-                denied(bash("ls gauntlet/reviews/", SPEC_REVIEWER)),
-                denied(bash("find gauntlet/reviews -name 'slug.*'", PLAN_REVIEWER)),
+                allowed(bash("echo x > gauntlet/reviews/slug.1.txt")),
+                allowed(bash("sed -i 's/a/b/' src/m.py", SPEC_REVIEWER)),
+                allowed(bash("cat gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
+                allowed(bash("make clean", PLAN_REVIEWER)),
             )
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal
         "every payload shape is answered, and an unreadable one is refused": (
-            sh.survives_hostile_payloads(__file__)
+            sh.survives_hostile_payloads(__file__, guards=sh.WRITE_TOOLS + READ_TOOLS)
         ),
     }
     return sh.report(lines)

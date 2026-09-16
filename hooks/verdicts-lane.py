@@ -81,15 +81,14 @@ _LANE = (
     "certified it. Spawn a juror with the committed spec path and the path "
     "`scripts/pair.sh red` printed. (hooks/verdicts-lane.py)"
 )
-_BASH = sh.lane_denial(LANE, "a verdict", _LANE)
-
 #: the lane's whole policy: the one writer passes, every other hand is
-#: refused with the reason, and a shell write into it is refused with _BASH
-_verdict = sh.sole_writer_lane(LANE, REVIEWER, _LANE, _BASH)
+#: refused with the reason. A shell that writes into the lane is stopped by
+#: the mount table instead, so no lane hook is wired on `Bash` any more.
+_verdict = sh.sole_writer_lane(LANE, REVIEWER, _LANE)
 
 
 def main() -> None:
-    sh.hook_main(_verdict)
+    sh.hook_main(_verdict, guards=sh.WRITE_TOOLS)
 
 
 #: one line per unruled or unrulable red run, keyed by what is wrong with it
@@ -246,16 +245,13 @@ def self_test() -> int:
                 allowed(write(f"{root}/docs/testing.md")),
             )
         ),
-        "2 shell writes naming the lane denied, reads and object restores pass": all(
+        #: the classifier is gone: the lane's shell half is the mount table,
+        #: which binds this directory read-only inside every wrapped profile
+        "2 a Bash call is not this lane's business, whatever it names": all(
             (
-                denied(bash("cat impl.py 1> gauntlet/verdicts/demo.txt")),
-                denied(bash("echo RED > gauntlet/verdicts/demo.txt")),
-                denied(bash("sed -i 's/RED/GREEN/' gauntlet/verdicts/demo.txt")),
-                denied(bash("rm gauntlet/verdicts/demo.txt")),
-                denied(bash("cat > gauntlet/verdicts/demo.txt <<'EOF'\nRED 1\nEOF")),
+                allowed(bash("echo RED > gauntlet/verdicts/demo.txt")),
+                allowed(bash("sed -i 's/RED/GREEN/' gauntlet/verdicts/demo.txt")),
                 allowed(bash("cat gauntlet/verdicts/demo.txt")),
-                allowed(bash("grep -c RED gauntlet/verdicts/demo.txt")),
-                allowed(bash("git restore --source abc1234 -- gauntlet/verdicts/demo.txt")),
             )
         ),
         "3 a red run with no verdict blocks the turn, a ruled one does not": all(
@@ -288,51 +284,6 @@ def self_test() -> int:
                 _complaints(ROOT) is not None,
             )
         ),
-        "8 read-only git naming the lane passes, its write forms do not": all(
-            (
-                allowed(bash("git grep -n foo -- gauntlet/verdicts/")),
-                allowed(bash("git grep -n 'gauntlet/verdicts/' -- hooks")),
-                allowed(bash("git ls-tree HEAD gauntlet/verdicts/")),
-                denied(bash("git grep -Ovim foo -- gauntlet/verdicts/")),
-                denied(bash("git diff --output=gauntlet/verdicts/x.txt")),
-                #: a global option says where git runs, not what it does, so
-                #: inserting one moves none of the verdicts above
-                sh.git_globals_change_nothing(
-                    bash,
-                    "git grep -n foo -- gauntlet/verdicts/",
-                    "git ls-tree HEAD gauntlet/verdicts/",
-                    "git grep -Ovim foo -- gauntlet/verdicts/",
-                    "git diff --output=gauntlet/verdicts/x.txt",
-                ),
-                #: an alias definition and an exec path choose what the
-                #: subcommand runs, so neither reads as a known subcommand
-                denied(bash("git -c alias.ls-files=!rm ls-files gauntlet/verdicts/")),
-                denied(bash("git --exec-path=/tmp/x ls-files gauntlet/verdicts/")),
-            )
-        ),
-        "9 the blind runner naming this lane is still denied": all(
-            (
-                #: the runner takes one path under the test directory, so it
-                #: reaches no other lane however the argument is spelled
-                denied(bash("scripts/blind.sh test gauntlet/verdicts/slug.txt")),
-                denied(bash("scripts/blind.sh test tests/a/../../gauntlet/verdicts/slug.txt")),
-            )
-        ),
-        "10 the lane is what a write targets, not what its text mentions": all(
-            (
-                allowed(
-                    bash(
-                        "cat > state/notes.txt <<EOF\n"
-                        "the juror wrote gauntlet/verdicts/demo.txt\nEOF"
-                    )
-                ),
-                allowed(bash("echo 'gauntlet/verdicts/demo.txt' >> notes.txt")),
-                allowed(bash("find gauntlet/verdicts -name '*.txt'")),
-                allowed(bash("grep -n 'a > b' gauntlet/verdicts/")),
-                denied(bash("cat gauntlet/red/demo.txt > gauntlet/verdicts/demo.txt")),
-                denied(bash("find gauntlet/verdicts -name '*.txt' -delete")),
-            )
-        ),
         "11 a second Stop on the same turn prints the complaints and ends it": all(
             (
                 #: the complaints still reach the user; only the hold is dropped
@@ -357,7 +308,7 @@ def self_test() -> int:
         #: alone, because a non-zero exit there holds the turn open and a crash
         #: in it is a loop with no way out.
         "every payload shape is answered, and an unreadable one is refused": (
-            sh.survives_hostile_payloads(__file__)
+            sh.survives_hostile_payloads(__file__, guards=sh.WRITE_TOOLS)
             and sh.survives_hostile_payloads(__file__, "--stop", refuses_undecidable=False)
         ),
     }

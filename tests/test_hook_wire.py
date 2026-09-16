@@ -182,147 +182,48 @@ def sweep(hook_name, cases, make_payload):
     return {key: hook_decision(hook_name, make_payload(key)) for key in cases}
 
 
-class TestsLaneShellShapes(unittest.TestCase):
-    """tests-lane.py, the lane that owns writes under tests/."""
+class RemovedWithTheClassifier(unittest.TestCase):
+    """The lane hooks over `Bash`, which is no lane hook's business any more.
+
+    Whole classes here pinned how a lane read a command string: separators,
+    redirections, heredocs, inline scripts, runner spellings, git read and
+    write forms. That reading is gone, and the question it answered is gone
+    with it -- a lane's shell half is the mount table now, and
+    `bwrap-wrap.py` binds every lane directory read-only inside every wrapped
+    profile. What is left to pin from this side is that no lane hook answers a
+    `Bash` call at all, whatever the command names.
+    """
 
     maxDiff = None
 
-    def test_writes_under_tests_are_denied_in_every_shell_shape(self):
-        # Spec line 1.  Every command on the DENY side removes or overwrites a
-        # file under tests/; the two on the SILENT side only read one.  A lane
-        # that classifies on the command's first word lets the separator,
-        # backgrounding, find -delete, inline-script and cd shapes straight
-        # through, so an agent barred from Edit deletes the test with
-        # `cd tests && rm t.py` and hears nothing back.
-        expected = {
-            "cat tests/t.py\nrm tests/t.py": DENY,
-            "cat README.md & rm tests/t.py": DENY,
-            "find tests -name '*.py' -delete": DENY,
-            "node -e \"require('fs').writeFileSync('tests/t.py','')\"": DENY,
-            "cd tests && rm t.py": DENY,
-            "sed -i 's/a/b/' tests/t.py": DENY,
-            "cat tests/t.py": SILENT,
-            "grep -rn 'def test_' tests/": SILENT,
-            # fail-open-bypasses line 1.  A redirection read only when no file
-            # descriptor precedes it lets `cat impl.py 1> tests/t.py` write the
-            # test the agent was barred from writing with Edit, while the same
-            # lane refuses `2>&1` on a plain read.  /dev/null is not a write.
-            "cat impl.py 1> tests/t.py": DENY,
-            "cat impl.py 2> tests/t.py": DENY,
-            "cat impl.py &> tests/t.py": DENY,
-            "cat impl.py > tests/t.py 2>/dev/null": DENY,
-            "cat impl.py > tests/nullish": DENY,
-            "grep x tests/t.py 2>&1": SILENT,
-            "echo hi >&2": SILENT,
-            "cat tests/t.py 2>/dev/null": SILENT,
-            # fail-open-bypasses line 2.  A heredoc body dropped before any
-            # check names its target where nothing looks, so `python3 - <<EOF`
-            # writes a test unseen; a delimiter merely carrying a hyphen is no
-            # reason to treat the same body differently, and prose stays prose.
-            "python3 - <<EOF\nopen('tests/t.py','w')\nEOF": DENY,
-            "python3 - <<EOF\nopen('tests/t.py','w')": DENY,
-            "python3 - <<'EOF-1'\nopen('tests/t.py','w')\nEOF-1": DENY,
-            "echo hi && python3 - <<EOF\nopen('tests/t.py','w')\nEOF": DENY,
-            "cat <<EOF\nprose about tests/t.py\nEOF": SILENT,
-            # fail-open-bypasses line 5.  `pytest` accepted with any arguments
-            # at all is a write primitive handed an output path: the runner the
-            # lane exists to let through becomes the way into the lane.
-            "pytest --junitxml=tests/out.xml": DENY,
-            "pytest --cov-report=html:tests/cov tests/": DENY,
-            "pytest --basetemp=tests/tmp tests/": DENY,
-            "pytest tests/ -q": SILENT,
-        }
-        actual = sweep(
-            "tests-lane.py",
-            expected,
-            lambda command: bash_payload(command, REPO_CWD),
+    def test_no_lane_hook_answers_a_bash_call_whatever_it_names(self):
+        commands = (
+            "sed -i 's/a/b/' tests/t.py",
+            "cd tests && rm t.py",
+            "find tests -name '*.py' -delete",
+            "cat impl.py 1> gauntlet/specs/approved/s.txt",
+            "python3 - <<EOF\nopen('tests/t.py','w')\nEOF",
+            "git diff --output=gauntlet/reviews/x.txt",
+            "printf '%s' x | tee gauntlet/reviews/a.txt",
+            "echo RED > gauntlet/verdicts/demo.txt",
+            "cat tests/t.py",
         )
-        self.assertEqual(actual, expected)
+        expected = {command: PASSES for command in commands}
+        self.assertEqual(lane_sweep(expected, REPO_CWD), expected)
 
-    def test_runner_invocations_pass_the_lane_but_inline_scripts_do_not(self):
-        # Spec line 2.  `python` and `node` each appear on both sides: spelled
-        # as a runner they run the suite, spelled with -m/-c/-e they are a write
-        # primitive.  A lane reading only the first word refuses the red run
-        # when it is spelled `python -m pytest` while letting the same
-        # interpreter write a test file outright.
-        expected = {
-            "python -m pytest tests/ -q": SILENT,
-            ".venv/bin/pytest tests/t.py -q": SILENT,
-            "node --test tests/t.test.js": SILENT,
-            "python -c \"open('tests/t.py','w')\"": DENY,
-            "node -e \"require('fs').writeFileSync('tests/t.py','')\"": DENY,
-            # fail-open-bypasses line 4.  An inline-script flag read without the
-            # head word in front of it turns the two standard ways of spelling a
-            # pytest run -- with a config file, without a cache directory --
-            # into writes, and the lane refuses its own red run.
-            "pytest -p no:cacheprovider tests/": SILENT,
-            "pytest -c pytest.ini tests/": SILENT,
-        }
-        actual = sweep(
-            "tests-lane.py",
-            expected,
-            lambda command: bash_payload(command, REPO_CWD),
+    def test_a_reviewers_own_shell_is_held_by_its_profile_and_not_by_a_lane(self):
+        # The reviewer read-block still fires on `Read` and `Grep`; on `Bash` it
+        # is the reviewer profile -- read-only everywhere, tmpfs over the lane --
+        # that leaves the rounds unreadable and the checkout unchanged.
+        commands = (
+            "ls gauntlet/reviews/",
+            "find gauntlet/reviews -name 'pair-sh.*'",
+            "sed -i 's/a/b/' src/m.py",
         )
-        self.assertEqual(actual, expected)
-
-
-class TestsLaneGitSubcommands(unittest.TestCase):
-    """tests-lane.py, on git commands that name tests/."""
-
-    maxDiff = None
-
-    def test_read_only_git_subcommands_naming_tests_pass_the_lane(self):
-        # git-read-subcommands line 1.  A lane that admits `git grep` and no
-        # other read-only git subcommand still refuses `git ls-tree HEAD tests/`
-        # and `git cat-file -p HEAD:tests/...`.  An unknown subcommand stays a
-        # write, and a redirection into tests/ stays a write even behind the
-        # very subcommand admitted as a read.
-        expected = {
-            "git grep -n foo -- tests/": SILENT,
-            "git grep -n 'tests/' -- hooks": SILENT,
-            "git ls-tree HEAD tests/": SILENT,
-            "git cat-file -p HEAD:tests/test_hook_wire.py": SILENT,
-            "git rev-list HEAD -- tests/": SILENT,
-            "git shortlog -sn HEAD -- tests/": SILENT,
-            "git reflog show HEAD -- tests/": SILENT,
-            "git merge-base HEAD impl/tests/x": SILENT,
-            "git describe --match 'tests/*'": SILENT,
-            "git frobnicate -- tests/": DENY,
-            "git grep foo -- tests/ > tests/x": DENY,
-        }
-        actual = sweep(
-            "tests-lane.py",
-            expected,
-            lambda command: bash_payload(command, REPO_CWD),
-        )
-        self.assertEqual(actual, expected)
-
-    def test_write_forms_of_read_only_git_subcommands_are_denied(self):
-        # git-read-subcommands line 2.  A lane that counts a read-only git
-        # subcommand as a read in every form lets `git diff --output=tests/x`
-        # write into the lane and `git grep -O` run a command against it.
-        # `-o` beside `-O`, `--grep=` beside `--output=`, and `--stat` keep the
-        # reading of flags from collapsing into "any flag is a write".
-        expected = {
-            "git diff --output=tests/x": DENY,
-            "git log --output tests/x": DENY,
-            "git diff --outp=tests/x": DENY,
-            "git rev-list --output=tests/x HEAD": DENY,
-            "git shortlog --output=tests/x HEAD": DENY,
-            "git grep -Ovim foo -- tests/": DENY,
-            "git grep -nO foo -- tests/": DENY,
-            "git grep --open foo -- tests/": DENY,
-            "git reflog delete refs/tests/x@{0}": DENY,
-            "git grep -o foo -- tests/": SILENT,
-            "git log --grep=expire -- tests/": SILENT,
-            "git diff --stat -- tests/": SILENT,
-        }
-        actual = sweep(
-            "tests-lane.py",
-            expected,
-            lambda command: bash_payload(command, REPO_CWD),
-        )
-        self.assertEqual(actual, expected)
+        expected = {command: PASSES for command in commands}
+        for agent in ("arbiter", "prosecutor"):
+            with self.subTest(agent=agent):
+                self.assertEqual(lane_sweep(expected, REPO_CWD, agent), expected)
 
 
 class NoImplReadsShellShapes(unittest.TestCase):
@@ -557,62 +458,6 @@ class LanesWithoutGitRoot(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
-class RedirectionsIntoTheOtherLanes(unittest.TestCase):
-    """specs-, reviews- and verdicts-lane.py, on the same redirection shape."""
-
-    maxDiff = None
-
-    def test_file_descriptor_redirection_into_a_lane_is_a_write(self):
-        # gauntlet-dir-move line 10, the three lanes the tests-lane table
-        # cannot hold.  No payload carries an `agent_type` key: with one, the
-        # reviews-lane hook refuses a reviewer's metered shell whatever the
-        # command classifies as, and the redirection would be pinning nothing.
-        # A lane constant left at the old path answers SILENT for all three
-        # redirections, so an approved block, a reviewer round and a juror's
-        # verdict are each written by a shell redirect that names no lane the
-        # hook knows -- while reading the same verdict file stays allowed.
-        expected = {
-            ("specs-lane.py", "cat impl.py 1> gauntlet/specs/approved/s.txt"): DENY,
-            ("reviews-lane.py", "cat impl.py 1> gauntlet/reviews/s.9.txt"): DENY,
-            ("verdicts-lane.py", "cat impl.py 1> gauntlet/verdicts/demo.txt"): DENY,
-            ("verdicts-lane.py", "cat gauntlet/verdicts/demo.txt"): SILENT,
-        }
-        actual = {
-            (hook_name, command): hook_decision(hook_name, bash_payload(command, REPO_CWD))
-            for hook_name, command in expected
-        }
-        self.assertEqual(actual, expected)
-
-
-class GitSubcommandsInTheOtherLanes(unittest.TestCase):
-    """specs-, plans-, verdicts- and reviews-lane.py, on git commands."""
-
-    maxDiff = None
-
-    def test_git_reads_pass_and_git_output_writes_are_denied_in_each_lane(self):
-        # gauntlet-dir-move line 11.  No `agent_type` key on any payload.  Lane
-        # constants moved in the `Write` road alone still let
-        # `git diff --output=gauntlet/specs/approved/x.txt` type an approved
-        # spec file that no arbiter passed, and still refuse `git grep` over
-        # the same directory.
-        lanes = {
-            "specs-lane.py": "gauntlet/specs/approved",
-            "plans-lane.py": "gauntlet/plans/approved",
-            "verdicts-lane.py": "gauntlet/verdicts",
-            "reviews-lane.py": "gauntlet/reviews",
-        }
-        expected = {}
-        for hook_name, lane in lanes.items():
-            expected[(hook_name, f"git grep -n foo -- {lane}/")] = SILENT
-            expected[(hook_name, f"git ls-tree HEAD {lane}/")] = SILENT
-            expected[(hook_name, f"git diff --output={lane}/x.txt")] = DENY
-        actual = {
-            (hook_name, command): hook_decision(hook_name, bash_payload(command, REPO_CWD))
-            for hook_name, command in expected
-        }
-        self.assertEqual(actual, expected)
-
-
 class PlansLaneCallers(unittest.TestCase):
     """plans-lane.py, the lane that owns writes under docs/gauntlet/plans/."""
 
@@ -664,42 +509,10 @@ class ReviewsLaneOnAnApprovedPlan(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
-class ReviewsLaneArbiterGit(unittest.TestCase):
-    """reviews-lane.py, on the spec reviewer's git commands."""
-
-    maxDiff = None
-
-    def test_the_arbiters_git_commands_are_judged_by_form_not_name(self):
-        # gauntlet-dir-move line 14.  Every payload carries `agent_type`
-        # arbiter.  Judged by subcommand name alone, `git grep foo`
-        # is refused with no lane named while `git diff --output=out.txt`
-        # writes a file and is allowed; `grep` sits on both sides of this
-        # sweep, and with the reviewer's lane constant left at the old reviews
-        # path the arbiter's `git grep foo -- gauntlet/reviews/` reads the
-        # rounds it may not read and is allowed.
-        expected = {
-            "git grep foo": SILENT,
-            "git ls-tree HEAD": SILENT,
-            "git log --oneline": SILENT,
-            "git grep foo -- gauntlet/reviews/": DENY,
-            "git reflog expire --all": DENY,
-            "git diff --output=out.txt": DENY,
-        }
-        actual = sweep(
-            "reviews-lane.py",
-            expected,
-            lambda command: bash_payload(command, REPO_CWD, "arbiter"),
-        )
-        self.assertEqual(actual, expected)
-
-
-#: the five hooks the plugin manifest wires on `Bash` that judge every
-#: caller, so this is the set a main-agent shell command is actually judged by.
-#: `no-impl-reads.py` and `blind-bash.py` are wired on `Bash` session-wide too,
-#: but each gates on `agent_type` and answers `SILENT` for every caller outside
-#: its own `BLIND` tuple, so neither adds a denial here. `TheCallerGate` below
-#: is where that is pinned, and it is pinned rather than assumed because
-#: session wiring is what puts a main-agent command in front of them at all.
+#: the five lane hooks, none of them wired on `Bash` any more. They are run
+#: against a shell payload here anyway, because a hook answers what it is
+#: handed whatever the manifest says, and the answer that has to hold is
+#: silence: the mount table is what stops a shell write into a lane now.
 SESSION_LANE_HOOKS = (
     "specs-lane.py",
     "plans-lane.py",
@@ -725,153 +538,22 @@ def lane_sweep(commands, cwd, agent_type=None):
 #: Nothing denies it. The tuple is spelled out rather than left implicit so a
 #: hook that starts denying a read names itself in the failure.
 PASSES = ()
-TESTS = ("tests-lane.py",)
-REVIEWS = ("reviews-lane.py",)
 
 
-class LanesOnReadOnlyShellShapes(unittest.TestCase):
-    """The lane hooks over the read-only shapes an agent's shell is made of.
+class TheBlindWritersShell(unittest.TestCase):
+    """`blind-bash.py` over the writer's shell: one entry point, nothing else.
 
-    A lane owns the writes into one directory. It owes every other command an
-    answer of silence, and the commands it kept denying were the ones a lane
-    path merely *appears* in: quoted in a heredoc body, quoted in a `for` list,
-    quoted as an argument to `echo`, or sitting in the source half of a
-    redirection whose target is somewhere else entirely. None of those writes
-    the lane, and a lane that denies them denies the reading every round of the
-    chain is made of.
+    No lane hook answers a `Bash` call any more, so this hook is the whole of
+    what holds that shell shut on the path side; the mount table is what holds
+    it on the filesystem side.
     """
 
     maxDiff = None
 
-    def test_a_lane_path_that_is_not_a_write_target_passes_every_lane(self):
-        # The path is named, and the write goes somewhere else -- or there is
-        # no write at all. A lane that searched the text of a write stage
-        # denied all six.
-        expected = {
-            # the body of a heredoc is the content being written, not the
-            # target of the write; the target is on the redirection
-            "cat > gauntlet/specs/drafts/x.txt <<EOF\n"
-            "existing: grep -rn cite tests/\nEOF": PASSES,
-            "cat > /tmp/x.txt <<'EOF'\nsee gauntlet/specs/approved/x.txt\nEOF": PASSES,
-            # a `for` header runs no command, so its list is strings
-            'for c in "printf x | tee gauntlet/reviews/a.txt"; do echo "$c"; done': PASSES,
-            # the redirection target is the write; the lane path is an argument
-            'echo "tests/x" >> notes.txt': PASSES,
-            'echo "tests/ is closed"': PASSES,
-            'printf "%s\\n" "gauntlet/plans/approved/x"': PASSES,
-            "echo hi # see tests/": PASSES,
-            'git commit -m "test: pins tests/ layout"': PASSES,
-        }
-        self.assertEqual(lane_sweep(expected, REPO_CWD), expected)
-
-    def test_the_readers_a_search_is_made_of_pass_every_lane(self):
-        # `find`, `xargs`, `awk`, `cmp` and `ruff check` read. Off the
-        # read-only list they were unknown head words, and an unknown head word
-        # is a write, so every one of these denied at the lane it named.
-        expected = {
-            'find tests -name "*.py"': PASSES,
-            'find tests -name "*.py" | xargs grep -n foo': PASSES,
-            "awk '{print}' tests/x.py": PASSES,
-            "cmp gauntlet/specs/drafts/x.txt gauntlet/specs/approved/x.txt": PASSES,
-            ".venv/bin/ruff check tests": PASSES,
-            "find gauntlet/reviews -name 'pair-sh.*'": PASSES,
-            "ls gauntlet/reviews/": PASSES,
-            "ls gauntlet/reviews/pair-sh.*.txt": PASSES,
-            # the same heads in the forms that do write
-            "find tests -name '*.py' -delete": TESTS,
-            "find tests -name '*.py' | xargs rm": TESTS,
-            "awk '{print > \"tests/x.py\"}' a.txt": TESTS,
-            ".venv/bin/ruff check --fix tests": TESTS,
-            ".venv/bin/ruff format tests": TESTS,
-            ".venv/bin/ruff format --check tests": PASSES,
-        }
-        self.assertEqual(lane_sweep(expected, REPO_CWD), expected)
-
-    def test_a_redirection_inside_quotes_is_not_a_redirection(self):
-        # A `>` the shell never performs: it is a character inside an argument.
-        # Scanned without regard to quoting it made every one of these a write,
-        # and the lane then read the rest of the stage for a path.
-        expected = {
-            "grep -n 'a > b' tests/": PASSES,
-            'grep -rn "x >> y" gauntlet/reviews/': PASSES,
-            "git log --oneline --grep='moved > tests/'": PASSES,
-            # and the real thing, still a write, quoted target included
-            'cat impl.py > "tests/t.py"': TESTS,
-            "cat impl.py > tests/t.py": TESTS,
-        }
-        self.assertEqual(lane_sweep(expected, REPO_CWD), expected)
-
-    def test_git_reading_forms_naming_a_lane_pass(self):
-        expected = {
-            "git ls-tree -r --name-only main -- scripts gauntlet/specs agents": PASSES,
-            "git log --oneline -- tests/": PASSES,
-            "git diff main -- tests/test_x.py": PASSES,
-            "git show HEAD:tests/test_x.py": PASSES,
-            "git grep -n foo -- tests/": PASSES,
-            "git status --short tests/": PASSES,
-            "git rev-parse --show-toplevel": PASSES,
-            "git stash": PASSES,
-            "git add tests/x.py && git commit -m x": PASSES,
-            "git checkout main -- tests/x.py": PASSES,
-            "git worktree add .claude/worktrees/x-spec -b spec/x": PASSES,
-            # a git read whose output is redirected writes where it points,
-            # and that is the draft lane, which no hook owns
-            "git show 50ad52f:gauntlet/specs/approved/x.txt > gauntlet/specs/drafts/x.txt": PASSES,
-            "git cat-file -p 0123456789abcdef > gauntlet/specs/drafts/x.txt": PASSES,
-            # the same shape pointed the other way is the write the lane owns
-            "git show 50ad52f:x.txt > gauntlet/specs/approved/x.txt": ("specs-lane.py",),
-        }
-        self.assertEqual(lane_sweep(expected, REPO_CWD), expected)
-
-    def test_the_plain_readers_and_runners_pass(self):
-        expected = {
-            "ls gauntlet/specs/approved": PASSES,
-            "wc -l tests/*.py": PASSES,
-            "cat tests/test_x.py": PASSES,
-            "grep -rn 'def test_' tests/": PASSES,
-            "diff tests/a.py tests/b.py": PASSES,
-            "sed -n '1,20p' tests/x.py": PASSES,
-            "head -20 tests/x.py": PASSES,
-            "grep -l slug gauntlet/specs/approved/*.txt": PASSES,
-            ".venv/bin/pytest tests/test_x.py -q": PASSES,
-            "node --test tests/x.test.js": PASSES,
-            "scripts/pair.sh red x": PASSES,
-            "scripts/gates/check-gates.sh": PASSES,
-            "python3 scripts/gates/md-softwrap.py --check docs/testing.md": PASSES,
-        }
-        self.assertEqual(lane_sweep(expected, REPO_CWD), expected)
-
-    def test_the_writes_the_lanes_exist_for_are_still_denied(self):
-        # The other half of the same change: nothing above widened the lane.
-        expected = {
-            "cp a.py tests/a.py": TESTS,
-            "sed -i s/a/b/ tests/a.py": TESTS,
-            "rm tests/x.py": TESTS,
-            "mv tests/a.py tests/b.py": TESTS,
-            "cd tests && echo x > a.py": TESTS,
-            "(echo x > tests/a.py)": TESTS,
-            'printf "%s" x | tee gauntlet/reviews/a.txt': REVIEWS,
-        }
-        self.assertEqual(lane_sweep(expected, REPO_CWD), expected)
-
-    def test_the_blind_writer_is_judged_by_the_same_lane_answers(self):
-        # The lane hooks are wired session-wide, so a subagent's shell gets the
-        # same answer the main agent's does; the writer's own confinement is
-        # `blind-bash.py`, which is a different hook and a different question.
-        reads = (
-            'find tests -name "*.py"',
-            "awk '{print}' tests/x.py",
-            'find tests -name "*.py" | xargs grep -n foo',
-            "cat > /tmp/x.txt <<'EOF'\nsee gauntlet/specs/approved/x.txt\nEOF",
-            'echo "tests/x" >> notes.txt',
-        )
-        expected = {command: PASSES for command in reads}
-        self.assertEqual(lane_sweep(expected, REPO_CWD, "scrivener"), expected)
-
-    def test_the_blind_writer_shell_is_one_command_whatever_the_lanes_say(self):
-        # Every command above is denied for the writer by blind-bash.py, which
-        # answers on the caller and the entry point rather than on any path.
-        # A lane that stopped denying a read did not widen that shell.
+    def test_the_blind_writer_shell_is_one_command(self):
+        # `blind-bash.py` answers on the caller and the entry point rather
+        # than on any path, so an ordinary read is denied the writer exactly
+        # as a write is.
         commands = (
             'find tests -name "*.py"',
             "cat tests/test_x.py",
@@ -885,42 +567,6 @@ class LanesOnReadOnlyShellShapes(unittest.TestCase):
             lambda command: bash_payload(command, REPO_CWD, "scrivener"),
         )
         self.assertEqual(actual, expected)
-
-
-class ReviewsLaneOnTheReviewersOwnShell(unittest.TestCase):
-    """reviews-lane.py, over the commands a reviewer reaches for.
-
-    A reviewer is denied the round files and every shell write, and that is the
-    rule, not a defect: it is why `scripts/pair.sh review` hands the reviewer
-    the path it is to write rather than leaving it to count the directory.
-    What the same reviewer is owed is every other read.
-    """
-
-    maxDiff = None
-
-    def test_a_reviewer_reads_outside_the_round_files(self):
-        expected = {
-            "cmp gauntlet/specs/drafts/x.txt gauntlet/specs/approved/x.txt": PASSES,
-            'find tests -name "*.py"': PASSES,
-            "awk '{print}' docs/testing.md": PASSES,
-            ".venv/bin/ruff check tests": PASSES,
-        }
-        for agent in ("arbiter", "prosecutor"):
-            with self.subTest(agent=agent):
-                self.assertEqual(lane_sweep(expected, REPO_CWD, agent), expected)
-
-    def test_a_reviewer_is_still_denied_the_rounds_and_every_shell_write(self):
-        expected = {
-            "ls gauntlet/reviews/": REVIEWS,
-            "ls gauntlet/reviews/pair-sh.*.txt": REVIEWS,
-            "find gauntlet/reviews -name 'pair-sh.*'": REVIEWS,
-            "git show 50ad52f:gauntlet/specs/approved/x.txt"
-            " > gauntlet/specs/drafts/x.txt": REVIEWS,
-            "git cat-file -p 0123456789abcdef > gauntlet/specs/drafts/x.txt": REVIEWS,
-        }
-        for agent in ("arbiter", "prosecutor"):
-            with self.subTest(agent=agent):
-                self.assertEqual(lane_sweep(expected, REPO_CWD, agent), expected)
 
 
 class TheCallerGate(unittest.TestCase):
@@ -1025,7 +671,7 @@ class TheCallerGate(unittest.TestCase):
             for entry in event
             for hook in entry["hooks"]
         ]
-        self.assertEqual(len(commands), 11)
+        self.assertEqual(len(commands), 12)
         for command in commands:
             with self.subTest(command=command):
                 self.assertIn("${CLAUDE_PLUGIN_ROOT}", command)

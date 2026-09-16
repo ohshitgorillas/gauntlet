@@ -199,11 +199,6 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
         self.assertEqual(_write(self.moved, "tests-lane.py", "/repo/tests/t.py"), SILENT)
         self.assertEqual(_config_lines(self.moved, "tests_dir"), ["spec"])
 
-    def test_shell_write_into_the_named_dir_is_denied_and_a_read_is_not(self):
-        self.assertEqual(_bash(self.moved, "tests-lane.py", "rm spec/t.py"), DENY)
-        self.assertEqual(_bash(self.moved, "tests-lane.py", "cat spec/t.py"), SILENT)
-        self.assertEqual(_bash(self.moved, "tests-lane.py", "rm tests/t.py"), SILENT)
-
     def test_writer_writes_the_named_dir_of_its_spec_tree_only(self):
         tree = "/repo/.claude/worktrees/x-spec"
         writer = "scrivener"
@@ -212,34 +207,51 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
         self.assertEqual(_write(self.moved, "tests-lane.py", "/repo/spec/t.py", writer), DENY)
 
     def test_the_blind_runner_reads_the_named_lane_and_not_the_default(self):
-        # `scripts/blind.sh test <path>` is a run rather than a write, and the
-        # path it takes is the lane this repo named.  An implementation reading
-        # the runner from a table instead of from the lane admits the argument
-        # under `tests/` in a repo whose lane is `spec/`, which is a shell the
-        # writer can point at a directory no hook is guarding.
-        self.assertEqual(
-            _bash(self.moved, "tests-lane.py", "scripts/blind.sh test spec/t.py"), SILENT
+        # `scripts/blind.sh test <path>` is the blind agents' one entry point,
+        # and the path it takes is the lane this repo named.  An implementation
+        # reading the lane from a table instead of from the declaration admits
+        # the argument under `tests/` in a repo whose lane is `spec/`, which is
+        # a shell the writer can point at a directory no hook is guarding.
+        # an admitted call comes back as an `updatedInput` rewrite of the head
+        # rather than as silence, so what is read here is the command it left
+        self.assertIn(
+            "scripts/blind.sh test spec/t.py",
+            _bash(self.moved, "blind-bash.py", "scripts/blind.sh test spec/t.py", "scrivener"),
         )
         self.assertEqual(
-            _bash(self.moved, "tests-lane.py", "scripts/blind.sh test tests/t.py"), SILENT
+            _bash(self.moved, "blind-bash.py", "scripts/blind.sh test tests/t.py", "scrivener"),
+            DENY,
         )
-        self.assertEqual(
-            _bash(self.bare, "tests-lane.py", "scripts/blind.sh test tests/t.py"), SILENT
+        self.assertIn(
+            "scripts/blind.sh test tests/t.py",
+            _bash(self.bare, "blind-bash.py", "scripts/blind.sh test tests/t.py", "scrivener"),
         )
         # the shape is the whole invocation and its arity, at either lane
         self.assertEqual(
-            _bash(self.moved, "tests-lane.py", "rm spec/t.py && scripts/blind.sh test spec/t.py"),
+            _bash(
+                self.moved,
+                "blind-bash.py",
+                "rm spec/t.py && scripts/blind.sh test spec/t.py",
+                "scrivener",
+            ),
             DENY,
         )
         self.assertEqual(
-            _bash(self.moved, "tests-lane.py", "scripts/blind.sh test spec/a.py spec/b.py"), DENY
+            _bash(
+                self.moved,
+                "blind-bash.py",
+                "scripts/blind.sh test spec/a.py spec/b.py",
+                "scrivener",
+            ),
+            DENY,
         )
         # and an argument that opens under the lane and walks out of it is not a run
         self.assertEqual(
             _bash(
                 self.moved,
-                "specs-lane.py",
+                "blind-bash.py",
                 "scripts/blind.sh test spec/a/../../gauntlet/specs/approved/x.txt",
+                "scrivener",
             ),
             DENY,
         )
@@ -281,17 +293,6 @@ class GauntletDirMovesEveryLane(unittest.TestCase):
         self.assertEqual(_config_lines(self.moved, "plans_lane"), ["work/chain/plans/approved"])
         self.assertEqual(_config_lines(self.moved, "reviews_lane"), ["work/chain/reviews"])
         self.assertEqual(_config_lines(self.moved, "verdicts_lane"), ["work/chain/verdicts"])
-
-    def test_a_shell_write_naming_a_moved_lane_is_denied(self):
-        self.assertEqual(
-            _bash(self.moved, "specs-lane.py", "echo x > work/chain/specs/approved/s.txt"), DENY
-        )
-        self.assertEqual(
-            _bash(self.moved, "specs-lane.py", "cat work/chain/specs/approved/s.txt"), SILENT
-        )
-        self.assertEqual(
-            _bash(self.moved, "specs-lane.py", "echo x > gauntlet/specs/approved/s.txt"), SILENT
-        )
 
     def test_the_blind_agent_reads_the_moved_block_and_not_the_moved_base(self):
         # The one subtree of the base a blind agent works from moves with it,

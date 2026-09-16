@@ -1822,7 +1822,7 @@ def dispatch(
     payload: Payload,
     *,
     on_write: Callable[[str, str, str], str | None],
-    on_bash: Callable[[str, str], str | None],
+    on_bash: Callable[[str, str], str | None] | None = None,
     on_read: Callable[[dict[str, Any], str, str], str | None] | None = None,
     read_tools: tuple[str, ...] = (),
 ) -> str | None:
@@ -1831,9 +1831,9 @@ def dispatch(
     `on_write(target, cwd, agent)` is called only for a write that names a
     target, since a write with no path denies nothing. `on_read(tool_input,
     cwd, agent)` sees the whole input, because a read names its target under
-    three different keys. `on_bash(command, agent)` takes the agent whether or
-    not the lane cares who ran the command, so that every lane hook hands this
-    function the same two-argument callable.
+    three different keys. `on_bash(command, agent)` is optional and no lane
+    passes one: a lane's shell half is held by the mount table now, not by a
+    reading of the command text.
     """
     cwd = cwd_of(payload)
     agent = agent_of(payload)
@@ -1842,7 +1842,7 @@ def dispatch(
         return on_write(target, cwd, agent) if target else None
     if on_read is not None and name in read_tools:
         return on_read(tool_input, cwd, agent)
-    if name == "Bash":
+    if on_bash is not None and name == "Bash":
         return on_bash(command_of(tool_input), agent)
     return None
 
@@ -1862,26 +1862,27 @@ def lane_denial(lane: str, noun: str, lane_msg: str, *, restore: bool = True) ->
     )
 
 
-def sole_writer_lane(lane: str, writer: str, lane_msg: str, bash_msg: str) -> Verdict:
+def sole_writer_lane(lane: str, writer: str, lane_msg: str) -> Verdict:
     """The verdict function of a lane one named agent writes and nobody else.
 
     Returns a `_verdict(name, tool_input, payload)`. A write whose target is in
     the lane passes for `writer` and is refused with `lane_msg` for every other
-    hand, the main agent included; a shell command that writes into the lane is
-    refused with `bash_msg`; everything else passes.
+    hand, the main agent included; everything else passes.
+
+    `Bash` is not this function's business and no lane hook is wired on it any
+    more. A shell that writes into the lane is stopped by the mount table --
+    the lane directories are bound read-only inside every wrapped profile --
+    rather than by reading the command, which is the question no string
+    answers.
     """
-    pattern = lane_pattern(lane)
 
     def on_write(target: str, cwd: str, agent: str) -> str | None:
         if not path_in_lane(target, cwd, lane):
             return None
         return None if agent == writer else lane_msg
 
-    def on_bash(command: str, _agent: str) -> str | None:
-        return bash_msg if lane_write_in(command, pattern) else None
-
     def verdict(name: str, tool_input: dict[str, Any], payload: Payload) -> str | None:
-        return dispatch(name, tool_input, payload, on_write=on_write, on_bash=on_bash)
+        return dispatch(name, tool_input, payload, on_write=on_write)
 
     return verdict
 

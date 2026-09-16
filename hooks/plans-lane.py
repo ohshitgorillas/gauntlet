@@ -55,15 +55,14 @@ _LANE = (
     f"plan gate. Draft under {DRAFTS}/ and send the draft to the "
     "prosecutor. (hooks/plans-lane.py)"
 )
-_BASH = sh.lane_denial(LANE, "an approved plan", _LANE)
-
 #: the lane's whole policy: the one writer passes, every other hand is
-#: refused with the reason, and a shell write into it is refused with _BASH
-_verdict = sh.sole_writer_lane(LANE, REVIEWER, _LANE, _BASH)
+#: refused with the reason. A shell that writes into the lane is stopped by
+#: the mount table instead, so no lane hook is wired on `Bash` any more.
+_verdict = sh.sole_writer_lane(LANE, REVIEWER, _LANE)
 
 
 def main() -> None:
-    sh.hook_main(_verdict)
+    sh.hook_main(_verdict, guards=sh.WRITE_TOOLS)
 
 
 def self_test() -> int:
@@ -93,21 +92,6 @@ def self_test() -> int:
                 allowed(write(f"{root}/tests/plans/t.py")),
             )
         ),
-        "3 shell writes naming the lane denied, reads and object restores pass": all(
-            (
-                denied(bash("sed -i 's/a/b/' gauntlet/plans/approved/slug.txt")),
-                denied(bash("echo x > gauntlet/plans/approved/slug.txt")),
-                denied(bash("cp draft.txt gauntlet/plans/approved/slug.txt")),
-                denied(bash("rm gauntlet/plans/approved/slug.txt")),
-                denied(bash("cat > gauntlet/plans/approved/slug.txt <<'EOF'\nslug: x\nEOF")),
-                allowed(bash("cat gauntlet/plans/approved/slug.txt")),
-                allowed(bash("grep -n 'kind:' gauntlet/plans/approved/slug.txt")),
-                allowed(bash("git status --porcelain gauntlet/plans/approved/")),
-                allowed(bash("git restore --source abc1234 -- gauntlet/plans/approved/slug.txt")),
-                allowed(bash("git checkout abc1234 -- gauntlet/plans/approved/slug.txt")),
-                allowed(bash("git commit -m 'plan: gauntlet/plans/approved/slug.txt'")),
-            )
-        ),
         "4 the lane directory itself is in the lane, checkout or not": all(
             (
                 #: outside any checkout the path is read off its own segments, and
@@ -119,59 +103,19 @@ def self_test() -> int:
                 allowed(write(f"{root}/gauntlet/plans/approved", REVIEWER)),
             )
         ),
-        "5 read-only git naming the lane passes, its write forms do not": all(
+        #: the classifier is gone: the lane's shell half is the mount table,
+        #: which binds this directory read-only inside every wrapped profile
+        "8 a Bash call is not this lane's business, whatever it names": all(
             (
-                allowed(bash("git grep -n foo -- gauntlet/plans/approved/")),
-                allowed(bash("git grep -n 'gauntlet/plans/approved/' -- hooks")),
-                allowed(bash("git ls-tree HEAD gauntlet/plans/approved/")),
-                denied(bash("git grep -Ovim foo -- gauntlet/plans/approved/")),
-                denied(bash("git diff --output=gauntlet/plans/approved/x.txt")),
-                #: a global option says where git runs, not what it does, so
-                #: inserting one moves none of the verdicts above
-                sh.git_globals_change_nothing(
-                    bash,
-                    "git grep -n foo -- gauntlet/plans/approved/",
-                    "git ls-tree HEAD gauntlet/plans/approved/",
-                    "git grep -Ovim foo -- gauntlet/plans/approved/",
-                    "git diff --output=gauntlet/plans/approved/x.txt",
-                ),
-                #: an alias definition and an exec path choose what the
-                #: subcommand runs, so neither reads as a known subcommand
-                denied(bash("git -c alias.ls-files=!rm ls-files gauntlet/plans/approved/")),
-                denied(bash("git --exec-path=/tmp/x ls-files gauntlet/plans/approved/")),
-            )
-        ),
-        "6 the blind runner naming this lane is still denied": all(
-            (
-                #: the runner takes one path under the test directory, so it
-                #: reaches no other lane however the argument is spelled
-                denied(bash("scripts/blind.sh test gauntlet/plans/approved/slug.txt")),
-                denied(
-                    bash("scripts/blind.sh test tests/a/../../gauntlet/plans/approved/slug.txt")
-                ),
-            )
-        ),
-        "7 the lane is what a write targets, not what its text mentions": all(
-            (
-                allowed(
-                    bash(
-                        "cat > gauntlet/plans/drafts/slug.txt <<EOF\n"
-                        "cites gauntlet/plans/approved/other.txt\nEOF"
-                    )
-                ),
-                allowed(bash("echo 'gauntlet/plans/approved/slug.txt' >> notes.txt")),
-                allowed(bash("find gauntlet/plans/approved -name '*.txt'")),
-                allowed(
-                    bash("cmp gauntlet/plans/drafts/slug.txt gauntlet/plans/approved/slug.txt")
-                ),
-                denied(bash("cat draft.txt > gauntlet/plans/approved/slug.txt")),
-                denied(bash("find gauntlet/plans/approved -name '*.txt' -delete")),
+                allowed(bash("sed -i 's/a/b/' gauntlet/plans/approved/slug.txt")),
+                allowed(bash("cat > gauntlet/plans/approved/slug.txt <<'EOF'\nslug: x\nEOF")),
+                allowed(bash("cat gauntlet/plans/approved/slug.txt")),
             )
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal
         "every payload shape is answered, and an unreadable one is refused": (
-            sh.survives_hostile_payloads(__file__)
+            sh.survives_hostile_payloads(__file__, guards=sh.WRITE_TOOLS)
         ),
     }
     return sh.report(lines)

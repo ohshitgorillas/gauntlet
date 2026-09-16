@@ -17,13 +17,15 @@ Denied:
     checkout, unless the caller's `agent_type` is `scrivener` AND the
     target is inside a `.claude/worktrees/*-spec` tree
   * for the `scrivener`, any `Write`/`Edit` outside its spec tree's `tests/`
-  * a `Bash` command that writes and that names a `tests/` path, except a
-    restore from a named git object (`git restore --source <rev>` or
-    `git checkout <rev> --` onto the path), which copies a commit and types
-    nothing
 
-Allowed: every read-only command naming `tests/` (`pytest`, `cat`, `sed -n`,
-`grep`), and every write elsewhere.
+Allowed: every write elsewhere.
+
+`Bash` is not this hook's business. A shell that writes into `tests/` is
+stopped by the mount table -- `bwrap-wrap.py` binds the lane directories
+read-only inside every wrapped profile -- rather than by reading the command,
+which is the question no string answers. The cost is the prose: a shell write
+comes back as an errno, and the explanation below survives only for `Write`
+and `Edit`, which is the tool an agent should be using.
 
 One lane is a script's rather than the writer's. A strike motion block names
 tests to remove; a single test is an `Edit` and the writer's, but a whole file
@@ -52,7 +54,6 @@ WRITER = "scrivener"
 #: `tests` unless the repo names another directory under the `tests_dir` key
 #: of `blind-reads.json`; the lane hooks and the scripts read the same key
 LANE = sh.tests_dir()
-BASH_TESTS = sh.lane_pattern(LANE)
 
 _LANE = (
     f"{LANE}/ is the scrivener's lane, written only in its spec tree from the "
@@ -68,7 +69,6 @@ _WRITER_LANE = (
     f"Blind writer: you write under {LANE}/ of your own spec tree and nowhere else. "
     f"Not the source tree, not {sh.docs_dir()}/, not another worktree. (hooks/tests-lane.py)"
 )
-_BASH = sh.lane_denial(LANE, "a test", _LANE)
 
 
 def _is_spec_tree(root: str) -> bool:
@@ -90,17 +90,13 @@ def _write_verdict(target: str, cwd: str, agent: str) -> str | None:
     return _LANE if in_tests else None
 
 
-def _bash_verdict(command: str, _agent: str = "") -> str | None:
-    return _BASH if sh.lane_write_in(command, BASH_TESTS) else None
-
-
 def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | None:
     """Why this call is refused, or None to let it through."""
-    return sh.dispatch(name, tool_input, payload, on_write=_write_verdict, on_bash=_bash_verdict)
+    return sh.dispatch(name, tool_input, payload, on_write=_write_verdict)
 
 
 def main() -> None:
-    sh.hook_main(_verdict)
+    sh.hook_main(_verdict, guards=sh.WRITE_TOOLS)
 
 
 def self_test() -> int:
@@ -133,129 +129,21 @@ def self_test() -> int:
                 allowed(write(f"{spec}/tests/conftest.py", WRITER)),
             )
         ),
-        "3 shell writes naming tests/ denied, reads and object restores pass": all(
+        #: the classifier is gone: the lane's shell half is the mount table,
+        #: which binds this directory read-only inside every wrapped profile
+        "3 a Bash call is not this lane's business, whatever it names": all(
             (
-                denied(bash("sed -i 's/a/b/' tests/t.py")),
-                denied(bash("echo x > tests/t.py")),
-                denied(bash("rm tests/t.py")),
+                allowed(bash("sed -i 's/a/b/' tests/t.py")),
+                allowed(bash("rm tests/t.py")),
+                allowed(bash("cd tests && rm t.py")),
+                allowed(bash("find tests -name '*.py' -delete")),
                 allowed(bash(".venv/bin/pytest tests/t.py -q")),
-                allowed(bash("cat tests/t.py")),
-                allowed(bash("grep -rn 'def test_' tests/")),
-                allowed(bash("git restore --source abc1234 -- tests/t.py")),
-                allowed(bash("git checkout abc1234 -- tests/t.py")),
-                allowed(bash("git commit -m 'test: pins tests/t.py'")),
-            )
-        ),
-        "4 a write into tests/ is a write however it is spelled": all(
-            (
-                #: a separator the splitter did not know left the whole command
-                #: reading as its first word, so any reader in front hid a write
-                denied(bash("cat tests/t.py\nrm tests/t.py")),
-                denied(bash("cat README.md & rm tests/t.py")),
-                #: `find` and the interpreters are write primitives, not readers
-                denied(bash("find tests -name '*.py' -delete")),
-                denied(bash("node -e \"require('fs').writeFileSync('tests/t.py','')\"")),
-                denied(bash("python -c \"open('tests/t.py','w')\"")),
-                #: a stage that cd'd into the lane writes to it without naming it
-                denied(bash("cd tests && rm t.py")),
-                denied(bash("cd tests; rm t.py")),
-                #: and a `cd` the walk cannot follow does not carry the taint back
-                allowed(bash("cd /tmp && rm t.py")),
-                #: a separator inside a quoted argument is not a separator
-                allowed(bash("grep -rn 'a && b' tests/")),
-            )
-        ),
-        "5 a suite run naming tests/ is a read, an inline script is not": all(
-            (
-                allowed(bash("python -m pytest tests/ -q")),
-                allowed(bash("python3 -m unittest discover tests/")),
-                allowed(bash("node --test tests/t.test.js")),
-                allowed(bash("npm test -- tests/t.py")),
-                allowed(bash("npx vitest run tests/")),
-                #: the same heads without the argument that makes them a run
-                denied(bash("npm run build -- tests/")),
-                denied(bash("npx rimraf tests/")),
-                denied(bash("node -e \"require('fs').rmSync('tests/t.py')\"")),
-            )
-        ),
-        "6 read-only git naming tests/ passes, its write forms do not": all(
-            (
-                allowed(bash("git grep -n foo -- tests/")),
-                allowed(bash("git grep -n 'tests/' -- hooks")),
-                allowed(bash("git ls-tree HEAD tests/")),
-                denied(bash("git grep -Ovim foo -- tests/")),
-                denied(bash("git diff --output=tests/x")),
-                #: a global option says where git runs, not what it does, so
-                #: inserting one moves none of the verdicts above
-                sh.git_globals_change_nothing(
-                    bash,
-                    "git grep -n foo -- tests/",
-                    "git ls-tree HEAD tests/",
-                    "git grep -Ovim foo -- tests/",
-                    "git diff --output=tests/x",
-                    "git restore --source abc1234 -- tests/t.py",
-                ),
-                #: an alias definition and an exec path choose what the
-                #: subcommand runs, so neither reads as a known subcommand
-                denied(bash("git -c alias.ls-files=!rm ls-files tests/")),
-                denied(bash("git --exec-path=/tmp/x ls-files tests/")),
-            )
-        ),
-        "7 the kit's blind runner is a read, its near spellings are not": all(
-            (
-                allowed(bash("scripts/blind.sh test tests/t.py")),
-                allowed(bash("scripts/blind.sh test .claude/worktrees/x-spec/tests/t.py")),
-                #: normalizes back under the lane, so still a run
-                allowed(bash("scripts/blind.sh test tests/support/../t.py")),
-                #: a command word in front of the entry is not the entry
-                denied(bash("bash scripts/blind.sh test tests/t.py")),
-                #: the key is the whole invocation, so a write beside it stays one
-                denied(bash("rm tests/t.py && scripts/blind.sh test tests/t.py")),
-                #: and its arity, so a second path is not the shape
-                denied(bash("scripts/blind.sh test tests/a.py tests/b.py")),
-                #: an argument that opens under the prefix and walks out of it
-                denied(bash("scripts/blind.sh test tests/a/../../gauntlet/plans/approved/x.txt")),
-                #: another subcommand is not a run and falls to the path test
-                denied(bash("scripts/blind.sh status tests")),
-            )
-        ),
-        "8 the lane is what a write targets, not what its text mentions": all(
-            (
-                #: the body of a heredoc is content; the target is the
-                #: redirection that opened it
-                allowed(bash("cat > drafts/x.txt <<EOF\nsee tests/t.py\nEOF")),
-                allowed(bash("echo 'tests/t.py' >> notes.txt")),
-                #: a `for` header runs no command, so its list is strings
-                allowed(bash('for c in "rm tests/t.py"; do echo "$c"; done')),
-                #: a `>` inside quotes is a character, not a redirection
-                allowed(bash("grep -n 'a > b' tests/")),
-                #: and the same shapes aimed at the lane are still writes
-                denied(bash("cat > tests/t.py <<EOF\nx\nEOF")),
-                denied(bash("echo x >> tests/t.py")),
-                denied(bash('cat impl.py > "tests/t.py"')),
-            )
-        ),
-        "9 the readers a search is made of are reads": all(
-            (
-                allowed(bash("find tests -name '*.py'")),
-                allowed(bash("find tests -name '*.py' | xargs grep -n foo")),
-                allowed(bash("awk '{print}' tests/t.py")),
-                allowed(bash("cmp tests/a.py tests/b.py")),
-                allowed(bash(".venv/bin/ruff check tests")),
-                allowed(bash(".venv/bin/ruff format --check tests")),
-                #: each of them has a form that writes, and that form is one
-                denied(bash("find tests -name '*.py' -delete")),
-                denied(bash("find tests -name '*.py' | xargs rm")),
-                denied(bash("awk '{print > \"tests/t.py\"}' a.txt")),
-                denied(bash("awk -f prog.awk tests/t.py")),
-                denied(bash(".venv/bin/ruff check --fix tests")),
-                denied(bash(".venv/bin/ruff format tests")),
             )
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal
         "every payload shape is answered, and an unreadable one is refused": (
-            sh.survives_hostile_payloads(__file__)
+            sh.survives_hostile_payloads(__file__, guards=sh.WRITE_TOOLS)
         ),
     }
     return sh.report(lines)

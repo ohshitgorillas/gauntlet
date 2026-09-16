@@ -10,7 +10,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit|Bash",
+        "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -27,15 +27,11 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/verdicts-lane.py"
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/gauntlet-off.py --bash"
           }
         ]
       },
       {
-        "matcher": "Write|Edit|NotebookEdit|Bash|Read|Grep",
+        "matcher": "Write|Edit|NotebookEdit|Read|Grep",
         "hooks": [
           {
             "type": "command",
@@ -58,6 +54,14 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/blind-bash.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/gauntlet-off.py --bash"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/bwrap-wrap.py"
           }
         ]
       }
