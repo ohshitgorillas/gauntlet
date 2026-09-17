@@ -67,8 +67,16 @@ SUBCOMMANDS = ("open", "red", "merge")
 #: carries no traversal, the same shape every other lane check uses
 SLUG = sh.SLUG
 
+#: the head, in the three spellings admitted, the same three `blind-bash.py`
+#: admits for its own entry. `scripts/pair.sh` bare is the one an agent types;
+#: the absolute path and the `${CLAUDE_PLUGIN_ROOT}` the runtime expands into
+#: one are admitted because a brief or a doc may still carry them. A *relative*
+#: prefix is deliberately not admitted, so no path inside the checkout is a
+#: route by which a tree authors the one command that runs outside the sandbox.
+_HEAD = r"(?:/[A-Za-z0-9_.@+:/-]*/|\$\{CLAUDE_PLUGIN_ROOT\}/)?" + re.escape(ENTRY)
+
 ALLOWED = tuple(
-    re.compile(rf"\A\s*{re.escape(ENTRY)}\s+{sub}\s+{SLUG}\s*\Z") for sub in SUBCOMMANDS
+    re.compile(rf"\A\s*{_HEAD}\s+{sub}\s+{SLUG}\s*\Z") for sub in SUBCOMMANDS
 )
 
 
@@ -81,6 +89,31 @@ def is_pair_command(command: str) -> bool:
     if ".." in command:
         return False
     return any(pattern.match(command) for pattern in ALLOWED)
+
+
+def kit_entry() -> str:
+    """This kit's own `scripts/pair.sh`, absolute.
+
+    `hooks/` and `scripts/` are siblings in the plugin, so the entry is found
+    from this file rather than from the checkout the command runs in, which for
+    an installed plugin holds no copy of the script at all.
+    """
+    return str(Path(__file__).resolve().parent.parent / ENTRY)
+
+
+def resolved_pair_command(command: str) -> str | None:
+    """The same command with a bare head spelled at this kit's own entry.
+
+    None where the head is already absolute or `${CLAUDE_PLUGIN_ROOT}`: those
+    name a script themselves and are left exactly as typed. The command has
+    matched an admitted shape before this runs, so the head is the first word
+    and a leading occurrence of the entry is that word.
+    """
+    head = command.lstrip()
+    if not head.startswith(ENTRY):
+        return None
+    lead = command[: len(command) - len(head)]
+    return lead + kit_entry() + head[len(ENTRY) :]
 
 
 def _resolved(root: str, path: str) -> str | None:
@@ -230,7 +263,19 @@ def self_test() -> int:
         ),
         "an entry path that only contains ours does not match": not any(
             is_pair_command(c)
-            for c in (f"x{ENTRY} red demo", f"/opt/{ENTRY} red demo", f"./{ENTRY} red demo")
+            for c in (f"x{ENTRY} red demo", f"./{ENTRY} red demo", f"tests/{ENTRY} red demo")
+        ),
+        "the absolute and expanded spellings match too": all(
+            is_pair_command(f"{head}{ENTRY} red demo")
+            for head in ("/opt/", "${CLAUDE_PLUGIN_ROOT}/", kit_entry()[: -len(ENTRY)])
+        ),
+        "a bare head resolves to this kit's own entry": resolved_pair_command(
+            f"{ENTRY} open demo"
+        )
+        == f"{kit_entry()} open demo",
+        "a head that names a script itself is left as typed": all(
+            resolved_pair_command(f"{head}{ENTRY} open demo") is None
+            for head in ("/opt/", "${CLAUDE_PLUGIN_ROOT}/")
         ),
     }
     return sh.report(lines)

@@ -209,8 +209,21 @@ def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
     agent = sh.agent_of(payload)
     if agent in PASSTHROUGH_AGENTS:
         return None
+    # `pair.sh` runs unwrapped. A bare head is resolved to the kit's own copy on
+    # the way out, because the spelling an agent types names a path a project
+    # that dropped its local copy does not hold: admitting that spelling and
+    # then running it as typed would answer the sandbox question and leave the
+    # command with nothing to execute.
     if pair_passthrough.is_pair_command(command):
-        return None
+        resolved = pair_passthrough.resolved_pair_command(command)
+        if resolved is None:
+            return None
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "updatedInput": {"command": resolved},
+            }
+        }
 
     root = sh.cwd_of(payload)
     # the project's own word, not this hook's: a command it declared under
@@ -477,6 +490,11 @@ def _self_test_in(tmp: str) -> int:
     semicolon = "echo hi; cat /etc/hostname"
     heredoc = "echo $(cat /etc/hostname) <<'X'"
 
+    def command_of_answer(answer: dict[str, Any] | None) -> str | None:
+        """The command an answer carries, or None where it carries none."""
+        out = (answer or {}).get("hookSpecificOutput") or {}
+        return (out.get("updatedInput") or {}).get("command")
+
     def answer_for(agent: str) -> dict[str, Any] | None:
         """`_answer` for one ordinary command, run as `agent`."""
         return _answer(
@@ -534,25 +552,50 @@ def _self_test_in(tmp: str) -> int:
             is None
             for agent in PASSTHROUGH_AGENTS
         ),
-        "a whole pair.sh subcommand call escapes the wrap, and nothing else does": (
+        #: the escape is the whole call, and a bare head leaves here spelled at
+        #: the kit's own copy: the spelling an agent types names a path a
+        #: project that dropped its local copy does not hold. What does not
+        #: match is wrapped exactly as before, `bwrap` in front of it.
+        "a whole pair.sh subcommand call escapes the wrap, resolved, and nothing else does": (
+            command_of_answer(
+                _answer(
+                    {
+                        "tool_name": "Bash",
+                        "cwd": root,
+                        "agent_type": "prosecutor",
+                        "tool_input": {"command": "scripts/pair.sh red demo"},
+                    }
+                )
+            )
+            == f"{pair_passthrough.kit_entry()} red demo"
+            and (
+                command_of_answer(
+                    _answer(
+                        {
+                            "tool_name": "Bash",
+                            "cwd": root,
+                            "agent_type": "prosecutor",
+                            "tool_input": {
+                                "command": "scripts/pair.sh red demo; rm -rf state"
+                            },
+                        }
+                    )
+                )
+                or ""
+            ).startswith("bwrap")
+        ),
+        #: a head that already names a script is what it will run, so it
+        #: escapes with nothing rewritten and the hook answers nothing at all
+        "an absolute pair.sh head escapes untouched": (
             _answer(
                 {
                     "tool_name": "Bash",
                     "cwd": root,
                     "agent_type": "prosecutor",
-                    "tool_input": {"command": "scripts/pair.sh red demo"},
+                    "tool_input": {"command": f"{pair_passthrough.kit_entry()} red demo"},
                 }
             )
             is None
-            and _answer(
-                {
-                    "tool_name": "Bash",
-                    "cwd": root,
-                    "agent_type": "prosecutor",
-                    "tool_input": {"command": "scripts/pair.sh red demo; rm -rf state"},
-                }
-            )
-            is not None
         ),
         #: installed as a plugin the harness spells the name with its plugin in
         #: front of it, and that is the same agent, profile for profile
