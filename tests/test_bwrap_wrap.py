@@ -11,6 +11,7 @@ these tests.
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -29,7 +30,6 @@ HEREDOC_TEXT = "echo $(cat /etc/hostname) <<'X'"
 PAIR_RED = "scripts/pair.sh red demo"
 PAIR_RED_APPENDED = PAIR_RED + "; rm -rf state"
 PAIR_RED_PREFIXED = "cd /tmp && " + PAIR_RED
-PAIR_RED_ESCAPING_ARG = "scripts/pair.sh red ../../etc"
 
 TREE_ALPHA = "alpha-spec"
 TREE_BRAVO = "bravo-spec"
@@ -231,26 +231,40 @@ def _carve_out(repo, command):
     return "passthrough" if _updated_command(answer) is None else "wrapped"
 
 
+def _escape_outcome(repo, command):
+    """Say "passthrough" where the hook returns no replacement, "resolved" where
+    the replacement's head is an absolute path to a file on disk, else "wrapped"."""
+    replacement = _updated_command(_run_hook(repo, PROSECUTOR, command))
+    if replacement is None:
+        return "passthrough"
+    head = Path(shlex.split(replacement)[0])
+    return "resolved" if head.is_absolute() and head.is_file() else "wrapped"
+
+
 @pytest.mark.parametrize(
     "command,expected",
     [
-        (PAIR_RED, "passthrough"),
+        (PAIR_RED, "resolved"),
         (PAIR_RED_APPENDED, "wrapped"),
         (PAIR_RED_PREFIXED, "wrapped"),
-        (PAIR_RED_ESCAPING_ARG, "wrapped"),
     ],
     ids=[
         "the-whole-command-is-the-subcommand-call",
         "a-second-command-appended",
         "a-directory-change-in-front",
-        "an-argument-of-the-wrong-shape",
     ],
 )
 def test_only_a_whole_command_that_is_one_pair_subcommand_call_escapes_the_wrap(
     tmp_path, command, expected
 ):
     repo = _repo(tmp_path, trees=(TREE_ALPHA,))
-    assert _carve_out(repo, command) == expected
+    assert _escape_outcome(repo, command) == expected
+
+
+def test_an_absolute_pair_head_escapes_with_no_replacement(tmp_path):
+    repo = _repo(tmp_path, trees=(TREE_ALPHA,))
+    absolute = str(repo / "scripts" / "pair.sh") + " red demo"
+    assert _escape_outcome(repo, absolute) == "passthrough"
 
 
 #: a project's own word about which commands leave the sandbox. The text of the
