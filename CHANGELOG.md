@@ -5,6 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 ## [Unreleased]
 
 ### Fixed
+- **`scripts/cite.py --check` resolves against the document's own checkout.** The root was taken from the script's own path, so a plan in a project that installs the kit as a plugin had every repo-relative citation resolved against the plugin checkout and reported `MISSING`. The root is now the nearest ancestor of the document carrying `.git`, a worktree's file included; a document under no checkout falls back to the script's own.
 - **`scripts/pair.sh` reaches the kit's own copy.** The passthrough admitted one spelling of the head, the bare `scripts/pair.sh`, and ran it as typed; a project holding no local copy of the script therefore had no spelling that both escaped the sandbox and resolved on disk, so `open`, `red` and `merge` all failed under a read-only `.claude/worktrees`. The bare head now resolves to the plugin's own entry, and the absolute and `${CLAUDE_PLUGIN_ROOT}` spellings are admitted beside it, as they already were for `scripts/blind.sh`.
 
 ## [0.2.1] - 2026-09-16

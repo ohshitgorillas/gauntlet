@@ -35,8 +35,11 @@ that is the majority shape. A green `--check` says nothing whatever about
 whether a cited line supports the sentence around it -- that judgment is the
 `prosecutor`'s check (b), and it is untouched by this script.
 
-The checkout root is resolved from this file's own path, never from the cwd, so
-a worktree checks its own copy of a document.
+The checkout root is the nearest ancestor of the document that carries `.git`,
+a directory or a worktree's file, so a plan in a project that installs this kit
+as a plugin resolves against that project and not against the plugin checkout,
+and a document in a worktree checks that worktree's own copy. A document under
+no checkout falls back to this file's own checkout.
 """
 
 import argparse
@@ -45,6 +48,19 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def checkout_of(doc: Path, fallback: Path = ROOT) -> Path:
+    """The checkout a document sits in: its nearest ancestor carrying `.git`.
+
+    `.git` is a directory in a main checkout and a file in a worktree, and
+    either marks the root. A document under neither resolves against `fallback`.
+    """
+    here = doc.resolve().parent
+    for ancestor in (here, *here.parents):
+        if (ancestor / ".git").exists():
+            return ancestor
+    return fallback
 
 SKIP = {".git", ".venv", ".pytest_cache", "node_modules", "__pycache__"}
 
@@ -362,6 +378,8 @@ def main(argv: list[str]) -> int:
 
     doc = Path(args.check or args.fix)
     text = doc.read_text(encoding="utf-8")
+    global ROOT
+    ROOT = checkout_of(doc)
 
     if args.check:
         rows = report(text)
@@ -445,6 +463,18 @@ def self_test() -> int:
         both = '`docs/a.md:3` "three" and `docs/a.md:1` "two"'
         rules["13 --fix moves the citation that missed its anchor and no other"] = (
             apply_fixes(both)[0] == '`docs/a.md:3` "three" and `docs/a.md:2` "two"'
+        )
+        (elsewhere / ".git").mkdir()
+        (elsewhere / "sub").mkdir()
+        homeless = tree / "docs" / "plan.md"
+        rules["14 the root is the document's own checkout, the script's only where it has none"] = (
+            checkout_of(elsewhere / "sub" / "plan.md", tree) == elsewhere
+            and checkout_of(homeless, tree) == tree
+        )
+        (elsewhere / "wt").mkdir()
+        (elsewhere / "wt" / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        rules["15 a worktree's .git file marks its root ahead of the checkout above it"] = (
+            checkout_of(elsewhere / "wt" / "plan.md", tree) == elsewhere / "wt"
         )
     ROOT = keep
 
