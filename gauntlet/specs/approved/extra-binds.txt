@@ -1,0 +1,43 @@
+slug: extra-binds
+kind: new
+
+brief:
+> How can we make the package able to extend `bwrap` to bind arbitrary paths in addition to the source dir?
+> Proceed with a plan through the gate.
+
+1. A path outside the checkout is writable inside a wrapped shell when the project declares it under `extra_binds`, and not otherwise. Hold one probe, `printf x > <tmp>/outside/probe.txt` under `prosecutor`, with `<tmp>/outside` and `<tmp>/spare` both on disk and the checkout at `<tmp>/repo`, and move the declaration: with `extra_binds: ["<tmp>/outside"]` the file is on disk after the run, with `extra_binds: ["<tmp>/spare"]` it is not.
+   kills: a hook holding its writable set as its own constant refuses every write outside the checkout, so a project whose build cache sits at `<tmp>/outside` gets nothing from the key it declared.
+   bite: null stub fails at `extra_binds: ["<tmp>/outside"]` (surface new).
+   existing: `tests/test_bwrap_wrap.py:219` `test_a_write_under_the_replacement_lands_by_path_and_by_caller` is the only test of what a wrapped write achieves. It separates by path and by `agent_type` with `DECLARATION` fixed at `tests/test_bwrap_wrap.py:54`, and all three of its paths are relative to the checkout, so it observes no path outside the checkout and no declaration key.
+
+2. An entry that contains the checkout is dropped whole rather than bound. Hold one probe, `printf x > <tmp>/spare/probe.txt` under `prosecutor`, with the checkout at `<tmp>/repo` and `<tmp>/spare` on disk, and move the declaration: with `extra_binds: ["<tmp>"]` the file is absent after the run, with `extra_binds: ["<tmp>/spare"]` it is present.
+   kills: an implementation binding an entry writable wherever it resolves mounts `<tmp>` over the lane binds under `<tmp>/repo`, so a wrapped shell writes `gauntlet/specs/approved/<slug>.txt` at its own hand.
+   bite: null stub fails at `extra_binds: ["<tmp>/spare"]` (surface new).
+   existing: `tests/test_bwrap_wrap.py:219` again, whose `author-into-the-spec-lane` case pins a lane write as `refused` under the fixed `DECLARATION`. It reaches no entry naming a directory over the checkout, because no key of that declaration names a path at all.
+
+3. The extras are the author's and not the reviewer's. Hold one probe, `printf x > <tmp>/outside/probe.txt`, and one declaration, `extra_binds: ["<tmp>/outside"]`, and move the caller: under `prosecutor` the file is on disk after the run, under `arbiter` it is not.
+   kills: an implementation emitting the extras in every profile hands a blind reviewer a writable path outside the checkout, so the `arbiter` writes `<tmp>/outside/probe.txt` exactly as the author does.
+   bite: null stub fails at `prosecutor` (surface new).
+   existing: `tests/test_bwrap_wrap.py:219`, whose `reviewer-at-the-root` case pins `arbiter` writing `probe.txt` inside the checkout as `refused`. Its reviewer arm observes a path the profile refuses for every caller under no declared key, so it separates the two callers only where the author is refused too.
+
+4. A malformed list voids the whole key rather than binding the entries it can read. Hold one probe, `printf x > <tmp>/outside/probe.txt` under `prosecutor`, with `<tmp>/outside` and `<tmp>/spare` on disk, and move the declaration: with `extra_binds: ["<tmp>/outside", 5]` the file is absent after the run, with `extra_binds: ["<tmp>/outside", "<tmp>/spare"]` it is present.
+   kills: an implementation skipping the entry it cannot read and binding the rest opens `<tmp>/outside` from a list the project mistyped, so half a declaration nobody wrote takes effect.
+   bite: null stub fails at `extra_binds: ["<tmp>/outside", "<tmp>/spare"]` (surface new).
+   existing: `tests/test_tests_config.py:386` `test_a_value_that_is_not_a_string` voids a declaration on a wrong type, observed through `_config_lines` at `tests/test_tests_config.py:137` over the three directory keys of `DEFAULTS` at `tests/test_tests_config.py:55`. It observes the void in the reader over scalar keys; this line observes it in the wrap answer over a list key, where an implementation reading entry by entry passes one and fails the other.
+
+--- reviewer ---
+READY
+discriminates: differential on what a wrapped shell's write achieves at a held probe - each line holds one probe and moves exactly one variable, giving two distinct outcomes on that surface
+
+1  ADMITTED  extra_binds declaring <tmp>/outside vs <tmp>/spare, probe `printf x > <tmp>/outside/probe.txt` under prosecutor -> file present under the first declaration, absent under the second; a hook holding its writable set as its own constant fails it at extra_binds: ["<tmp>/outside"]; bite: null stub fails at extra_binds: ["<tmp>/outside"]
+2  ADMITTED  extra_binds declaring <tmp> vs <tmp>/spare with the checkout at <tmp>/repo, probe `printf x > <tmp>/spare/probe.txt` under prosecutor -> absent under the containing entry, present under the contained one; an implementation binding an entry writable wherever it resolves fails it at extra_binds: ["<tmp>"]; bite: null stub fails at extra_binds: ["<tmp>/spare"]
+3  ADMITTED  extra_binds: ["<tmp>/outside"] held, probe `printf x > <tmp>/outside/probe.txt`, caller moved -> present under prosecutor, absent under arbiter; an implementation emitting the extras in every profile fails it at arbiter; bite: null stub fails at prosecutor
+4  ADMITTED  extra_binds: ["<tmp>/outside", 5] vs ["<tmp>/outside", "<tmp>/spare"], probe `printf x > <tmp>/outside/probe.txt` under prosecutor -> absent under the mistyped list, present under the well-typed one; an implementation skipping the unreadable entry and binding the rest fails it at extra_binds: ["<tmp>/outside", 5]; bite: null stub fails at extra_binds: ["<tmp>/outside", "<tmp>/spare"]
+
+null stub: the hook ignores `extra_binds` entirely and emits the replacement it emits today, so no path outside the checkout is ever writable.
+  satisfies: none   fails: 1, 2, 3, 4
+hard-coded stub: the hook ignores the declaration's content and emits a replacement binding everything outside the checkout writable for every caller, doing no reading, no containment test and no type test. Every path the block names is tmp_path-derived, so no table can key on the literal values the lines give; this is the widest table available.
+  satisfies: none   fails: 1, 2, 3, 4
+
+survives: 4
+note (unreadable fact, not a defect): line 4 pins a key-level void. Whether the reader in `hooks/shell_shapes.py` voids a declaration as a whole on a bad value, as it does for the directory-key set, is a fact I am barred from reading. The line holds either way, since the probe is absent under both policies, but the implementer should match whichever the reader already does.

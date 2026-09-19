@@ -1,0 +1,4 @@
+RED 1: "assert 'refused' == 'written'" (tests/test_extra_binds.py:179, test_a_path_outside_the_checkout_is_writable_only_where_the_project_declares_it[the-probes-own-directory-is-declared])
+RED 2: "assert 'refused' == 'written'" (tests/test_extra_binds.py:196, test_an_entry_that_contains_the_checkout_is_dropped_whole_rather_than_bound[the-entry-is-beside-the-checkout])
+RED 3: "assert 'refused' == 'written'" (tests/test_extra_binds.py:213, test_a_declared_extra_bind_reaches_the_author_and_not_the_reviewer[the-author])
+RED 4: "assert 'refused' == 'written'" (tests/test_extra_binds.py:228, test_an_entry_that_is_not_a_string_voids_the_whole_extra_binds_key[a-second-entry-that-is-a-string])
