@@ -88,18 +88,18 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
             "declaration": (self.tree / ".claude" / "blind-reads.json").exists(),
             "pointer file": (self.tree / ".git").is_file(),
         }
-        self.assertEqual(observed, {"declaration": False, "pointer file": True})
+        assert observed == {"declaration": False, "pointer file": True}
 
     def test_the_main_checkout_reads_its_declaration(self):
-        self.assertEqual(self._tests_dir(self.project), (0, "spec", ""))
+        assert self._tests_dir(self.project) == (0, "spec", "")
 
     def test_the_worktree_reads_the_projects_declaration_and_not_the_default(self):
-        self.assertEqual(self._tests_dir(self.tree), (0, "spec", ""))
+        assert self._tests_dir(self.tree) == (0, "spec", "")
 
     def test_a_directory_under_the_worktree_reads_it_too(self):
         deeper = self.tree / "spec" / "unit"
         deeper.mkdir(parents=True, exist_ok=True)
-        self.assertEqual(self._tests_dir(deeper), (0, "spec", ""))
+        assert self._tests_dir(deeper) == (0, "spec", "")
 
     def test_outside_any_checkout_there_is_no_project_and_that_is_a_fault(self):
         # No project and no copy beside the kit is no declaration at all.  The
@@ -111,4 +111,4 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
             "stdout": completed.stdout,
             "names the file": "blind-reads.json" in completed.stderr,
         }
-        self.assertEqual(observed, {"status": 2, "stdout": "", "names the file": True})
+        assert observed == {"status": 2, "stdout": "", "names the file": True}
