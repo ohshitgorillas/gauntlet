@@ -60,20 +60,35 @@ NOGIT_CWD = "/nogit"
 BLIND_READER = "scrivener"
 
 
-def hook_decision(hook_name, payload):
+#: ``plugin_root=`` selectors for ``hook_decision``. The default leaves the
+#: launching shell's ``CLAUDE_PLUGIN_ROOT`` exactly as it came; ``ABSENT``
+#: takes the variable off the child's environment entirely. Anything else is a
+#: path the child is run with.
+INHERIT_PLUGIN_ROOT = object()
+ABSENT_PLUGIN_ROOT = object()
+
+
+def hook_decision(hook_name, payload, plugin_root=INHERIT_PLUGIN_ROOT):
     """Feed one payload to one hook on stdin; return its decision.
 
     Returns ``SILENT`` for empty stdout, the ``permissionDecision`` value when
     stdout is a hook answer, and the raw stdout otherwise so that an
     unrecognised answer shows up in the failure rather than being swallowed.
 
-    ``GAUNTLET`` is cleared for the child, and nothing else about the caller's
-    environment is. Under ``GAUNTLET=off`` a hook returns at its first line, so
-    a bypassed session would run this whole file against hooks that decide
-    nothing.
+    ``GAUNTLET`` is cleared for the child. Under ``GAUNTLET=off`` a hook
+    returns at its first line, so a bypassed session would run this whole file
+    against hooks that decide nothing.
+
+    ``plugin_root`` sets the ``CLAUDE_PLUGIN_ROOT`` the child runs under:
+    ``ABSENT_PLUGIN_ROOT`` unsets it, a path sets it, and the default carries
+    the caller's own through.
     """
     environment = dict(os.environ)
     environment.pop("GAUNTLET", None)
+    if plugin_root is ABSENT_PLUGIN_ROOT:
+        environment.pop("CLAUDE_PLUGIN_ROOT", None)
+    elif plugin_root is not INHERIT_PLUGIN_ROOT:
+        environment["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
     completed = subprocess.run(
         [sys.executable, str(HOOK_DIR / hook_name)],
         input=json.dumps(payload),
@@ -183,6 +198,28 @@ def sweep(hook_name, cases, make_payload):
     return {key: hook_decision(hook_name, make_payload(key)) for key in cases}
 
 
+def plugin_root_states(kitless_directory):
+    """The ``CLAUDE_PLUGIN_ROOT`` states a hook has to answer the same under.
+
+    A hook's answer is a property of the tree it is asked about, so the map it
+    returns cannot move when the launching shell names no plugin root, names
+    the checkout whose hooks are under test, or names a directory holding no
+    kit at all.
+    """
+    return {
+        "no CLAUDE_PLUGIN_ROOT": ABSENT_PLUGIN_ROOT,
+        "CLAUDE_PLUGIN_ROOT on the checkout under test": WORKTREE_ROOT,
+        "CLAUDE_PLUGIN_ROOT on a kitless directory": kitless_directory,
+    }
+
+
+def kitless_directory(tmp_path):
+    """A directory that exists and holds no kit."""
+    directory = tmp_path / "kitless"
+    directory.mkdir()
+    return directory
+
+
 class RemovedWithTheClassifier(unittest.TestCase):
     """The lane hooks over `Bash`, which is no lane hook's business any more.
 
@@ -232,33 +269,6 @@ class NoImplReadsShellShapes(unittest.TestCase):
 
     maxDiff = None
 
-    def test_a_search_rooted_at_the_bare_gauntlet_directory_is_denied(self):
-        # gauntlet-dir-move line 4.  Grep tool surface, each path a directory
-        # named with no trailing separator.  A denial written as a prefix test
-        # alone -- "gauntlet" plus a separator -- never matches the bare
-        # directory, so the one search that sweeps every approved plan at once
-        # is the one it lets through, returning their citation lines to a blind
-        # agent.  A re-allowance tested on the stage directory returns the
-        # drafts beside the approved block, and one matching on the string
-        # takes the sibling approved-old and refuses the approved directory's
-        # own subdirectory.
-        expected = {
-            str(REPO_CWD / "gauntlet"): DENY,
-            str(REPO_CWD / "gauntlet" / "plans"): DENY,
-            str(REPO_CWD / "gauntlet" / "specs"): DENY,
-            str(REPO_CWD / "gauntlet" / "specs" / "drafts"): DENY,
-            str(REPO_CWD / "gauntlet" / "specs" / "approved-old"): DENY,
-            str(REPO_CWD / "gauntlet" / "specs" / "approved"): SILENT,
-            str(REPO_CWD / "gauntlet" / "specs" / "approved" / "sub"): SILENT,
-            str(REPO_CWD / "docs"): SILENT,
-        }
-        actual = sweep(
-            "no-impl-reads.py",
-            expected,
-            lambda path: grep_payload(path, REPO_CWD, BLIND_READER),
-        )
-        assert actual == expected
-
     def test_allowlisted_directories_are_anchored_at_the_repo_root(self):
         # Spec line 6.  Read tool surface.  `docs` and `tests` name allowlisted
         # directories at the root; nested under src/ they name implementation.
@@ -291,46 +301,89 @@ class NoImplReadsShellShapes(unittest.TestCase):
         assert actual == expected
 
 
-class NoImplReadsOverTheTrackedTree(unittest.TestCase):
-    """no-impl-reads.py, over every tracked path of two listings."""
+def test_a_search_rooted_at_the_bare_gauntlet_directory_is_denied_under_any_plugin_root(
+    tmp_path,
+):
+    # hook-wire-plugin-root line 1.  Grep tool surface, each path a directory
+    # named with no trailing separator, judged against the checkout whose
+    # hooks are under test.  The prose allowance belongs to that checkout: a
+    # second tree of the same shape has a docs directory too, and it is denied,
+    # while the checkout's own is allowed.  The whole map is asked three times,
+    # once per CLAUDE_PLUGIN_ROOT the launching shell might carry; a guard that
+    # took its allowance from that variable answers the checkout's own docs
+    # directory denied and the blind reader loses the prose it is sent to.
+    second_tree = tmp_path / "second-tree"
+    (second_tree / ".git").mkdir(parents=True)
+    (second_tree / "docs").mkdir()
+    (second_tree / "gauntlet" / "specs" / "approved").mkdir(parents=True)
+    states = plugin_root_states(kitless_directory(tmp_path))
 
-    maxDiff = None
+    gauntlet = WORKTREE_ROOT / "gauntlet"
+    one_map = {
+        str(gauntlet): DENY,
+        str(gauntlet / "plans"): DENY,
+        str(gauntlet / "specs"): DENY,
+        str(gauntlet / "specs" / "drafts"): DENY,
+        str(gauntlet / "specs" / "approved-old"): DENY,
+        str(gauntlet / "specs" / "approved"): SILENT,
+        str(gauntlet / "specs" / "approved" / "sub"): SILENT,
+        str(WORKTREE_ROOT / "docs"): SILENT,
+        str(second_tree / "docs"): DENY,
+    }
+    actual = {
+        label: {
+            path: hook_decision(
+                "no-impl-reads.py",
+                grep_payload(path, WORKTREE_ROOT, BLIND_READER),
+                plugin_root=root,
+            )
+            for path in one_map
+        }
+        for label, root in states.items()
+    }
+    assert actual == dict.fromkeys(states, one_map)
 
-    def test_the_denied_set_is_the_gauntlet_tree_less_its_allowed_leaves(self):
-        # gauntlet-dir-move line 5.  One Read payload per tracked path of each
-        # listing; the answer asserted is which of them come back DENY.  A base
-        # constant left at docs/gauntlet alongside the move leaves a denied
-        # subtree nested inside an allowed docs/ -- the nesting the move exists
-        # to remove -- and shows up as a nonempty denied set over the first
-        # listing; a base moved with no re-allowance under it denies the very
-        # approved block the blind agent is spawned against, and shows up as a
-        # denied set over the second listing that reaches inside
-        # gauntlet/specs/approved/.
-        listings = {
-            "docs/ tests/ state/": ["docs/", "tests/", "state/"],
-            "gauntlet/": ["gauntlet/"],
-        }
-        expected = {
-            "docs/ tests/ state/": set(),
-            "gauntlet/": {
-                path
-                for path in ls_files(listings["gauntlet/"])
-                if not path.startswith(ALLOWED_UNDER_GAUNTLET)
-            },
-        }
-        actual = {
+
+def test_the_denied_set_is_the_gauntlet_tree_less_its_allowed_leaves_under_any_plugin_root(
+    tmp_path,
+):
+    # hook-wire-plugin-root line 2.  One Read payload per tracked path of each
+    # listing, over the checkout whose hooks are under test; the answer
+    # asserted is which of them come back DENY, and the same pair of sets has
+    # to come back under all three CLAUDE_PLUGIN_ROOT states.  A guard scoring
+    # a path against one checkout while reading its allowances out of another
+    # lands the kit's own prose in the first listing's denied set, where the
+    # expected set is empty.
+    states = plugin_root_states(kitless_directory(tmp_path))
+    listings = {
+        "docs/ tests/ state/": ["docs/", "tests/", "state/"],
+        "gauntlet/": ["gauntlet/"],
+    }
+    one_pair = {
+        "docs/ tests/ state/": set(),
+        "gauntlet/": {
+            path
+            for path in ls_files(listings["gauntlet/"])
+            if not path.startswith(ALLOWED_UNDER_GAUNTLET)
+        },
+    }
+    actual = {
+        state: {
             label: {
                 path
                 for path in ls_files(pathspec)
                 if hook_decision(
                     "no-impl-reads.py",
-                    read_payload(REPO_CWD / path, REPO_CWD, BLIND_READER),
+                    read_payload(WORKTREE_ROOT / path, WORKTREE_ROOT, BLIND_READER),
+                    plugin_root=root,
                 )
                 == DENY
             }
             for label, pathspec in listings.items()
         }
-        assert actual == expected
+        for state, root in states.items()
+    }
+    assert actual == dict.fromkeys(states, one_pair)
 
 
 class SpecsLaneCallers(unittest.TestCase):
