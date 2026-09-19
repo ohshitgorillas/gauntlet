@@ -126,7 +126,9 @@ def _plugin_docs_case(root: str) -> bool:
                 hook_shape.allowed(read("${CLAUDE_PLUGIN_ROOT}/docs/plans.md")),
                 hook_shape.allowed(read("$CLAUDE_PLUGIN_ROOT/docs/approved-specs.md")),
                 hook_shape.allowed(
-                    impl._verdict("Grep", {"pattern": "x", "path": f"{plugin_root}/docs"}, root, root)
+                    impl._verdict(
+                        "Grep", {"pattern": "x", "path": f"{plugin_root}/docs"}, root, root
+                    )
                 ),
                 #: the kit's implementation sits beside its prose and is not on
                 #: the list
@@ -134,7 +136,9 @@ def _plugin_docs_case(root: str) -> bool:
                 hook_shape.denied(read(f"{plugin_root}/scripts/pair.sh")),
                 hook_shape.denied(read(f"{plugin_root}/agents/scrivener.md")),
                 hook_shape.denied(read("${CLAUDE_PLUGIN_ROOT}/hooks/no-impl-reads.py")),
-                hook_shape.denied(impl._verdict("Grep", {"pattern": "x", "path": plugin_root}, root, root)),
+                hook_shape.denied(
+                    impl._verdict("Grep", {"pattern": "x", "path": plugin_root}, root, root)
+                ),
                 #: a path boundary, not a string prefix
                 hook_shape.denied(read(f"{plugin_root}/docs-old/plans.md")),
                 #: and the variable buys no way back out of the directory
@@ -180,6 +184,7 @@ def self_test() -> int:
         return impl._caller_verdict(
             "Read", {"file_path": hook_shape.respell(path)}, payload, root, root
         )
+
     lines = {
         "1 the spec's own sources are readable, the rest is not": all(
             (
@@ -259,23 +264,30 @@ def self_test() -> int:
         "10 no blind-reads.json value re-opens the base or overlaps another": all(
             (
                 #: a usable set moves all three, which is the point of the file
-                lane_config.dirs_from({"tests_dir": "spec", "gauntlet_dir": "work", "docs_dir": "prose"})
+                lane_config.dirs_from(
+                    {"tests_dir": "spec", "gauntlet_dir": "work", "docs_dir": "prose"}
+                )
                 == {"tests_dir": "spec", "gauntlet_dir": "work", "docs_dir": "prose"},
                 #: and every unusable one moves nothing at all, together: a name
                 #: at, under or over another would put one directory's hook over
                 #: the other's, and a partly honoured set is the hole itself
                 lane_config.dirs_from({"tests_dir": "gauntlet"}) == dict(lane_config.DEFAULT_DIRS),
-                lane_config.dirs_from({"tests_dir": "gauntlet/plans/approved"}) == dict(lane_config.DEFAULT_DIRS),
+                lane_config.dirs_from({"tests_dir": "gauntlet/plans/approved"})
+                == dict(lane_config.DEFAULT_DIRS),
                 lane_config.dirs_from({"gauntlet_dir": "tests"}) == dict(lane_config.DEFAULT_DIRS),
-                lane_config.dirs_from({"gauntlet_dir": "tests/artifacts"}) == dict(lane_config.DEFAULT_DIRS),
+                lane_config.dirs_from({"gauntlet_dir": "tests/artifacts"})
+                == dict(lane_config.DEFAULT_DIRS),
                 #: a key the file omits still collides: `tests_dir` at `docs` is
                 #: legal read alone and sits over the default `docs_dir`
                 lane_config.dirs_from({"tests_dir": "docs"}) == dict(lane_config.DEFAULT_DIRS),
-                lane_config.dirs_from({"docs_dir": "spec", "tests_dir": "spec"}) == dict(lane_config.DEFAULT_DIRS),
+                lane_config.dirs_from({"docs_dir": "spec", "tests_dir": "spec"})
+                == dict(lane_config.DEFAULT_DIRS),
                 #: judged by where a name lands, not by how it is spelled
-                lane_config.dirs_from({"tests_dir": "spec/../gauntlet/reviews"}) == dict(lane_config.DEFAULT_DIRS),
+                lane_config.dirs_from({"tests_dir": "spec/../gauntlet/reviews"})
+                == dict(lane_config.DEFAULT_DIRS),
                 lane_config.dirs_from({"tests_dir": "."}) == dict(lane_config.DEFAULT_DIRS),
-                lane_config.dirs_from({"gauntlet_dir": "/repo/work"}) == dict(lane_config.DEFAULT_DIRS),
+                lane_config.dirs_from({"gauntlet_dir": "/repo/work"})
+                == dict(lane_config.DEFAULT_DIRS),
                 lane_config.dirs_from({"docs_dir": ["prose"]}) == dict(lane_config.DEFAULT_DIRS),
                 #: there is no allow key: a path off the table stays off it
                 denied(read(f"{root}/reference/protocol.md")),

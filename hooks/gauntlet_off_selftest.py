@@ -165,8 +165,7 @@ def self_test() -> int:
         ),
         "a session id is tamed to a filename directly under the temp directory": (
             _session('{"session_id": "../../etc/passwd"}') == "etcpasswd"
-            and _count_path(_session('{"session_id": "a/b"}')).parent
-            == Path(tempfile.gettempdir())
+            and _count_path(_session('{"session_id": "a/b"}')).parent == Path(tempfile.gettempdir())
         ),
         "the self-test asserts nothing on the ambient variable": (
             off("off") is True and off(os.environ.get("NONEXISTENT-BY-CONSTRUCTION")) is False

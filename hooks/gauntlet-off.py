@@ -408,9 +408,8 @@ def prompt(stdin: str = "") -> None:
 
 
 def bash() -> None:
-    #: this hook guards one tool, so a payload naming any other is not its call
-    #: to refuse however malformed it is
-    hook_shape.hook_main(lambda name, tool_input, _payload: _verdict(name, tool_input), guards=("Bash",))
+    #: one guarded tool: a payload naming another is not this hook's to refuse
+    hook_shape.hook_main(lambda name, tool_input, _: _verdict(name, tool_input), guards=("Bash",))
 
 
 if __name__ == "__main__":

@@ -61,7 +61,11 @@ def _waits(node: ast.Call) -> bool:
     if not node.args:
         return False
     first = node.args[0]
-    return not (isinstance(first, ast.Constant) and isinstance(first.value, (int, float)) and first.value == 0)
+    return not (
+        isinstance(first, ast.Constant)
+        and isinstance(first.value, (int, float))
+        and first.value == 0
+    )
 
 
 def _deadline(name: str | None, value: ast.expr) -> bool:
@@ -72,12 +76,18 @@ def _deadline(name: str | None, value: ast.expr) -> bool:
     """
     if name is None or not (name == "timeout" or name.endswith("_timeout")):
         return False
-    return isinstance(value, ast.Constant) and isinstance(value.value, (int, float)) and 0 < value.value < SMALL
+    return (
+        isinstance(value, ast.Constant)
+        and isinstance(value.value, (int, float))
+        and 0 < value.value < SMALL
+    )
 
 
 def _call_faults(name: str, node: ast.Call) -> list[str]:
     """Return one line per real clock a call holds: its own wait, and its deadline keywords."""
-    found = [f"{name}:{node.lineno}: sleeps on a real clock"] if _sleeps(node) and _waits(node) else []
+    found = (
+        [f"{name}:{node.lineno}: sleeps on a real clock"] if _sleeps(node) and _waits(node) else []
+    )
     found += [
         f"{name}:{keyword.value.lineno}: {keyword.arg}= is a real deadline under {SMALL}s"
         for keyword in node.keywords
@@ -92,7 +102,9 @@ def _mapping_faults(name: str, node: ast.Dict) -> list[str]:
     return [
         f"{name}:{key.lineno}: {key.value!r} is a real deadline under {SMALL}s"
         for key, value in pairs
-        if isinstance(key, ast.Constant) and isinstance(key.value, str) and _deadline(key.value, value)
+        if isinstance(key, ast.Constant)
+        and isinstance(key.value, str)
+        and _deadline(key.value, value)
     ]
 
 

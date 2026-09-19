@@ -98,7 +98,11 @@ def required(gate_dir: str = GATE_DIR, swept: tuple[str, ...] = SWEPT) -> list[t
     A gate-directory script is required by where it sits, so it is asked for
     first and never asked for twice.
     """
-    gates = [(name, "a gate script") for name in scripts_under(gate_dir) if name != WIRING and is_entry(name)]
+    gates = [
+        (name, "a gate script")
+        for name in scripts_under(gate_dir)
+        if name != WIRING and is_entry(name)
+    ]
     seen = {name for name, _ in gates}
     for directory in swept:
         for name in scripts_under(directory):
@@ -133,7 +137,11 @@ def unwired(entries: str, gates: list[tuple[str, str]]) -> list[str]:
 def stale(entries: str) -> list[str]:
     """Return why each array entry naming no file cannot stand, sorted by path."""
     named = sorted(set(PATH_RE.findall(entries)))
-    return [f"{WIRING}: the entry for {name!r} names no file" for name in named if not Path(name).is_file()]
+    return [
+        f"{WIRING}: the entry for {name!r} names no file"
+        for name in named
+        if not Path(name).is_file()
+    ]
 
 
 def check(gates: list[tuple[str, str]] | None = None) -> int:
@@ -149,7 +157,9 @@ def check(gates: list[tuple[str, str]] | None = None) -> int:
     for problem in problems:
         print(problem)
     if problems:
-        print(f"\n{len(problems)} problem(s). Every gate runs in {WIRING}, and every entry names a gate.")
+        print(
+            f"\n{len(problems)} problem(s). Every gate runs in {WIRING}, and every entry names a gate."
+        )
         return 1
     return 0
 

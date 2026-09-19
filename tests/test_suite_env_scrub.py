@@ -79,7 +79,9 @@ def hook_wire_module():
 def tests_config_module(tmp_path_factory):
     """The directory-config module, with one hook-directory copy made as it makes them."""
     module = _load_suite_module("test_tests_config.py", "suite_env_scrub_tests_config")
-    copy = module.copy_hook_dir(str(tmp_path_factory.mktemp("suite-env-scrub-copy")), COPY_LABEL, None)
+    copy = module.copy_hook_dir(
+        str(tmp_path_factory.mktemp("suite-env-scrub-copy")), COPY_LABEL, None
+    )
     yield module, copy
 
 

@@ -32,9 +32,7 @@ CHECK = GATE.check
 
 FLAT = "def f(level):\n    return level + 1\n"
 
-DEPTH_FOUR = (
-    "def f():\n    if a:\n        if b:\n            if c:\n                if d:\n                    pass\n"
-)
+DEPTH_FOUR = "def f():\n    if a:\n        if b:\n            if c:\n                if d:\n                    pass\n"
 
 DEPTH_FIVE = (
     "def f():\n"
@@ -96,14 +94,18 @@ def test_a_flat_function_passes(tmp_path: Path, monkeypatch: Any) -> None:
     assert CHECK([path], {}) == 0
 
 
-def test_a_function_over_the_limit_is_named_on_stdout(tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:
+def test_a_function_over_the_limit_is_named_on_stdout(
+    tmp_path: Path, monkeypatch: Any, capsys: Any
+) -> None:
     monkeypatch.chdir(tmp_path)
     path = _write(tmp_path, "hooks/deep.py", DEPTH_FIVE)
     CHECK([path], {})
     assert path in capsys.readouterr().out
 
 
-def test_a_function_over_the_limit_reports_its_measured_depth(tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:
+def test_a_function_over_the_limit_reports_its_measured_depth(
+    tmp_path: Path, monkeypatch: Any, capsys: Any
+) -> None:
     monkeypatch.chdir(tmp_path)
     path = _write(tmp_path, "hooks/deep.py", DEPTH_FIVE)
     CHECK([path], {})
@@ -138,13 +140,17 @@ def test_an_exempt_function_passes(tmp_path: Path, monkeypatch: Any) -> None:
     assert CHECK([path], {f"{path}::f": "measured on purpose"}) == 0
 
 
-def test_a_stale_exemption_for_a_now_shallow_function_fails(tmp_path: Path, monkeypatch: Any) -> None:
+def test_a_stale_exemption_for_a_now_shallow_function_fails(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     monkeypatch.chdir(tmp_path)
     path = _write(tmp_path, "hooks/deep.py", DEPTH_FOUR)
     assert CHECK([path], {f"{path}::f": "no longer needed"}) == 1
 
 
-def test_a_stale_exemption_is_named_on_stdout(tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:
+def test_a_stale_exemption_is_named_on_stdout(
+    tmp_path: Path, monkeypatch: Any, capsys: Any
+) -> None:
     monkeypatch.chdir(tmp_path)
     path = _write(tmp_path, "hooks/deep.py", DEPTH_FOUR)
     CHECK([path], {f"{path}::f": "no longer needed"})
@@ -165,14 +171,18 @@ def test_an_exemption_for_a_file_not_on_argv_still_audits(tmp_path: Path, monkey
     assert CHECK([committed], {f"{untouched}::f": "excused long ago"}) == 1
 
 
-def test_one_offender_among_compliant_files_fails_the_gate(tmp_path: Path, monkeypatch: Any) -> None:
+def test_one_offender_among_compliant_files_fails_the_gate(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     monkeypatch.chdir(tmp_path)
     good = _write(tmp_path, "hooks/good.py", FLAT)
     bad = _write(tmp_path, "hooks/bad.py", DEPTH_FIVE)
     assert CHECK([good, bad], {}) == 1
 
 
-def test_a_compliant_file_beside_an_offender_is_not_named(tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:
+def test_a_compliant_file_beside_an_offender_is_not_named(
+    tmp_path: Path, monkeypatch: Any, capsys: Any
+) -> None:
     monkeypatch.chdir(tmp_path)
     good = _write(tmp_path, "hooks/good.py", FLAT)
     bad = _write(tmp_path, "hooks/bad.py", DEPTH_FIVE)
@@ -180,7 +190,9 @@ def test_a_compliant_file_beside_an_offender_is_not_named(tmp_path: Path, monkey
     assert good not in capsys.readouterr().out
 
 
-def test_omitting_the_exemption_mapping_falls_back_to_the_shipped_one(tmp_path: Path, monkeypatch: Any) -> None:
+def test_omitting_the_exemption_mapping_falls_back_to_the_shipped_one(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     monkeypatch.chdir(tmp_path)
     path = _write(tmp_path, "hooks/deep.py", DEPTH_FIVE)
     monkeypatch.setattr(GATE, "EXEMPT", {f"{path}::f": "measured on purpose"})

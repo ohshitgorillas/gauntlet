@@ -19,7 +19,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-
 #: one payload as a hook reads it: whatever JSON carried, decided at runtime by
 #: `payload_fault` rather than trusted by its static shape
 Payload = dict[str, Any]

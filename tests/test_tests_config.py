@@ -203,7 +203,9 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
             "spec/t.py": _write(self.bare, "lanes.py", "/repo/spec/t.py"),
             "tests_dir": _config_lines(self.bare, "tests_dir"),
         }
-        self.assertEqual(observed, {"tests/t.py": DENY, "spec/t.py": SILENT, "tests_dir": ["tests"]})
+        self.assertEqual(
+            observed, {"tests/t.py": DENY, "spec/t.py": SILENT, "tests_dir": ["tests"]}
+        )
 
     def test_named_dir_is_the_lane_and_tests_is_not(self):
         observed = {
@@ -221,7 +223,9 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
             "default, tree": _write(self.moved, "lanes.py", f"{tree}/tests/t.py", writer),
             "lane, checkout": _write(self.moved, "lanes.py", "/repo/spec/t.py", writer),
         }
-        self.assertEqual(observed, {"lane, tree": SILENT, "default, tree": DENY, "lane, checkout": DENY})
+        self.assertEqual(
+            observed, {"lane, tree": SILENT, "default, tree": DENY, "lane, checkout": DENY}
+        )
 
     def test_the_blind_runner_reads_the_named_lane_and_not_the_default(self):
         # `scripts/blind.sh test <path>` is the blind agents' one entry point,
@@ -287,7 +291,12 @@ class GauntletDirMovesEveryLane(unittest.TestCase):
     def test_each_lane_hook_guards_the_lane_under_the_named_base(self):
         # The base the kit ships is an ordinary directory once moved, and the
         # hook of a repo that has not moved still guards the shipped base.
-        wanted = {"moved, agent": DENY, "moved, reviewer": SILENT, "base, moved": SILENT, "base, unmoved": DENY}
+        wanted = {
+            "moved, agent": DENY,
+            "moved, reviewer": SILENT,
+            "base, moved": SILENT,
+            "base, unmoved": DENY,
+        }
         observed = {}
         for suffix, reviewer in LANE_SUFFIXES:
             moved = f"/repo/work/chain/{suffix}/slug.txt"
@@ -298,7 +307,11 @@ class GauntletDirMovesEveryLane(unittest.TestCase):
             observed[suffix, "base, unmoved"] = _write(self.bare, "lanes.py", base)
         self.assertEqual(
             observed,
-            {(suffix, case): value for suffix, _ in LANE_SUFFIXES for case, value in wanted.items()},
+            {
+                (suffix, case): value
+                for suffix, _ in LANE_SUFFIXES
+                for case, value in wanted.items()
+            },
         )
 
     def test_the_structure_under_the_base_does_not_move(self):
@@ -349,7 +362,12 @@ class DocsDirMovesTheBlindReadAllowance(unittest.TestCase):
         }
         self.assertEqual(
             observed,
-            {"named": SILENT, "default, moved": DENY, "default, unmoved": SILENT, "docs_dir": ["prose"]},
+            {
+                "named": SILENT,
+                "default, moved": DENY,
+                "default, unmoved": SILENT,
+                "docs_dir": ["prose"],
+            },
         )
 
     def test_the_allowance_is_anchored_at_the_repo_root(self):
@@ -362,7 +380,9 @@ class DocsDirMovesTheBlindReadAllowance(unittest.TestCase):
             "a directory of that name": _read(self.moved, "src/prose/testing.md"),
             "prose beside the file": _read(self.moved, "prose/sub/deep.md"),
         }
-        self.assertEqual(observed, {"a directory of that name": DENY, "prose beside the file": DENY})
+        self.assertEqual(
+            observed, {"a directory of that name": DENY, "prose beside the file": DENY}
+        )
 
 
 class AnOverlappingSetMovesNothing(unittest.TestCase):
@@ -477,14 +497,20 @@ class OneReaderOneKeySet(unittest.TestCase):
         }
         self.assertEqual(
             observed,
-            {"tests_dir": ["spec"], "allow": [], "runners": [], "plans": DENY, "reviews": DENY, "specs": SILENT},
+            {
+                "tests_dir": ["spec"],
+                "allow": [],
+                "runners": [],
+                "plans": DENY,
+                "reviews": DENY,
+                "specs": SILENT,
+            },
         )
 
     def test_an_unknown_key_asked_of_the_reader_is_no_lines(self):
         keys = ("tests.dir", "runner_invocations", "agents.writer")
         observed = {key: _config_lines(self.bare, key) for key in keys}
         self.assertEqual(observed, {key: [] for key in keys})
-
 
 
 class BlindAgentReadsTheConfig(unittest.TestCase):
@@ -736,9 +762,7 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
         #: written after the commit, so the worktree gets no copy of it -- which
         #: is the shape the walk stopped on
         (cls.project / ".claude").mkdir()
-        (cls.project / ".claude" / "blind-reads.json").write_text(
-            json.dumps({"tests_dir": "spec"})
-        )
+        (cls.project / ".claude" / "blind-reads.json").write_text(json.dumps({"tests_dir": "spec"}))
         cls.tree = cls.project / ".claude" / "worktrees" / "slug-spec"
         _git(cls.project, "worktree", "add", "-q", "-b", "slug", str(cls.tree))
 

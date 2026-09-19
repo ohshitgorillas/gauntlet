@@ -74,7 +74,9 @@ def check_commit(text: str, paths: list[str] | None = None) -> list[str]:
     subject = subject_of(text)
     prefix = prefix_of(subject)
     if prefix is None:
-        complaints.append(f"subject {subject!r}: no recognized prefix (one of {', '.join(PREFIXES)})")
+        complaints.append(
+            f"subject {subject!r}: no recognized prefix (one of {', '.join(PREFIXES)})"
+        )
         return complaints
     if prefix in NO_APPROVED_DIFF and touches_approved(paths or []):
         complaints.append(

@@ -83,9 +83,11 @@ def self_test() -> int:
         ) == ["INHERITED-FROM"] and codes("`docs/a.md:1` `:9`") == ["INHERITED-FROM", "RANGE"]
         rules["6 a bare number inherits the nearest preceding path, not the first"] = CITE.report(
             "`docs/a.md:1` `docs/b.md:1` `:2`"
-        )[-1].endswith("docs/b.md") and CITE.report(
-            "`docs/b.md:1` `docs/a.md:1` `:2`"
-        )[-1].endswith("docs/a.md")
+        )[-1].endswith("docs/b.md") and CITE.report("`docs/b.md:1` `docs/a.md:1` `:2`")[
+            -1
+        ].endswith(
+            "docs/a.md"
+        )
         rules["7 an anchor is read on the cited line only, never elsewhere in the file"] = codes(
             '`docs/a.md:2` "two"'
         ) == [] and codes('`docs/a.md:1` "two"') == ["QUOTE"]
@@ -156,10 +158,13 @@ def self_test() -> int:
 
         CITE.ROOT = elsewhere2  # a checkout carrying no docs/a.md
         CITE.PLUGIN_ROOT = tree  # the kit's own checkout, where docs/a.md does live
-        rules["19 ${CLAUDE_PLUGIN_ROOT}/ resolves against the kit's checkout, not the document's"] = (
-            codes("`${CLAUDE_PLUGIN_ROOT}/docs/a.md:1`") == []
-            and codes("`${CLAUDE_PLUGIN_ROOT}/docs/nope.md:1`") == ["MISSING"]
-        )
+        rules[
+            "19 ${CLAUDE_PLUGIN_ROOT}/ resolves against the kit's checkout, not the document's"
+        ] = codes("`${CLAUDE_PLUGIN_ROOT}/docs/a.md:1`") == [] and codes(
+            "`${CLAUDE_PLUGIN_ROOT}/docs/nope.md:1`"
+        ) == [
+            "MISSING"
+        ]
 
         rules["20 --check-all with no document checks every tracked .md, and no untracked one"] = (
             _tracked_default_rule()

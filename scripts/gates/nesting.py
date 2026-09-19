@@ -45,7 +45,17 @@ TRACKED = ("*.py",)
 #: offender nobody has read yet.
 EXEMPT: dict[str, str] = {}
 
-_BLOCKS = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try, ast.TryStar, ast.Match)
+_BLOCKS = (
+    ast.If,
+    ast.For,
+    ast.AsyncFor,
+    ast.While,
+    ast.With,
+    ast.AsyncWith,
+    ast.Try,
+    ast.TryStar,
+    ast.Match,
+)
 _FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
 
 _Found = list[tuple[str, int, int]]
@@ -57,7 +67,11 @@ def _is_elif(node: ast.If, orelse: list[ast.stmt]) -> bool:
     The parser represents both as an ``If`` inside ``orelse``; only the column
     tells them apart, an ``elif`` starting where its ``if`` does.
     """
-    return len(orelse) == 1 and isinstance(orelse[0], ast.If) and orelse[0].col_offset == node.col_offset
+    return (
+        len(orelse) == 1
+        and isinstance(orelse[0], ast.If)
+        and orelse[0].col_offset == node.col_offset
+    )
 
 
 def _if_depth(node: ast.If, depth: int, prefix: str, found: _Found) -> int:
@@ -172,7 +186,9 @@ def check(names: list[str], exempt: dict[str, str] | None = None) -> int:
     for problem in problems:
         print(problem)
     if problems:
-        print(f"\n{len(problems)} problem(s). Flatten the function, or add an EXEMPT entry saying why it stands.")
+        print(
+            f"\n{len(problems)} problem(s). Flatten the function, or add an EXEMPT entry saying why it stands."
+        )
         return 1
     return 0
 

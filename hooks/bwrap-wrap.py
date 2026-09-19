@@ -133,6 +133,7 @@ REVIEWS_DIR = lane_config.reviews_lane()
 
 WORKTREES = ".claude/worktrees"
 
+
 def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
     """The hook's answer for this payload, or None to say nothing at all."""
     if payload.get("tool_name") != "Bash":
@@ -357,9 +358,8 @@ def _profile(root: str, agent: str) -> list[str]:
             args += _bind("--bind-try", tree)
             args += _checkout_readonly(tree)
 
-        # the project's own writable paths, after the lanes so a declaration
-        # cannot walk one back, and before the declared reads below so a
-        # command's inputs stay the last word
+        # the project's own writable paths: after the lanes, so a declaration
+        # cannot walk one back; before the declared reads, which stay last
         args += _extra_binds(root)
 
         # last, so they stand over the writable binds above: a path a declared

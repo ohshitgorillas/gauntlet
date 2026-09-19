@@ -236,7 +236,5 @@ def spec_commit(tree: str, slug: str) -> str:
     reviewer is left reading the block off the working copy instead of the
     landed one.
     """
-    found = git(
-        "log", "-1", "--format=%H", "HEAD", "--", spec_path(slug), tree=tree, check=False
-    )
+    found = git("log", "-1", "--format=%H", "HEAD", "--", spec_path(slug), tree=tree, check=False)
     return found or "unknown"

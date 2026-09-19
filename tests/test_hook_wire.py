@@ -564,7 +564,9 @@ class TheCallerGate(unittest.TestCase):
             for hook in entry["hooks"]
         }
         blind_guards = ("no-impl-reads.py", "blind-bash.py")
-        self.assertEqual({guard: guard in wired for guard in blind_guards}, dict.fromkeys(blind_guards, True))
+        self.assertEqual(
+            {guard: guard in wired for guard in blind_guards}, dict.fromkeys(blind_guards, True)
+        )
 
     def test_the_manifest_is_the_only_place_the_kit_hooks_are_wired(self):
         # This repo is its own consumer, so a kit hook left declared in
@@ -598,12 +600,19 @@ class TheCallerGate(unittest.TestCase):
         }
         self.assertEqual(
             actual,
-            {"count": 9, "off the plugin root": [], "on the project dir": [], "absent from the kit": []},
+            {
+                "count": 9,
+                "off the plugin root": [],
+                "on the project dir": [],
+                "absent from the kit": [],
+            },
         )
 
     def test_no_agent_definition_wires_a_hook_in_its_own_frontmatter(self):
         definitions = sorted((WORKTREE_ROOT / "agents").glob("*.md"))
-        wiring = [definition.name for definition in definitions if "hooks:" in definition.read_text()]
+        wiring = [
+            definition.name for definition in definitions if "hooks:" in definition.read_text()
+        ]
         self.assertEqual((bool(definitions), wiring), (True, []))
 
 

@@ -26,7 +26,11 @@ HOOK = "hooks/lane-thing.py"
 def _wiring(entries):
     """Render a check-gates.sh whose array holds exactly these lines."""
     body = "".join(f"    {entry}\n" for entry in entries)
-    return '#!/usr/bin/env bash\nset -u\n\ngates=(\n' + body + ')\n\nfor entry in "${gates[@]}"; do :; done\n'
+    return (
+        "#!/usr/bin/env bash\nset -u\n\ngates=(\n"
+        + body
+        + ')\n\nfor entry in "${gates[@]}"; do :; done\n'
+    )
 
 
 def _run(root, files, entries):
@@ -76,7 +80,9 @@ def test_unwired_hook_is_given_the_flag_as_its_reason(tmp_path):
 
 
 def test_wired_hook_offering_self_test_passes(tmp_path):
-    assert _run(tmp_path, {HOOK: ENTRY_SELF_TEST}, [f'"t|python3 {HOOK} --self-test"']).returncode == 0
+    assert (
+        _run(tmp_path, {HOOK: ENTRY_SELF_TEST}, [f'"t|python3 {HOOK} --self-test"']).returncode == 0
+    )
 
 
 def test_hook_offering_no_self_test_needs_no_entry(tmp_path):
@@ -108,11 +114,16 @@ def test_a_cached_copy_is_not_a_gate(tmp_path):
 
 
 def test_entry_naming_no_file_fails_as_stale(tmp_path):
-    assert _run(tmp_path, {}, ['"ghost|python3 scripts/gates/ghost.py --self-test"']).returncode == 1
+    assert (
+        _run(tmp_path, {}, ['"ghost|python3 scripts/gates/ghost.py --self-test"']).returncode == 1
+    )
 
 
 def test_stale_entry_is_named(tmp_path):
-    assert "scripts/gates/ghost.py" in _run(tmp_path, {}, ['"ghost|python3 scripts/gates/ghost.py"']).stdout
+    assert (
+        "scripts/gates/ghost.py"
+        in _run(tmp_path, {}, ['"ghost|python3 scripts/gates/ghost.py"']).stdout
+    )
 
 
 def test_entry_naming_no_script_path_is_not_stale(tmp_path):
@@ -129,7 +140,9 @@ def test_a_gate_directory_script_is_reported_once(tmp_path):
 
 
 def test_every_unwired_gate_is_reported(tmp_path):
-    out = _run(tmp_path, {GATE: ENTRY, "scripts/gates/other.py": ENTRY, HOOK: ENTRY_SELF_TEST}, []).stdout
+    out = _run(
+        tmp_path, {GATE: ENTRY, "scripts/gates/other.py": ENTRY, HOOK: ENTRY_SELF_TEST}, []
+    ).stdout
     assert (GATE in out, "scripts/gates/other.py" in out, HOOK in out) == (True, True, True)
 
 

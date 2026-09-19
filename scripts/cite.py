@@ -56,8 +56,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-#: fixed at load, unlike ROOT: `${CLAUDE_PLUGIN_ROOT}/...` names the kit's own
-#: checkout even where a document being checked sits in a consumer's.
+#: `${CLAUDE_PLUGIN_ROOT}/...` names the kit's checkout, not the document's
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 
 PLUGIN_ROOT_VAR = "${CLAUDE_PLUGIN_ROOT}/"
@@ -66,14 +65,15 @@ PLUGIN_ROOT_VAR = "${CLAUDE_PLUGIN_ROOT}/"
 def checkout_of(doc: Path, fallback: Path = ROOT) -> Path:
     """The checkout a document sits in: its nearest ancestor carrying `.git`.
 
-    `.git` is a directory in a main checkout and a file in a worktree, and
-    either marks the root. A document under neither resolves against `fallback`.
+    `.git` is a directory in a main checkout and a file in a worktree, and either
+    marks the root. A document under neither resolves against `fallback`.
     """
     here = doc.resolve().parent
     for ancestor in (here, *here.parents):
         if (ancestor / ".git").exists():
             return ancestor
     return fallback
+
 
 SKIP = {".git", ".venv", ".pytest_cache", "node_modules", "__pycache__"}
 

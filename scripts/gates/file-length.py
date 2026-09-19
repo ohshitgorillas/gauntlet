@@ -53,11 +53,10 @@ TRACKED = ("*.py", "*.sh")
 #: this table exists to refuse.
 ALLOWANCE: dict[str, int] = {
     "scripts/cite.py": 471,
-    "scripts/pair/cli.py": 450,
-    "hooks/gauntlet-off.py": 426,
+    "scripts/pair/cli.py": 448,
+    "hooks/gauntlet-off.py": 425,
     "hooks/bwrap-wrap.py": 416,
-    "hooks/bwrap_wrap_selftest.py": 402,
-    "hooks/lanes_selftest.py": 401,
+    "hooks/bwrap_wrap_selftest.py": 401,
 }
 
 #: Paths the owner has exempted from the cap by hand, with his reason. An entry here still
@@ -130,9 +129,13 @@ def stale(allowance: dict[str, int]) -> list[str]:
         if not path.is_file():
             problems.append(f"ALLOWANCE[{name!r}]: names no file")
         elif not ratcheted(name):
-            problems.append(f"ALLOWANCE[{name!r}]: names a test path, which the ratchet does not govern")
+            problems.append(
+                f"ALLOWANCE[{name!r}]: names a test path, which the ratchet does not govern"
+            )
         elif measure(name) <= WATCH_LINE:
-            problems.append(f"ALLOWANCE[{name!r}]: file is back under the {WATCH_LINE}-line watch line — drop it")
+            problems.append(
+                f"ALLOWANCE[{name!r}]: file is back under the {WATCH_LINE}-line watch line — drop it"
+            )
     return problems
 
 
@@ -146,7 +149,11 @@ def check(names: list[str], allowance: dict[str, int] | None = None) -> int:
     problems = []
     for name in names:
         lines = measure(name)
-        problems += [fault for fault in (cap_fault(name, lines), ratchet_fault(name, lines, allowance)) if fault]
+        problems += [
+            fault
+            for fault in (cap_fault(name, lines), ratchet_fault(name, lines, allowance))
+            if fault
+        ]
     problems += stale(allowance)
 
     for problem in problems:

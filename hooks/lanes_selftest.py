@@ -37,6 +37,7 @@ from lanes import (  # noqa: E402
     stop,
 )
 
+
 def self_test() -> int:  # noqa: PLR0915
     """Pin the spec lines of every lane in the table, and the `--stop` gate."""
     import contextlib
@@ -161,9 +162,7 @@ def self_test() -> int:  # noqa: PLR0915
                 #: installed as a plugin the harness spells the name with its
                 #: plugin in front of it, and that is the same agent
                 allowed(
-                    write(
-                        f"{root}/gauntlet/specs/approved/slug.txt", f"gauntlet:{SPEC_REVIEWER}"
-                    )
+                    write(f"{root}/gauntlet/specs/approved/slug.txt", f"gauntlet:{SPEC_REVIEWER}")
                 ),
             )
         ),
@@ -193,9 +192,7 @@ def self_test() -> int:  # noqa: PLR0915
                 denied(write(f"{root}/gauntlet/plans/approved/slug.txt", WRITER)),
                 allowed(write(f"{root}/gauntlet/plans/approved/slug.txt", PLAN_REVIEWER)),
                 allowed(
-                    write(
-                        f"{root}/gauntlet/plans/approved/slug.txt", f"gauntlet:{PLAN_REVIEWER}"
-                    )
+                    write(f"{root}/gauntlet/plans/approved/slug.txt", f"gauntlet:{PLAN_REVIEWER}")
                 ),
             )
         ),
@@ -239,12 +236,8 @@ def self_test() -> int:  # noqa: PLR0915
                 denied(write(f"{root}/gauntlet/reviews/slug.1.txt", WRITER)),
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", SPEC_REVIEWER)),
                 allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", PLAN_REVIEWER)),
-                allowed(
-                    write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{SPEC_REVIEWER}")
-                ),
-                allowed(
-                    write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{PLAN_REVIEWER}")
-                ),
+                allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{SPEC_REVIEWER}")),
+                allowed(write(f"{root}/gauntlet/reviews/slug.1.txt", f"gauntlet:{PLAN_REVIEWER}")),
             )
         ),
         "reviews 2 a reviewer writes its verdict and nothing else": all(
@@ -356,16 +349,13 @@ def self_test() -> int:  # noqa: PLR0915
                 loop_gate('"a string"', red="1 failed", verdict=None)[0] == 2,
                 loop_gate('{"stop_hook_active": "true"}', red="1 failed", verdict=None)[0] == 2,
                 #: a loop on a clean tree is still a clean tree
-                loop_gate('{"stop_hook_active": true}', red="1 failed", verdict="RED 1")
-                == (0, ""),
+                loop_gate('{"stop_hook_active": true}', red="1 failed", verdict="RED 1") == (0, ""),
             )
         ),
         #: the table is the policy, so a row that names no lane, no writer or no
         #: refusal is a lane that silently holds nothing
         "every row carries a lane, a writer and a refusal": all(
-            bool(row.lane)
-            and bool(row.writers)
-            and bool(row.lane_msg)
+            bool(row.lane) and bool(row.writers) and bool(row.lane_msg)
             #: a refusal names the file the reader has to open to change it
             and Path(lanes.__file__).name in row.lane_msg
             for row in LANES
@@ -385,7 +375,8 @@ def self_test() -> int:  # noqa: PLR0915
         #: other, and both fail here rather than in a session.
         "one writable set: these rows are the lanes bwrap binds read-only": (
             {row.lane for row in LANES} == set(lane_config.LANE_DIRS)
-            and set(lane_config.LANE_DIRS) <= set(importlib.import_module("bwrap-wrap").PROTECTED_IN_CHECKOUT)
+            and set(lane_config.LANE_DIRS)
+            <= set(importlib.import_module("bwrap-wrap").PROTECTED_IN_CHECKOUT)
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal.
@@ -395,7 +386,9 @@ def self_test() -> int:  # noqa: PLR0915
         #: in it is a loop with no way out.
         "every payload shape is answered, and an unreadable one is refused": (
             hook_payload.survives_hostile_payloads(lanes.__file__, guards=GUARDS)
-            and hook_payload.survives_hostile_payloads(lanes.__file__, "--stop", refuses_undecidable=False)
+            and hook_payload.survives_hostile_payloads(
+                lanes.__file__, "--stop", refuses_undecidable=False
+            )
         ),
     }
     return hook_shape.report(lines)

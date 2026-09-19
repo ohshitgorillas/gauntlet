@@ -283,7 +283,9 @@ def _read_verdict(tool_input: hook_payload.ToolInput, cwd: str, agent: str) -> s
     return None
 
 
-def _verdict(name: str, tool_input: hook_payload.ToolInput, payload: hook_payload.Payload) -> str | None:
+def _verdict(
+    name: str, tool_input: hook_payload.ToolInput, payload: hook_payload.Payload
+) -> str | None:
     """Why this call is refused, or None to let it through."""
     return hook_shape.dispatch(
         name,

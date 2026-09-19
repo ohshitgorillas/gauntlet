@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lane_config  # noqa: E402
 import lane_declaration  # noqa: E402
 
+
 def main(argv: list[str]) -> int:
     """Write the declared lines for the key on argv, or a fault on stderr."""
     if len(argv) != 3 or argv[1] != "--config":

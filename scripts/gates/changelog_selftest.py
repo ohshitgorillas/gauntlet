@@ -76,23 +76,33 @@ def self_test() -> int:  # noqa: PLR0915
     check("a bullet with no bold lead fails", status, 1)
     check("the missing lead is named on stdout", "bold lead" in out, True)
 
-    status, out = _run("## [Unreleased]\n\n### Fixed\n- **Your setting now applies.** It reads the file at startup.\n")
+    status, out = _run(
+        "## [Unreleased]\n\n### Fixed\n- **Your setting now applies.** It reads the file at startup.\n"
+    )
     check("a bullet in second person fails", status, 1)
     check("the second-person word is named on stdout", "second person" in out, True)
 
-    status, out = _run("## [Unreleased]\n\n### Fixed\n- **The fix is seamless now.** It applies at startup.\n")
+    status, out = _run(
+        "## [Unreleased]\n\n### Fixed\n- **The fix is seamless now.** It applies at startup.\n"
+    )
     check("a bullet using hype register fails", status, 1)
     check("marketing register is named on stdout", "marketing register" in out, True)
 
-    status, out = _run("## [Unreleased]\n\n### Fixed\n- **The old path is untouched.** Only the new path changed.\n")
+    status, out = _run(
+        "## [Unreleased]\n\n### Fixed\n- **The old path is untouched.** Only the new path changed.\n"
+    )
     check("a bullet narrating by negation fails", status, 1)
     check("narration by negation is named on stdout", "narrates by negation" in out, True)
 
-    status, out = _run("## [Unreleased]\n\n### Added\n- **A new test suite covers the parser.** It replaces the old fixture.\n")
+    status, out = _run(
+        "## [Unreleased]\n\n### Added\n- **A new test suite covers the parser.** It replaces the old fixture.\n"
+    )
     check("a bullet naming a test fails", status, 1)
     check("the test mention is named on stdout", "names tests or test policy" in out, True)
 
-    status, out = _run("## [Unreleased]\n\n### Added\n- **The fake backend is gone.** Callers hit the real one now.\n")
+    status, out = _run(
+        "## [Unreleased]\n\n### Added\n- **The fake backend is gone.** Callers hit the real one now.\n"
+    )
     check("a bullet naming a fake fails", status, 1)
 
     status, out = _run(
@@ -108,7 +118,9 @@ def self_test() -> int:  # noqa: PLR0915
     check("a second heading of the same kind under a released version fails", status, 1)
     check("the released version is named on stdout", "second '### Fixed'" in out, True)
 
-    status, out = _run("## [Unreleased]\n\n### Changed\n- changed one thing\n\n### Added\n- added a thing\n")
+    status, out = _run(
+        "## [Unreleased]\n\n### Changed\n- changed one thing\n\n### Added\n- added a thing\n"
+    )
     check("headings out of Keep a Changelog order fail", status, 1)
     check("the out-of-order heading is named on stdout", "out of order" in out, True)
 
@@ -122,7 +134,9 @@ def self_test() -> int:  # noqa: PLR0915
     check("a bullet running to a second line fails", status, 1)
     check("the second paragraph is named on stdout", "second paragraph" in out, True)
 
-    status, out = _run("## [Unreleased]\n\n### Fixed\n- **A clean fix lands.** It closes the gap cleanly.\n")
+    status, out = _run(
+        "## [Unreleased]\n\n### Fixed\n- **A clean fix lands.** It closes the gap cleanly.\n"
+    )
     check("a clean unreleased entry passes", status, 0)
 
     status, _ = _run(

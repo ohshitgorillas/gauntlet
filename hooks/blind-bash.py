@@ -127,6 +127,7 @@ _WHY = (
     "(hooks/blind-bash.py)"
 )
 
+
 def _allowed_command(command: str) -> bool:
     """Whether the whole command text is one `scripts/blind.sh` call we admit."""
     if ".." in command:
@@ -159,7 +160,9 @@ def _resolved(command: str) -> str | None:
     return lead + kit_entry() + head[len(ENTRY) :]
 
 
-def _verdict(name: str, tool_input: hook_payload.ToolInput, payload: hook_payload.Payload) -> str | None:
+def _verdict(
+    name: str, tool_input: hook_payload.ToolInput, payload: hook_payload.Payload
+) -> str | None:
     """Why this call is refused, or None to let it through."""
     if name != "Bash":
         return None
@@ -214,7 +217,9 @@ def self_test() -> int:
     wire = lane_config.tests_dir() + "/test_hook_wire.py"
     plan = lane_config.plans_lane() + "/bash-sandbox"
 
-    bash = hook_shape.rebased(hook_shape.probe(_verdict, "/repo", "Bash", "command", agent="scrivener"))
+    bash = hook_shape.rebased(
+        hook_shape.probe(_verdict, "/repo", "Bash", "command", agent="scrivener")
+    )
 
     denied, allowed = hook_shape.denied, hook_shape.allowed
 
@@ -290,8 +295,7 @@ def self_test() -> int:
                 #: kit is installed rather than dying at exec
                 resolved("scripts/blind.sh status demo") == f"{entry} status demo",
                 resolved(f"scripts/blind.sh test {wire}") == f"{entry} test {wire}",
-                resolved("  scripts/blind.sh show HEAD demo  ")
-                == f"  {entry} show HEAD demo  ",
+                resolved("  scripts/blind.sh show HEAD demo  ") == f"  {entry} show HEAD demo  ",
                 #: the entry is beside this hook, so the answer names a file
                 #: that is there
                 Path(kit_entry()).is_file(),

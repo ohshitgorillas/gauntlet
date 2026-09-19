@@ -33,7 +33,9 @@ NO_IMPORTS = '"""A module of constants."""\n\nROOT = "/"\n'
 NOTHING_AT_ALL = '"""A module that says nothing."""\n'
 FORWARDER = "class C:\n    def f(self, x):\n        return self._other.f(x)\n"
 AWAIT_FORWARDER = "class C:\n    async def f(self, x):\n        return await self._other.f(x)\n"
-DOCSTRING_FORWARDER = 'class C:\n    def f(self, x):\n        """Hand it on."""\n        return self._other.f(x)\n'
+DOCSTRING_FORWARDER = (
+    'class C:\n    def f(self, x):\n        """Hand it on."""\n        return self._other.f(x)\n'
+)
 KEYWORD_FORWARDER = "class C:\n    def f(self, x):\n        return self._other.f(x=x)\n"
 REORDERED = "class C:\n    def f(self, x, y):\n        return self._other.f(y, x)\n"
 DOES_MORE = "class C:\n    def f(self, x):\n        self._log(x)\n        return self._other.f(x)\n"
@@ -145,7 +147,9 @@ def self_test() -> int:  # noqa: PLR0915
     status, out = _run({good: PLAIN_RETURN}, [good])
     check("a method returning an expression of its own passes", (status, out), (0, ""))
 
-    status, out = _run({good: FORWARDER}, [good], {f"{good}::f": "reaches the private collaborator"})
+    status, out = _run(
+        {good: FORWARDER}, [good], {f"{good}::f": "reaches the private collaborator"}
+    )
     check("an exempt forwarder passes", (status, out), (0, ""))
 
     status, out = _run({barrel: REEXPORT}, [barrel], None, {barrel: "the surface is the point"})
@@ -166,19 +170,33 @@ def self_test() -> int:  # noqa: PLR0915
     check("a module exemption for a module that defines something fails as stale", status, 1)
 
     untouched = "hooks/untouched.py"
-    status, _ = _run({untouched: REEXPORT, good: DEFINES_FUNCTION}, [good], None, {untouched: "live"})
+    status, _ = _run(
+        {untouched: REEXPORT, good: DEFINES_FUNCTION}, [good], None, {untouched: "live"}
+    )
     check("a live module exemption for a file not on argv passes", status, 0)
 
-    status, _ = _run({untouched: DEFINES_FUNCTION, good: DEFINES_FUNCTION}, [good], None, {untouched: "stale"})
+    status, _ = _run(
+        {untouched: DEFINES_FUNCTION, good: DEFINES_FUNCTION}, [good], None, {untouched: "stale"}
+    )
     check("a stale module exemption for a file not on argv still fails", status, 1)
 
-    status, _ = _run({untouched: FORWARDER, good: DEFINES_FUNCTION}, [good], {f"{untouched}::f": "live"})
+    status, _ = _run(
+        {untouched: FORWARDER, good: DEFINES_FUNCTION}, [good], {f"{untouched}::f": "live"}
+    )
     check("a live forwarder exemption for a file not on argv passes", status, 0)
 
-    files = {"hooks/one.py": DEFINES_FUNCTION, "hooks/two.py": REEXPORT, "hooks/three.py": FORWARDER}
+    files = {
+        "hooks/one.py": DEFINES_FUNCTION,
+        "hooks/two.py": REEXPORT,
+        "hooks/three.py": FORWARDER,
+    }
     status, out = _run(files, list(files))
     check("one offender among compliant files fails the gate", status, 1)
-    check("every offender is reported, not only the first", ("hooks/two.py" in out, "hooks/three.py" in out), (True, True))
+    check(
+        "every offender is reported, not only the first",
+        ("hooks/two.py" in out, "hooks/three.py" in out),
+        (True, True),
+    )
     check("a compliant file beside an offender is not named", "hooks/one.py" in out, False)
 
     check("the shipped tree passes its own gate", GATE.main(["no-barrels.py"]), 0)

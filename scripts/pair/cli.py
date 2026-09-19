@@ -309,9 +309,7 @@ def cmd_close(slug: str) -> int:
     both readings rather than one.
     """
     named = [
-        tree
-        for tree in (trees.spec_tree(slug), trees.impl_tree(slug))
-        if Path(path(tree)).is_dir()
+        tree for tree in (trees.spec_tree(slug), trees.impl_tree(slug)) if Path(path(tree)).is_dir()
     ]
     if not named:
         die("pair: no worktree for " + slug)

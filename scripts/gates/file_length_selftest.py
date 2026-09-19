@@ -146,7 +146,11 @@ def self_test() -> int:  # noqa: PLR0915
     files = {"hooks/one.py": 90, "hooks/two.py": 455, "hooks/three.py": 470, "hooks/four.py": 44}
     status, out = _run(files, list(files), {})
     check("one offender among compliant files fails the gate", status, 1)
-    check("every offender is reported, not only the first", ("hooks/two.py" in out, "hooks/three.py" in out), (True, True))
+    check(
+        "every offender is reported, not only the first",
+        ("hooks/two.py" in out, "hooks/three.py" in out),
+        (True, True),
+    )
     check("a compliant file beside an offender is not named", "hooks/one.py" in out, False)
 
     check("the shipped tree passes its own gate", GATE.main(["file-length.py"]), 0)

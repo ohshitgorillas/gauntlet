@@ -32,7 +32,6 @@ from pathlib import Path
 
 from lane_config import tests_dir
 
-
 #: a slug names one path segment and carries no traversal
 SLUG = r"[A-Za-z0-9][A-Za-z0-9._-]*"
 #: a spec worktree is the other place a blind agent's tests live, so the blind

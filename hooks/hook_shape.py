@@ -32,7 +32,6 @@ from lane_config import DEFAULT_DIRS, dirs
 from lane_declaration import config_fault
 from lane_paths import bypassed, path_in_lane
 
-
 #: tools that write a file. `NotebookEdit` names its target `notebook_path`.
 WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
 

@@ -68,7 +68,11 @@ _SELVES = frozenset({"self", "cls"})
 def _is_raises(node: ast.With | ast.AsyncWith) -> bool:
     for item in node.items:
         call = item.context_expr
-        if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and call.func.attr == "raises":
+        if (
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and call.func.attr == "raises"
+        ):
             return True
     return False
 
@@ -81,7 +85,9 @@ def _root(expr: ast.expr) -> ast.expr:
 
 
 def _is_sweep(expr: ast.expr) -> bool:
-    return isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name) and expr.func.id in _SWEEPS
+    return (
+        isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name) and expr.func.id in _SWEEPS
+    )
 
 
 def _weight(node: ast.Assert) -> tuple[int, bool]:
@@ -119,7 +125,9 @@ def _count_assertions(node: ast.AST, *, in_loop: bool = False) -> tuple[int, boo
         elif isinstance(child, (ast.With, ast.AsyncWith)) and _is_raises(child):
             count += 1
             looped = looped or in_loop
-        sub_count, sub_looped = _count_assertions(child, in_loop=in_loop or isinstance(child, _LOOPS))
+        sub_count, sub_looped = _count_assertions(
+            child, in_loop=in_loop or isinstance(child, _LOOPS)
+        )
         count += sub_count
         looped = looped or sub_looped
     return count, looped
@@ -139,7 +147,12 @@ def _is_existence(test: ast.expr) -> bool:
         op, right = test.ops[0], test.comparators[0]
         if isinstance(op, ast.IsNot) and _is_none(right):
             return True
-        return isinstance(op, ast.Gt) and _is_len(test.left) and isinstance(right, ast.Constant) and right.value == 0
+        return (
+            isinstance(op, ast.Gt)
+            and _is_len(test.left)
+            and isinstance(right, ast.Constant)
+            and right.value == 0
+        )
     return _is_len(test)
 
 
@@ -162,7 +175,9 @@ def _own_nodes(node: ast.AST) -> Iterator[ast.AST]:
         yield from _own_nodes(child)
 
 
-def _test_findings(path: Path, fn: ast.FunctionDef | ast.AsyncFunctionDef, exempt: dict[str, str]) -> list[Finding]:
+def _test_findings(
+    path: Path, fn: ast.FunctionDef | ast.AsyncFunctionDef, exempt: dict[str, str]
+) -> list[Finding]:
     where = f"{path}:{fn.lineno} {fn.name}"
     findings: list[Finding] = []
     count, looped = _count_assertions(fn)
@@ -184,11 +199,14 @@ def _asserts_in(fn: ast.AST) -> list[ast.AST]:
     return [
         node
         for node in _own_nodes(fn)
-        if isinstance(node, ast.Assert) or (isinstance(node, ast.Call) and _is_framework_assert(node))
+        if isinstance(node, ast.Assert)
+        or (isinstance(node, ast.Call) and _is_framework_assert(node))
     ]
 
 
-def _helpers(node: ast.AST, *, in_test: bool = False) -> Iterator[ast.FunctionDef | ast.AsyncFunctionDef]:
+def _helpers(
+    node: ast.AST, *, in_test: bool = False
+) -> Iterator[ast.FunctionDef | ast.AsyncFunctionDef]:
     """Every function that is not a test and is not nested inside one, methods included."""
     for child in ast.iter_child_nodes(node):
         if isinstance(child, _FUNCS):
@@ -211,7 +229,11 @@ def _is_private_reach(node: ast.Attribute) -> bool:
 
 
 def _private_reaches(path: Path, scope: ast.AST, name: str) -> list[Finding]:
-    reaches = (node for node in _own_nodes(scope) if isinstance(node, ast.Attribute) and _is_private_reach(node))
+    reaches = (
+        node
+        for node in _own_nodes(scope)
+        if isinstance(node, ast.Attribute) and _is_private_reach(node)
+    )
     return [("private", f"{path}:{node.lineno} {name}", 0) for node in reaches]
 
 
@@ -274,7 +296,9 @@ def check(names: list[str], exempt: dict[str, str] | None = None) -> int:
     for finding in findings:
         print(describe(finding))
     if findings:
-        print(f"\n{len(findings)} problem(s). One assertion per test, and a test reaches only the public surface.")
+        print(
+            f"\n{len(findings)} problem(s). One assertion per test, and a test reaches only the public surface."
+        )
         return 1
     return 0
 

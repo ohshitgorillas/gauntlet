@@ -75,9 +75,12 @@ def _strings(node: ast.AST) -> list[ast.Constant]:
 def _skeleton(node: ast.JoinedStr) -> re.Pattern[str] | None:
     """Turn an f-string into an anchored pattern, holes as `.*`; None when no part is prose."""
     parts = [
-        re.escape(v.value) if isinstance(v, ast.Constant) and isinstance(v.value, str) else ".*" for v in node.values
+        re.escape(v.value) if isinstance(v, ast.Constant) and isinstance(v.value, str) else ".*"
+        for v in node.values
     ]
-    literal = [v.value for v in node.values if isinstance(v, ast.Constant) and isinstance(v.value, str)]
+    literal = [
+        v.value for v in node.values if isinstance(v, ast.Constant) and isinstance(v.value, str)
+    ]
     if not any(_is_prose(text) for text in literal):
         return None
     return re.compile("".join(parts), re.DOTALL)
@@ -172,7 +175,9 @@ def _composed(text: str, seeds: frozenset[str], pos: int = 0) -> bool:
     pos = glue.end() if glue else pos
     if pos == len(text):
         return True
-    return any(text.startswith(seed, pos) and _composed(text, seeds, pos + len(seed)) for seed in seeds)
+    return any(
+        text.startswith(seed, pos) and _composed(text, seeds, pos + len(seed)) for seed in seeds
+    )
 
 
 def _covered(text: str, pool: Pool) -> bool:
@@ -218,7 +223,9 @@ def check(names: list[str]) -> int:
     for _, line in findings:
         print(line)
     if findings:
-        print(f"\n{len(findings)} copy assertion(s). A test pins what it put on the wire, never the owner's wording.")
+        print(
+            f"\n{len(findings)} copy assertion(s). A test pins what it put on the wire, never the owner's wording."
+        )
         return 1
     return 0
 

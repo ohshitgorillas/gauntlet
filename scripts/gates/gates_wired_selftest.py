@@ -34,7 +34,7 @@ ENTRY_SELF_TEST = ENTRY.replace("def main():", "def self_test():\n    return 0\n
 SUPPORT = '"""A helper."""\n\n\ndef self_test():\n    return 0\n'
 
 #: A shell gate that answers to the flag.
-SHELL_SELF_TEST = '#!/usr/bin/env bash\n[[ $1 == --self-test ]] && exit 0\n'
+SHELL_SELF_TEST = "#!/usr/bin/env bash\n[[ $1 == --self-test ]] && exit 0\n"
 
 
 def _load_gate() -> ModuleType:
@@ -53,7 +53,11 @@ GATE = _load_gate()
 def _wiring(entries: list[str]) -> str:
     """Render a `check-gates.sh` whose array holds exactly these lines."""
     body = "".join(f"    {entry}\n" for entry in entries)
-    return "#!/usr/bin/env bash\nset -u\n\ngates=(\n" + body + ")\n\nfor entry in \"${gates[@]}\"; do :; done\n"
+    return (
+        "#!/usr/bin/env bash\nset -u\n\ngates=(\n"
+        + body
+        + ')\n\nfor entry in "${gates[@]}"; do :; done\n'
+    )
 
 
 def _run(files: dict[str, str], entries: list[str]) -> tuple[int, str]:
@@ -111,7 +115,9 @@ def self_test() -> int:  # noqa: PLR0915
     status, _ = _run({hook: ENTRY}, [])
     check("a hook offering no --self-test needs no entry", status, 0)
 
-    status, _ = _run({"hooks/lanes.py": ENTRY.replace("main()", "hook_shape.entry(self_test, main)", 1)}, [])
+    status, _ = _run(
+        {"hooks/lanes.py": ENTRY.replace("main()", "hook_shape.entry(self_test, main)", 1)}, []
+    )
     check("a hook routing the flag through hook_shape.entry needs an entry", status, 1)
 
     status, _ = _run({"scripts/gates/shape_selftest.py": SUPPORT}, [])
@@ -140,10 +146,13 @@ def self_test() -> int:  # noqa: PLR0915
     check("an entry naming no file fails as stale", status, 1)
     check("the stale entry is named on stdout", "scripts/gates/ghost.py" in out, True)
 
-    status, _ = _run({gate: ENTRY}, [f'"pytest|env PYTHONPATH=$root $pytest tests -q"', f'"shape|python3 {gate}"'])
+    status, _ = _run(
+        {gate: ENTRY},
+        [f'"pytest|env PYTHONPATH=$root $pytest tests -q"', f'"shape|python3 {gate}"'],
+    )
     check("an entry that names no script path is no stale entry", status, 0)
 
-    text = f'# {gate}\n' + _wiring([])
+    text = f"# {gate}\n" + _wiring([])
     status, _ = _run({gate: ENTRY, GATE.WIRING: text}, [])
     check("a mention outside the gates array wires nothing", status, 1)
 
@@ -153,7 +162,11 @@ def self_test() -> int:  # noqa: PLR0915
 
     many = {gate: ENTRY, "scripts/gates/other.py": ENTRY, hook: ENTRY_SELF_TEST}
     status, out = _run(many, [])
-    check("every unwired gate is reported, not only the first", (gate in out, "other.py" in out, hook in out), (True, True, True))
+    check(
+        "every unwired gate is reported, not only the first",
+        (gate in out, "other.py" in out, hook in out),
+        (True, True, True),
+    )
 
     status, out = _run(many, [f'"shape|python3 {gate}"'])
     check("a wired gate beside an unwired one is not named", gate in out, False)

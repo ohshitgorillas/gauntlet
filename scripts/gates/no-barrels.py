@@ -72,7 +72,11 @@ FORWARDER_EXEMPT: dict[str, str] = {}
 
 def named_all(node: ast.stmt) -> bool:
     """Report whether a statement assigns `__all__`, which manifests a re-export rather than defining anything."""
-    targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) else []
+    targets = (
+        node.targets
+        if isinstance(node, ast.Assign)
+        else [node.target] if isinstance(node, ast.AnnAssign) else []
+    )
     return any(isinstance(target, ast.Name) and target.id == "__all__" for target in targets)
 
 
@@ -205,7 +209,9 @@ def stale_modules(module_exempt: dict[str, str]) -> list[str]:
         if tree is None:
             problems.append(f"MODULE_EXEMPT[{name!r}]: names no file")
         elif not is_reexport(name, tree):
-            problems.append(f"MODULE_EXEMPT[{name!r}]: the module defines something, so it needs no exemption")
+            problems.append(
+                f"MODULE_EXEMPT[{name!r}]: the module defines something, so it needs no exemption"
+            )
     return problems
 
 
@@ -222,7 +228,11 @@ def stale_forwarders(exempt: dict[str, str]) -> list[str]:
     return problems
 
 
-def check(names: list[str], exempt: dict[str, str] | None = None, module_exempt: dict[str, str] | None = None) -> int:
+def check(
+    names: list[str],
+    exempt: dict[str, str] | None = None,
+    module_exempt: dict[str, str] | None = None,
+) -> int:
     """Refuse a tree where any named file was shortened by leaving a shell behind.
 
     Every rule runs every time, so one fix per run is never the shape of this.

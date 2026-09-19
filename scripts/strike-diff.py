@@ -222,9 +222,11 @@ def report(block: str, base: str, head: str) -> list[str]:
     landing = rehome_verdict if rehome else landing_verdict
 
     out = [
-        inplace_strike_verdict(line, base, head)
-        if rehome and line.landing and line.landing == line.target
-        else strike_verdict(line, head)
+        (
+            inplace_strike_verdict(line, base, head)
+            if rehome and line.landing and line.landing == line.target
+            else strike_verdict(line, head)
+        )
         for line in lines
     ]
     out += [landing(line, head) for line in lines if line.landing]

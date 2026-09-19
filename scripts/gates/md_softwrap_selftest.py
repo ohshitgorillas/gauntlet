@@ -128,12 +128,26 @@ def self_test() -> int:
     status, out, _ = _run("--check", {"notes.txt": HARD})
     check("--check ignores a file that is not markdown", (status, out), (0, ""))
 
-    check("a hard-wrapped paragraph reflows onto one line", GATE.reflow(HARD), "A paragraph that the author wrapped by hand at some column nobody agreed on.\n")
+    check(
+        "a hard-wrapped paragraph reflows onto one line",
+        GATE.reflow(HARD),
+        "A paragraph that the author wrapped by hand at some column nobody agreed on.\n",
+    )
 
-    for name, text in (("fenced code", FENCED), ("a table", TABLE), ("frontmatter", FRONTMATTER), ("a hard break", HARD_BREAK), ("a list", LIST)):
+    for name, text in (
+        ("fenced code", FENCED),
+        ("a table", TABLE),
+        ("frontmatter", FRONTMATTER),
+        ("a hard break", HARD_BREAK),
+        ("a list", LIST),
+    ):
         check(f"{name} survives a reflow unchanged", GATE.reflow(text), text)
 
-    check("a hand-wrapped blockquote reflows onto one line", GATE.reflow(QUOTED), "> a quote wrapped by hand.\n")
+    check(
+        "a hand-wrapped blockquote reflows onto one line",
+        GATE.reflow(QUOTED),
+        "> a quote wrapped by hand.\n",
+    )
 
     status, out, left = _run("--fix", {"doc.md": HARD})
     check("--fix exits zero", status, 0)
@@ -141,7 +155,11 @@ def self_test() -> int:
     check("--fix says which file it reflowed", "doc.md" in out, True)
 
     _, _, left = _run("--fix", {"doc.md": HARD})
-    check("a file --fix rewrote then passes --check", _run("--check", {"doc.md": left["doc.md"]})[0], 0)
+    check(
+        "a file --fix rewrote then passes --check",
+        _run("--check", {"doc.md": left["doc.md"]})[0],
+        0,
+    )
 
     status, out, left = _run("--fix", {"doc.md": SOFT})
     check("--fix leaves a soft-wrapped file byte for byte", left["doc.md"], SOFT)
@@ -151,7 +169,11 @@ def self_test() -> int:
     check("--fix ignores a file that is not markdown", left["notes.txt"], HARD)
 
     status, out = _run_tracked({"doc.md": HARD, "ok.md": SOFT}, ["doc.md", "ok.md"])
-    check("--check with no paths refuses a tracked hard-wrapped file", (status, "doc.md" in out), (1, True))
+    check(
+        "--check with no paths refuses a tracked hard-wrapped file",
+        (status, "doc.md" in out),
+        (1, True),
+    )
 
     status, out = _run_tracked({"loose.md": HARD, "ok.md": SOFT}, ["ok.md"])
     check("--check with no paths ignores an untracked hard-wrapped file", (status, out), (0, ""))

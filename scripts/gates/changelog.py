@@ -58,7 +58,9 @@ WORD_CAP = 75
 #: changes with no user-visible face.
 ORDER = ("Added", "Changed", "Deprecated", "Removed", "Fixed", "Security", "Internal")
 
-SECOND_PERSON = re.compile(r"\b(you|your|yours|yourself|you're|you've|you'd|you'll)\b", re.IGNORECASE)
+SECOND_PERSON = re.compile(
+    r"\b(you|your|yours|yourself|you're|you've|you'd|you'll)\b", re.IGNORECASE
+)
 
 #: Register, not vocabulary: each of these reaches for the reader's feelings
 #: about the change instead of stating it. ``finally`` and ``quietly`` are here
@@ -218,13 +220,17 @@ def _heading_problems(heading: str, found: list[tuple[int, str]]) -> list[str]:
     rank = -1
     for number, kind in found:
         if kind in seen:
-            problems.append(f"line {number}: second '### {kind}' under {heading!r} — one heading per kind, merged")
+            problems.append(
+                f"line {number}: second '### {kind}' under {heading!r} — one heading per kind, merged"
+            )
         seen[kind] = number
         if kind not in ORDER:
             problems.append(f"line {number}: unknown section '{kind}' — one of {list(ORDER)}")
             continue
         if (position := ORDER.index(kind)) < rank:
-            problems.append(f"line {number}: '### {kind}' is out of order under {heading!r} — {list(ORDER)}")
+            problems.append(
+                f"line {number}: '### {kind}' is out of order under {heading!r} — {list(ORDER)}"
+            )
         rank = max(rank, position)
     return problems
 

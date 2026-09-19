@@ -174,9 +174,7 @@ def self_test() -> int:
         (Path(root) / "present.txt").write_text("", encoding="utf-8")
 
         def declared_answers(declaration: dict[str, Any], command: str) -> bool:
-            return _with_declaration(
-                declaration, lambda: is_declared_command(command, root)
-            )
+            return _with_declaration(declaration, lambda: is_declared_command(command, root))
 
         declaration_rules = {
             "the declared text exactly is the project's command": declared_answers(
@@ -253,8 +251,12 @@ def self_test() -> int:
         "a second command appended does not match": not any(
             is_pair_command(f"{ENTRY} red demo{tail}")
             for tail in (
-                "; rm -rf state", " && rm -rf state", " | tee x", " > out.txt",
-                "\nrm -rf state", "\rrm -rf state",
+                "; rm -rf state",
+                " && rm -rf state",
+                " | tee x",
+                " > out.txt",
+                "\nrm -rf state",
+                "\rrm -rf state",
             )
         ),
         "a command or an assignment in front does not match": not any(
@@ -264,8 +266,19 @@ def self_test() -> int:
         "a token the shell reads as structure does not match": not any(
             is_pair_command(f"{ENTRY} red {arg}")
             for arg in (
-                "$HOME", "`id`", "$(id)", "'demo'", '"demo"', "demo\\", "a*",
-                "a?", "{a,b}", "~", "HEAD^", "x=y", "d#",
+                "$HOME",
+                "`id`",
+                "$(id)",
+                "'demo'",
+                '"demo"',
+                "demo\\",
+                "a*",
+                "a?",
+                "{a,b}",
+                "~",
+                "HEAD^",
+                "x=y",
+                "d#",
             )
         ),
         "an entry path that only contains ours does not match": not any(
@@ -276,9 +289,7 @@ def self_test() -> int:
             is_pair_command(f"{head}{ENTRY} red demo")
             for head in ("/opt/", "${CLAUDE_PLUGIN_ROOT}/", kit_entry()[: -len(ENTRY)])
         ),
-        "a bare head resolves to this kit's own entry": resolved_pair_command(
-            f"{ENTRY} open demo"
-        )
+        "a bare head resolves to this kit's own entry": resolved_pair_command(f"{ENTRY} open demo")
         == f"{kit_entry()} open demo",
         "a head that names a script itself is left as typed": all(
             resolved_pair_command(f"{head}{ENTRY} open demo") is None

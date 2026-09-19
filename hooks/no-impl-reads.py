@@ -141,7 +141,9 @@ def _plugin_root() -> str:
     environment -- a self-test, or a checkout wired by hand -- and both name the
     same directory, so neither spelling is the privileged one.
     """
-    return os.path.abspath(os.environ.get(PLUGIN_VAR) or str(Path(__file__).resolve().parents[1]))  # noqa: PTH100
+    return os.path.abspath(
+        os.environ.get(PLUGIN_VAR) or str(Path(__file__).resolve().parents[1])
+    )  # noqa: PTH100
 
 
 #: the kit's own prose, the one allowed path outside the checkout. Its siblings

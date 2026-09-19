@@ -139,9 +139,7 @@ def main(argv: list[str]) -> int:
         prog="init.py", description="Write a project's blind-reads.json and lane skeleton."
     )
     parser.add_argument("--project", help="the checkout to install into")
-    parser.add_argument(
-        "--force", action="store_true", help="overwrite an existing declaration"
-    )
+    parser.add_argument("--force", action="store_true", help="overwrite an existing declaration")
     parser.add_argument(
         "--print", dest="show", action="store_true", help="print the file; write nothing"
     )
@@ -183,9 +181,9 @@ def self_test() -> int:
             | set(lane_config.DEFAULT_RUNNERS)
             | {"unwrapped_commands", "extra_binds"}
         )
-        rules["2 it carries all nine keys, explicitly"] = set(loaded) == expected and len(
-            expected
-        ) == 9
+        rules["2 it carries all nine keys, explicitly"] = (
+            set(loaded) == expected and len(expected) == 9
+        )
 
         rules["3 every value is the kit's default, not a second copy"] = loaded == declaration()
 
@@ -215,9 +213,9 @@ def self_test() -> int:
         )
 
         status, _ = install(project, force=True)
-        rules["10 --force overwrites it"] = status == 0 and json.loads(
-            target.read_text(encoding="utf-8")
-        ) == declaration()
+        rules["10 --force overwrites it"] = (
+            status == 0 and json.loads(target.read_text(encoding="utf-8")) == declaration()
+        )
 
         bare = Path(tmp) / "bare"
         bare.mkdir()

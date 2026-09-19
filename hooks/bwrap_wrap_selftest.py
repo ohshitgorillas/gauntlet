@@ -243,7 +243,8 @@ def _self_test_in(tmp: str) -> int:
         ),
         "the default profile makes the repository writable": (f"--bind {root} {root}" in default),
         "the lane directories are bound back read-only under it": all(
-            f"--ro-bind-try {root}/{lane} {root}/{lane}" in default for lane in lane_config.LANE_DIRS
+            f"--ro-bind-try {root}/{lane} {root}/{lane}" in default
+            for lane in lane_config.LANE_DIRS
         ),
         "the reviewer profile binds no writable repository": (
             f"--bind {root} {root}" not in reviewer and f"--tmpfs {root}/{REVIEWS_DIR}" in reviewer
@@ -286,9 +287,7 @@ def _self_test_in(tmp: str) -> int:
                             "tool_name": "Bash",
                             "cwd": root,
                             "agent_type": "prosecutor",
-                            "tool_input": {
-                                "command": "scripts/pair.sh red demo; rm -rf state"
-                            },
+                            "tool_input": {"command": "scripts/pair.sh red demo; rm -rf state"},
                         }
                     )
                 )

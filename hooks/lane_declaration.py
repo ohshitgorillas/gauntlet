@@ -127,9 +127,7 @@ def config() -> dict[str, Any]:
         with source.open(encoding="utf-8") as fh:
             loaded = json.load(fh)
     except FileNotFoundError:
-        raise ConfigFault(
-            f"no declaration at {source}: run scripts/init.py to write one"
-        ) from None
+        raise ConfigFault(f"no declaration at {source}: run scripts/init.py to write one") from None
     except OSError as exc:
         raise ConfigFault(f"the declaration at {source} cannot be read ({exc})") from None
     except ValueError as exc:

@@ -70,7 +70,9 @@ FRAMEWORK_TWO = FRAMEWORK + "        self.assertEqual(compute(), 4)\n"
 CONJUNCTION = "def test_both():\n    assert compute() == 3 and other() == 4\n"
 IN_LOOP = "def test_sweep():\n    for case in CASES:\n        assert compute(case) == 3\n"
 ALL_SWEEP = "def test_all():\n    assert all(compute(c) == 3 for c in CASES)\n"
-HELPER = "def helper():\n    assert compute() == 3\n\n\ndef test_one():\n    assert compute() == 3\n"
+HELPER = (
+    "def helper():\n    assert compute() == 3\n\n\ndef test_one():\n    assert compute() == 3\n"
+)
 HELPER_METHOD = (
     "import unittest\n\n\n"
     "class Suite(unittest.TestCase):\n"
@@ -79,7 +81,9 @@ HELPER_METHOD = (
     "    def test_one(self):\n"
     "        self.assertEqual(self._both(), None)\n"
 )
-NESTED ="def test_one():\n    def inner():\n        assert compute() == 4\n\n    assert inner() == 3\n"
+NESTED = (
+    "def test_one():\n    def inner():\n        assert compute() == 4\n\n    assert inner() == 3\n"
+)
 EXISTENCE = "def test_present():\n    assert compute() is not None\n"
 LENGTH = "def test_length():\n    assert len(compute()) > 0\n"
 SKIPPED = "import pytest\n\n\n@pytest.mark.skip\ndef test_one():\n    assert compute() == 3\n"

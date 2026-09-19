@@ -305,9 +305,7 @@ def lane_check(tree: str, lane: str) -> bool:
     written = tree_files(tree)
     if lane == "spec":
         outside = [
-            name
-            for name in written
-            if not name.startswith(prefix) and not name.startswith(block)
+            name for name in written if not name.startswith(prefix) and not name.startswith(block)
         ]
     else:
         outside = [name for name in written if name.startswith(prefix)]
