@@ -74,7 +74,7 @@ The list is not configurable. What `blind-reads.json` moves is
 where the entries point, never which entries there are: `tests_dir` is the
 blind writer's lane, `docs_dir` the prose, and `gauntlet_dir` the base whose
 `specs/approved` subtree is the one artifact a blind agent works from. All
-three are read through `shell_shapes`, which refuses any set of names that
+three are read through `lane_config`, which refuses any set of names that
 overlap, so no value here can put the lane over the prose or the base under
 either. The file itself is on the list too, because a blind agent's definition
 names those directories only as `<tests dir>` and `<docs dir>` and this is
@@ -107,7 +107,10 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import shell_shapes as sh  # noqa: E402
+import hook_payload  # noqa: E402
+import hook_shape  # noqa: E402
+import lane_config  # noqa: E402
+import lane_paths  # noqa: E402
 
 #: the agents this hook answers for. Every other caller, the main agent
 #: included, passes unjudged -- see the fail direction in the module docstring
@@ -119,9 +122,9 @@ BLIND = (
 )
 
 #: the blind writer's lane, `tests` unless `blind-reads.json` names another
-TESTS = sh.tests_dir()
+TESTS = lane_config.tests_dir()
 #: the prose a blind agent may read, `docs` unless the file names another
-DOCS = sh.docs_dir()
+DOCS = lane_config.docs_dir()
 #: the one file that says where those are, readable by a blind agent whose
 #: definition names them as `<tests dir>` and `<docs dir>` and nothing more concrete
 CONFIG = ".claude/blind-reads.json"
@@ -147,9 +150,9 @@ def _plugin_root() -> str:
 PLUGIN_ROOT = _plugin_root()
 PLUGIN_DOCS = os.path.join(PLUGIN_ROOT, "docs")  # noqa: PTH118
 #: the gauntlet's own artifact base at the repo root, denied entire
-GAUNTLET_BASE = sh.gauntlet_dir()
+GAUNTLET_BASE = lane_config.gauntlet_dir()
 #: the one subtree of it a blind agent works from: the approved spec block
-GAUNTLET_SPECS = sh.specs_lane()
+GAUNTLET_SPECS = lane_config.specs_lane()
 #: the chain's own run artifacts under that base: the red run a blind writer
 #: certifies, and the merge evidence the bailiff reads
 GAUNTLET_RED = GAUNTLET_BASE + "/red"
@@ -252,9 +255,9 @@ def readable(target: str, root: str | None, cwd: str) -> bool:
     #: absolute paths of files in its own worktree, and against the session root
     #: every one of them reads as `.claude/worktrees/<slug>/tests/...` — outside
     #: the allowlist — so its own spec block and its own tests were denied to it.
-    #: `shell_shapes.root_by_name` is the rule the three lane hooks already use;
+    #: `lane_paths.root_by_name` is the rule the three lane hooks already use;
     #: this hook carried a private `repo_root` that did not know a worktree.
-    base = sh.root_by_name(resolved) or root
+    base = lane_paths.root_by_name(resolved) or root
     if base:
         rel = os.path.relpath(resolved, base)
         if rel.startswith(".."):
@@ -304,7 +307,7 @@ def _verdict(name: str, tool_input: dict[str, Any], root: str | None, cwd: str) 
 
 
 #: the tools this hook decides. A call of anything else is not its subject,
-#: and a malformed one is not its refusal to give -- see `sh.payload_fault`.
+#: and a malformed one is not its refusal to give -- see `hook_payload.payload_fault`.
 GUARDS = ("Read", "Grep", "Glob")
 
 
@@ -322,7 +325,7 @@ def _caller_verdict(
     absent `agent_type` is the main agent and passes; a name not in `BLIND`
     passes too, unjudged rather than allowlisted.
     """
-    if sh.agent_of(payload) not in BLIND:
+    if hook_payload.agent_of(payload) not in BLIND:
         return None
     return _verdict(name, tool_input, root, cwd)
 
@@ -331,307 +334,22 @@ def main() -> None:
     def verdict(name: str, tool_input: dict[str, Any], payload: dict[str, Any]) -> str | None:
         #: inside the closure, so that a root that will not resolve is a
         #: refusal like any other rather than a crash read as one
-        cwd = sh.cwd_of(payload)
+        cwd = hook_payload.cwd_of(payload)
         return _caller_verdict(name, tool_input, payload, repo_root(cwd), cwd)
 
-    sh.hook_main(verdict, guards=GUARDS)
+    hook_shape.hook_main(verdict, guards=GUARDS)
 
 
-def _config_parses() -> bool:
-    """That the per-repo config this hook names reads, where there is one.
+def _self_test() -> int:
+    """Run the self-test, which lives beside this file in `no_impl_reads_selftest.py`.
 
-    `sh.config` answers a malformed file with an empty config, and that is the
-    right answer at the gate: an empty config names no lane, so the lane is
-    `tests`. It is also silent, so a typo in the file moves a repo's lane back
-    to the default and says nothing about it. The runtime keeps the safe
-    direction; this line is where the typo becomes visible instead of free.
+    Imported here rather than at the top, so the wire mode -- every real hook
+    call -- pays nothing for a module only the gate reads.
     """
-    path = Path(__file__).resolve().parents[1] / CONFIG
-    if not path.exists():
-        return True  # no per-repo value here; nothing to parse
-    try:
-        with path.open(encoding="utf-8") as fh:
-            return isinstance(json.load(fh), dict)
-    except (OSError, ValueError):
-        return False
+    import no_impl_reads_selftest  # noqa: PLC0415
 
-
-def _no_denied_nesting() -> bool:
-    """Is every allowed root free of a denied subtree beneath it?
-
-    The invariant the layout exists to hold, computed rather than asserted by
-    hand: a denied tree inside an allowed one is readable by a sweep rooted at
-    the ancestor while its contents are denied one by one, which is the hole
-    the `docs/gauntlet/` nesting opened. The other direction — the re-allowed
-    leaf inside the denied base — is harmless and is excluded here.
-
-    `DEFAULT_ALLOW` carries the directories the real `blind-reads.json`
-    names, so a repo whose `tests_dir` or `docs_dir` resolved to the
-    artifact base or an ancestor of it would fail this case rather than silently
-    re-open the base, were `shell_shapes.dirs_from` not already refusing every
-    overlapping set.
-    """
-    for entry in DEFAULT_ALLOW:
-        root = entry.rstrip("/")
-        if not root:
-            continue
-        #: the denied base sits at or under this allowed root
-        if _under(GAUNTLET_BASE, root):
-            return False
-        #: the root sits inside the denied base, on a branch that is not the
-        #: one re-allowed leaf, so everything it names is denied to a read
-        if _under(root, GAUNTLET_BASE) and not any(_under(root, leaf) for leaf in GAUNTLET_LEAVES):
-            return False
-    return True
-
-
-def _plugin_docs_case(root: str) -> bool:
-    """That a blind agent can follow a citation into the installed kit, and no further.
-
-    Run against a plugin root of its own rather than this checkout's, because the
-    two coincide here and a test that cannot tell them apart pins nothing: in a
-    consumer's tree the kit sits somewhere else entirely, and that is the layout
-    the entry exists for.
-
-    Both directions are the case. The citation resolves, spelled absolute or with
-    the variable the kit writes it with, and the plugin's siblings do not -- the
-    hooks and the scripts beside that `docs/` are the implementation, and reading
-    them is the thing this hook is for. `respell` is left off deliberately: the
-    kit's own directory is named by the kit, and no `blind-reads.json` value
-    moves it.
-    """
-    global PLUGIN_ROOT, PLUGIN_DOCS  # noqa: PLW0603
-    keep_root, keep_docs = PLUGIN_ROOT, PLUGIN_DOCS
-    PLUGIN_ROOT = "/opt/plugins/gauntlet"
-    PLUGIN_DOCS = PLUGIN_ROOT + "/docs"
-    try:
-
-        def read(path: str) -> str | None:
-            return _verdict("Read", {"file_path": path}, root, root)
-
-        return all(
-            (
-                sh.allowed(read(f"{PLUGIN_ROOT}/docs/plans.md")),
-                sh.allowed(read(f"{PLUGIN_ROOT}/docs/approved-specs.md")),
-                sh.allowed(read(f"{PLUGIN_ROOT}/docs/agents.md")),
-                sh.allowed(read("${CLAUDE_PLUGIN_ROOT}/docs/plans.md")),
-                sh.allowed(read("$CLAUDE_PLUGIN_ROOT/docs/approved-specs.md")),
-                sh.allowed(
-                    _verdict("Grep", {"pattern": "x", "path": f"{PLUGIN_ROOT}/docs"}, root, root)
-                ),
-                #: the kit's implementation sits beside its prose and is not on
-                #: the list
-                sh.denied(read(f"{PLUGIN_ROOT}/hooks/no-impl-reads.py")),
-                sh.denied(read(f"{PLUGIN_ROOT}/scripts/pair.sh")),
-                sh.denied(read(f"{PLUGIN_ROOT}/agents/scrivener.md")),
-                sh.denied(read("${CLAUDE_PLUGIN_ROOT}/hooks/no-impl-reads.py")),
-                sh.denied(_verdict("Grep", {"pattern": "x", "path": PLUGIN_ROOT}, root, root)),
-                #: a path boundary, not a string prefix
-                sh.denied(read(f"{PLUGIN_ROOT}/docs-old/plans.md")),
-                #: and the variable buys no way back out of the directory
-                sh.denied(read("${CLAUDE_PLUGIN_ROOT}/docs/../hooks/no-impl-reads.py")),
-            )
-        )
-    finally:
-        PLUGIN_ROOT, PLUGIN_DOCS = keep_root, keep_docs
-
-
-def self_test() -> int:
-    """Pin the spec lines of the blind-read allowlist."""
-    root = "/repo"
-    tree = f"{root}/.claude/worktrees/demo-spec"
-
-    #: the lines below spell the kit's defaults; under a project that moved one
-    #: of the three directories, the same lines run at that project's own. The
-    #: respelling sits here rather than on `read` and `bash`, so the payloads
-    #: built by hand below carry it too, and no string gets two passes
-    PATHS = ("file_path", "path", "command")
-
-    def call(tool: str, tool_input: dict[str, Any]) -> str | None:
-        moved = {
-            key: sh.respell(value) if key in PATHS and isinstance(value, str) else value
-            for key, value in tool_input.items()
-        }
-        return _verdict(tool, moved, root, root)
-
-    def read(path: str) -> str | None:
-        return call("Read", {"file_path": path})
-
-    denied, allowed = sh.denied, sh.allowed
-
-    def blind(path: str, who: str | None = "scrivener") -> str | None:
-        """One `Read`, through the caller gate the wire goes through.
-
-        `who` is the payload's `agent_type`; `None` leaves the key off, which
-        is the shape a call from no subagent carries.
-        """
-        payload: dict[str, Any] = {}
-        if who is not None:
-            payload["agent_type"] = who
-        return _caller_verdict("Read", {"file_path": sh.respell(path)}, payload, root, root)
-    lines = {
-        "1 the spec's own sources are readable, the rest is not": all(
-            (
-                allowed(read(f"{root}/docs/testing.md")),
-                allowed(read(f"{root}/tests/test_lane.py")),
-                allowed(read(f"{root}/gauntlet/specs/approved/slug.txt")),
-                allowed(read(f"{root}/README.md")),
-                denied(read(f"{root}/src/core/manager.py")),
-                denied(read(f"{root}/app/main.py")),
-                denied(read("/etc/passwd")),
-            )
-        ),
-        "2 an unrooted search is denied, a rooted one follows the allowlist": all(
-            (
-                denied(call("Grep", {"pattern": "def resolve"})),
-                denied(call("Glob", {"pattern": "**/*.py"})),
-                allowed(call("Grep", {"pattern": "def test_", "path": f"{root}/tests"})),
-                denied(call("Grep", {"pattern": "def resolve", "path": f"{root}/src"})),
-            )
-        ),
-        "6 an allowlisted directory name counts at the root and nowhere else": all(
-            (
-                denied(read(f"{root}/src/docs/impl.py")),
-                denied(read(f"{root}/src/tests/impl.py")),
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/src/specs"})),
-                allowed(read(f"{root}/docs/testing.md")),
-                allowed(read(f"{root}/tests/test_lane.py")),
-            )
-        ),
-        "7 a blind agent's own worktree is anchored at that worktree": all(
-            (
-                allowed(read(f"{tree}/gauntlet/specs/approved/demo.txt")),
-                allowed(read(f"{tree}/tests/test_demo.py")),
-                allowed(call("Grep", {"pattern": "x", "path": f"{tree}/tests"})),
-                #: the worktree carries its own copy of these, and neither is a
-                #: spec source in either tree
-                denied(read(f"{tree}/src/core/manager.py")),
-                denied(read(f"{tree}/hooks/no-impl-reads.py")),
-            )
-        ),
-        "8 the chain's own run artifacts are readable, so the writer certifies its run": all(
-            (
-                allowed(read(f"{root}/gauntlet/red/demo.txt")),
-                allowed(read(f"{root}/gauntlet/merge/demo.txt")),
-                denied(read(f"{root}/src/state/manager.py")),
-            )
-        ),
-        "9 the gauntlet's base is denied, three leaves re-allowed": all(
-            (
-                allowed(read(f"{root}/gauntlet/specs/approved/demo.txt")),
-                allowed(read(f"{root}/gauntlet/red/demo.txt")),
-                allowed(read(f"{root}/gauntlet/merge/demo.txt")),
-                allowed(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/red"})),
-                allowed(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/merge"})),
-                denied(read(f"{root}/gauntlet/plans/approved/demo.txt")),
-                denied(read(f"{root}/gauntlet/reviews/demo.plan.4.txt")),
-                denied(read(f"{root}/gauntlet/plans/drafts/demo.txt")),
-                denied(read(f"{root}/gauntlet/specs/drafts/demo.txt")),
-                #: the bare directory is the one search that returns everything
-                #: in it, and it is not `<dir>/` + something
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet"})),
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/plans/approved"})),
-                allowed(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/specs/approved"})),
-                #: the leaf is the approved directory, not the stage above it:
-                #: the drafts sit beside it under the same parent
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/specs"})),
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/gauntlet/specs/drafts"})),
-                #: a path boundary, not a string prefix
-                allowed(read(f"{root}/gauntlet/specs/approved/sub/x.txt")),
-                denied(read(f"{root}/gauntlet/specs/approved-old/x.txt")),
-                #: the test policy is untouched, and so is the same name nested
-                #: under the source tree
-                allowed(read(f"{root}/docs/testing.md")),
-                denied(read(f"{root}/src/gauntlet/specs/approved/demo.txt")),
-            )
-        ),
-        "10 no blind-reads.json value re-opens the base or overlaps another": all(
-            (
-                #: a usable set moves all three, which is the point of the file
-                sh.dirs_from({"tests_dir": "spec", "gauntlet_dir": "work", "docs_dir": "prose"})
-                == {"tests_dir": "spec", "gauntlet_dir": "work", "docs_dir": "prose"},
-                #: and every unusable one moves nothing at all, together: a name
-                #: at, under or over another would put one directory's hook over
-                #: the other's, and a partly honoured set is the hole itself
-                sh.dirs_from({"tests_dir": "gauntlet"}) == dict(sh.DEFAULT_DIRS),
-                sh.dirs_from({"tests_dir": "gauntlet/plans/approved"}) == dict(sh.DEFAULT_DIRS),
-                sh.dirs_from({"gauntlet_dir": "tests"}) == dict(sh.DEFAULT_DIRS),
-                sh.dirs_from({"gauntlet_dir": "tests/artifacts"}) == dict(sh.DEFAULT_DIRS),
-                #: a key the file omits still collides: `tests_dir` at `docs` is
-                #: legal read alone and sits over the default `docs_dir`
-                sh.dirs_from({"tests_dir": "docs"}) == dict(sh.DEFAULT_DIRS),
-                sh.dirs_from({"docs_dir": "spec", "tests_dir": "spec"}) == dict(sh.DEFAULT_DIRS),
-                #: judged by where a name lands, not by how it is spelled
-                sh.dirs_from({"tests_dir": "spec/../gauntlet/reviews"}) == dict(sh.DEFAULT_DIRS),
-                sh.dirs_from({"tests_dir": "."}) == dict(sh.DEFAULT_DIRS),
-                sh.dirs_from({"gauntlet_dir": "/repo/work"}) == dict(sh.DEFAULT_DIRS),
-                sh.dirs_from({"docs_dir": ["prose"]}) == dict(sh.DEFAULT_DIRS),
-                #: there is no allow key: a path off the table stays off it
-                denied(read(f"{root}/reference/protocol.md")),
-            )
-        ),
-        "11 the four blind agents are judged, and no other caller is": all(
-            (
-                #: the allowlist runs for a caller in BLIND, in both directions
-                denied(blind(f"{root}/src/core/manager.py")),
-                allowed(blind(f"{root}/docs/testing.md")),
-                denied(blind(f"{root}/src/core/manager.py", "juror")),
-                denied(blind(f"{root}/src/core/manager.py", "arbiter")),
-                denied(blind(f"{root}/src/core/manager.py", "bailiff")),
-                #: the main agent carries no `agent_type` at all, and session
-                #: wiring puts its every read here: it passes unjudged
-                allowed(blind(f"{root}/src/core/manager.py", None)),
-                #: and so does a caller this hook does not answer for, rather
-                #: than being read-blocked by a list that is not about it
-                allowed(blind(f"{root}/src/core/manager.py", "prosecutor")),
-                allowed(blind(f"{root}/src/core/manager.py", "examiner")),
-                allowed(blind(f"{root}/src/core/manager.py", "general-purpose")),
-                #: an empty string is no name, and reads as the main agent
-                allowed(blind(f"{root}/src/core/manager.py", "")),
-                #: installed as a plugin the harness spells the name with its
-                #: plugin in front of it, and that is the same agent
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet:scrivener")),
-                allowed(blind(f"{root}/docs/testing.md", "gauntlet:scrivener")),
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet:juror")),
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet:arbiter")),
-                denied(blind(f"{root}/src/core/manager.py", "gauntlet:bailiff")),
-                allowed(blind(f"{root}/src/core/manager.py", "gauntlet:prosecutor")),
-            )
-        ),
-        "12 the kit's own docs/ is readable, the rest of the plugin is not": _plugin_docs_case(
-            root
-        ),
-        "13 no denied subtree nests inside an allowed one": _no_denied_nesting(),
-        "14 this repo's own blind-reads.json parses, if it is there": _config_parses(),
-        "15 the prose directory is one file, and gate output is not readable": all(
-            (
-                #: the one policy file these agents are held to, and not the
-                #: directory around it: a design note there quotes the code it
-                #: describes
-                allowed(read(f"{root}/docs/testing.md")),
-                denied(read(f"{root}/docs/plans.md")),
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/docs"})),
-                #: the entry is that file, not a prefix of its name
-                denied(read(f"{root}/docs/testing.md.bak")),
-                #: gate output is the implementation's own tracebacks under
-                #: another name
-                denied(read(f"{root}/state/gates/pytest.txt")),
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/state"})),
-                #: what stays on the list beside that file: the lane the blind
-                #: writer owns and the two run artifacts it certifies
-                allowed(read(f"{root}/tests/test_lane.py")),
-                allowed(read(f"{root}/gauntlet/red/demo.txt")),
-                allowed(read(f"{root}/gauntlet/merge/demo.txt")),
-            )
-        ),
-        #: a hook decides a tool call, so its own crash is a denial -- and a
-        #: payload it cannot read is a call it cannot decide, which is a refusal
-        "every payload shape is answered, and an unreadable one is refused": (
-            sh.survives_hostile_payloads(__file__, guards=GUARDS)
-        ),
-    }
-    return sh.report(lines)
+    return no_impl_reads_selftest.self_test()
 
 
 if __name__ == "__main__":
-    sh.entry(self_test, main)
+    hook_shape.entry(_self_test, main)

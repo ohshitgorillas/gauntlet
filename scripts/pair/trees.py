@@ -25,9 +25,9 @@ _HOOKS = str(Path(__file__).resolve().parents[2] / "hooks")
 sys.path.insert(0, _HOOKS)
 
 try:
-    import shell_shapes as sh  # noqa: E402
+    import lane_config  # noqa: E402
 except ImportError:  # pragma: no cover - a checkout missing half the kit
-    sys.exit(f"pair: no shell_shapes.py in {_HOOKS}: scripts/ ships with hooks/")
+    sys.exit(f"pair: no lane_config.py in {_HOOKS}: scripts/ ships with hooks/")
 
 
 def _root() -> str:
@@ -49,7 +49,7 @@ def _root() -> str:
     project = os.environ.get("CLAUDE_PROJECT_DIR")
     if project and (Path(project) / ".git").exists():
         return str(Path(project).resolve())
-    root = sh.project_checkout(Path.cwd().resolve())
+    root = lane_config.project_checkout(Path.cwd().resolve())
     if root is None:
         sys.exit("pair: not inside a git checkout")
     return str(root)
@@ -61,13 +61,13 @@ ROOT = _root()
 #: reader the hooks use: the lane this script diffs and the two it reads are
 #: rows of the table `lanes.py` holds. The branch and the gate come from the
 #: same file.
-TESTS = sh.tests_dir()
-SPECS = sh.specs_lane()
-REVIEWS = sh.reviews_lane()
+TESTS = lane_config.tests_dir()
+SPECS = lane_config.specs_lane()
+REVIEWS = lane_config.reviews_lane()
 #: the base the chain's own run artifacts sit under, beside the four lanes
-GAUNTLET = sh.gauntlet_dir()
-TARGET = sh.target_branch()
-GATE = sh.gate_command()
+GAUNTLET = lane_config.gauntlet_dir()
+TARGET = lane_config.target_branch()
+GATE = lane_config.gate_command()
 
 WORKTREES = ".claude/worktrees"
 STATE = WORKTREES + "/.pair-state"

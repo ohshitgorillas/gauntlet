@@ -60,7 +60,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import shell_shapes as sh  # noqa: E402
+import hook_shape  # noqa: E402
+import lane_config  # noqa: E402
 
 ENTRY = "scripts/pair.sh"
 
@@ -135,7 +136,7 @@ def declared_reads(root: str) -> dict[str, list[str]]:
     wrapped and its paths are bound nowhere.
     """
     live: dict[str, list[str]] = {}
-    for command, reads in sh.unwrapped_commands().items():
+    for command, reads in lane_config.unwrapped_commands().items():
         paths = [_resolved(root, one) for one in reads]
         if any(path is None for path in paths):
             continue
@@ -158,12 +159,12 @@ def read_only_paths(root: str) -> list[str]:
 
 def _with_declaration(declared: dict[str, Any], body):
     """Run `body` with `declared` standing in for the project's own word."""
-    original = sh.unwrapped_commands
-    sh.unwrapped_commands = lambda: declared  # type: ignore[assignment]
+    original = lane_config.unwrapped_commands
+    lane_config.unwrapped_commands = lambda: declared  # type: ignore[assignment]
     try:
         return body()
     finally:
-        sh.unwrapped_commands = original  # type: ignore[assignment]
+        lane_config.unwrapped_commands = original  # type: ignore[assignment]
 
 
 def self_test() -> int:
@@ -217,7 +218,7 @@ def self_test() -> int:
 
     shape_rules = {
         "an unusable entry voids the whole mapping": all(
-            sh.unwrapped_from({"unwrapped_commands": bad}) == {}
+            lane_config.unwrapped_from({"unwrapped_commands": bad}) == {}
             for bad in (
                 [declared_text],
                 {declared_text: ["present.txt"]},
@@ -226,8 +227,8 @@ def self_test() -> int:
                 {"": {"reads": []}},
             )
         ),
-        "a key the file omits declares nothing": sh.unwrapped_from({}) == {},
-        "a declaration the file carries is read as written": sh.unwrapped_from(
+        "a key the file omits declares nothing": lane_config.unwrapped_from({}) == {},
+        "a declaration the file carries is read as written": lane_config.unwrapped_from(
             {"unwrapped_commands": {declared_text: {"reads": ["a", "b"]}}}
         )
         == {declared_text: ["a", "b"]},
@@ -284,7 +285,7 @@ def self_test() -> int:
             for head in ("/opt/", "${CLAUDE_PLUGIN_ROOT}/")
         ),
     }
-    return sh.report(lines)
+    return hook_shape.report(lines)
 
 
 if __name__ == "__main__":

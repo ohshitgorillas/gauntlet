@@ -3,7 +3,7 @@
 
 The kit ships as a plugin and lives outside the checkout it runs for, so the
 one thing a project has to say for itself is where its directories are. That
-declaration is `<project>/.claude/blind-reads.json`, and `shell_shapes.config`
+declaration is `<project>/.claude/blind-reads.json`, and `lane_config.config`
 faults without it rather than falling back on the kit's defaults: a project
 that never wrote the file and a project that meant the defaults are different
 facts, and only one of them is safe to guess at. This script is the deliberate
@@ -17,7 +17,7 @@ a declaration that is already there, and without it an existing file is left
 alone and the exit status says so: a project's word is not this script's to
 replace by accident. `--print` writes nothing and prints what would be written.
 
-The values it writes are the kit's defaults, read out of `shell_shapes` rather
+The values it writes are the kit's defaults, read out of `lane_config` rather
 than retyped here, so a project starts from the shipped layout and edits the
 file by hand from there. All eight keys are written out, present and explicit,
 because a key a project can see is a key it can change.
@@ -45,9 +45,9 @@ _HOOKS = str(Path(__file__).resolve().parent / ".." / "hooks")
 sys.path.insert(0, _HOOKS)
 
 try:
-    import shell_shapes as sh  # noqa: E402
+    import lane_config  # noqa: E402
 except ImportError:
-    sys.exit(f"init.py: no shell_shapes.py in {_HOOKS}: scripts/ ships with hooks/")
+    sys.exit(f"init.py: no lane_config.py in {_HOOKS}: scripts/ ships with hooks/")
 
 #: the file a project declares itself in, relative to the checkout
 DECLARATION = Path(".claude") / "blind-reads.json"
@@ -71,14 +71,14 @@ SKELETON = (
 def declaration() -> dict[str, Any]:
     """The eight keys and the kit's default for each, in a stable order.
 
-    The defaults are `shell_shapes`' own tables, not a copy: a second copy of
+    The defaults are `lane_config`'s own tables, not a copy: a second copy of
     `target_branch` here is a second answer the day the first one changes.
     """
     written: dict[str, Any] = {}
-    written.update(sh.DEFAULT_DIRS)
-    written.update(sh.DEFAULT_SCALARS)
-    written.update(sh.DEFAULT_RUNNERS)
-    written["unwrapped_commands"] = dict(sh.DEFAULT_UNWRAPPED)
+    written.update(lane_config.DEFAULT_DIRS)
+    written.update(lane_config.DEFAULT_SCALARS)
+    written.update(lane_config.DEFAULT_RUNNERS)
+    written["unwrapped_commands"] = dict(lane_config.DEFAULT_UNWRAPPED)
     return written
 
 
@@ -98,7 +98,7 @@ def default_project() -> Path:
     named = os.environ.get("CLAUDE_PROJECT_DIR")
     if named:
         return Path(named)
-    root = sh.project_checkout(Path.cwd().resolve())
+    root = lane_config.project_checkout(Path.cwd().resolve())
     return root if root else Path.cwd().resolve()
 
 
@@ -176,9 +176,9 @@ def self_test() -> int:
 
         loaded = json.loads(target.read_text(encoding="utf-8"))
         expected = (
-            set(sh.DEFAULT_DIRS)
-            | set(sh.DEFAULT_SCALARS)
-            | set(sh.DEFAULT_RUNNERS)
+            set(lane_config.DEFAULT_DIRS)
+            | set(lane_config.DEFAULT_SCALARS)
+            | set(lane_config.DEFAULT_RUNNERS)
             | {"unwrapped_commands"}
         )
         rules["2 it carries all eight keys, explicitly"] = set(loaded) == expected and len(
@@ -238,12 +238,12 @@ def self_test() -> int:
 def _in_project(project: Path, call: str) -> str:
     """Run `call` in a fresh interpreter with `project` as the project directory.
 
-    A fresh interpreter, because `shell_shapes` caches the declaration for the
+    A fresh interpreter, because `lane_config` caches the declaration for the
     life of a process and this self-test asks about several projects.
     """
     import subprocess
 
-    source = f"import sys; sys.path.insert(0, {_HOOKS!r}); import shell_shapes as sh; {call}"
+    source = f"import sys; sys.path.insert(0, {_HOOKS!r}); import lane_config; {call}"
     environment = dict(os.environ, CLAUDE_PROJECT_DIR=str(project))
     completed = subprocess.run(
         [sys.executable, "-c", source],
@@ -256,16 +256,16 @@ def _in_project(project: Path, call: str) -> str:
 
 
 def _fault_of(project: Path) -> str | None:
-    """`shell_shapes.config_fault` for that project, or `None`."""
-    printed = _in_project(project, "print(sh.config_fault() or '', end='')")
+    """`lane_config.config_fault` for that project, or `None`."""
+    printed = _in_project(project, "print(lane_config.config_fault() or '', end='')")
     return printed or None
 
 
 def _reads_back(project: Path) -> dict[str, Any]:
-    """The declaration `shell_shapes` reads back out of that project."""
+    """The declaration `lane_config` reads back out of that project."""
     import json as _json
 
-    return dict(_json.loads(_in_project(project, "import json; print(json.dumps(sh.config()))")))
+    return dict(_json.loads(_in_project(project, "import json; print(json.dumps(lane_config.config()))")))
 
 
 if __name__ == "__main__":

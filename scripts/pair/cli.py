@@ -41,9 +41,10 @@ import trees  # noqa: E402
 from trees import REVIEWS, TARGET, die, git, git_ok, note, path  # noqa: E402
 
 #: imported here rather than taken from `trees`, which does not re-export it.
-#: The import above is what put the hooks directory on `sys.path`, so this line
-#: has to follow it.
-import shell_shapes as sh  # noqa: E402
+#: The import above is what put the hooks directory on `sys.path`, so these
+#: lines have to follow it.
+import lane_config  # noqa: E402
+import lane_paths  # noqa: E402
 
 USAGE = (
     "usage: pair.sh open|respec|red|merge|abort|close <slug> | list"
@@ -58,7 +59,7 @@ def out(line: str) -> None:
 
 def check_slug(slug: str) -> str:
     """A slug names two branches and two directories. Keep it boring."""
-    if not slug or not re.fullmatch(sh.SLUG, slug):
+    if not slug or not re.fullmatch(lane_paths.SLUG, slug):
         die("pair: slug '" + slug + "' -- letters, digits, dot, dash and underscore only.")
     return slug
 
@@ -171,7 +172,7 @@ def _pytest_argv() -> list[str]:
     directory; a bare word is on `PATH` and is left alone. `PYTEST` in the
     environment replaces the head word and keeps the configured arguments.
     """
-    words = sh.pytest_command()
+    words = lane_config.pytest_command()
     head = os.environ.get("PYTEST") or words[0]
     if not Path(head).is_absolute() and "/" in head:
         head = path(head)
@@ -407,7 +408,7 @@ def main(argv: list[str]) -> int:
     #: the driver converges onto `target_branch` and runs `gate_command`, both
     #: of them configured, so a declaration that will not load is a merge onto
     #: whatever the kit defaults to. It is a fault here, not a default.
-    fault = sh.config_fault()
+    fault = lane_config.config_fault()
     if fault is not None:
         die("pair: " + fault)
     if not argv:
@@ -441,83 +442,9 @@ def main(argv: list[str]) -> int:
     return one(check_slug(rest[0]))
 
 
-# --- self-test -----------------------------------------------------------------
-
-
-def self_test() -> int:
-    """Pin the parsing and the stdout literals, without touching a checkout."""
-    block = (
-        "slug: demo\nmotion: strike\n\n"
-        "1. strike tests/test_a.py::test_x\n"
-        "   assertion: assert 2 + 2 == 4\n"
-        "2. strike tests/test_b.py\n"
-        "\n--- reviewer ---\nREADY\n1  KEEP  the counter\n"
-    )
-    source = Path(__file__).resolve().read_text(encoding="utf-8")
-    lines = {
-        "the reviewer section is everything below the divider, verbatim": (
-            blocks.reviewer_section(block) == "READY\n1  KEEP  the counter\n"
-            and blocks.reviewer_section("no divider here\n") == ""
-        ),
-        "a block's kind is its first kind: or motion: line": (
-            blocks.block_kind(block) == "strike"
-            and blocks.block_kind("slug: x\nkind: new\n") == "new"
-            and blocks.block_kind("slug: x\n") == ""
-        ),
-        "every strike target parses, and only the whole-file ones are the script's": (
-            blocks.strike_targets(block) == ["tests/test_a.py::test_x", "tests/test_b.py"]
-            and blocks.whole_file_targets(block) == ["tests/test_b.py"]
-        ),
-        "the merge artifact names its three headings in one order": (
-            blocks.HEADINGS == ("test files:", "diff:", "red output:")
-        ),
-        "the branch and the gate are what the configuration says they are": (
-            sh.target_branch() == trees.TARGET and sh.gate_command() == trees.GATE
-        ),
-        "every contract literal this driver prints is in this file": (
-            all(
-                token in source
-                for token in (
-                    "OPEN ",
-                    "MISMATCH ",
-                    "RESPEC ",
-                    "REVIEW ",
-                    "RESTORED ",
-                    "IMPL ",
-                    "MERGED ",
-                    "ABORTED ",
-                    "CLOSED ",
-                    "REFUSED ",
-                    "PAIR ",
-                    "NO PAIRS",
-                    "TEST CHECK ",
-                    "END TEST CHECK",
-                )
-            )
-        ),
-        "the libraries beside this file write no contract line": (
-            all(
-                "sys.stdout.write" not in _sibling(name)
-                for name in ("trees.py", "blocks.py", "converge.py")
-            )
-        ),
-        "a slug is one boring name, and a path is not one": (
-            _accepts("demo") and not _accepts("../etc") and not _accepts("a/b") and not _accepts("")
-        ),
-    }
-    return sh.report(lines)
-
-
-def _sibling(name: str) -> str:
-    return (Path(__file__).resolve().parent / name).read_text(encoding="utf-8")
-
-
-def _accepts(slug: str) -> bool:
-    """Whether `check_slug` takes a name, without ending the process on a no."""
-    return bool(slug) and bool(re.fullmatch(sh.SLUG, slug))
-
-
 if __name__ == "__main__":
     if "--self-test" in sys.argv[1:]:
-        sys.exit(self_test())
+        import selftest
+
+        sys.exit(selftest.self_test())
     sys.exit(main(sys.argv[1:]))

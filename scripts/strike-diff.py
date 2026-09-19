@@ -53,12 +53,12 @@ _HOOKS = str(Path(__file__).resolve().parent / ".." / "hooks")
 sys.path.insert(0, _HOOKS)
 
 try:
-    import shell_shapes as sh  # noqa: E402
+    import lane_config  # noqa: E402
 except ImportError:
-    sys.exit(f"strike-diff.py: no shell_shapes.py in {_HOOKS}: scripts/ ships with hooks/")
+    sys.exit(f"strike-diff.py: no lane_config.py in {_HOOKS}: scripts/ ships with hooks/")
 
 #: the blind writer's lane, `tests/` unless `blind-reads.json` names another
-TESTS = sh.tests_dir() + "/"
+TESTS = lane_config.tests_dir() + "/"
 
 _LINE = re.compile(r"^\s*\d+\.\s+strike\s+(?P<target>\S+)\s*$")
 _FIELD = re.compile(r"^\s*(?P<key>rule|assertion|replace|as):\s*(?P<value>.*)$")
@@ -234,7 +234,7 @@ def report(block: str, base: str, head: str) -> list[str]:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--spec", required=True, help=sh.specs_lane() + "/<slug>.txt")
+    ap.add_argument("--spec", required=True, help=lane_config.specs_lane() + "/<slug>.txt")
     ap.add_argument("--base", required=True, help="the commit the change started from")
     ap.add_argument("--head", required=True, help="the commit that landed it")
     args = ap.parse_args(argv)

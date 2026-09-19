@@ -5,7 +5,7 @@ The lane hook decides a write before it happens, from the path the call names.
 The mount table `bwrap-wrap.py` builds cannot be wrong about a path -- the
 kernel resolves it -- but `lanes.py` compares one, and a comparison can be. A
 target reaches it as a spelling: a symlink, a relative path, a `..` walk, a
-name whose parent does not exist yet. `shell_shapes.real_path` collapses those
+name whose parent does not exist yet. `lane_paths.real_path` collapses those
 onto one name, and this hook is the check on that collapse.
 
 It runs after the tool, reads the path the harness reports as changed, and
@@ -34,7 +34,9 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 lanes = importlib.import_module("lanes")
-import shell_shapes as sh  # noqa: E402
+import hook_payload  # noqa: E402
+import hook_shape  # noqa: E402
+import lane_paths  # noqa: E402
 
 #: the tools this hook audits, and the field each carries its target in
 TARGET_FIELD = {"Write": "file_path", "Edit": "file_path", "NotebookEdit": "notebook_path"}
@@ -45,7 +47,7 @@ TARGET_FIELD = {"Write": "file_path", "Edit": "file_path", "NotebookEdit": "note
 RESPONSE_KEYS = ("filePath", "file_path", "notebook_path")
 
 
-def changed_path(payload: sh.Payload) -> str:
+def changed_path(payload: hook_payload.Payload) -> str:
     """The file the harness says this call changed, or the target it named."""
     response = payload.get("tool_response")
     if isinstance(response, dict):
@@ -54,10 +56,10 @@ def changed_path(payload: sh.Payload) -> str:
             if isinstance(value, str) and value:
                 return value
     tool_input = payload.get("tool_input")
-    return sh.write_target(tool_input if isinstance(tool_input, dict) else {})
+    return hook_shape.write_target(tool_input if isinstance(tool_input, dict) else {})
 
 
-def divergence(payload: sh.Payload) -> str | None:
+def divergence(payload: hook_payload.Payload) -> str | None:
     """The loud line this write earns, or None when the gate and the disk agree."""
     name = payload.get("tool_name")
     field = TARGET_FIELD.get(name) if isinstance(name, str) else None
@@ -69,8 +71,8 @@ def divergence(payload: sh.Payload) -> str | None:
     refusal = lanes._verdict(name, {field: target}, payload)  # noqa: SLF001
     if refusal is None:
         return None
-    agent = sh.agent_of(payload) or "the main agent"
-    real = sh.real_path(target, sh.cwd_of(payload))
+    agent = hook_payload.agent_of(payload) or "the main agent"
+    real = lane_paths.real_path(target, hook_payload.cwd_of(payload))
     return (
         "GAUNTLET LANE AUDIT: a write the lane table refuses reached the disk.\n"
         f"  tool: {name}\n"
@@ -80,12 +82,12 @@ def divergence(payload: sh.Payload) -> str | None:
         f"  the table's refusal for that file: {refusal}\n"
         "  The gate admitted this call and the table refuses the file it changed, so the "
         "two disagree about one path. That is a path-identity defect in "
-        "hooks/shell_shapes.py -- not a policy call and not something to write around. "
+        "hooks/lane_paths.py -- not a policy call and not something to write around. "
         "(hooks/lane-audit.py)"
     )
 
 
-def answer(payload: sh.Payload) -> dict[str, Any]:
+def answer(payload: hook_payload.Payload) -> dict[str, Any]:
     """The hook's stdout for one divergence: the same line to the user and the agent."""
     line = divergence(payload)
     if line is None:
@@ -104,7 +106,7 @@ def main() -> None:
     permission, so there is nothing for it to refuse, and a crash that took the
     turn down would be this hook breaking the session it exists to watch.
     """
-    if sh.bypassed():
+    if lane_paths.bypassed():
         return
     try:
         payload = json.loads(sys.stdin.read())
@@ -191,7 +193,7 @@ def self_test() -> int:  # noqa: PLR0915
                 {},
             )
         )
-        and sh.survives_hostile_payloads(__file__, guards=(), refuses_undecidable=False),
+        and hook_payload.survives_hostile_payloads(__file__, guards=(), refuses_undecidable=False),
         #: the switch is the owner's and it silences this hook with the rest
         "GAUNTLET=off silences it": (
             subprocess.run(
@@ -206,8 +208,8 @@ def self_test() -> int:  # noqa: PLR0915
             == ""
         ),
     }
-    return sh.report(lines)
+    return hook_shape.report(lines)
 
 
 if __name__ == "__main__":
-    sh.entry(self_test, main)
+    hook_shape.entry(self_test, main)

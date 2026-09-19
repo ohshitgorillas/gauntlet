@@ -83,14 +83,17 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import shell_shapes as sh  # noqa: E402
+import hook_payload  # noqa: E402
+import hook_shape  # noqa: E402
+import lane_config  # noqa: E402
+import lane_paths  # noqa: E402
 
 BLIND = ("scrivener", "bailiff")
 ENTRY = "scripts/blind.sh"
 
 #: a slug names a file inside a lane directory, so it is one path segment and
 #: carries no traversal: `..` and `/` are what the denial exists to refuse
-SLUG = sh.SLUG
+SLUG = lane_paths.SLUG
 #: `HEAD`, or an abbreviated-to-full object name. A `:` is what turns a commit
 #: argument into a path argument, and no shape here admits one
 COMMIT = r"(?:HEAD|[0-9a-fA-F]{7,40})"
@@ -98,7 +101,7 @@ COMMIT = r"(?:HEAD|[0-9a-fA-F]{7,40})"
 #: the same shape for the same entry, so it has one definition and lives there;
 #: what refuses traversal here is `_allowed_command` on the raw command text,
 #: and what refuses it there is normalization, which is why both still run
-TESTPATH = sh.TESTPATH
+TESTPATH = lane_paths.TESTPATH
 
 _ARGS = (
     rf"test\s+{TESTPATH}",
@@ -156,19 +159,19 @@ def _resolved(command: str) -> str | None:
     return lead + kit_entry() + head[len(ENTRY) :]
 
 
-def _verdict(name: str, tool_input: sh.ToolInput, payload: sh.Payload) -> str | None:
+def _verdict(name: str, tool_input: hook_payload.ToolInput, payload: hook_payload.Payload) -> str | None:
     """Why this call is refused, or None to let it through."""
     if name != "Bash":
         return None
     #: wired session-wide, so every agent's shell arrives here. A caller
     #: outside `BLIND` is not this hook's subject and is let through unjudged,
     #: the main agent -- which carries no `agent_type` at all -- included
-    if sh.agent_of(payload) not in BLIND:
+    if hook_payload.agent_of(payload) not in BLIND:
         return None
-    return None if _allowed_command(sh.command_of(tool_input)) else _WHY
+    return None if _allowed_command(hook_payload.command_of(tool_input)) else _WHY
 
 
-def _answer(payload: sh.Payload) -> dict[str, Any] | None:
+def _answer(payload: hook_payload.Payload) -> dict[str, Any] | None:
     """The hook's answer for this payload: a denial, a resolved head, or nothing.
 
     The denial is the whole of the rule and runs first. A call it lets through
@@ -186,9 +189,9 @@ def _answer(payload: sh.Payload) -> dict[str, Any] | None:
                 "permissionDecisionReason": reason,
             }
         }
-    if name != "Bash" or sh.agent_of(payload) not in BLIND:
+    if name != "Bash" or hook_payload.agent_of(payload) not in BLIND:
         return None
-    resolved = _resolved(sh.command_of(tool_input))
+    resolved = _resolved(hook_payload.command_of(tool_input))
     if resolved is None:
         return None
     return {
@@ -200,7 +203,7 @@ def _answer(payload: sh.Payload) -> dict[str, Any] | None:
 
 
 def main() -> None:
-    sh.answer_main(_answer)
+    hook_shape.answer_main(_answer)
 
 
 def self_test() -> int:
@@ -208,12 +211,12 @@ def self_test() -> int:
     shapes = "shell_shapes.py"
     hook = "no-impl-reads.py"
     here = "hooks/"
-    wire = sh.tests_dir() + "/test_hook_wire.py"
-    plan = sh.plans_lane() + "/bash-sandbox"
+    wire = lane_config.tests_dir() + "/test_hook_wire.py"
+    plan = lane_config.plans_lane() + "/bash-sandbox"
 
-    bash = sh.rebased(sh.probe(_verdict, "/repo", "Bash", "command", agent="scrivener"))
+    bash = hook_shape.rebased(hook_shape.probe(_verdict, "/repo", "Bash", "command", agent="scrivener"))
 
-    denied, allowed = sh.denied, sh.allowed
+    denied, allowed = hook_shape.denied, hook_shape.allowed
 
     def at_runner(words: list[str], target: str) -> bool:
         """With `words` configured as the runner, are its own words still denied?
@@ -222,10 +225,10 @@ def self_test() -> int:
         so a configured invocation is not a command this hook admits. Naming
         one here and asking again is what proves that.
         """
-        saved = sh.runners
+        saved = lane_config.runners
         #: a plain function where the module holds an `lru_cache` wrapper, which
         #: is the whole point of the swap: the stand-in answers without a cache
-        sh.runners = lambda: {  # type: ignore[assignment]
+        lane_config.runners = lambda: {  # type: ignore[assignment]
             "pytest_command": words,
             "node_command": words,
         }
@@ -233,14 +236,14 @@ def self_test() -> int:
             typed = " ".join(words + [target])
             return denied(bash(typed)) and denied(bash(f"scripts/blind.sh test {typed}"))
         finally:
-            sh.runners = saved
+            lane_config.runners = saved
 
     entry = kit_entry()
 
     def _answered(command: str, who: str | None = "scrivener") -> dict[str, Any]:
         """What this hook hands back for one Bash call, as the wire sends it."""
-        payload: sh.Payload = {"cwd": "/repo", "tool_name": "Bash"}
-        payload["tool_input"] = {"command": sh.respell(command)}
+        payload: hook_payload.Payload = {"cwd": "/repo", "tool_name": "Bash"}
+        payload["tool_input"] = {"command": hook_shape.respell(command)}
         if who is not None:
             payload["agent_type"] = who
         answer = _answer(payload) or {}
@@ -274,7 +277,7 @@ def self_test() -> int:
                 allowed(bash(f"${{CLAUDE_PLUGIN_ROOT}}/scripts/blind.sh test {wire}")),
                 #: a relative prefix is not a head: the blind writer can write
                 #: under its own lane, so this would be a shell it authored
-                denied(bash(f"{sh.tests_dir()}/scripts/blind.sh status demo")),
+                denied(bash(f"{lane_config.tests_dir()}/scripts/blind.sh status demo")),
                 denied(bash("../scripts/blind.sh status demo")),
                 denied(bash("/opt/gauntlet/scripts/blind.sh.bak status demo")),
                 denied(bash("/opt/g;x/scripts/blind.sh status demo")),
@@ -297,8 +300,8 @@ def self_test() -> int:
                 resolved("/opt/gauntlet/scripts/blind.sh status demo") is None,
                 #: a denied command is never resolved, the traversal head
                 #: line 1a refuses included: the denial is the whole answer
-                answers_deny(f"{sh.tests_dir()}/scripts/blind.sh status demo"),
-                resolved(f"{sh.tests_dir()}/scripts/blind.sh status demo") is None,
+                answers_deny(f"{lane_config.tests_dir()}/scripts/blind.sh status demo"),
+                resolved(f"{lane_config.tests_dir()}/scripts/blind.sh status demo") is None,
                 resolved(f"cat {here}{hook}") is None,
                 #: and a caller this hook does not answer for keeps its own
                 #: command text, resolution included
@@ -381,11 +384,11 @@ def self_test() -> int:
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal
         "every payload shape is answered, and an unreadable one is refused": (
-            sh.survives_hostile_payloads(__file__, guards=("Bash",))
+            hook_payload.survives_hostile_payloads(__file__, guards=("Bash",))
         ),
     }
-    return sh.report(lines)
+    return hook_shape.report(lines)
 
 
 if __name__ == "__main__":
-    sh.entry(self_test, main)
+    hook_shape.entry(self_test, main)
