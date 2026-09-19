@@ -25,9 +25,13 @@ outside the sandbox -- the one place in this design where a command does. A
 command in front, a command behind, an environment assignment, a redirection, a
 `cd` first: none of them match, so all of them get wrapped.
 
-The argument grammar is the other half. A slug is one path segment carrying no
-traversal, so `scripts/pair.sh red ../../etc` is not a `pair.sh` call this
-module admits, and it goes through the sandbox like any other command.
+The argument grammar is the other half, and it names no verb. Every argument is
+one bare token drawn from `[A-Za-z0-9_./@-]`, so a token can carry no `;`, `|`,
+`&`, `$`, quote, space or glob, and nothing rides out beside the script. Which
+verbs exist and what each takes is `scripts/pair/cli.py`'s to know: it holds
+the slug to one path segment and dies on a verb it lacks, so a table of verbs
+here would be a second copy of that grammar, one that every new verb had to be
+added to and that `close`, `restore`, `impl`, `review` and `respec` were not.
 
 The second predicate is over `unwrapped_commands`, which is the project's own
 word rather than this kit's. A hook holding that set as its own constant would
@@ -60,12 +64,8 @@ import shell_shapes as sh  # noqa: E402
 
 ENTRY = "scripts/pair.sh"
 
-#: the subcommands that write a lane file, each taking one slug
-SUBCOMMANDS = ("open", "red", "merge")
-
-#: a slug names a file inside a lane directory, so it is one path segment and
-#: carries no traversal, the same shape every other lane check uses
-SLUG = sh.SLUG
+#: one argument: a bare token, nothing the shell reads as structure
+ARG = r"[A-Za-z0-9_./@-]+"
 
 #: the head, in the three spellings admitted, the same three `blind-bash.py`
 #: admits for its own entry. `scripts/pair.sh` bare is the one an agent types;
@@ -75,20 +75,18 @@ SLUG = sh.SLUG
 #: route by which a tree authors the one command that runs outside the sandbox.
 _HEAD = r"(?:/[A-Za-z0-9_.@+:/-]*/|\$\{CLAUDE_PLUGIN_ROOT\}/)?" + re.escape(ENTRY)
 
-ALLOWED = tuple(
-    re.compile(rf"\A\s*{_HEAD}\s+{sub}\s+{SLUG}\s*\Z") for sub in SUBCOMMANDS
-)
+#: blanks are space and tab only: `\s` would take a newline, and a newline is
+#: a second command in front of bare tokens
+ALLOWED = re.compile(rf"\A[ \t]*{_HEAD}(?:[ \t]+{ARG})*[ \t]*\Z")
 
 
 def is_pair_command(command: str) -> bool:
-    """Whether the whole command text is one `pair.sh` subcommand call.
+    """Whether the whole command text is `pair.sh` followed by bare tokens only.
 
     False for everything else, which is the direction that costs a wrap rather
     than an escape: a command this answers no about still runs, inside `bwrap`.
     """
-    if ".." in command:
-        return False
-    return any(pattern.match(command) for pattern in ALLOWED)
+    return ALLOWED.match(command) is not None
 
 
 def kit_entry() -> str:
@@ -238,28 +236,36 @@ def self_test() -> int:
     lines = {
         **declaration_rules,
         **shape_rules,
-        "one whole subcommand call, for each subcommand": all(
-            is_pair_command(f"{ENTRY} {sub} demo") for sub in SUBCOMMANDS
+        "the script with any count of bare tokens matches": all(
+            is_pair_command(c)
+            for c in (
+                ENTRY,
+                f"{ENTRY} list",
+                f"{ENTRY} red demo",
+                f"{ENTRY} review plan demo",
+                f"{ENTRY} restore demo abc123",
+                f"{ENTRY} restore demo feature/x",
+                f"{ENTRY} impl checkout demo",
+                f"  {ENTRY}  close   demo  ",
+            )
         ),
         "a second command appended does not match": not any(
             is_pair_command(f"{ENTRY} red demo{tail}")
-            for tail in ("; rm -rf state", " && rm -rf state", " | tee x", " > out.txt")
+            for tail in (
+                "; rm -rf state", " && rm -rf state", " | tee x", " > out.txt",
+                "\nrm -rf state", "\rrm -rf state",
+            )
         ),
         "a command or an assignment in front does not match": not any(
             is_pair_command(head + f"{ENTRY} red demo")
             for head in ("cd /tmp && ", "GAUNTLET=off ", "echo hi; ", "time ")
         ),
-        "a slug that walks out of its directory does not match": not any(
+        "a token the shell reads as structure does not match": not any(
             is_pair_command(f"{ENTRY} red {arg}")
-            for arg in ("../../etc", "a/b", "../demo", ".", "..")
-        ),
-        "a subcommand this module does not name does not match": not any(
-            is_pair_command(f"{ENTRY} {sub} demo")
-            for sub in ("restore", "close", "impl", "status", "")
-        ),
-        "a missing or extra argument does not match": not any(
-            is_pair_command(c)
-            for c in (ENTRY, f"{ENTRY} red", f"{ENTRY} red demo extra", f"{ENTRY} demo")
+            for arg in (
+                "$HOME", "`id`", "$(id)", "'demo'", '"demo"', "demo\\", "a*",
+                "a?", "{a,b}", "~", "HEAD^", "x=y", "d#",
+            )
         ),
         "an entry path that only contains ours does not match": not any(
             is_pair_command(c)

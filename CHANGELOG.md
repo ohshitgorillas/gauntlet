@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+- **Every `scripts/pair.sh` verb runs outside the sandbox.** The carve-out admits the script followed by bare tokens, whatever the verb, rather than `open`, `red` and `merge` by name. A `restore` revision is one such token, so `HEAD~1` and `HEAD^` are not admitted; name a commit, branch or tag.
+
 ## [0.2.2] - 2026-09-19
 
 ### Fixed
