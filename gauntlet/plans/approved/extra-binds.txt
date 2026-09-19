@@ -1,0 +1,106 @@
+slug: extra-binds
+discovery: detective
+
+brief:
+> How can we make the package able to extend `bwrap` to bind arbitrary paths in addition to the source dir?
+delivered: Which files get touched, and roughly how
+> Proceed with a plan through the gate.
+dropped: names the procedure, not content; no body element delivers it. Repeated under Open questions.
+
+## What is wrong
+
+Writable set is fixed in hook code. `hooks/bwrap-wrap.py:42` — "Writable: the repository, the session's own `/tmp`, and `~/.cache`." No project key adds a writable path.
+
+Readable is not the gap. `hooks/bwrap-wrap.py:275-277` emits `--ro-bind / /` in every profile, so every path outside the two masks is already readable at its own spelling. A read-only extra bind ships nothing a shell can observe.
+
+One project-controlled bind exists and is not this. `hooks/bwrap-wrap.py:366-371` binds the paths of a declared unwrapped command, read-only, reachable only by declaring a command text under `unwrapped_commands`. A project whose package cache, build cache or scratch tree sits outside the checkout declares a command it does not want unwrapped, or writes nowhere.
+
+Declaration carries no bind key. `hooks/lane_config.py:3` — "carries eight keys, and they are the whole of what varies".
+
+Both files the key needs are frozen at their length. `scripts/gates/file-length.py:54-61` gives `hooks/lane_config.py` 498 and `hooks/bwrap-wrap.py` 417, which are their measured lengths, and `scripts/gates/file-length.py:26` — "Nothing here raises an allowance." So neither file takes a line until it is split.
+
+## What the owner sees change
+
+Ninth key in `.claude/blind-reads.json`, a list of paths, all writable:
+
+    "extra_binds": ["/home/atom/.cargo/registry", "/srv/scratch/build"]
+
+Wrapped default profile gets each live path writable at its own spelling. Key omitted means `[]`; existing declarations keep working untouched. No mode field, per **What is wrong**.
+
+Entry dropped three ways, silent and per entry: path not absolute after `~` expansion, `HOME` unset included; path standing over something the profile already protects — equal to it, inside it, or an ancestor of it; source not live at wrap time. Every comparison is on resolved paths, so a symlink is judged by where it lands. Malformed list voids the whole key, as `unwrapped_commands` does. Two entries naming one path bind once.
+
+Protected, for that middle drop: `/run/user` and `/tmp`, masked at `hooks/bwrap-wrap.py:284-287`; `/dev` and `/proc`, substituted at `hooks/bwrap-wrap.py:278-279` and `hooks/bwrap-wrap.py:280-281`, where an entry naming either mounts the host copy over the profile's own; `~/.gitconfig`, bound read-only at `hooks/bwrap-wrap.py:352`; the main checkout and every worktree, whose lane binds sit at `hooks/bwrap-wrap.py:356` and `hooks/bwrap-wrap.py:364`.
+
+Reviewer profile takes no extras. Key is writable-only and `hooks/bwrap-wrap.py:339` exists so a reviewer's shell writes nothing.
+
+`python3 hooks/shell_shapes.py --config extra_binds` prints one path per line.
+
+`python3 scripts/init.py` writes the key at `[]`.
+
+Two modules appear, holding code that moves unchanged.
+
+## Which files get touched, and roughly how
+
+Two splits come first, because the ratchet under **What is wrong** refuses a line in either file otherwise.
+
+`hooks/lane_declaration.py`, new. Move `hooks/lane_config.py:42` through `hooks/lane_config.py:179` — `project_checkout`, `config_path`, `ConfigFault`, `config`, `_declared`, `config_fault`, `_under` — the half that finds and reads the declaration, as against the half that resolves its keys. The section header at `hooks/lane_config.py:182` heads `DEFAULT_DIRS` and stays. The module docstring splits where the code does: `hooks/lane_config.py:1-17` describes finding and reading the declaration and moves, `hooks/lane_config.py:19-23` describes resolving the keys and stays, and the key-count sentence at `hooks/lane_config.py:3` goes to whichever file ends up carrying it. `_declared` moves too, so the remaining module imports that private name back across the boundary for `hooks/lane_config.py:353`, `hooks/lane_config.py:359`, `hooks/lane_config.py:365` and `hooks/lane_config.py:371`. No re-export, which is the convention the last split commit `02eedfb` left behind and `scripts/pair/cli.py:43` states: "imported here rather than taken from `trees`, which does not re-export it." So eight sites in five files import `lane_declaration` directly — `hooks/shell_shapes.py:29`, `hooks/hook_shape.py:31`, whose one import line splits because `DEFAULT_DIRS` and `dirs` stay behind, `scripts/pair/trees.py:52`, `scripts/pair/cli.py:411`, `scripts/init.py:101`, `scripts/init.py:260`, `scripts/init.py:268`, and the subprocess prelude at `scripts/init.py:246` that imports the module those two call into, without which `scripts/init.py --self-test` raises inside the subprocess rather than failing a rule. ASSUMED: `lane_config` lands near 360 lines, under the 400 of `scripts/gates/file-length.py:46`, so its `ALLOWANCE` entry is removed rather than lowered. Measured at implementation.
+
+`hooks/bwrap_probe.py`, new. Move `hooks/bwrap-wrap.py:135` through `hooks/bwrap-wrap.py:196` — `_NO_BWRAP`, `_BWRAP_BROKEN`, `_PROBE`, `_first_line`, `bwrap_fault` — the host probe. Two callers: `hooks/bwrap-wrap.py:238`, and `hooks/bwrap_wrap_selftest.py:33` and `hooks/bwrap_wrap_selftest.py:36`, which rebind `_NO_BWRAP` and `bwrap_fault` off the hook module taken at `hooks/bwrap_wrap_selftest.py:26` and read them at `hooks/bwrap_wrap_selftest.py:88`, `hooks/bwrap_wrap_selftest.py:100`, `hooks/bwrap_wrap_selftest.py:150` and `hooks/bwrap_wrap_selftest.py:280`; those two bindings come from `bwrap_probe` instead. ASSUMED: `bwrap-wrap` lands near 358 lines, entry removed on the same reading. Measured at implementation.
+
+`scripts/gates/file-length.py`. `ALLOWANCE` at `scripts/gates/file-length.py:54-61` loses the two entries, or carries them at their measured lengths where a split lands above 400.
+
+`hooks/lane_config.py`. Add `DEFAULT_EXTRA_BINDS: list[str] = []` beside `hooks/lane_config.py:205`. Add `extra_binds_from(conf)` modelled on `hooks/lane_config.py:277` — all-or-nothing: non-list, non-string entry, empty entry each return `[]`. Shape and `~` expansion only; the drops need a checkout root and the protected set, which this module does not hold. Add cached `extra_binds()` and its entry in `hooks/lane_config.py:471`.
+
+`hooks/bwrap-wrap.py`. New `_extra_binds(root)` returning bind args, holding every drop. Extras are emitted after `_base` and after the read-only binds above them, so each protected path needs the drop to survive: without it an entry remounts the masks whose purpose the docstring states at `hooks/bwrap-wrap.py:46-47` — "closes the D-Bus route to `systemd --user` -- a socket" — or rewrites the git config the next `git` reads at `hooks/bwrap-wrap.py:45`, or stands over a lane. Ancestor and descendant both drop: `/home/atom/dev` over a checkout at `/home/atom/dev/gauntlet` reaches the lanes from the other side, and `$HOME` reaches `~/.gitconfig` the same way. Comparison runs through `hooks/lane_paths.py:94`, whose resolution is what makes a symlinked entry answer for its target rather than its spelling; `hooks/bwrap-wrap.py:295` follows symlinks too, so a spelled-path test and the liveness test would disagree. Liveness through `hooks/bwrap-wrap.py:295`; emission through `hooks/bwrap-wrap.py:306` with `--bind-try`. Called once in `hooks/bwrap-wrap.py:334`, in the non-reviewer branch after the worktree loop and before `hooks/bwrap-wrap.py:366-371`, so a declared command's reads stay last and stay read-only. Module docstring at `hooks/bwrap-wrap.py:42` gains the key.
+
+`hooks/bwrap_wrap_selftest.py`. Rules into the single dict at `hooks/bwrap_wrap_selftest.py:162`, built against a real tree like the rest: a live entry appears writable; an absent source is not named; a relative entry is not named; `~` with `HOME` unset is not named; `/run/user/1000/bus`, a path under `/tmp`, `/dev`, `/proc`, `~/.gitconfig` and `$HOME` are not named; an entry under the checkout, equal to it, and an ancestor of it are not named; an entry under a worktree is not named; a symlink outside every checkout whose target is inside one is not named; a reviewer profile carries none; a malformed list binds nothing; one path named twice binds once; `read_only_paths` output still follows every extra in argument order.
+
+`scripts/init.py`. `declaration()` at `scripts/init.py:71` writes the ninth key from `lane_config.DEFAULT_EXTRA_BINDS`, beside `scripts/init.py:81`. Self-test rule 2 is code, not prose: the hand-built set at `scripts/init.py:180-183` gains the key, and the literal `8` at `scripts/init.py:186` becomes `9`, or rule 2 fails on `set(loaded) == expected` before it reaches the count.
+
+Key-count prose, all seven statements together: `hooks/lane_config.py:3`, `hooks/lane_config.py:467`, `scripts/init.py:22`, `scripts/init.py:72`, `scripts/init.py:184`, `README.md:87`, `README.md:89`. Derived-lane count is unchanged at four: `extra_binds` is a file key, not a lane.
+
+`CHANGELOG.md:5` takes an entry under `[Unreleased]`, same commit. Kit a consumer installs; the two splits are internal and take none.
+
+Tests under `tests/` are not touched here. They change at stage 2, through an approved spec block and the `scrivener`.
+
+## Caller-side delta
+
+Imports move where a split moves a name, and nothing else does. Eight sites in five files take `lane_declaration` and two bindings take `bwrap_probe`, both sets named under **Which files get touched, and roughly how**. No moved function changes spelling or signature.
+
+`hooks/shell_shapes.py:28` unchanged: the `--config` key set lives in `lane_config.CONFIG_READERS`, not in that file.
+
+`docs/agents.md` unchanged: it carries no key count and no sandbox profile. It names two keys at `docs/agents.md:78`, `target_branch` and `gate_command`, and neither moves.
+
+`.claude/blind-reads.json` in this repo unchanged. The omitted key takes `[]`.
+
+## What it costs
+
+A writable path outside every checkout is in no lane, so no lane hook guards it. Lane hooks judge a write by its lane directory. The sandbox is the only thing holding that path today, and this key opens it by the project's own word — the price of the brief's "arbitrary paths".
+
+`hooks/lane_config.py:446` — "disagree about the same directory, and a shell reaches the lane the write" — is the failure the middle drop exists to stop, and an entry over a mask, over `/dev`, over `/proc` or over `~/.gitconfig` is the same failure outside a lane.
+
+Each split moves code across a file boundary, where a misplaced name is an import error in a hook that runs on every tool call.
+
+Prose churn: seven key-count statements move together. A missed one is a doc contradicting `--config`.
+
+Left out, not asked for: `CHANGELOG.md:44` reads "all eight keys" inside the released `0.2.x` entry and is not touched, because a released entry records what shipped then. `scripts/blind.sh:72` builds its own `bwrap` and is untouched, so the two passthrough agents get no extras.
+
+## Open questions
+
+1. Brief sentence 2, "Proceed with a plan through the gate.", is `dropped:` above: it names the procedure this file runs through rather than content any section carries.
+
+--- reviewer ---
+READY
+
+a  PASS  No existing name is redefined behind something else. The two redefinitions are the proposal, stated outright: "Ninth key in `.claude/blind-reads.json`", with `hooks/lane_config.py:3` ("carries eight keys, and they are the whole of what varies") moved to nine, and "Two modules appear, holding code that moves unchanged."
+b  PASS  Every citation resolves against the line it names. This round's changed ones: the module docstring runs `hooks/lane_config.py:1-24`, and the split the plan states matches it — `:1-17` is the title, where the file is read from, and the fault paragraph, all of which belong to `config`, `ConfigFault` and `_declared`; `:19-23` is "The three directories resolve together while the scalars and runners resolve per key", which stays. `_declared()` is called at `:353`, `:359`, `:365` and `:371`, the four the plan names. `scripts/init.py:246` is `source = f"import sys; sys.path.insert(0, {_HOOKS!r}); import lane_config; {call}"`. Standing from earlier rounds and re-resolved where they carry a quote: `hooks/bwrap-wrap.py:42`, `:45`, `:46-47`, `:135`, `:196`, `:238`, `:275-277`, `:278-281`, `:284-287`, `:295`, `:306`, `:334`, `:339`, `:352`, `:356`, `:364`, `:366-371`; `hooks/lane_config.py:42`, `:179`, `:182`, `:205`, `:277`, `:446`, `:467`, `:471`; `hooks/lane_paths.py:94`; `hooks/bwrap_wrap_selftest.py:26`, `:33`, `:36`, `:88`, `:100`, `:150`, `:162`, `:280`; `hooks/shell_shapes.py:28`, `:29`; `hooks/hook_shape.py:31`; `scripts/pair/trees.py:52`; `scripts/pair/cli.py:43`, `:411`; `scripts/init.py:22`, `:71`, `:72`, `:81`, `:101`, `:180-183`, `:184`, `:186`, `:260`, `:268`; `scripts/gates/file-length.py:26`, `:46`, `:54-61`; `docs/agents.md:78`; `README.md:87`, `:89`; `CHANGELOG.md:5`, `:44`; `scripts/blind.sh:72`; commit `02eedfb`. The two `ASSUMED` tags take the escape — a resting line count cannot be read off a tree where the split does not exist yet, both say measured at implementation, and both arithmetics check: `498 - 138` is the "near 360" claimed, `417 - 62` leaves 355 under "near 358", and `wc -l` gives the 498 and 417 the `ALLOWANCE` table holds. `discovery: detective` is present, and the plan cites files well outside its touched list.
+c  PASS  My count and the plan's agree. `lane_declaration`: eight sites in five files — `hooks/shell_shapes.py:29`, `hooks/hook_shape.py:31`, `scripts/pair/trees.py:52`, `scripts/pair/cli.py:411`, `scripts/init.py:101`, `:260`, `:268` and the prelude at `:246`, with `scripts/init.py` carrying three of the eight. `bwrap_probe`: the call at `hooks/bwrap-wrap.py:238` and the two bindings at `hooks/bwrap_wrap_selftest.py:33` and `:36`. No forwarder is left behind — the plan refuses the re-export outright — so every moved name changes the file it is imported from and nothing changes its spelling.
+d  PASS  Both causes are named upstream of any appearance. The key: the writable set is fixed in hook code at `hooks/bwrap-wrap.py:42`, the readable set is already universal at `:275-277`, and the declaration carries no bind key at `hooks/lane_config.py:3`. The splits: the ratchet holds both files at their measured length, and `scripts/gates/file-length.py:26` says a file that needs room needs a split. The fix list shrank rather than grew across six rounds.
+e  PASS  Every rule the change touches is named and kept, and none is overturned in silence: the two tmpfs masks at `hooks/bwrap-wrap.py:284-287` and the D-Bus reason at `:46-47`; the `/dev` and `/proc` substitutions at `:278-281`; `~/.gitconfig` read-only at `:352` and `:45`; the lane binds at `:356` and `:364` under the hook-and-mount-table rule at `hooks/lane_config.py:446`; the reviewer profile at `:339`; the ratchet at `scripts/gates/file-length.py:20-26`, including that an allowance comes down or comes out and never up; init's self-test rule 2 at `scripts/init.py:180-186`, whose hand-built set is code rather than prose; the no-barrel convention of `02eedfb`, quoted from `scripts/pair/cli.py:43`; and `tests/`, which stays for stage 2 under an approved spec block.
+f  PASS  The protected enumeration is complete against `_base` at `hooks/bwrap-wrap.py:273-292`: `/dev`, `/proc`, `/run/user` and `/tmp` are named, `--ro-bind / /` is what the key stands over by design, and `--unshare-pid`, `--die-with-parent` and `--chdir` bind nothing. Readings given at the edges: key omitted, malformed list, non-absolute, `HOME` unset, absent source, equal to a protected path, inside one, an ancestor of one, a symlink resolved to its target, two entries naming one path, and the reviewer profile. The one alias `hooks/lane_paths.py:94` does not collapse is a hardlink, which `hooks/lane_paths.py:108-110` declares as a limit left open for every lane comparison in the kit and which no wrapped shell can create. The splits add no state of their own beyond the two resting lengths, and those carry `ASSUMED`.
+g  PASS  One open question, and it is the `dropped:` line of brief sentence 2 repeated, which (i) requires to sit there. It asks for no ruling that changes the work either way, so it is neither an escalation nor padding.
+h  PASS  Every reach claim carries a mechanism that holds. "Readable is not the gap" against `--ro-bind / /`; "Reviewer profile takes no extras" against a single call in the non-reviewer branch of `hooks/bwrap-wrap.py:334`; "Imports move where a split moves a name, and nothing else does" against a one-hop trace of both splits — every user of a moved name is one of the eight sites or one of the two self-test bindings, and `tests/support/pair_fixture.py:19` picks up a new module by glob rather than by name, so the two new files reach no test list. What the plan says it leaves alone it leaves alone: `hooks/shell_shapes.py:28`, which dispatches through `CONFIG_READERS`; `docs/agents.md`, which names two keys at `docs/agents.md:78` and no count; `scripts/blind.sh:72`, which builds its own `bwrap`; `CHANGELOG.md`, which takes the key's entry and none for the splits; and the seven key-count statements, which are the whole set outside `.venv`, with nothing under `tests/` naming a count.
+i  PASS  Block present under `brief:`, the owner's words quoted verbatim, one line per sentence and nothing beneath either. Sentence 1 carries `delivered:` naming **Which files get touched, and roughly how**, a section the body has; sentence 2 carries `dropped:` with its reason and reappears as the only open question.
+j  N/A   This project's architecture doc names no composition-root file, so the check has no surface here.
+k  PASS  "How can we make the package able to extend `bwrap` to bind arbitrary paths in addition to the source dir?" read against the element its `delivered:` line names: the element binds a project-named path outside the source dir writable, which is the whole of what a bind adds over `--ro-bind / /`, and the drops refuse only paths whose binding would unmake the wrap the sentence asks to extend. Nothing in the element carries a condition the sentence does not state, and no case the sentence covers is left out.
+l  PASS  Every sentence carries a fact not already beside its citation or in an earlier section, and the plan names the section rather than restating it where it needs a fact twice — "per **What is wrong**" at the mode field, "the ratchet under **What is wrong**" at the splits, "both sets named under **Which files get touched, and roughly how**" at the caller-side delta. Nothing cut in rounds 2 through 5 has come back.
