@@ -26,6 +26,7 @@ sys.path.insert(0, _HOOKS)
 
 try:
     import lane_config  # noqa: E402
+    import lane_declaration  # noqa: E402
 except ImportError:  # pragma: no cover - a checkout missing half the kit
     sys.exit(f"pair: no lane_config.py in {_HOOKS}: scripts/ ships with hooks/")
 
@@ -49,7 +50,7 @@ def _root() -> str:
     project = os.environ.get("CLAUDE_PROJECT_DIR")
     if project and (Path(project) / ".git").exists():
         return str(Path(project).resolve())
-    root = lane_config.project_checkout(Path.cwd().resolve())
+    root = lane_declaration.project_checkout(Path.cwd().resolve())
     if root is None:
         sys.exit("pair: not inside a git checkout")
     return str(root)

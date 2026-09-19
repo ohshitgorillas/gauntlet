@@ -3,7 +3,7 @@
 
 The kit ships as a plugin and lives outside the checkout it runs for, so the
 one thing a project has to say for itself is where its directories are. That
-declaration is `<project>/.claude/blind-reads.json`, and `lane_config.config`
+declaration is `<project>/.claude/blind-reads.json`, and `lane_declaration.config`
 faults without it rather than falling back on the kit's defaults: a project
 that never wrote the file and a project that meant the defaults are different
 facts, and only one of them is safe to guess at. This script is the deliberate
@@ -19,7 +19,7 @@ replace by accident. `--print` writes nothing and prints what would be written.
 
 The values it writes are the kit's defaults, read out of `lane_config` rather
 than retyped here, so a project starts from the shipped layout and edits the
-file by hand from there. All eight keys are written out, present and explicit,
+file by hand from there. All nine keys are written out, present and explicit,
 because a key a project can see is a key it can change.
 
 It also creates the skeleton under `gauntlet_dir`: the four lanes the agents
@@ -46,6 +46,7 @@ sys.path.insert(0, _HOOKS)
 
 try:
     import lane_config  # noqa: E402
+    import lane_declaration  # noqa: E402
 except ImportError:
     sys.exit(f"init.py: no lane_config.py in {_HOOKS}: scripts/ ships with hooks/")
 
@@ -69,7 +70,7 @@ SKELETON = (
 
 
 def declaration() -> dict[str, Any]:
-    """The eight keys and the kit's default for each, in a stable order.
+    """The nine keys and the kit's default for each, in a stable order.
 
     The defaults are `lane_config`'s own tables, not a copy: a second copy of
     `target_branch` here is a second answer the day the first one changes.
@@ -79,6 +80,7 @@ def declaration() -> dict[str, Any]:
     written.update(lane_config.DEFAULT_SCALARS)
     written.update(lane_config.DEFAULT_RUNNERS)
     written["unwrapped_commands"] = dict(lane_config.DEFAULT_UNWRAPPED)
+    written["extra_binds"] = list(lane_config.DEFAULT_EXTRA_BINDS)
     return written
 
 
@@ -98,7 +100,7 @@ def default_project() -> Path:
     named = os.environ.get("CLAUDE_PROJECT_DIR")
     if named:
         return Path(named)
-    root = lane_config.project_checkout(Path.cwd().resolve())
+    root = lane_declaration.project_checkout(Path.cwd().resolve())
     return root if root else Path.cwd().resolve()
 
 
@@ -179,11 +181,11 @@ def self_test() -> int:
             set(lane_config.DEFAULT_DIRS)
             | set(lane_config.DEFAULT_SCALARS)
             | set(lane_config.DEFAULT_RUNNERS)
-            | {"unwrapped_commands"}
+            | {"unwrapped_commands", "extra_binds"}
         )
-        rules["2 it carries all eight keys, explicitly"] = set(loaded) == expected and len(
+        rules["2 it carries all nine keys, explicitly"] = set(loaded) == expected and len(
             expected
-        ) == 8
+        ) == 9
 
         rules["3 every value is the kit's default, not a second copy"] = loaded == declaration()
 
@@ -243,7 +245,10 @@ def _in_project(project: Path, call: str) -> str:
     """
     import subprocess
 
-    source = f"import sys; sys.path.insert(0, {_HOOKS!r}); import lane_config; {call}"
+    source = (
+        f"import sys; sys.path.insert(0, {_HOOKS!r}); "
+        f"import lane_config; import lane_declaration; {call}"
+    )
     environment = dict(os.environ, CLAUDE_PROJECT_DIR=str(project))
     completed = subprocess.run(
         [sys.executable, "-c", source],
@@ -256,16 +261,20 @@ def _in_project(project: Path, call: str) -> str:
 
 
 def _fault_of(project: Path) -> str | None:
-    """`lane_config.config_fault` for that project, or `None`."""
-    printed = _in_project(project, "print(lane_config.config_fault() or '', end='')")
+    """`lane_declaration.config_fault` for that project, or `None`."""
+    printed = _in_project(project, "print(lane_declaration.config_fault() or '', end='')")
     return printed or None
 
 
 def _reads_back(project: Path) -> dict[str, Any]:
-    """The declaration `lane_config` reads back out of that project."""
+    """The declaration `lane_declaration` reads back out of that project."""
     import json as _json
 
-    return dict(_json.loads(_in_project(project, "import json; print(json.dumps(lane_config.config()))")))
+    return dict(
+        _json.loads(
+            _in_project(project, "import json; print(json.dumps(lane_declaration.config()))")
+        )
+    )
 
 
 if __name__ == "__main__":

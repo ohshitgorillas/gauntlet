@@ -52,11 +52,11 @@ TRACKED = ("*.py", "*.sh")
 #: file shrinks — the gate insists on it. Do not raise one; that is the crawl
 #: this table exists to refuse.
 ALLOWANCE: dict[str, int] = {
-    "hooks/lane_config.py": 498,
     "scripts/cite.py": 471,
     "scripts/pair/cli.py": 450,
     "hooks/gauntlet-off.py": 426,
-    "hooks/bwrap-wrap.py": 417,
+    "hooks/bwrap-wrap.py": 416,
+    "hooks/bwrap_wrap_selftest.py": 402,
     "hooks/lanes_selftest.py": 401,
 }
 

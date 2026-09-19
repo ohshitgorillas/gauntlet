@@ -28,7 +28,8 @@ from hook_payload import (
     payload_fault,
     undecidable,
 )
-from lane_config import DEFAULT_DIRS, config_fault, dirs
+from lane_config import DEFAULT_DIRS, dirs
+from lane_declaration import config_fault
 from lane_paths import bypassed, path_in_lane
 
 
