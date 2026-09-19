@@ -25,7 +25,10 @@ from types import ModuleType
 GATE_PATH = Path(__file__).resolve().parent / "gates-wired.py"
 
 #: A `*.py` entry point: an underscore-free name with a `__main__` guard.
-ENTRY = '#!/usr/bin/env python3\n\n\ndef main():\n    return 0\n\n\nif __name__ == "__main__":\n    main()\n'
+ENTRY = (
+    "#!/usr/bin/env python3\n\n\ndef main():\n    return 0\n\n\n"
+    'if __name__ == "__main__":\n    main()\n'
+)
 
 #: The same, offering `--self-test`.
 ENTRY_SELF_TEST = ENTRY.replace("def main():", "def self_test():\n    return 0\n\n\ndef main():")
@@ -148,7 +151,7 @@ def self_test() -> int:  # noqa: PLR0915
 
     status, _ = _run(
         {gate: ENTRY},
-        [f'"pytest|env PYTHONPATH=$root $pytest tests -q"', f'"shape|python3 {gate}"'],
+        ['"pytest|env PYTHONPATH=$root $pytest tests -q"', f'"shape|python3 {gate}"'],
     )
     check("an entry that names no script path is no stale entry", status, 0)
 

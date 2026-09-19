@@ -119,10 +119,9 @@ def _count_assertions(node: ast.AST, *, in_loop: bool = False) -> tuple[int, boo
             weight, sweep = _weight(child)
             count += weight
             looped = looped or in_loop or sweep
-        elif isinstance(child, ast.Call) and _is_framework_assert(child):
-            count += 1
-            looped = looped or in_loop
-        elif isinstance(child, (ast.With, ast.AsyncWith)) and _is_raises(child):
+        elif (isinstance(child, ast.Call) and _is_framework_assert(child)) or (
+            isinstance(child, (ast.With, ast.AsyncWith)) and _is_raises(child)
+        ):
             count += 1
             looped = looped or in_loop
         sub_count, sub_looped = _count_assertions(
@@ -194,7 +193,7 @@ def _test_findings(
     return findings
 
 
-def _asserts_in(fn: ast.AST) -> list[ast.AST]:
+def _asserts_in(fn: ast.AST) -> list[ast.Assert | ast.Call]:
     """Every assertion a function makes itself, bare `assert` and framework alike."""
     return [
         node
@@ -286,6 +285,7 @@ def tracked_tests() -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=60,
     )
     return [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
 
@@ -297,7 +297,8 @@ def check(names: list[str], exempt: dict[str, str] | None = None) -> int:
         print(describe(finding))
     if findings:
         print(
-            f"\n{len(findings)} problem(s). One assertion per test, and a test reaches only the public surface."
+            f"\n{len(findings)} problem(s). "
+            "One assertion per test, and a test reaches only the public surface."
         )
         return 1
     return 0

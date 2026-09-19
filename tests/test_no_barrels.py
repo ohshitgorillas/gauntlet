@@ -28,6 +28,7 @@ def _run(cwd, args):
         cwd=str(cwd),
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
     return done.returncode, done.stdout

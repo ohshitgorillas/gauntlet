@@ -115,7 +115,7 @@ def block_kind(text: str) -> str:
 
 
 def _git(*args: str) -> tuple[int, str]:
-    done = subprocess.run(("git", *args), capture_output=True, text=True, check=False)
+    done = subprocess.run(("git", *args), capture_output=True, text=True, check=False, timeout=60)
     return done.returncode, done.stdout
 
 

@@ -32,7 +32,10 @@ CHECK = GATE.check
 
 FLAT = "def f(level):\n    return level + 1\n"
 
-DEPTH_FOUR = "def f():\n    if a:\n        if b:\n            if c:\n                if d:\n                    pass\n"
+DEPTH_FOUR = (
+    "def f():\n    if a:\n        if b:\n            if c:\n"
+    "                if d:\n                    pass\n"
+)
 
 DEPTH_FIVE = (
     "def f():\n"
@@ -199,6 +202,7 @@ def test_omitting_the_exemption_mapping_falls_back_to_the_shipped_one(
     assert CHECK([path]) == 0
 
 
-def test_main_with_no_argv_falls_back_to_tracked_files(tmp_path: Path, monkeypatch: Any) -> None:
-    """With no paths on argv, the gate reads `git ls-files` — the shipped tree passes its own gate."""
+def test_main_with_no_argv_falls_back_to_tracked_files() -> None:
+    """With no paths on argv, the gate reads `git ls-files` — the shipped tree
+    passes its own gate."""
     assert GATE.main(["nesting.py"]) == 0

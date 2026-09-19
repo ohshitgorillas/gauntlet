@@ -14,7 +14,10 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "gates-wired.py"
 WIRING = "scripts/gates/check-gates.sh"
 
-ENTRY = '#!/usr/bin/env python3\n\n\ndef main():\n    return 0\n\n\nif __name__ == "__main__":\n    main()\n'
+ENTRY = (
+    "#!/usr/bin/env python3\n\n\ndef main():\n    return 0\n\n\n"
+    'if __name__ == "__main__":\n    main()\n'
+)
 ENTRY_SELF_TEST = ENTRY.replace("def main():", "def self_test():\n    return 0\n\n\ndef main():")
 SUPPORT = '"""A helper."""\n\n\ndef self_test():\n    return 0\n'
 SHELL_SELF_TEST = "#!/usr/bin/env bash\n[[ $1 == --self-test ]] && exit 0\n"
@@ -44,6 +47,7 @@ def _run(root, files, entries):
         cwd=root,
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

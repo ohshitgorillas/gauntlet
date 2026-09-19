@@ -21,12 +21,12 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from types import ModuleType
+from typing import Any
 
 SCRIPT_PATH = Path(__file__).resolve().parent / "cite.py"
 
 
-def _load_script() -> ModuleType:
+def _load_script() -> Any:
     """Import the resolver by path, so a self-test run reaches the file beside it."""
     spec = importlib.util.spec_from_file_location("cite_under_test", SCRIPT_PATH)
     if spec is None or spec.loader is None:
@@ -41,7 +41,9 @@ CITE = _load_script()
 
 def _git(repo: Path, *args: str) -> None:
     """Run one git command in `repo`, failing loudly."""
-    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True, timeout=60
+    )
 
 
 def self_test() -> int:

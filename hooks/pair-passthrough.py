@@ -55,6 +55,7 @@ from __future__ import annotations
 import re
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -157,14 +158,15 @@ def read_only_paths(root: str) -> list[str]:
     return sorted(paths)
 
 
-def _with_declaration(declared: dict[str, Any], body):
+def _with_declaration[T](declared: dict[str, Any], body: Callable[[], T]) -> T:
     """Run `body` with `declared` standing in for the project's own word."""
-    original = lane_config.unwrapped_commands
-    lane_config.unwrapped_commands = lambda: declared  # type: ignore[assignment]
+    config: Any = lane_config
+    original = config.unwrapped_commands
+    config.unwrapped_commands = lambda: declared
     try:
         return body()
     finally:
-        lane_config.unwrapped_commands = original  # type: ignore[assignment]
+        config.unwrapped_commands = original
 
 
 def self_test() -> int:
@@ -214,16 +216,17 @@ def self_test() -> int:
             == [str(Path(root) / "present.txt")],
         }
 
+    #: every shape a project can mistype the key as, each of which voids it
+    unusable: tuple[Any, ...] = (
+        [declared_text],
+        {declared_text: ["present.txt"]},
+        {declared_text: {"reads": "present.txt"}},
+        {declared_text: {"reads": [1]}},
+        {"": {"reads": []}},
+    )
     shape_rules = {
         "an unusable entry voids the whole mapping": all(
-            lane_config.unwrapped_from({"unwrapped_commands": bad}) == {}
-            for bad in (
-                [declared_text],
-                {declared_text: ["present.txt"]},
-                {declared_text: {"reads": "present.txt"}},
-                {declared_text: {"reads": [1]}},
-                {"": {"reads": []}},
-            )
+            lane_config.unwrapped_from({"unwrapped_commands": bad}) == {} for bad in unusable
         ),
         "a key the file omits declares nothing": lane_config.unwrapped_from({}) == {},
         "a declaration the file carries is read as written": lane_config.unwrapped_from(

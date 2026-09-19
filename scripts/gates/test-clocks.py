@@ -126,6 +126,7 @@ def tracked_tests() -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=60,
     )
     return [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
 
@@ -137,8 +138,9 @@ def check(names: list[str]) -> int:
         print(problem)
     if problems:
         print(
-            f"\n{len(problems)} real clock(s) under tests/. A poll waits on a condition and a deadline"
-            " comes from a seam the test controls; docs/testing.md rule 7 is the rule."
+            f"\n{len(problems)} real clock(s) under tests/. A poll waits on a condition "
+            "and a deadline comes from a seam the test controls; docs/testing.md rule 7 "
+            "is the rule."
         )
         return 1
     return 0

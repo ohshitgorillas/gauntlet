@@ -44,7 +44,10 @@ UNITTEST_TWO = (
     "        self.assertEqual(compute(), 3)\n"
     "        self.assertEqual(compute(), 4)\n"
 )
-SEEDED = "def test_seeded():\n    reply = 'alpha beta gamma'\n    assert send(reply) == 'alpha beta gamma'\n"
+SEEDED = (
+    "def test_seeded():\n    reply = 'alpha beta gamma'\n"
+    "    assert send(reply) == 'alpha beta gamma'\n"
+)
 COPY = "def test_copy():\n    assert send() == 'alpha beta gamma'\n"
 UNITTEST_COPY = (
     "import unittest\n\n\n"

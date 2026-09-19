@@ -71,7 +71,8 @@ FORWARDER_EXEMPT: dict[str, str] = {}
 
 
 def named_all(node: ast.stmt) -> bool:
-    """Report whether a statement assigns `__all__`, which manifests a re-export rather than defining anything."""
+    """Report whether a statement assigns `__all__`, which manifests a re-export
+    rather than defining anything."""
     targets = (
         node.targets
         if isinstance(node, ast.Assign)
@@ -182,6 +183,7 @@ def tracked_files() -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=60,
     )
     names = [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
     return [name for name in names if name.startswith(ROOTS)]

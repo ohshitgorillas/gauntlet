@@ -185,6 +185,7 @@ def tracked_md() -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=60,
     )
     return [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
 

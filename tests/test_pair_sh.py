@@ -37,7 +37,7 @@ from tests.support.pair_fixture import (
 
 
 @pytest.mark.parametrize(
-    "review_text,expected",
+    ("review_text", "expected"),
     [
         (REVIEWER, "OPEN .claude/worktrees/demo-spec"),
         (DIVERGED_REVIEWER, "MISMATCH gauntlet/reviews/demo.1.txt"),
@@ -52,7 +52,7 @@ def test_open_reports_mismatch_only_where_the_round_file_text_differs(
 
 
 @pytest.mark.parametrize(
-    "block,expected",
+    ("block", "expected"),
     [
         (BLOCK_WHOLE_FILE, {"test_a.py"}),
         (BLOCK_SINGLE_TEST, {"test_a.py", "test_b.py"}),
@@ -99,7 +99,7 @@ def _red_text(tmp_path, suite):
 
 
 @pytest.mark.parametrize(
-    "suite,expected",
+    ("suite", "expected"),
     [
         (
             ALPHA_SUITE,
@@ -169,7 +169,7 @@ def _printed(lines, repo):
 
 
 @pytest.mark.parametrize(
-    "target,expected",
+    ("target", "expected"),
     [("first", BLOCK_NEW), ("second", BLOCK_V2)],
     ids=["restore-the-first-revision", "restore-the-second-revision"],
 )
@@ -181,7 +181,7 @@ def test_restore_puts_the_blocks_bytes_at_the_named_revision_back_on_disk(
 
 
 @pytest.mark.parametrize(
-    "target,expected",
+    ("target", "expected"),
     [("first", BLOCK_NEW), ("second", BLOCK_V2)],
     ids=["restore-the-first-revision", "restore-the-second-revision"],
 )
@@ -202,7 +202,7 @@ def _review(tmp_path, rounds, args):
 
 
 @pytest.mark.parametrize(
-    "rounds,args,expected",
+    ("rounds", "args", "expected"),
     [
         ((), (SLUG,), "REVIEW gauntlet/reviews/demo.2.txt"),
         (("demo.2.txt", "demo.3.txt"), (SLUG,), "REVIEW gauntlet/reviews/demo.4.txt"),
@@ -289,7 +289,7 @@ def _respec_shape(lines, tree):
 
 
 @pytest.mark.parametrize(
-    "round_text,block_text,expected",
+    ("round_text", "block_text", "expected"),
     [
         (NEW_ROUND, _with_round(BODY_V2, NEW_ROUND), ("RESPEC", _with_round(BODY_V2, NEW_ROUND))),
         # the block's reviewer section is not the round file on disk
@@ -315,6 +315,7 @@ def _pair_state(repo):
         env=dict(ENV),
         capture_output=True,
         text=True,
+        check=False,
     ).stdout
     return (listed, _worktree(repo).is_dir(), bool(branches.strip()))
 
@@ -345,7 +346,7 @@ def _listing_shape(state):
 
 
 @pytest.mark.parametrize(
-    "verb,expected",
+    ("verb", "expected"),
     [
         ("abort", (("NO PAIRS",), False, False)),
         (None, (("PAIR demo",), True, True)),

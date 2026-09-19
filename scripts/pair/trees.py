@@ -120,7 +120,9 @@ def impl_branch(slug: str) -> str:
 def git(*args: str, tree: str | None = None, check: bool = True) -> str:
     """One git command, in the primary checkout unless `tree` names another."""
     where = path(tree) if tree else ROOT
-    done = subprocess.run(("git", "-C", where, *args), capture_output=True, text=True, check=False)
+    done = subprocess.run(
+        ("git", "-C", where, *args), capture_output=True, text=True, check=False, timeout=60
+    )
     if check and done.returncode != 0:
         die("pair: git " + " ".join(args) + " failed:\n" + done.stderr.rstrip())
     return done.stdout.strip()
@@ -133,7 +135,9 @@ def git_out(*args: str, tree: str | None = None) -> str:
     script editing what the reviewer is shown.
     """
     where = path(tree) if tree else ROOT
-    done = subprocess.run(("git", "-C", where, *args), capture_output=True, text=True, check=False)
+    done = subprocess.run(
+        ("git", "-C", where, *args), capture_output=True, text=True, check=False, timeout=60
+    )
     return done.stdout
 
 
@@ -142,7 +146,11 @@ def git_ok(*args: str, tree: str | None = None) -> bool:
     where = path(tree) if tree else ROOT
     return (
         subprocess.run(
-            ("git", "-C", where, *args), capture_output=True, text=True, check=False
+            ("git", "-C", where, *args),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
         ).returncode
         == 0
     )
@@ -220,7 +228,13 @@ def in_tree(tree: str, argv: list[str]) -> int:
     #: middle of a contract line the reviewer's brief is read from.
     sys.stdout.flush()
     done = subprocess.run(
-        argv, cwd=where, env=environment, stdout=sys.stderr, stderr=sys.stderr, check=False
+        argv,
+        cwd=where,
+        env=environment,
+        stdout=sys.stderr,
+        stderr=sys.stderr,
+        check=False,
+        timeout=600,
     )
     return done.returncode
 
@@ -231,7 +245,13 @@ def capture_in_tree(tree: str, argv: list[str]) -> str:
     environment = dict(os.environ)
     environment["PYTHONPATH"] = where
     done = subprocess.run(
-        argv, cwd=where, env=environment, capture_output=True, text=True, check=False
+        argv,
+        cwd=where,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=600,
     )
     return done.stdout + done.stderr
 

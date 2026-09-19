@@ -37,7 +37,9 @@ for what is wired, and the wrong one.
 import argparse
 import json
 import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -161,8 +163,6 @@ def main(argv: list[str]) -> int:
 
 def self_test() -> int:
     """Pin what this script exists to hold, on throwaway trees."""
-    import tempfile
-
     rules: dict[str, bool] = {}
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "project"
@@ -241,8 +241,6 @@ def _in_project(project: Path, call: str) -> str:
     A fresh interpreter, because `lane_config` caches the declaration for the
     life of a process and this self-test asks about several projects.
     """
-    import subprocess
-
     source = (
         f"import sys; sys.path.insert(0, {_HOOKS!r}); "
         f"import lane_config; import lane_declaration; {call}"
@@ -254,6 +252,7 @@ def _in_project(project: Path, call: str) -> str:
         text=True,
         env=environment,
         check=False,
+        timeout=60,
     )
     return completed.stdout
 
@@ -266,10 +265,8 @@ def _fault_of(project: Path) -> str | None:
 
 def _reads_back(project: Path) -> dict[str, Any]:
     """The declaration `lane_declaration` reads back out of that project."""
-    import json as _json
-
     return dict(
-        _json.loads(
+        json.loads(
             _in_project(project, "import json; print(json.dumps(lane_declaration.config()))")
         )
     )

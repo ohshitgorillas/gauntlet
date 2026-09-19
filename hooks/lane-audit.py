@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -122,9 +124,6 @@ def main() -> None:
 
 def self_test() -> int:  # noqa: PLR0915
     """Pin what this hook prints, what it stays quiet about, and that it never blocks."""
-    import os
-    import subprocess
-
     lane = lanes.SPECS
     root = "/repo"
 

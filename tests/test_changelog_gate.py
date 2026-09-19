@@ -13,7 +13,9 @@ DIRTY = "# Changelog\n\n## [Unreleased]\n\n### Fixed\n- no bold lead here\n"
 
 def _run(args):
     """Invoke the gate as a subprocess with `args` on argv; return the completed process."""
-    return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True)
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, check=False
+    )
 
 
 # 1
@@ -64,7 +66,7 @@ def test_no_path_on_argv_falls_back_to_the_repo_changelog():
 
 
 # 6
-def test_no_path_on_argv_reads_the_real_changelog_not_a_missing_default(tmp_path):
+def test_no_path_on_argv_reads_the_real_changelog_not_a_missing_default():
     done = _run([])
 
     assert done.returncode in (0, 1)

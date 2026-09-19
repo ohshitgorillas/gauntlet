@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -253,8 +254,6 @@ def survives_hostile_payloads(
     its first line, and every payload would pass without touching the code the
     check exists to exercise.
     """
-    import subprocess
-
     environment = dict(os.environ)
     environment.pop("GAUNTLET", None)
     for payload, tool, usable in HOSTILE_PAYLOADS:

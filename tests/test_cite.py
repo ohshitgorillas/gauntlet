@@ -32,6 +32,7 @@ def _check(tmp_path, body):
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
     return done
@@ -62,6 +63,7 @@ def _fix(doc):
         cwd=doc.parent,
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
     return doc.read_text()
@@ -78,7 +80,7 @@ def _inherited(done, candidates):
 
 # 1
 @pytest.mark.parametrize(
-    "citation,expected",
+    ("citation", "expected"),
     [
         (ALPHA + ":2", (0, [])),
         (ABSENT + ":2", (1, ["MISSING"])),
@@ -92,7 +94,7 @@ def test_a_path_the_checkout_does_not_have_is_reported_missing(tmp_path, citatio
 
 # 2
 @pytest.mark.parametrize(
-    "citation,expected",
+    ("citation", "expected"),
     [
         (ALPHA + ":2-3", (0, [])),
         (ALPHA + ":2-4", (1, ["RANGE"])),
@@ -124,6 +126,7 @@ def _check_from(root, body):
         cwd=root,
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
     return done
@@ -173,7 +176,7 @@ def test_a_root_under_claude_worktrees_resolves_the_same_rows_as_an_ordinary_one
 
 # 4
 @pytest.mark.parametrize(
-    "body,expected",
+    ("body", "expected"),
     [
         ("The rule is at `" + ALPHA + ":1`, and the guard at `:2`.\n", (0, [])),
         ("The guard sits at `:2` in that file.\n", (1, ["ORPHAN"])),
@@ -199,7 +202,7 @@ def test_a_continuation_names_the_file_it_inherited_whether_or_not_it_resolves(t
 
 # 6
 @pytest.mark.parametrize(
-    "first,second",
+    ("first", "second"),
     [(ALPHA, BETA), (BETA, ALPHA)],
     ids=["alpha-then-beta", "beta-then-alpha"],
 )
@@ -211,7 +214,7 @@ def test_a_continuation_inherits_the_nearest_preceding_citation(tmp_path, first,
 
 # 9
 @pytest.mark.parametrize(
-    "citation,expected_code",
+    ("citation", "expected_code"),
     [(ALPHA + ":1", 0), (ALPHA + ":9", 1)],
     ids=["unquoted-citation-in-range", "unquoted-citation-past-end-of-file"],
 )
@@ -284,7 +287,7 @@ def test_fix_fills_the_number_only_where_the_anchor_matches_one_line(tmp_path):
 
 # 10
 @pytest.mark.parametrize(
-    "outside_exists,expected",
+    ("outside_exists", "expected"),
     [(True, (0, ["CROSS-REPO"])), (False, (1, ["MISSING"]))],
     ids=["outside-path-exists", "outside-path-absent"],
 )
@@ -302,7 +305,7 @@ def test_an_absolute_path_outside_the_checkout_resolves_instead_of_missing(
 
 # 11
 @pytest.mark.parametrize(
-    "opener,closer,expected_code",
+    ("opener", "closer", "expected_code"),
     [("", "", 0), ("`", "`", 1)],
     ids=["bare-prose-number", "same-text-backticked"],
 )

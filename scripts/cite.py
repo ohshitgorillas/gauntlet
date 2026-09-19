@@ -244,6 +244,14 @@ def candidates(name: str) -> list[Path]:
     return sorted(hits)
 
 
+def _settle(cite: Citation, target: Path) -> None:
+    """Resolve to `target` where it is a file, MISSING otherwise."""
+    if target.is_file():
+        cite.resolved = target
+    else:
+        cite.verdict = "MISSING"
+
+
 def resolve(cite: Citation) -> None:
     """Set `resolved`, and a failing verdict where the path does not land."""
     named = cite.named
@@ -251,11 +259,7 @@ def resolve(cite: Citation) -> None:
         cite.verdict = "ORPHAN"
         return
     if named.startswith(PLUGIN_ROOT_VAR):
-        target = PLUGIN_ROOT / named[len(PLUGIN_ROOT_VAR) :]
-        if not target.is_file():
-            cite.verdict = "MISSING"
-            return
-        cite.resolved = target
+        _settle(cite, PLUGIN_ROOT / named[len(PLUGIN_ROOT_VAR) :])
         return
     path = Path(named)
     if path.is_absolute():
@@ -263,17 +267,10 @@ def resolve(cite: Citation) -> None:
             path.relative_to(ROOT)
         except ValueError:
             cite.detail = "outside the checkout"
-        if not path.is_file():
-            cite.verdict = "MISSING"
-            return
-        cite.resolved = path
+        _settle(cite, path)
         return
     if "/" in named:
-        target = ROOT / named
-        if not target.is_file():
-            cite.verdict = "MISSING"
-            return
-        cite.resolved = target
+        _settle(cite, ROOT / named)
         return
     hits = candidates(named)
     if not hits:
@@ -398,6 +395,8 @@ def tracked_markdown() -> list[str]:
         ["git", "ls-files", "-z", "*.md"],
         capture_output=True,
         text=True,
+        check=False,
+        timeout=60,
     )
     if listed.returncode != 0:
         raise SystemExit("--check-all with no document needs a checkout: git ls-files failed here")

@@ -66,8 +66,6 @@ variable unset. That property is itself one of the lines it pins, and it is
 
 from __future__ import annotations
 
-import contextlib
-import io
 import json
 import os
 import re

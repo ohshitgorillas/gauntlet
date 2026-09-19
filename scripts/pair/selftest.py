@@ -9,12 +9,12 @@ import re
 from pathlib import Path
 
 import blocks  # noqa: E402
-import trees  # noqa: E402
 
 #: imported here rather than taken from `trees`, which does not re-export them.
 import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
 import lane_paths  # noqa: E402
+import trees  # noqa: E402
 
 
 def self_test() -> int:

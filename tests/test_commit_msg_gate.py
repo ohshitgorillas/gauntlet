@@ -22,6 +22,7 @@ def _run(message: str) -> subprocess.CompletedProcess:
         input=message,
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

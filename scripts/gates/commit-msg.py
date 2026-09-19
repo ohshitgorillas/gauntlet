@@ -80,7 +80,8 @@ def check_commit(text: str, paths: list[str] | None = None) -> list[str]:
         return complaints
     if prefix in NO_APPROVED_DIFF and touches_approved(paths or []):
         complaints.append(
-            f"subject {subject!r}: a {prefix} commit touches {APPROVED_PATH} — that belongs in a spec: commit"
+            f"subject {subject!r}: a {prefix} commit touches {APPROVED_PATH} "
+            "— that belongs in a spec: commit"
         )
     return complaints
 
@@ -90,7 +91,7 @@ def message_of(ref: str | None) -> str:
     args = ["git", "log", "-1", "--format=%B"]
     if ref:
         args.append(ref)
-    return subprocess.run(args, capture_output=True, text=True, check=True).stdout
+    return subprocess.run(args, capture_output=True, text=True, check=True, timeout=60).stdout
 
 
 def paths_of(ref: str | None) -> list[str]:
@@ -100,6 +101,7 @@ def paths_of(ref: str | None) -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=60,
     )
     return [line for line in result.stdout.splitlines() if line]
 

@@ -39,7 +39,8 @@ GATE = _load_gate()
 
 
 def _run(source: str, extra: dict[str, str] | None = None) -> tuple[int, str]:
-    """Write a suite into a throwaway tree, run the gate over its module, and return status and stdout."""
+    """Write a suite into a throwaway tree, run the gate over its module, and
+    return status and stdout."""
     cwd = Path.cwd()
     with tempfile.TemporaryDirectory() as tmp:
         for relpath, text in {MODULE: source, **(extra or {})}.items():
@@ -59,10 +60,16 @@ def _run(source: str, extra: dict[str, str] | None = None) -> tuple[int, str]:
 SENTENCE = "the widget was refused"
 COPY = f"def test_copy():\n    assert reply() == '{SENTENCE}'\n"
 SEEDED = f"def test_seeded():\n    sent = '{SENTENCE}'\n    assert reply(sent) == '{SENTENCE}'\n"
-COMPOSED = f"def test_composed():\n    sent = '{SENTENCE}'\n    assert reply(sent) == '{SENTENCE}, {SENTENCE}'\n"
+COMPOSED = (
+    f"def test_composed():\n    sent = '{SENTENCE}'\n"
+    f"    assert reply(sent) == '{SENTENCE}, {SENTENCE}'\n"
+)
 HANDED = f"def test_handed():\n    assert words('{SENTENCE}') == 4\n"
 METHOD = f"def test_method():\n    assert body().count('{SENTENCE}') == 1\n"
-RAISES = f"import pytest\n\n\ndef test_raises():\n    with pytest.raises(ValueError, match='{SENTENCE}'):\n        reply()\n"
+RAISES = (
+    "import pytest\n\n\ndef test_raises():\n"
+    f"    with pytest.raises(ValueError, match='{SENTENCE}'):\n        reply()\n"
+)
 FRAMEWORK_COPY = (
     "import unittest\n\n\n"
     "class Suite(unittest.TestCase):\n"

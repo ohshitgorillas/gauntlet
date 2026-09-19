@@ -8,18 +8,24 @@ table, and `python3 hooks/lanes.py --self-test` runs it.
 
 from __future__ import annotations
 
+import contextlib
+import importlib
+import io
 import sys
+import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import lanes  # noqa: E402
 import hook_payload  # noqa: E402
 import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
 import lane_paths  # noqa: E402
+import lanes  # noqa: E402
 from lanes import (  # noqa: E402
+    _MISSING,
     GUARDS,
     JUROR,
     LANES,
@@ -31,21 +37,62 @@ from lanes import (  # noqa: E402
     VERDICTS,
     WRITER,
     _complaints,
-    _MISSING,
     _verdict,
     looping,
     stop,
 )
 
 
+def tree(tmp: str, *, red: str | None, verdict: str | None, order: str = "red-first") -> Path:
+    """A checkout with one red run and at most one verdict, mtimes ordered."""
+    base = Path(tmp)
+    (base / RED_DIR).mkdir(parents=True, exist_ok=True)
+    (base / VERDICTS).mkdir(parents=True, exist_ok=True)
+    writes = [(base / RED_DIR / "demo.txt", red), (base / VERDICTS / "demo.txt", verdict)]
+    if order != "red-first":
+        writes.reverse()
+    for index, (path, body) in enumerate(writes):
+        if index:
+            time.sleep(0.01)
+        if body is not None:
+            path.write_text(body)
+    return base
+
+
+def gate(**kw: Any) -> int:
+    #: the exit code is the subject; the block's own message is line 6's
+    with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()):
+        return stop(tree(tmp, **kw))
+
+
+def loop_gate(payload: str, **kw: Any) -> tuple[int, str]:
+    """`--stop`'s exit code and its stderr, for one `Stop` payload on stdin."""
+    held, stdin = io.StringIO(), sys.stdin
+    sys.stdin = io.StringIO(payload)
+    try:
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(held):
+            code = stop(tree(tmp, **kw), loop=looping())
+    finally:
+        sys.stdin = stdin
+    return code, held.getvalue()
+
+
+def slugs(**files: tuple[str, str | None]) -> list[str]:
+    """The slugs `--stop` names, for a tree of `slug=(red, verdict)` pairs."""
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        (base / RED_DIR).mkdir(parents=True)
+        (base / VERDICTS).mkdir(parents=True)
+        for slug, (red, verdict) in files.items():
+            (base / RED_DIR / f"{slug}.txt").write_text(red)
+            time.sleep(0.01)
+            if verdict is not None:
+                (base / VERDICTS / f"{slug}.txt").write_text(verdict)
+        return [line.split(":", 1)[0] for line in _complaints(base)]
+
+
 def self_test() -> int:  # noqa: PLR0915
     """Pin the spec lines of every lane in the table, and the `--stop` gate."""
-    import contextlib
-    import importlib
-    import io
-    import tempfile
-    import time
-
     root = "/repo"
     here = lane_paths.checkout_root(str(Path(__file__).resolve().parent)) or root
     spec = str(Path(here) / ".claude" / "worktrees" / "x-spec")
@@ -106,50 +153,6 @@ def self_test() -> int:  # noqa: PLR0915
 
     with tempfile.TemporaryDirectory() as paths_tmp:
         by_spelling = spellings(paths_tmp)
-
-    def tree(tmp: str, *, red: str | None, verdict: str | None, order: str = "red-first") -> Path:
-        """A checkout with one red run and at most one verdict, mtimes ordered."""
-        base = Path(tmp)
-        (base / RED_DIR).mkdir(parents=True, exist_ok=True)
-        (base / VERDICTS).mkdir(parents=True, exist_ok=True)
-        writes = [(base / RED_DIR / "demo.txt", red), (base / VERDICTS / "demo.txt", verdict)]
-        if order != "red-first":
-            writes.reverse()
-        for index, (path, body) in enumerate(writes):
-            if index:
-                time.sleep(0.01)
-            if body is not None:
-                path.write_text(body)
-        return base
-
-    def gate(**kw: Any) -> int:
-        #: the exit code is the subject; the block's own message is line 6's
-        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()):
-            return stop(tree(tmp, **kw))
-
-    def loop_gate(payload: str, **kw: Any) -> tuple[int, str]:
-        """`--stop`'s exit code and its stderr, for one `Stop` payload on stdin."""
-        held, stdin = io.StringIO(), sys.stdin
-        sys.stdin = io.StringIO(payload)
-        try:
-            with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(held):
-                code = stop(tree(tmp, **kw), loop=looping())
-        finally:
-            sys.stdin = stdin
-        return code, held.getvalue()
-
-    def slugs(**files: tuple[str, str | None]) -> list[str]:
-        """The slugs `--stop` names, for a tree of `slug=(red, verdict)` pairs."""
-        with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
-            (base / RED_DIR).mkdir(parents=True)
-            (base / VERDICTS).mkdir(parents=True)
-            for slug, (red, verdict) in files.items():
-                (base / RED_DIR / f"{slug}.txt").write_text(red)
-                time.sleep(0.01)
-                if verdict is not None:
-                    (base / VERDICTS / f"{slug}.txt").write_text(verdict)
-            return [line.split(":", 1)[0] for line in _complaints(base)]
 
     lines = {
         "specs 1 gauntlet/specs/approved/ closed to every agent but the arbiter": all(

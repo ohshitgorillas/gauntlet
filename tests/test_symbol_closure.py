@@ -28,6 +28,7 @@ def _closure(anchor, symbols):
         input="".join(symbol + "\n" for symbol in symbols),
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
     return done.stdout.splitlines()

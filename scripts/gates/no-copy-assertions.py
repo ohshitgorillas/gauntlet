@@ -131,7 +131,8 @@ def _targets(tree: ast.Module) -> list[tuple[str, ast.AST]]:
 
 
 def _asserted(tree: ast.Module) -> tuple[list[tuple[int, str, str]], set[int], list[str]]:
-    """Return the compared literals as (lineno, category, text), their node ids, and the handed-over inputs."""
+    """Return the compared literals as (lineno, category, text), their node ids,
+    and the handed-over inputs."""
     found: list[tuple[int, str, str]] = []
     seen: set[int] = set()
     handed: list[ast.Constant] = []
@@ -153,7 +154,8 @@ def _tests_root(path: Path) -> Path | None:
 
 @cache
 def _shared_pool(root: Path | None) -> Pool:
-    """Gather what `tests/support` wrote: literals and f-strings of its modules, bytes of its fixtures."""
+    """Gather what `tests/support` wrote: literals and f-strings of its modules,
+    bytes of its fixtures."""
     if root is None:
         return Pool(frozenset(), (), ())
     seeds: set[str] = set()
@@ -213,6 +215,7 @@ def tracked_tests() -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=60,
     )
     return [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
 
@@ -224,7 +227,8 @@ def check(names: list[str]) -> int:
         print(line)
     if findings:
         print(
-            f"\n{len(findings)} copy assertion(s). A test pins what it put on the wire, never the owner's wording."
+            f"\n{len(findings)} copy assertion(s). "
+            "A test pins what it put on the wire, never the owner's wording."
         )
         return 1
     return 0

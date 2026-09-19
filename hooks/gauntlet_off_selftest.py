@@ -48,10 +48,8 @@ def _cadence(session: str, *, every: int, turns: int) -> list[bool]:
     try:
         return [_speaks(session, every=every) for _ in range(turns)]
     finally:
-        try:
+        with contextlib.suppress(OSError):
             _count_path(session).unlink()
-        except OSError:
-            pass
 
 
 def _spoken(*, value: str | None) -> str:
@@ -71,10 +69,8 @@ def _spoken(*, value: str | None) -> str:
         session = "spoken-" + str(os.getpid())
         with contextlib.redirect_stdout(buffer):
             prompt(json.dumps({"session_id": session}))
-        try:
+        with contextlib.suppress(OSError):
             _count_path(session).unlink()
-        except OSError:
-            pass
     finally:
         if before is None:
             os.environ.pop(VAR, None)
@@ -174,7 +170,7 @@ def self_test() -> int:
         #: payload it cannot read is a call it cannot decide, which is a refusal.
         #: `--bash` is the entry point that decides one; the other two only speak.
         "every payload shape is answered, and an unreadable one is refused": (
-            hook_payload.survives_hostile_payloads(_off.__file__, "--bash", guards=("Bash",))
+            hook_payload.survives_hostile_payloads(str(_off.__file__), "--bash", guards=("Bash",))
         ),
     }
     return hook_shape.report(lines)

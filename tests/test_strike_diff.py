@@ -57,7 +57,9 @@ def _git(repo, *args):
         "GIT_COMMITTER_NAME": "Fixture",
         "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
     }
-    done = subprocess.run(["git", *args], cwd=repo, env=env, capture_output=True, text=True)
+    done = subprocess.run(
+        ["git", *args], cwd=repo, env=env, capture_output=True, text=True, check=False
+    )
     if done.returncode != 0:
         raise RuntimeError("git " + " ".join(args) + " failed: " + done.stderr)
     return done.stdout.strip()
@@ -103,6 +105,7 @@ def _report(tmp_path, block, repo, base, head):
         cwd=repo,
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
     return done.stdout.splitlines()
@@ -116,7 +119,7 @@ def _status_for(lines, target):
 
 
 @pytest.mark.parametrize(
-    "head_test_a,expected",
+    ("head_test_a", "expected"),
     [
         (SIBLING, "OK tests/test_a.py::test_x"),
         (BASE_TEST_A, "UNSATISFIED tests/test_a.py::test_x"),
@@ -141,7 +144,7 @@ def test_assertion_left_in_a_sibling_test_does_not_hold_the_target_open(tmp_path
 
 
 @pytest.mark.parametrize(
-    "block,expected",
+    ("block", "expected"),
     [
         (BLOCK_TEST_B_WHOLE, "UNSATISFIED tests/test_b.py"),
         (BLOCK_TEST_X, "UNNAMED tests/test_b.py"),
@@ -155,7 +158,7 @@ def test_changed_test_file_is_unnamed_only_when_no_block_line_names_it(tmp_path,
 
 
 @pytest.mark.parametrize(
-    "head_test_a,expected",
+    ("head_test_a", "expected"),
     [
         (SIBLING + TEST_X_RENAMED, "OK tests/test_a.py::test_x_renamed"),
         (SIBLING, "MISSING tests/test_a.py::test_x_renamed"),

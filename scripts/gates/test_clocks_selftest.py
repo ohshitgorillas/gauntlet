@@ -40,7 +40,8 @@ GATE = _load_gate()
 
 
 def _run(source: str, name: str = MODULE) -> tuple[int, str]:
-    """Write `source` into a throwaway tree, run the gate over it, and return its status and stdout."""
+    """Write `source` into a throwaway tree, run the gate over it, and return its
+    status and stdout."""
     cwd = Path.cwd()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / name

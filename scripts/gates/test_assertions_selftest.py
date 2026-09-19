@@ -40,7 +40,8 @@ GATE = _load_gate()
 
 
 def _run(source: str, exempt: dict[str, str] | None = None, name: str = MODULE) -> tuple[int, str]:
-    """Write `source` into a throwaway tree, run the gate over it, and return its status and stdout."""
+    """Write `source` into a throwaway tree, run the gate over it, and return its
+    status and stdout."""
     cwd = Path.cwd()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / name
@@ -59,7 +60,10 @@ def _run(source: str, exempt: dict[str, str] | None = None, name: str = MODULE) 
 ONE = "def test_one():\n    assert compute() == 3\n"
 TWO = "def test_two():\n    assert compute() == 3\n    assert compute() == 4\n"
 NONE = "def test_none():\n    compute()\n"
-RAISES = "import pytest\n\n\ndef test_raises():\n    with pytest.raises(ValueError):\n        compute()\n"
+RAISES = (
+    "import pytest\n\n\ndef test_raises():\n"
+    "    with pytest.raises(ValueError):\n        compute()\n"
+)
 FRAMEWORK = (
     "import unittest\n\n\n"
     "class Suite(unittest.TestCase):\n"

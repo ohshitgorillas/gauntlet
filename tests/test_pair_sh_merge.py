@@ -134,7 +134,7 @@ def _merge(tmp_path, changes, base=None, suite=None, block=BLOCK_NEW):
 
 
 @pytest.mark.parametrize(
-    "block,changes,suite,expected",
+    ("block", "changes", "suite", "expected"),
     [
         (BLOCK_SINGLE_TEST, {"test_a.py": TEST_A_OTHER}, None, BRIEF_STRIKE),
         (BLOCK_NEW, {"test_a.py": TEST_A_OTHER}, None, BRIEF_NEW),
@@ -155,7 +155,7 @@ def test_merge_prints_the_five_line_brief_for_kind_new_whatever_it_merged(
 
 
 @pytest.mark.parametrize(
-    "changes,expected",
+    ("changes", "expected"),
     [
         ({"test_b.py": TEST_B_GREW}, {"+def test_b_two():"}),
         ({"test_a.py": TEST_A}, {"+def test_a_other():"}),
@@ -171,7 +171,7 @@ def test_merge_artifact_diff_section_carries_the_lines_that_merge_added(
 
 
 @pytest.mark.parametrize(
-    "changes,expected",
+    ("changes", "expected"),
     [
         (
             {"test_a.py": TEST_A, "test_b.py": TEST_B_GREW},
@@ -190,7 +190,7 @@ def test_merge_artifact_test_files_section_names_the_files_the_merge_changed(
 
 
 @pytest.mark.parametrize(
-    "suite,expected",
+    ("suite", "expected"),
     [
         (ALPHA_SUITE, ("test_alpha_fails",)),
         (BRAVO_SUITE, ("test_bravo_fails",)),
@@ -265,6 +265,7 @@ def _is_ancestor(repo, ancestor, descendant):
         env=dict(ENV),
         capture_output=True,
         text=True,
+        check=False,
     )
     return done.returncode == 0
 
@@ -388,7 +389,7 @@ def _converge(tmp_path, move=False, gate=GATE):
 
 
 @pytest.mark.parametrize(
-    "move,expected",
+    ("move", "expected"),
     [
         (False, (True, True, TEST_A_OTHER, "")),
         (True, (True, True, TEST_A_OTHER, MOVED_TEXT)),
@@ -402,7 +403,7 @@ def test_merge_lands_the_spec_tree_on_a_target_branch_that_moved_under_it(tmp_pa
 
 
 @pytest.mark.parametrize(
-    "gate,expected",
+    ("gate", "expected"),
     [
         (GATE, (5, True, True, TEST_A_OTHER)),
         # nothing landed, so the target branch still carries the fixture's file
@@ -448,6 +449,7 @@ def _merge_stderr(tmp_path, tracked):
         env=env,
         capture_output=True,
         text=True,
+        check=False,
     )
     return done.stderr
 
@@ -522,7 +524,7 @@ def test_a_pair_whose_block_is_untracked_in_the_checkout_lands_on_the_target_bra
 
 
 @pytest.mark.parametrize(
-    "on_disk,expected",
+    ("on_disk", "expected"),
     [
         (SHADOW_LANDING, (SHADOW_LANDING, True)),
         # a differing untracked file is the owner's work: nothing lands over it

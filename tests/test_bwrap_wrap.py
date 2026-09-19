@@ -99,6 +99,7 @@ def _run_hook(repo, agent_type, command):
         env=env,
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
     try:
@@ -185,6 +186,7 @@ def _bwrap_usable():
     done = subprocess.run(
         ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--", "true"],
         capture_output=True,
+        check=False,
     )
     return done.returncode == 0
 
@@ -203,12 +205,14 @@ def _write_outcome(repo, agent_type, relative_path):
     wrapped = _updated_command(_run_hook(repo, agent_type, command))
     if wrapped is None:
         return "unwrapped"
-    done = subprocess.run(wrapped, shell=True, cwd=repo, capture_output=True, text=True)
+    done = subprocess.run(
+        ["/bin/sh", "-c", wrapped], cwd=repo, capture_output=True, text=True, check=False
+    )
     return "written" if done.returncode == 0 and target.is_file() else "refused"
 
 
 @pytest.mark.parametrize(
-    "agent_type,relative_path,expected",
+    ("agent_type", "relative_path", "expected"),
     [
         (PROSECUTOR, "probe.txt", "written"),
         (PROSECUTOR, "gauntlet/specs/approved/probe.txt", "refused"),
@@ -242,7 +246,7 @@ def _escape_outcome(repo, command):
 
 
 @pytest.mark.parametrize(
-    "command,expected",
+    ("command", "expected"),
     [
         (PAIR_RED, "resolved"),
         (PAIR_RED_APPENDED, "wrapped"),
@@ -304,7 +308,7 @@ def _reading(*paths):
 
 
 @pytest.mark.parametrize(
-    "unwrapped,expected",
+    ("unwrapped", "expected"),
     [
         ({RESTART_DECLARED: _reading()}, "passthrough"),
         ({RESTART_OTHER: _reading()}, "wrapped"),
@@ -322,7 +326,7 @@ def test_only_a_command_the_project_itself_declares_escapes_the_wrap(tmp_path, u
 
 
 @pytest.mark.parametrize(
-    "command,expected",
+    ("command", "expected"),
     [
         (RESTART_DECLARED, "passthrough"),
         (RESTART_DECLARED + " ", "wrapped"),
@@ -360,12 +364,14 @@ def _probe_content_after_the_write(repo, agent_type, relative_path):
     wrapped = _updated_command(_run_hook(repo, agent_type, command))
     if wrapped is None:
         return "unwrapped"
-    subprocess.run(wrapped, shell=True, cwd=repo, capture_output=True, text=True)
+    subprocess.run(
+        ["/bin/sh", "-c", wrapped], cwd=repo, capture_output=True, text=True, check=False
+    )
     return target.read_text()
 
 
 @pytest.mark.parametrize(
-    "read_path,expected",
+    ("read_path", "expected"),
     [
         (PROBE, PROBE_ALREADY_THERE),
         (OTHER_PROBE, PROBE_WRITTEN),

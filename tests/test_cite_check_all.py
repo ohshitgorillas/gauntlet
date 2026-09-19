@@ -25,6 +25,7 @@ def _check_all(tmp_path, **bodies):
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
     return done, docs
@@ -78,6 +79,7 @@ def test_check_all_resolves_a_document_against_its_own_checkout(tmp_path):
         cwd=root,
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
 
@@ -95,6 +97,7 @@ def test_check_all_resolves_a_plugin_root_citation_against_the_scripts_own_check
         cwd=consumer,
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
 
@@ -107,6 +110,7 @@ def test_check_all_with_no_document_fails_outside_a_checkout(tmp_path):
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        check=False,
     )
 
     assert done.returncode != 0

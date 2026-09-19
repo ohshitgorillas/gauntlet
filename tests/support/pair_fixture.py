@@ -85,7 +85,9 @@ BLOCK_SINGLE_TEST = _block(_strike_body("tests/test_a.py::test_x", ASSERTION_X))
 
 
 def _git(cwd, *args):
-    done = subprocess.run(["git", *args], cwd=cwd, env=dict(ENV), capture_output=True, text=True)
+    done = subprocess.run(
+        ["git", *args], cwd=cwd, env=dict(ENV), capture_output=True, text=True, check=False
+    )
     if done.returncode != 0:
         raise RuntimeError("git " + " ".join(args) + " failed: " + done.stderr)
     return done.stdout.strip()
@@ -151,6 +153,7 @@ def _pair(repo, *args):
         env=env,
         capture_output=True,
         text=True,
+        check=False,
     )
     sys.stderr.write(done.stderr)
     return done.stdout.splitlines()
@@ -189,6 +192,6 @@ BLOCK_V2 = _block(BODY_V2)
 def _show(tree, spec):
     """The text of a committed object, or "" where the revision names none."""
     done = subprocess.run(
-        ["git", "show", spec], cwd=tree, env=dict(ENV), capture_output=True, text=True
+        ["git", "show", spec], cwd=tree, env=dict(ENV), capture_output=True, text=True, check=False
     )
     return done.stdout if done.returncode == 0 else ""

@@ -14,10 +14,10 @@
     pair.sh impl checkout <slug>   cut the implementation tree, or name the cut one
     pair.sh impl merge <slug>      merge the implementation tree back
 
-The stdout of each is contract, and `${CLAUDE_PLUGIN_ROOT}/docs/agents.md` carries the table. A blind
-writer reads these literals there, never here. This file owns every line of
-that stdout: the three modules beside it print to stderr only, so a progress
-line can never be read as a contract line.
+The stdout of each is contract, and `${CLAUDE_PLUGIN_ROOT}/docs/agents.md` carries
+the table. A blind writer reads these literals there, never here. This file owns
+every line of that stdout: the three modules beside it print to stderr only, so a
+progress line can never be read as a contract line.
 
 `open` refuses on a mismatch because the approved spec is editable after the
 reviewer passed it and the round file is not. Comparing the two is what makes
@@ -37,14 +37,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import blocks  # noqa: E402
 import converge  # noqa: E402
-import trees  # noqa: E402
-from trees import REVIEWS, TARGET, die, git, git_ok, note, path  # noqa: E402
 
 #: imported here rather than taken from `trees`, which does not re-export them.
 #: The import above put the hooks directory on `sys.path`, so these follow it.
 import lane_config  # noqa: E402
 import lane_declaration  # noqa: E402
 import lane_paths  # noqa: E402
+import trees  # noqa: E402
+from trees import REVIEWS, TARGET, die, git, git_ok, note, path  # noqa: E402
 
 USAGE = (
     "usage: pair.sh open|respec|red|merge|abort|close <slug> | list"
@@ -362,7 +362,7 @@ def cmd_review(first: str, second: str | None) -> int:
 
 
 def cmd_restore(slug: str, rev: str | None) -> int:
-    """The hand-carved `git restore --source` step of `${CLAUDE_PLUGIN_ROOT}/docs/approved-specs.md`.
+    """The `git restore --source` step of `${CLAUDE_PLUGIN_ROOT}/docs/approved-specs.md`.
 
     The classifier carves out that one shell shape, and a subcommand keeps the
     carve-out in one place rather than in every transcript.

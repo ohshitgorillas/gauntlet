@@ -26,6 +26,7 @@ file under the root is still read.
 
 import ast
 import sys
+import tempfile
 from pathlib import Path
 
 USAGE = "usage: symbol-closure.py --symbols-stdin <anchor>"
@@ -119,8 +120,6 @@ def closure(root: Path, symbols: set[str]) -> list[str]:
 
 def self_test() -> int:
     """One PASS or FAIL per rule this script exists to hold."""
-    import tempfile
-
     failed = 0
 
     def tree(root: Path, files: dict[str, str]) -> Path:

@@ -80,6 +80,7 @@ def hook_decision(hook_name, payload):
         capture_output=True,
         text=True,
         env=environment,
+        check=False,
     )
     stdout = completed.stdout.strip()
     if not stdout:
@@ -209,7 +210,7 @@ class RemovedWithTheClassifier(unittest.TestCase):
             "cat tests/t.py",
         )
         expected = {command: PASSES for command in commands}
-        self.assertEqual(lane_sweep(expected, REPO_CWD), expected)
+        assert lane_sweep(expected, REPO_CWD) == expected
 
     def test_a_reviewers_own_shell_is_held_by_its_profile_and_not_by_a_lane(self):
         # The reviewer read-block still fires on `Read` and `Grep`; on `Bash` it
@@ -223,7 +224,7 @@ class RemovedWithTheClassifier(unittest.TestCase):
         expected = {command: PASSES for command in commands}
         reviewers = ("arbiter", "prosecutor")
         actual = {agent: lane_sweep(expected, REPO_CWD, agent) for agent in reviewers}
-        self.assertEqual(actual, {agent: expected for agent in reviewers})
+        assert actual == {agent: expected for agent in reviewers}
 
 
 class NoImplReadsShellShapes(unittest.TestCase):
@@ -256,7 +257,7 @@ class NoImplReadsShellShapes(unittest.TestCase):
             expected,
             lambda path: grep_payload(path, REPO_CWD, BLIND_READER),
         )
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
     def test_allowlisted_directories_are_anchored_at_the_repo_root(self):
         # Spec line 6.  Read tool surface.  `docs` and `tests` name allowlisted
@@ -287,7 +288,7 @@ class NoImplReadsShellShapes(unittest.TestCase):
             expected,
             lambda file_path: read_payload(file_path, REPO_CWD, BLIND_READER),
         )
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
 
 class NoImplReadsOverTheTrackedTree(unittest.TestCase):
@@ -329,7 +330,7 @@ class NoImplReadsOverTheTrackedTree(unittest.TestCase):
             }
             for label, pathspec in listings.items()
         }
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
 
 class SpecsLaneCallers(unittest.TestCase):
@@ -353,7 +354,7 @@ class SpecsLaneCallers(unittest.TestCase):
             expected,
             lambda agent_type: write_payload(block, REPO_CWD, agent_type),
         )
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
 
 class LanesWithoutGitRoot(unittest.TestCase):
@@ -380,7 +381,7 @@ class LanesWithoutGitRoot(unittest.TestCase):
             (hook_name, file_path): hook_decision(hook_name, write_payload(file_path, NOGIT_CWD))
             for hook_name, file_path in expected
         }
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
 
 class PlansLaneCallers(unittest.TestCase):
@@ -399,7 +400,6 @@ class PlansLaneCallers(unittest.TestCase):
             None: DENY,
             "arbiter": DENY,
             "scrivener": DENY,
-            "prosecutor": DENY,
             "prosecutor": SILENT,
         }
         plan = REPO_CWD / "gauntlet" / "plans" / "approved" / "demo.txt"
@@ -408,7 +408,7 @@ class PlansLaneCallers(unittest.TestCase):
             expected,
             lambda agent_type: write_payload(plan, REPO_CWD, agent_type),
         )
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
 
 class ReviewsLaneOnAnApprovedPlan(unittest.TestCase):
@@ -431,7 +431,7 @@ class ReviewsLaneOnAnApprovedPlan(unittest.TestCase):
             expected,
             lambda agent_type: write_payload(plan, REPO_CWD, agent_type),
         )
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
 
 #: the lane hook, wired on the write tools and on `Read`/`Grep` and not on
@@ -486,7 +486,7 @@ class TheBlindWritersShell(unittest.TestCase):
             expected,
             lambda command: bash_payload(command, REPO_CWD, "scrivener"),
         )
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
 
 class TheCallerGate(unittest.TestCase):
@@ -528,7 +528,7 @@ class TheCallerGate(unittest.TestCase):
             )
             for agent in expected
         }
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
     def test_the_two_shell_locked_agents_are_locked_and_no_other_caller_is(self):
         # `blind-bash.py` is an allowlist of one entry point, so a caller it
@@ -551,7 +551,7 @@ class TheCallerGate(unittest.TestCase):
             )
             for agent in expected
         }
-        self.assertEqual(actual, expected)
+        assert actual == expected
 
     def test_both_hooks_are_wired_session_wide_rather_than_from_frontmatter(self):
         # The gate is only half the change: it is safe because the hook now
@@ -564,8 +564,8 @@ class TheCallerGate(unittest.TestCase):
             for hook in entry["hooks"]
         }
         blind_guards = ("no-impl-reads.py", "blind-bash.py")
-        self.assertEqual(
-            {guard: guard in wired for guard in blind_guards}, dict.fromkeys(blind_guards, True)
+        assert {guard: guard in wired for guard in blind_guards} == dict.fromkeys(
+            blind_guards, True
         )
 
     def test_the_manifest_is_the_only_place_the_kit_hooks_are_wired(self):
@@ -580,7 +580,7 @@ class TheCallerGate(unittest.TestCase):
             for entry in event
             for hook in entry.get("hooks", ())
         }
-        self.assertEqual([command for command in sorted(project_wired) if "/hooks/" in command], [])
+        assert [command for command in sorted(project_wired) if "/hooks/" in command] == []
 
     def test_every_hook_command_the_manifest_names_resolves_in_the_kit(self):
         # `${CLAUDE_PLUGIN_ROOT}` is the root of this repo once it is installed,
@@ -598,22 +598,19 @@ class TheCallerGate(unittest.TestCase):
             "on the project dir": [c for c in commands if "${CLAUDE_PROJECT_DIR}" in c],
             "absent from the kit": [s for s in scripts if not (HOOK_DIR / s).is_file()],
         }
-        self.assertEqual(
-            actual,
-            {
-                "count": 9,
-                "off the plugin root": [],
-                "on the project dir": [],
-                "absent from the kit": [],
-            },
-        )
+        assert actual == {
+            "count": 9,
+            "off the plugin root": [],
+            "on the project dir": [],
+            "absent from the kit": [],
+        }
 
     def test_no_agent_definition_wires_a_hook_in_its_own_frontmatter(self):
         definitions = sorted((WORKTREE_ROOT / "agents").glob("*.md"))
         wiring = [
             definition.name for definition in definitions if "hooks:" in definition.read_text()
         ]
-        self.assertEqual((bool(definitions), wiring), (True, []))
+        assert (bool(definitions), wiring) == (True, [])
 
 
 if __name__ == "__main__":

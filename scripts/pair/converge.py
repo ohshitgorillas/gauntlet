@@ -211,6 +211,7 @@ def land(slug: str) -> str:
                 ("git", "-C", path(), "cat-file", "blob", branch + ":" + name),
                 capture_output=True,
                 check=False,
+                timeout=60,
             ).stdout
             Path(path(name)).write_bytes(blob)
         die(
@@ -255,5 +256,6 @@ def behind(base: str) -> str:
         capture_output=True,
         text=True,
         check=False,
+        timeout=60,
     )
     return done.stdout.strip() if done.returncode == 0 else "?"

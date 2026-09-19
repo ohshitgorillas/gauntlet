@@ -158,7 +158,8 @@ def check(gates: list[tuple[str, str]] | None = None) -> int:
         print(problem)
     if problems:
         print(
-            f"\n{len(problems)} problem(s). Every gate runs in {WIRING}, and every entry names a gate."
+            f"\n{len(problems)} problem(s). "
+            f"Every gate runs in {WIRING}, and every entry names a gate."
         )
         return 1
     return 0

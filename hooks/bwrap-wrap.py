@@ -42,11 +42,11 @@ caller.
     Writable: the repository, the session's own `/tmp`, `~/.cache`, and every
     live path the project declares under `extra_binds` that stands over nothing
     the profile protects.
-    Read-only again inside the repository: every lane directory in every
-    checkout, `<gauntlet dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `hooks/`, `agents/`, `scripts/`,
-    `.git/hooks` and `.git/config`. `~/.gitconfig` is read-only. `/run/user` is masked with an
-    empty tmpfs, which closes the D-Bus route to `systemd --user` -- a socket
-    rather than a spelling, so no string classifier could ever have caught it.
+    Read-only again inside the repository: every lane directory in every checkout, `<gauntlet
+    dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `hooks/`, `agents/`, `scripts/`, `.git/hooks`
+    and `.git/config`. `~/.gitconfig` is read-only. `/run/user` is masked with an empty tmpfs,
+    which closes the D-Bus route to `systemd --user` -- a socket rather than a spelling, so no
+    string classifier could ever have caught it.
 
 `--unshare-pid` is taken, and what it buys is narrower than it looks. The route
 out through an outer process's `/proc/<pid>/cwd` is closed either way, because
@@ -409,7 +409,7 @@ def self_test() -> int:
     """
     #: lazily, so the hook path never pays for the self-test's imports
     sys.modules.setdefault("bwrap-wrap", sys.modules[__name__])
-    return importlib.import_module("bwrap_wrap_selftest").run()
+    return int(importlib.import_module("bwrap_wrap_selftest").run())
 
 
 if __name__ == "__main__":

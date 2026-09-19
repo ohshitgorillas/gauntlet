@@ -148,7 +148,7 @@ def sections(lines: list[str]) -> list[tuple[int, str, list[tuple[int, str]]]]:
 
 def unreleased(lines: list[str]) -> list[tuple[int, str]]:
     """(line number, text) for the ``[Unreleased]`` section's body, 1-indexed."""
-    for number, heading, body in sections(lines):
+    for _number, heading, body in sections(lines):
         if heading == UNRELEASED:
             return body
     return []
@@ -206,7 +206,8 @@ def _entry_problems(number: int, block: list[str]) -> list[str]:
         if re.search(rf"\b{re.escape(phrase)}\b", lowered)
     )
     found.extend(
-        f"line {number}: {word!r} names tests or test policy — CHANGELOG.md is not the place, nobody changelogs tests"
+        f"line {number}: {word!r} names tests or test policy — CHANGELOG.md is not "
+        "the place, nobody changelogs tests"
         for word in TEST_TALK
         if re.search(rf"\b{re.escape(word)}\b", lowered)
     )
@@ -221,7 +222,8 @@ def _heading_problems(heading: str, found: list[tuple[int, str]]) -> list[str]:
     for number, kind in found:
         if kind in seen:
             problems.append(
-                f"line {number}: second '### {kind}' under {heading!r} — one heading per kind, merged"
+                f"line {number}: second '### {kind}' under {heading!r} "
+                "— one heading per kind, merged"
             )
         seen[kind] = number
         if kind not in ORDER:

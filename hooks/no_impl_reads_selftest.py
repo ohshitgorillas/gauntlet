@@ -116,7 +116,8 @@ def _plugin_docs_case(root: str) -> bool:
     try:
 
         def read(path: str) -> str | None:
-            return impl._verdict("Read", {"file_path": path}, root, root)
+            said: str | None = impl._verdict("Read", {"file_path": path}, root, root)
+            return said
 
         return all(
             (
@@ -165,7 +166,8 @@ def self_test() -> int:
             key: hook_shape.respell(value) if key in PATHS and isinstance(value, str) else value
             for key, value in tool_input.items()
         }
-        return impl._verdict(tool, moved, root, root)
+        said: str | None = impl._verdict(tool, moved, root, root)
+        return said
 
     def read(path: str) -> str | None:
         return call("Read", {"file_path": path})
@@ -181,9 +183,10 @@ def self_test() -> int:
         payload: dict[str, Any] = {}
         if who is not None:
             payload["agent_type"] = who
-        return impl._caller_verdict(
+        said: str | None = impl._caller_verdict(
             "Read", {"file_path": hook_shape.respell(path)}, payload, root, root
         )
+        return said
 
     lines = {
         "1 the spec's own sources are readable, the rest is not": all(

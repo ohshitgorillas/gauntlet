@@ -39,7 +39,8 @@ HEADER = "# Changelog\n\nFormat: Keep a Changelog.\n\n"
 
 
 def _run(body: str) -> tuple[int, str]:
-    """Write `body` to a throwaway CHANGELOG.md, run the gate over it, and return its status and stdout."""
+    """Write `body` to a throwaway CHANGELOG.md, run the gate over it, and return
+    its status and stdout."""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "CHANGELOG.md"
         path.write_text(HEADER + body, encoding="utf-8")
@@ -77,7 +78,8 @@ def self_test() -> int:  # noqa: PLR0915
     check("the missing lead is named on stdout", "bold lead" in out, True)
 
     status, out = _run(
-        "## [Unreleased]\n\n### Fixed\n- **Your setting now applies.** It reads the file at startup.\n"
+        "## [Unreleased]\n\n### Fixed\n- **Your setting now applies.** "
+        "It reads the file at startup.\n"
     )
     check("a bullet in second person fails", status, 1)
     check("the second-person word is named on stdout", "second person" in out, True)
@@ -89,19 +91,22 @@ def self_test() -> int:  # noqa: PLR0915
     check("marketing register is named on stdout", "marketing register" in out, True)
 
     status, out = _run(
-        "## [Unreleased]\n\n### Fixed\n- **The old path is untouched.** Only the new path changed.\n"
+        "## [Unreleased]\n\n### Fixed\n- **The old path is untouched.** "
+        "Only the new path changed.\n"
     )
     check("a bullet narrating by negation fails", status, 1)
     check("narration by negation is named on stdout", "narrates by negation" in out, True)
 
     status, out = _run(
-        "## [Unreleased]\n\n### Added\n- **A new test suite covers the parser.** It replaces the old fixture.\n"
+        "## [Unreleased]\n\n### Added\n- **A new test suite covers the parser.** "
+        "It replaces the old fixture.\n"
     )
     check("a bullet naming a test fails", status, 1)
     check("the test mention is named on stdout", "names tests or test policy" in out, True)
 
     status, out = _run(
-        "## [Unreleased]\n\n### Added\n- **The fake backend is gone.** Callers hit the real one now.\n"
+        "## [Unreleased]\n\n### Added\n- **The fake backend is gone.** "
+        "Callers hit the real one now.\n"
     )
     check("a bullet naming a fake fails", status, 1)
 
@@ -129,7 +134,8 @@ def self_test() -> int:  # noqa: PLR0915
     check("the unknown heading is named on stdout", "unknown section" in out, True)
 
     status, out = _run(
-        "## [Unreleased]\n\n### Fixed\n- **A fix that spans two lines.**\n  A continuation line follows it.\n"
+        "## [Unreleased]\n\n### Fixed\n- **A fix that spans two lines.**\n"
+        "  A continuation line follows it.\n"
     )
     check("a bullet running to a second line fails", status, 1)
     check("the second paragraph is named on stdout", "second paragraph" in out, True)

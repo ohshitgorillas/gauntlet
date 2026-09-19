@@ -82,10 +82,10 @@ def tests_config_module(tmp_path_factory):
     copy = module.copy_hook_dir(
         str(tmp_path_factory.mktemp("suite-env-scrub-copy")), COPY_LABEL, None
     )
-    yield module, copy
+    return module, copy
 
 
-@pytest.mark.parametrize("control_value,expected_report", CALLER_SWEEP)
+@pytest.mark.parametrize(("control_value", "expected_report"), CALLER_SWEEP)
 def test_hook_wire_helper_scrubs_gauntlet_and_keeps_other_caller_variables(
     monkeypatch, hook_wire_module, probe_path, control_value, expected_report
 ):
@@ -95,7 +95,7 @@ def test_hook_wire_helper_scrubs_gauntlet_and_keeps_other_caller_variables(
     assert hook_wire_module.hook_decision(probe_path, PROBE_PAYLOAD) == expected_report
 
 
-@pytest.mark.parametrize("control_value,expected_report", CALLER_SWEEP)
+@pytest.mark.parametrize(("control_value", "expected_report"), CALLER_SWEEP)
 def test_decision_helper_scrubs_gauntlet_and_keeps_other_caller_variables(
     monkeypatch, tests_config_module, probe_path, control_value, expected_report
 ):

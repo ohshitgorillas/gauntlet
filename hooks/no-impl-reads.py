@@ -98,9 +98,7 @@ Blocked for those agents:
 
 from __future__ import annotations
 
-import json
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -141,9 +139,8 @@ def _plugin_root() -> str:
     environment -- a self-test, or a checkout wired by hand -- and both name the
     same directory, so neither spelling is the privileged one.
     """
-    return os.path.abspath(
-        os.environ.get(PLUGIN_VAR) or str(Path(__file__).resolve().parents[1])
-    )  # noqa: PTH100
+    named = os.environ.get(PLUGIN_VAR)
+    return str(Path(named).resolve() if named else Path(__file__).resolve().parents[1])
 
 
 #: the kit's own prose, the one allowed path outside the checkout. Its siblings
@@ -220,6 +217,23 @@ def _under(rel: str, name: str) -> bool:
     return rel == prefix or rel.startswith(prefix + os.sep)
 
 
+def _allowlisted(rel: str) -> bool:
+    """Is this repo-relative path on `DEFAULT_ALLOW`?
+
+    An entry spelled with a trailing separator is a directory and admits the
+    directory itself and everything under it; an entry without one is that one
+    file and nothing else.
+    """
+    for entry in DEFAULT_ALLOW:
+        name = entry.rstrip("/").replace("/", os.sep)
+        if entry.endswith("/"):
+            if rel == name or rel.startswith(name + os.sep):
+                return True
+        elif rel == name:
+            return True
+    return False
+
+
 def readable(target: str, root: str | None, cwd: str) -> bool:
     """Is this path one of the spec's own sources?
 
@@ -283,13 +297,8 @@ def readable(target: str, root: str | None, cwd: str) -> bool:
         return False
     #: the allowlist runs next: `tests` is the allowed directory itself, not a
     #: root file that happens to carry no extension
-    for entry in DEFAULT_ALLOW:
-        name = entry.rstrip("/").replace("/", os.sep)
-        if entry.endswith("/"):
-            if rel == name or rel.startswith(name + os.sep):
-                return True
-        elif rel == name:
-            return True
+    if _allowlisted(rel):
+        return True
     #: a documentation file sitting at the repo root, by extension
     return (
         base is not None and os.sep not in rel and (Path(rel).suffix.lower() in DEFAULT_ROOT_FILES)

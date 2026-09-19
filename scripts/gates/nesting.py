@@ -127,7 +127,8 @@ def _record(node: ast.FunctionDef | ast.AsyncFunctionDef, prefix: str, found: _F
 
 
 def depths(source: str) -> _Found:
-    """Return (qualified name, def line, deepest nesting) for every function in a module source, outermost first."""
+    """Return (qualified name, def line, deepest nesting) for every function in a
+    module source, outermost first."""
     found: _Found = []
     _walk(ast.parse(source).body, 0, "", found)
     return found
@@ -140,6 +141,7 @@ def tracked_files() -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=60,
     )
     return [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
 
@@ -163,7 +165,10 @@ def _entry_fault(key: str) -> str | None:
     if func not in measured:
         return f"EXEMPT[{key!r}]: names no function in {name} — drop it"
     if measured[func] <= MAX_DEPTH:
-        return f"EXEMPT[{key!r}]: nests {measured[func]} deep, within the limit of {MAX_DEPTH} — drop it"
+        return (
+            f"EXEMPT[{key!r}]: nests {measured[func]} deep, "
+            f"within the limit of {MAX_DEPTH} — drop it"
+        )
     return None
 
 
@@ -177,7 +182,8 @@ def stale(exempt: dict[str, str]) -> list[str]:
 
 
 def check(names: list[str], exempt: dict[str, str] | None = None) -> int:
-    """Refuse a tree where a named file has a function nesting past MAX_DEPTH without an EXEMPT entry."""
+    """Refuse a tree where a named file has a function nesting past MAX_DEPTH
+    without an EXEMPT entry."""
     if exempt is None:
         exempt = EXEMPT
     problems = [fault for name in names for fault in faults(name, exempt)]
@@ -187,7 +193,8 @@ def check(names: list[str], exempt: dict[str, str] | None = None) -> int:
         print(problem)
     if problems:
         print(
-            f"\n{len(problems)} problem(s). Flatten the function, or add an EXEMPT entry saying why it stands."
+            f"\n{len(problems)} problem(s). "
+            "Flatten the function, or add an EXEMPT entry saying why it stands."
         )
         return 1
     return 0

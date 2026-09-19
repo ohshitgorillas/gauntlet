@@ -81,13 +81,13 @@ def _run_tracked(files: dict[str, str], tracked: list[str]) -> tuple[int, str]:
     real index: an untracked offender left beside a tracked one proves the gate
     is reading `git ls-files` rather than the directory.
     """
-    argv, cwd = sys.argv, os.getcwd()
+    argv, cwd = sys.argv, Path.cwd()
     with tempfile.TemporaryDirectory() as tmp:
-        subprocess.run(["git", "init", "-q", tmp], check=True)
+        subprocess.run(["git", "init", "-q", tmp], check=True, timeout=60)
         for name, text in files.items():
             (Path(tmp) / name).write_text(text, encoding="utf-8")
         if tracked:
-            subprocess.run(["git", "-C", tmp, "add", "-N", *tracked], check=True)
+            subprocess.run(["git", "-C", tmp, "add", "-N", *tracked], check=True, timeout=60)
         out = io.StringIO()
         sys.argv = ["md-softwrap.py", "--check"]
         try:

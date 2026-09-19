@@ -11,13 +11,14 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import hook_payload  # noqa: E402
 import bwrap_probe  # noqa: E402
+import hook_payload  # noqa: E402
 import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
 
@@ -32,15 +33,15 @@ PROTECTED_IN_CHECKOUT = _bw.PROTECTED_IN_CHECKOUT
 REVIEWS_DIR = _bw.REVIEWS_DIR
 WORKTREES = _bw.WORKTREES
 _NO_BWRAP = bwrap_probe._NO_BWRAP
-_answer = _bw._answer
+_answer: Callable[[dict[str, Any]], dict[str, Any] | None] = _bw._answer
 _heredoc = _bw._heredoc
 bwrap_fault = bwrap_probe.bwrap_fault
 worktrees = _bw.worktrees
-wrap = _bw.wrap
+wrap: Callable[[str, str, str], str] = _bw.wrap
 
 #: the hook's own path, not this module's: the hostile-payload check runs the
 #: file it is given.
-_HOOK = _bw.__file__
+_HOOK = str(_bw.__file__)
 
 
 def run() -> int:
@@ -118,6 +119,42 @@ def _reason(answer: dict[str, Any] | None) -> str:
     return str(out.get("permissionDecisionReason") or "")
 
 
+def _record_run(lines: dict[str, bool], label: str, profile: str) -> None:
+    """Run one profile and record it, with `bwrap`'s own first line on a failure."""
+    ran, first = _runs(profile)
+    lines[label] = ran
+    if not ran:
+        lines[label + f"  [bwrap said: {first}]"] = False
+
+
+def _live_runs(lines: dict[str, bool], *, default: str, reviewer: str, semicolon: str) -> None:
+    """Run each profile for real, on a host whose `bwrap` works."""
+    for label, profile in (
+        ("the default profile runs, against this very tree", default),
+        ("the reviewer profile runs, against this very tree", reviewer),
+        (
+            "the profile for the real checkout this gate runs in runs",
+            wrap("true", str(Path(_HOOK).resolve().parents[2]), "prosecutor"),
+        ),
+    ):
+        #: `true` inside the sandbox, so a failure is the mount setup and
+        #: nothing else
+        _record_run(lines, label, profile.replace(_heredoc(semicolon), _heredoc("true")))
+
+
+def _vanishing_run(lines: dict[str, bool], *, root: str, tree: str) -> None:
+    """The race the listing cannot close: the profile names a tree that is gone
+    by the time `bwrap` reads it. Under `--bind` that kills the whole command,
+    so the tree is removed for real and the profile is run against its absence.
+    """
+    vanishing = wrap("true", root, "prosecutor")
+    shutil.rmtree(tree)
+    _record_run(
+        lines, "a worktree cut after the profile was built does not kill the command", vanishing
+    )
+    _make_tree(tree, worktree_git_is_a_file=True)
+
+
 def _self_test_in(tmp: str) -> int:
     root = str(Path(tmp) / "checkout")
     _make_tree(root, worktree_git_is_a_file=False)
@@ -132,16 +169,10 @@ def _self_test_in(tmp: str) -> int:
         out = (answer or {}).get("hookSpecificOutput") or {}
         return (out.get("updatedInput") or {}).get("command")
 
-    def answer_for(agent: str) -> dict[str, Any] | None:
-        """`_answer` for one ordinary command, run as `agent`."""
-        return _answer(
-            {
-                "tool_name": "Bash",
-                "cwd": root,
-                "agent_type": agent,
-                "tool_input": {"command": semicolon},
-            }
-        )
+    def answer_for(agent: str, command: str = semicolon) -> dict[str, Any] | None:
+        """`_answer` for one Bash command, run as `agent`."""
+        call: dict[str, Any] = {"tool_name": "Bash", "cwd": root, "agent_type": agent}
+        return _answer(call | {"tool_input": {"command": command}})
 
     default = wrap(semicolon, root, "prosecutor")
     reviewer = wrap(semicolon, root, "arbiter")
@@ -178,12 +209,13 @@ def _self_test_in(tmp: str) -> int:
         reaches the mount table exactly as a project's mistyped one would.
         """
         declared = lane_config.extra_binds_from({"extra_binds": entries})
-        was = lane_config.extra_binds
-        lane_config.extra_binds = lambda: declared
+        config: Any = lane_config
+        was = config.extra_binds
+        config.extra_binds = lambda: declared
         try:
             return wrap(semicolon, root, agent)
         finally:
-            lane_config.extra_binds = was
+            config.extra_binds = was
 
     def bound(entries: list[Any], path: str, agent: str = "prosecutor") -> bool:
         """Is `path` writable under that declaration?"""
@@ -253,15 +285,7 @@ def _self_test_in(tmp: str) -> int:
             "--tmpfs /run/user" in default and "--unshare-pid" in default
         ),
         "a blind agent with its own bwrap is left alone": all(
-            _answer(
-                {
-                    "tool_name": "Bash",
-                    "cwd": root,
-                    "agent_type": agent,
-                    "tool_input": {"command": "scripts/blind.sh status demo"},
-                }
-            )
-            is None
+            answer_for(agent, "scripts/blind.sh status demo") is None
             for agent in PASSTHROUGH_AGENTS
         ),
         #: the escape is the whole call, and a bare head leaves here spelled at
@@ -369,32 +393,8 @@ def _self_test_in(tmp: str) -> int:
     }
 
     if have_bwrap:
-        for label, profile in (
-            ("the default profile runs, against this very tree", default),
-            ("the reviewer profile runs, against this very tree", reviewer),
-            (
-                "the profile for the real checkout this gate runs in runs",
-                wrap("true", str(Path(_HOOK).resolve().parents[2]), "prosecutor"),
-            ),
-        ):
-            #: `true` inside the sandbox, so a failure is the mount setup and
-            #: nothing else
-            ran, first = _runs(profile.replace(_heredoc(semicolon), _heredoc("true")))
-            lines[label] = ran
-            if not ran:
-                lines[label + f"  [bwrap said: {first}]"] = False
-
-        #: the race the listing cannot close: the profile names a tree that is
-        #: gone by the time `bwrap` reads it. Under `--bind` this killed the
-        #: whole command; the test removes the tree for real and runs it.
-        vanishing = wrap("true", root, "prosecutor")
-        shutil.rmtree(tree)
-        ran, first = _runs(vanishing)
-        label = "a worktree cut after the profile was built does not kill the command"
-        lines[label] = ran
-        if not ran:
-            lines[label + f"  [bwrap said: {first}]"] = False
-        _make_tree(tree, worktree_git_is_a_file=True)
+        _live_runs(lines, default=default, reviewer=reviewer, semicolon=semicolon)
+        _vanishing_run(lines, root=root, tree=tree)
     else:
         lines["bwrap is absent, so the profiles could not be run"] = True
 

@@ -52,9 +52,9 @@ TRACKED = ("*.py", "*.sh")
 #: file shrinks — the gate insists on it. Do not raise one; that is the crawl
 #: this table exists to refuse.
 ALLOWANCE: dict[str, int] = {
-    "scripts/cite.py": 471,
+    "scripts/cite.py": 470,
     "scripts/pair/cli.py": 448,
-    "hooks/gauntlet-off.py": 425,
+    "hooks/gauntlet-off.py": 423,
     "hooks/bwrap-wrap.py": 416,
     "hooks/bwrap_wrap_selftest.py": 401,
 }
@@ -87,6 +87,7 @@ def tracked_files() -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=60,
     )
     return [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
 
@@ -109,11 +110,20 @@ def ratchet_fault(name: str, lines: int, allowance: dict[str, int]) -> str | Non
         return None
     permitted = allowance.get(name)
     if permitted is None:
-        return f"{name}: {lines} lines, over the {WATCH_LINE}-line watch line — add an ALLOWANCE entry of {lines}"
+        return (
+            f"{name}: {lines} lines, over the {WATCH_LINE}-line watch line "
+            f"— add an ALLOWANCE entry of {lines}"
+        )
     if lines > permitted:
-        return f"{name}: {lines} lines, over its allowance of {permitted} — split it, the allowance does not rise"
+        return (
+            f"{name}: {lines} lines, over its allowance of {permitted} "
+            "— split it, the allowance does not rise"
+        )
     if lines < permitted:
-        return f"{name}: {lines} lines, under its allowance of {permitted} — lower the entry to {lines}"
+        return (
+            f"{name}: {lines} lines, under its allowance of {permitted} "
+            f"— lower the entry to {lines}"
+        )
     return None
 
 
@@ -134,7 +144,8 @@ def stale(allowance: dict[str, int]) -> list[str]:
             )
         elif measure(name) <= WATCH_LINE:
             problems.append(
-                f"ALLOWANCE[{name!r}]: file is back under the {WATCH_LINE}-line watch line — drop it"
+                f"ALLOWANCE[{name!r}]: file is back under the "
+                f"{WATCH_LINE}-line watch line — drop it"
             )
     return problems
 

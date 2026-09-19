@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from types import ModuleType
 from pathlib import Path
+from types import ModuleType
 
 GATE_PATH = Path(__file__).resolve().parent / "commit-msg.py"
 
