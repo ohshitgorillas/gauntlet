@@ -22,10 +22,15 @@ brief:
    bite: null stub fails at all three inputs, since no invocation is returned to execute (surface new).
    existing: none, `grep -rn 'bwrap' tests/` returned no output.
 
-4. A whole command that is exactly one `scripts/pair.sh` subcommand call with that subcommand's argument shape comes back from `.claude/hooks/bwrap-wrap.py` with no `updatedInput`, and anything else comes back wrapped. `scripts/pair.sh red demo` gets no `updatedInput`; the same call with `; rm -rf state` appended, `cd /tmp && scripts/pair.sh red demo`, and `scripts/pair.sh red ../../etc` each come back wrapped.
-   kills: a carve-out that searches the command for `scripts/pair.sh` rather than matching the whole string returns no `updatedInput` for the appended-command case, and that command then runs outside the sandbox, which is the one place in this design where a command does.
-   bite: null stub fails at `scripts/pair.sh red demo; rm -rf state`, where it returns no `updatedInput` and the line demands a wrapped command (surface new); `ls .claude/hooks/bwrap-wrap.py` returns `No such file or directory`.
-   existing: none, `grep -rn 'pair-passthrough' tests/` returned no output.
+4. A whole command that is exactly one `scripts/pair.sh` subcommand call with that subcommand's argument shape comes back from `.claude/hooks/bwrap-wrap.py` as an `updatedInput` whose command is the same call with its head spelled as an absolute path to a script that exists on disk, and anything else comes back wrapped. `scripts/pair.sh red demo` comes back with an absolute head that is a file and the tail ` red demo`; the same call with `; rm -rf state` appended, and `cd /tmp && scripts/pair.sh red demo` each come back wrapped. Whether an argument is a slug that names one path segment is `scripts/pair/cli.py`'s to judge, not this hook's.
+   kills: a carve-out that searches the command for `scripts/pair.sh` rather than matching the whole string returns an unwrapped command for the appended-command case, and that command then runs outside the sandbox, which is the one place in this design where a command does; a carve-out that admits the bare head and runs it as typed hands a project with no local copy of the script a command that cannot execute.
+   characterization: HEAD produces this at c7f2e66; no bite.
+   existing: tests/test_bwrap_wrap.py::test_only_a_whole_command_that_is_one_pair_subcommand_call_escapes_the_wrap
+
+4a. A `scripts/pair.sh` subcommand call whose head is already an absolute path comes back from `.claude/hooks/bwrap-wrap.py` with no `updatedInput`. `<checkout>/scripts/pair.sh red demo` gets no `updatedInput`.
+   kills: a resolver that rewrites every head sends an absolute path a project chose on purpose to the kit's copy instead.
+   characterization: HEAD produces this at c7f2e66; no bite.
+   existing: none, `grep -rn 'absolute' tests/test_bwrap_wrap.py` returned no output.
 
 --- reviewer ---
 READY
@@ -37,7 +42,8 @@ prior finding, return read:
 1  ADMITTED  carried
 2  ADMITTED  carried
 3  ADMITTED  carried
-4  ADMITTED  `scripts/pair.sh red demo` -> no `updatedInput`, three near-miss command texts -> wrapped; a predicate searching for `scripts/pair.sh` rather than matching the whole string fails it at the appended-command input; bite: null stub fails at `scripts/pair.sh red demo; rm -rf state`
+4  AMENDED   `scripts/pair.sh red demo` -> `updatedInput` with an absolute head that is a file on disk, three near-miss command texts -> wrapped; a predicate searching for `scripts/pair.sh` rather than matching the whole string fails it at the appended-command input; a passthrough that runs the bare head as typed fails it where no local copy exists; characterization at c7f2e66
+4a ADMITTED  an absolute `scripts/pair.sh` head -> no `updatedInput`; a resolver that rewrites every head fails it; characterization at c7f2e66
 
 null stub: no `bwrap-wrap.py` on disk, so every payload comes back with no `updatedInput`, no deny and no invocation to execute.
   satisfies: none   fails: 1, 2, 3, 4
