@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **`scripts/cite.py --check-all` resolves several documents in one run.** Each row is prefixed with its document, and with no document named it reads every tracked `*.md` from `git ls-files`. A citation whose path begins with `${CLAUDE_PLUGIN_ROOT}/` resolves against the kit's own checkout rather than the document's.
+
 ## [0.2.3] - 2026-09-19
 
 ### Fixed

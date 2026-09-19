@@ -396,9 +396,9 @@ def _converge(tmp_path, move=False, gate=GATE):
     ids=["target-branch-still", "target-branch-moved-under-the-pair"],
 )
 def test_merge_lands_the_spec_tree_on_a_target_branch_that_moved_under_it(tmp_path, move, expected):
+    heading = "TEST CHECK demo"
     lines, moved, gone, landed, carried = _converge(tmp_path, move=move)
-    assert (moved, gone, landed, carried) == expected
-    assert _brief_shape(lines)[0] == "TEST CHECK demo"
+    assert (moved, gone, landed, carried, _brief_shape(lines)[0]) == (*expected, heading)
 
 
 @pytest.mark.parametrize(
@@ -458,9 +458,10 @@ def _merge_stderr(tmp_path, tracked):
     ids=["block-tracked-at-the-base", "block-committed-by-open"],
 )
 def test_the_block_open_commits_is_inside_the_spec_lane_the_merge_checks(tmp_path, tracked):
+    commit_step = "[2/6] commit both trees"
     stderr = _merge_stderr(tmp_path, tracked)
     outside = [line for line in stderr.splitlines() if "wrote outside its lane" in line]
-    assert (outside, "[2/6] commit both trees" in stderr) == ([], True)
+    assert (outside, commit_step in stderr) == ([], True)
 
 
 def _spec_commit_field(lines):

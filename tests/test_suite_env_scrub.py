@@ -1,7 +1,7 @@
 """Behavior tests for the child environment the suite's two subprocess helpers build.
 
 The subject is this repository's own suite: ``hook_decision`` in
-``tests/test_hook_wire.py`` and ``_decision`` in ``tests/test_tests_config.py``.
+``tests/test_hook_wire.py`` and ``decision`` in ``tests/test_tests_config.py``.
 Both take the script to run as an ordinary parameter and join it onto a
 directory with ``pathlib``, so an absolute path handed to that parameter is the
 path that runs; both return raw stdout when stdout is not a hook answer, so a
@@ -79,7 +79,7 @@ def hook_wire_module():
 def tests_config_module(tmp_path_factory):
     """The directory-config module, with one hook-directory copy made as it makes them."""
     module = _load_suite_module("test_tests_config.py", "suite_env_scrub_tests_config")
-    copy = module._copy(str(tmp_path_factory.mktemp("suite-env-scrub-copy")), COPY_LABEL, None)
+    copy = module.copy_hook_dir(str(tmp_path_factory.mktemp("suite-env-scrub-copy")), COPY_LABEL, None)
     yield module, copy
 
 
@@ -101,4 +101,4 @@ def test_decision_helper_scrubs_gauntlet_and_keeps_other_caller_variables(
     monkeypatch.setenv("GAUNTLET", "off")
     monkeypatch.setenv("PROBE_CONTROL", control_value)
 
-    assert module._decision(copy, probe_path, PROBE_PAYLOAD) == expected_report
+    assert module.decision(copy, probe_path, PROBE_PAYLOAD) == expected_report

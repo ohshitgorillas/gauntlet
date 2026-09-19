@@ -54,8 +54,16 @@ SILENT = ""
 #: falls back to together
 DEFAULTS = {"tests_dir": "tests", "gauntlet_dir": "gauntlet", "docs_dir": "docs"}
 
+#: the whole observation an unusable declaration must come back with: every key
+#: at its default, and the two default lanes guarded again
+FALLEN_BACK = {
+    **{key: [default] for key, default in DEFAULTS.items()},
+    "tests lane": DENY,
+    "specs lane": DENY,
+}
 
-def _copy(tmp, label, conf):
+
+def copy_hook_dir(tmp, label, conf):
     """A copy of the hook directory, in a project carrying ``conf`` as its declaration.
 
     The declaration is the project's, at ``<project>/.claude/blind-reads.json``,
@@ -96,7 +104,7 @@ def _environment(project=None):
     return environment
 
 
-def _decision(hook_dir, hook_name, payload):
+def decision(hook_dir, hook_name, payload):
     """One payload to one hook of one copy; its decision, or its raw stdout.
 
     ``hook_name`` is joined on with ``pathlib``, so an absolute path handed to it
@@ -149,7 +157,7 @@ def _write(hook_dir, hook_name, path, agent=None):
     }
     if agent is not None:
         payload["agent_type"] = agent
-    return _decision(hook_dir, hook_name, payload)
+    return decision(hook_dir, hook_name, payload)
 
 
 def _bash(hook_dir, hook_name, command, agent=None):
@@ -160,11 +168,11 @@ def _bash(hook_dir, hook_name, command, agent=None):
     }
     if agent is not None:
         payload["agent_type"] = agent
-    return _decision(hook_dir, hook_name, payload)
+    return decision(hook_dir, hook_name, payload)
 
 
 def _read(hook_dir, path, agent="scrivener"):
-    return _decision(
+    return decision(
         hook_dir,
         "no-impl-reads.py",
         {
@@ -182,29 +190,38 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", {})
-        cls.moved = _copy(cls.tmp.name, "MOVED", {"tests_dir": "spec"})
+        cls.bare = copy_hook_dir(cls.tmp.name, "BARE", {})
+        cls.moved = copy_hook_dir(cls.tmp.name, "MOVED", {"tests_dir": "spec"})
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     def test_default_lane_is_tests_when_no_declaration_names_one(self):
-        self.assertEqual(_write(self.bare, "lanes.py", "/repo/tests/t.py"), DENY)
-        self.assertEqual(_write(self.bare, "lanes.py", "/repo/spec/t.py"), SILENT)
-        self.assertEqual(_config_lines(self.bare, "tests_dir"), ["tests"])
+        observed = {
+            "tests/t.py": _write(self.bare, "lanes.py", "/repo/tests/t.py"),
+            "spec/t.py": _write(self.bare, "lanes.py", "/repo/spec/t.py"),
+            "tests_dir": _config_lines(self.bare, "tests_dir"),
+        }
+        self.assertEqual(observed, {"tests/t.py": DENY, "spec/t.py": SILENT, "tests_dir": ["tests"]})
 
     def test_named_dir_is_the_lane_and_tests_is_not(self):
-        self.assertEqual(_write(self.moved, "lanes.py", "/repo/spec/t.py"), DENY)
-        self.assertEqual(_write(self.moved, "lanes.py", "/repo/tests/t.py"), SILENT)
-        self.assertEqual(_config_lines(self.moved, "tests_dir"), ["spec"])
+        observed = {
+            "spec/t.py": _write(self.moved, "lanes.py", "/repo/spec/t.py"),
+            "tests/t.py": _write(self.moved, "lanes.py", "/repo/tests/t.py"),
+            "tests_dir": _config_lines(self.moved, "tests_dir"),
+        }
+        self.assertEqual(observed, {"spec/t.py": DENY, "tests/t.py": SILENT, "tests_dir": ["spec"]})
 
     def test_writer_writes_the_named_dir_of_its_spec_tree_only(self):
         tree = "/repo/.claude/worktrees/x-spec"
         writer = "scrivener"
-        self.assertEqual(_write(self.moved, "lanes.py", f"{tree}/spec/t.py", writer), SILENT)
-        self.assertEqual(_write(self.moved, "lanes.py", f"{tree}/tests/t.py", writer), DENY)
-        self.assertEqual(_write(self.moved, "lanes.py", "/repo/spec/t.py", writer), DENY)
+        observed = {
+            "lane, tree": _write(self.moved, "lanes.py", f"{tree}/spec/t.py", writer),
+            "default, tree": _write(self.moved, "lanes.py", f"{tree}/tests/t.py", writer),
+            "lane, checkout": _write(self.moved, "lanes.py", "/repo/spec/t.py", writer),
+        }
+        self.assertEqual(observed, {"lane, tree": SILENT, "default, tree": DENY, "lane, checkout": DENY})
 
     def test_the_blind_runner_reads_the_named_lane_and_not_the_default(self):
         # `scripts/blind.sh test <path>` is the blind agents' one entry point,
@@ -213,48 +230,45 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
         # the argument under `tests/` in a repo whose lane is `spec/`, which is
         # a shell the writer can point at a directory no hook is guarding.
         # an admitted call comes back as an `updatedInput` rewrite of the head
-        # rather than as silence, so what is read here is the command it left
-        self.assertIn(
-            "scripts/blind.sh test spec/t.py",
-            _bash(self.moved, "blind-bash.py", "scripts/blind.sh test spec/t.py", "scrivener"),
-        )
-        self.assertEqual(
-            _bash(self.moved, "blind-bash.py", "scripts/blind.sh test tests/t.py", "scrivener"),
-            DENY,
-        )
-        self.assertIn(
-            "scripts/blind.sh test tests/t.py",
-            _bash(self.bare, "blind-bash.py", "scripts/blind.sh test tests/t.py", "scrivener"),
-        )
-        # the shape is the whole invocation and its arity, at either lane
-        self.assertEqual(
-            _bash(
-                self.moved,
-                "blind-bash.py",
-                "rm spec/t.py && scripts/blind.sh test spec/t.py",
-                "scrivener",
+        # rather than as silence, so what is read here is the command it left.
+        # The shape is the whole invocation and its arity, at either lane, and
+        # an argument that opens under the lane and walks out of it is not a run.
+        moved_lane = "scripts/blind.sh test spec/t.py"
+        default_lane = "scripts/blind.sh test tests/t.py"
+
+        def run(copy, command):
+            return _bash(copy, "blind-bash.py", command, "scrivener")
+
+        observed = {
+            "named lane admitted": moved_lane in run(self.moved, moved_lane),
+            "default name, moved repo": run(self.moved, default_lane),
+            "default lane admitted": default_lane in run(self.bare, default_lane),
+            "a second command": run(self.moved, "rm spec/t.py && " + moved_lane),
+            "two arguments": run(self.moved, "scripts/blind.sh test spec/a.py spec/b.py"),
+            "a walk out of the lane": run(
+                self.moved, "scripts/blind.sh test spec/a/../../gauntlet/specs/approved/x.txt"
             ),
-            DENY,
-        )
+        }
         self.assertEqual(
-            _bash(
-                self.moved,
-                "blind-bash.py",
-                "scripts/blind.sh test spec/a.py spec/b.py",
-                "scrivener",
-            ),
-            DENY,
+            observed,
+            {
+                "named lane admitted": True,
+                "default name, moved repo": DENY,
+                "default lane admitted": True,
+                "a second command": DENY,
+                "two arguments": DENY,
+                "a walk out of the lane": DENY,
+            },
         )
-        # and an argument that opens under the lane and walks out of it is not a run
-        self.assertEqual(
-            _bash(
-                self.moved,
-                "blind-bash.py",
-                "scripts/blind.sh test spec/a/../../gauntlet/specs/approved/x.txt",
-                "scrivener",
-            ),
-            DENY,
-        )
+
+
+#: the four artifact lanes under the base, and the agent each one admits
+LANE_SUFFIXES = (
+    ("specs/approved", "arbiter"),
+    ("plans/approved", "prosecutor"),
+    ("verdicts", "juror"),
+    ("reviews", "arbiter"),
+)
 
 
 class GauntletDirMovesEveryLane(unittest.TestCase):
@@ -263,46 +277,54 @@ class GauntletDirMovesEveryLane(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", {})
-        cls.moved = _copy(cls.tmp.name, "MOVED", {"gauntlet_dir": "work/chain"})
+        cls.bare = copy_hook_dir(cls.tmp.name, "BARE", {})
+        cls.moved = copy_hook_dir(cls.tmp.name, "MOVED", {"gauntlet_dir": "work/chain"})
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     def test_each_lane_hook_guards_the_lane_under_the_named_base(self):
-        for hook, suffix, reviewer in (
-            ("lanes.py", "specs/approved", "arbiter"),
-            ("lanes.py", "plans/approved", "prosecutor"),
-            ("lanes.py", "verdicts", "juror"),
-            ("lanes.py", "reviews", "arbiter"),
-        ):
-            with self.subTest(hook=hook):
-                moved_path = f"/repo/work/chain/{suffix}/slug.txt"
-                default_path = f"/repo/gauntlet/{suffix}/slug.txt"
-                self.assertEqual(_write(self.moved, hook, moved_path), DENY)
-                self.assertEqual(_write(self.moved, hook, moved_path, reviewer), SILENT)
-                # the base the kit ships is an ordinary directory once moved
-                self.assertEqual(_write(self.moved, hook, default_path), SILENT)
-                # and the hook that has not moved still guards the shipped base
-                self.assertEqual(_write(self.bare, hook, default_path), DENY)
+        # The base the kit ships is an ordinary directory once moved, and the
+        # hook of a repo that has not moved still guards the shipped base.
+        wanted = {"moved, agent": DENY, "moved, reviewer": SILENT, "base, moved": SILENT, "base, unmoved": DENY}
+        observed = {}
+        for suffix, reviewer in LANE_SUFFIXES:
+            moved = f"/repo/work/chain/{suffix}/slug.txt"
+            base = f"/repo/gauntlet/{suffix}/slug.txt"
+            observed[suffix, "moved, agent"] = _write(self.moved, "lanes.py", moved)
+            observed[suffix, "moved, reviewer"] = _write(self.moved, "lanes.py", moved, reviewer)
+            observed[suffix, "base, moved"] = _write(self.moved, "lanes.py", base)
+            observed[suffix, "base, unmoved"] = _write(self.bare, "lanes.py", base)
+        self.assertEqual(
+            observed,
+            {(suffix, case): value for suffix, _ in LANE_SUFFIXES for case, value in wanted.items()},
+        )
 
     def test_the_structure_under_the_base_does_not_move(self):
-        self.assertEqual(_config_lines(self.moved, "gauntlet_dir"), ["work/chain"])
-        self.assertEqual(_config_lines(self.moved, "specs_lane"), ["work/chain/specs/approved"])
-        self.assertEqual(_config_lines(self.moved, "plans_lane"), ["work/chain/plans/approved"])
-        self.assertEqual(_config_lines(self.moved, "reviews_lane"), ["work/chain/reviews"])
-        self.assertEqual(_config_lines(self.moved, "verdicts_lane"), ["work/chain/verdicts"])
+        expected = {
+            "gauntlet_dir": ["work/chain"],
+            "specs_lane": ["work/chain/specs/approved"],
+            "plans_lane": ["work/chain/plans/approved"],
+            "reviews_lane": ["work/chain/reviews"],
+            "verdicts_lane": ["work/chain/verdicts"],
+        }
+        observed = {key: _config_lines(self.moved, key) for key in expected}
+        self.assertEqual(observed, expected)
 
     def test_the_blind_agent_reads_the_moved_block_and_not_the_moved_base(self):
         # The one subtree of the base a blind agent works from moves with it,
         # and the rest of the base stays denied at its new location.  An
         # implementation re-allowing the specs by a literal hands a moved repo's
         # blind writer either nothing or the whole base.
-        self.assertEqual(_read(self.moved, "work/chain/specs/approved/demo.txt"), SILENT)
-        self.assertEqual(_read(self.moved, "work/chain/plans/approved/demo.txt"), DENY)
-        self.assertEqual(_read(self.moved, "work/chain/reviews/demo.1.txt"), DENY)
-        self.assertEqual(_read(self.moved, "work/chain/specs/drafts/demo.txt"), DENY)
+        expected = {
+            "work/chain/specs/approved/demo.txt": SILENT,
+            "work/chain/plans/approved/demo.txt": DENY,
+            "work/chain/reviews/demo.1.txt": DENY,
+            "work/chain/specs/drafts/demo.txt": DENY,
+        }
+        observed = {path: _read(self.moved, path) for path in expected}
+        self.assertEqual(observed, expected)
 
 
 class DocsDirMovesTheBlindReadAllowance(unittest.TestCase):
@@ -311,27 +333,36 @@ class DocsDirMovesTheBlindReadAllowance(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", {})
-        cls.moved = _copy(cls.tmp.name, "MOVED", {"docs_dir": "prose"})
+        cls.bare = copy_hook_dir(cls.tmp.name, "BARE", {})
+        cls.moved = copy_hook_dir(cls.tmp.name, "MOVED", {"docs_dir": "prose"})
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     def test_the_named_dir_is_readable_and_the_default_name_is_not(self):
-        self.assertEqual(_read(self.moved, "prose/testing.md"), SILENT)
-        self.assertEqual(_read(self.moved, "docs/testing.md"), DENY)
-        self.assertEqual(_read(self.bare, "docs/testing.md"), SILENT)
-        self.assertEqual(_config_lines(self.moved, "docs_dir"), ["prose"])
+        observed = {
+            "named": _read(self.moved, "prose/testing.md"),
+            "default, moved": _read(self.moved, "docs/testing.md"),
+            "default, unmoved": _read(self.bare, "docs/testing.md"),
+            "docs_dir": _config_lines(self.moved, "docs_dir"),
+        }
+        self.assertEqual(
+            observed,
+            {"named": SILENT, "default, moved": DENY, "default, unmoved": SILENT, "docs_dir": ["prose"]},
+        )
 
     def test_the_allowance_is_anchored_at_the_repo_root(self):
         # An entry is the repository's own file of that name, never any
         # directory so named: a `src/prose/testing.md` read as documentation
         # hands the blind agent the implementation under a directory it chose.
-        self.assertEqual(_read(self.moved, "src/prose/testing.md"), DENY)
-        # and the allowance is that one policy file, not the prose around it:
+        # And the allowance is that one policy file, not the prose around it:
         # a design note there quotes the code it describes.
-        self.assertEqual(_read(self.moved, "prose/sub/deep.md"), DENY)
+        observed = {
+            "a directory of that name": _read(self.moved, "src/prose/testing.md"),
+            "prose beside the file": _read(self.moved, "prose/sub/deep.md"),
+        }
+        self.assertEqual(observed, {"a directory of that name": DENY, "prose beside the file": DENY})
 
 
 class AnOverlappingSetMovesNothing(unittest.TestCase):
@@ -345,56 +376,73 @@ class AnOverlappingSetMovesNothing(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def _falls_back(self, label, conf):
-        """Every key at its default, and the default lanes guarded again."""
-        copy = _copy(self.tmp.name, label, conf)
-        for key, default in DEFAULTS.items():
-            self.assertEqual(_config_lines(copy, key), [default], (conf, key))
-        self.assertEqual(_write(copy, "lanes.py", "/repo/tests/t.py"), DENY, conf)
-        self.assertEqual(
-            _write(copy, "lanes.py", "/repo/gauntlet/specs/approved/s.txt"), DENY, conf
-        )
+    def _observe(self, label, conf):
+        """Every key as the reader answers it, and the two default lanes' decisions."""
+        copy = copy_hook_dir(self.tmp.name, label, conf)
+        observed = {key: _config_lines(copy, key) for key in DEFAULTS}
+        observed["tests lane"] = _write(copy, "lanes.py", "/repo/tests/t.py")
+        observed["specs lane"] = _write(copy, "lanes.py", "/repo/gauntlet/specs/approved/s.txt")
+        return observed
 
     def test_a_lane_directory_itself(self):
-        self._falls_back("LANE", {"tests_dir": "gauntlet/specs/approved"})
+        observed = self._observe("LANE", {"tests_dir": "gauntlet/specs/approved"})
+        self.assertEqual(observed, FALLEN_BACK)
 
     def test_a_name_under_another(self):
-        self._falls_back("UNDER", {"tests_dir": "gauntlet/x"})
-        self._falls_back("BASEUNDER", {"gauntlet_dir": "tests/artifacts"})
+        observed = {
+            "UNDER": self._observe("UNDER", {"tests_dir": "gauntlet/x"}),
+            "BASEUNDER": self._observe("BASEUNDER", {"gauntlet_dir": "tests/artifacts"}),
+        }
+        self.assertEqual(observed, {"UNDER": FALLEN_BACK, "BASEUNDER": FALLEN_BACK})
 
     def test_a_name_over_another(self):
-        self._falls_back("OVER", {"tests_dir": "."})
-        self._falls_back("BASEOVER", {"gauntlet_dir": "."})
+        observed = {
+            "OVER": self._observe("OVER", {"tests_dir": "."}),
+            "BASEOVER": self._observe("BASEOVER", {"gauntlet_dir": "."}),
+        }
+        self.assertEqual(observed, {"OVER": FALLEN_BACK, "BASEOVER": FALLEN_BACK})
 
     def test_a_key_the_file_omits_still_collides(self):
         # `tests_dir` of `docs` is a usable name read on its own.  It is the
         # default `docs_dir` it lands on, so an implementation checking only the
         # keys the file declares puts the writer's lane over the prose.
-        self._falls_back("DEFAULTCLASH", {"tests_dir": "docs"})
-        self._falls_back("BASECLASH", {"gauntlet_dir": "docs"})
+        observed = {
+            "DEFAULTCLASH": self._observe("DEFAULTCLASH", {"tests_dir": "docs"}),
+            "BASECLASH": self._observe("BASECLASH", {"gauntlet_dir": "docs"}),
+        }
+        self.assertEqual(observed, {"DEFAULTCLASH": FALLEN_BACK, "BASECLASH": FALLEN_BACK})
 
     def test_two_declared_keys_naming_the_same_directory(self):
-        self._falls_back("SAME", {"tests_dir": "one", "docs_dir": "one"})
+        observed = self._observe("SAME", {"tests_dir": "one", "docs_dir": "one"})
+        self.assertEqual(observed, FALLEN_BACK)
 
     def test_a_traversal_that_resolves_into_another(self):
-        self._falls_back("WALK", {"tests_dir": "spec/../gauntlet/reviews"})
+        observed = self._observe("WALK", {"tests_dir": "spec/../gauntlet/reviews"})
+        self.assertEqual(observed, FALLEN_BACK)
 
     def test_an_absolute_path_and_a_walk_out_of_the_checkout(self):
-        self._falls_back("ABS", {"tests_dir": "/repo/spec"})
-        self._falls_back("OUT", {"tests_dir": "../spec"})
+        observed = {
+            "ABS": self._observe("ABS", {"tests_dir": "/repo/spec"}),
+            "OUT": self._observe("OUT", {"tests_dir": "../spec"}),
+        }
+        self.assertEqual(observed, {"ABS": FALLEN_BACK, "OUT": FALLEN_BACK})
 
     def test_a_value_that_is_not_a_string(self):
-        self._falls_back("LIST", {"tests_dir": ["spec"]})
-        self._falls_back("EMPTY", {"docs_dir": ""})
+        observed = {
+            "LIST": self._observe("LIST", {"tests_dir": ["spec"]}),
+            "EMPTY": self._observe("EMPTY", {"docs_dir": ""}),
+        }
+        self.assertEqual(observed, {"LIST": FALLEN_BACK, "EMPTY": FALLEN_BACK})
 
     def test_one_bad_key_does_not_leave_the_others_moved(self):
         # The whole point of the all-or-nothing rule: a set that would be
         # usable but for one name moves no directory at all, so a typo cannot
         # half-apply a layout and leave one hook guarding a directory the rest
         # of the kit no longer uses.
-        self._falls_back(
+        observed = self._observe(
             "PARTIAL", {"tests_dir": "spec", "gauntlet_dir": "spec/chain", "docs_dir": "prose"}
         )
+        self.assertEqual(observed, FALLEN_BACK)
 
 
 class OneReaderOneKeySet(unittest.TestCase):
@@ -403,8 +451,8 @@ class OneReaderOneKeySet(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", {})
-        cls.extra = _copy(
+        cls.bare = copy_hook_dir(cls.tmp.name, "BARE", {})
+        cls.extra = copy_hook_dir(
             cls.tmp.name,
             "EXTRA",
             {"tests_dir": "spec", "runners": ["pytest"], "allow": ["gauntlet/"]},
@@ -419,17 +467,23 @@ class OneReaderOneKeySet(unittest.TestCase):
         # one names nothing: an implementation honouring an `allow` entry over
         # the artifact base re-opens the plans and the reviewer rounds to a
         # blind agent, which is the whole of what the base is denied for.
-        self.assertEqual(_config_lines(self.extra, "tests_dir"), ["spec"])
-        self.assertEqual(_config_lines(self.extra, "allow"), [])
-        self.assertEqual(_config_lines(self.extra, "runners"), [])
-        self.assertEqual(_read(self.extra, "gauntlet/plans/approved/demo.txt"), DENY)
-        self.assertEqual(_read(self.extra, "gauntlet/reviews/demo.1.txt"), DENY)
-        self.assertEqual(_read(self.extra, "gauntlet/specs/approved/demo.txt"), SILENT)
+        observed = {
+            "tests_dir": _config_lines(self.extra, "tests_dir"),
+            "allow": _config_lines(self.extra, "allow"),
+            "runners": _config_lines(self.extra, "runners"),
+            "plans": _read(self.extra, "gauntlet/plans/approved/demo.txt"),
+            "reviews": _read(self.extra, "gauntlet/reviews/demo.1.txt"),
+            "specs": _read(self.extra, "gauntlet/specs/approved/demo.txt"),
+        }
+        self.assertEqual(
+            observed,
+            {"tests_dir": ["spec"], "allow": [], "runners": [], "plans": DENY, "reviews": DENY, "specs": SILENT},
+        )
 
     def test_an_unknown_key_asked_of_the_reader_is_no_lines(self):
-        self.assertEqual(_config_lines(self.bare, "tests.dir"), [])
-        self.assertEqual(_config_lines(self.bare, "runner_invocations"), [])
-        self.assertEqual(_config_lines(self.bare, "agents.writer"), [])
+        keys = ("tests.dir", "runner_invocations", "agents.writer")
+        observed = {key: _config_lines(self.bare, key) for key in keys}
+        self.assertEqual(observed, {key: [] for key in keys})
 
 
 
@@ -439,16 +493,20 @@ class BlindAgentReadsTheConfig(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="dirs-config-")
-        cls.bare = _copy(cls.tmp.name, "BARE", {})
+        cls.bare = copy_hook_dir(cls.tmp.name, "BARE", {})
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     def test_blind_reads_json_is_readable_and_its_siblings_are_not(self):
-        self.assertEqual(_read(self.bare, ".claude/blind-reads.json"), SILENT)
-        self.assertEqual(_read(self.bare, "hooks/shell_shapes.py"), DENY)
-        self.assertEqual(_read(self.bare, ".claude/settings.json"), DENY)
+        expected = {
+            ".claude/blind-reads.json": SILENT,
+            "hooks/shell_shapes.py": DENY,
+            ".claude/settings.json": DENY,
+        }
+        observed = {path: _read(self.bare, path) for path in expected}
+        self.assertEqual(observed, expected)
 
 
 class BlindShellReadsTheSameKeys(unittest.TestCase):
@@ -459,11 +517,13 @@ class BlindShellReadsTheSameKeys(unittest.TestCase):
         # directory moves both together.  A script reading a key the reader does
         # not answer gets an empty value and binds or shows the wrong path.
         text = BLIND_SH.read_text()
-        self.assertIn("--config", text)
-        for key in ("tests_dir", "specs_lane"):
-            self.assertIn(key, text, key)
-        for gone in ("tests.dir", "runner_invocations"):
-            self.assertNotIn(gone, text, gone)
+        present = ("--config", "tests_dir", "specs_lane")
+        absent = ("tests.dir", "runner_invocations")
+        observed = {name: name in text for name in present + absent}
+        self.assertEqual(
+            observed,
+            {**{name: True for name in present}, **{name: False for name in absent}},
+        )
 
     def test_the_script_names_no_lane_of_its_own(self):
         # Every artifact path it types comes from the reader; a literal here is
@@ -487,33 +547,40 @@ class ADeclarationThatIsAFault(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="fault-config-")
-        cls.absent = _copy(cls.tmp.name, "FABSENT", None)
-        cls.broken = _copy(cls.tmp.name, "FBROKEN", "{not json")
-        cls.not_object = _copy(cls.tmp.name, "FLIST", '["tests_dir"]')
-        cls.empty = _copy(cls.tmp.name, "FEMPTY", {})
+        cls.absent = copy_hook_dir(cls.tmp.name, "FABSENT", None)
+        cls.broken = copy_hook_dir(cls.tmp.name, "FBROKEN", "{not json")
+        cls.not_object = copy_hook_dir(cls.tmp.name, "FLIST", '["tests_dir"]')
+        cls.empty = copy_hook_dir(cls.tmp.name, "FEMPTY", {})
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     def test_the_reader_exits_non_zero_and_names_the_path(self):
-        for label, copy in (
+        cases = (
             ("absent", self.absent),
             ("malformed", self.broken),
             ("not an object", self.not_object),
-        ):
+        )
+        observed = {}
+        for label, copy in cases:
             status, lines, stderr = _config_run(copy, "tests_dir")
-            self.assertEqual(status, 2, label)
-            self.assertEqual(lines, [], label)
-            self.assertIn(".claude/blind-reads.json", stderr, label)
+            observed[label] = (status, lines, ".claude/blind-reads.json" in stderr)
+        self.assertEqual(observed, {label: (2, [], True) for label, _ in cases})
 
     def test_a_hook_denies_rather_than_guarding_the_default_lane(self):
         # The lane is a configured directory.  A hook that cannot read the
         # declaration does not know which directory it guards, so it refuses
         # instead of guarding the kit's and calling that a decision.
-        for label, copy in (("absent", self.absent), ("malformed", self.broken)):
-            self.assertEqual(_write(copy, "lanes.py", "/repo/src/main.py"), DENY, label)
-            self.assertEqual(_write(copy, "lanes.py", "/repo/README.md"), DENY, label)
+        cases = (("absent", self.absent), ("malformed", self.broken))
+        observed = {}
+        for label, copy in cases:
+            observed[label, "src/main.py"] = _write(copy, "lanes.py", "/repo/src/main.py")
+            observed[label, "README.md"] = _write(copy, "lanes.py", "/repo/README.md")
+        self.assertEqual(
+            observed,
+            {(label, name): DENY for label, _ in cases for name in ("src/main.py", "README.md")},
+        )
 
     def test_the_denial_names_the_file_and_the_way_out(self):
         completed = subprocess.run(
@@ -531,17 +598,19 @@ class ADeclarationThatIsAFault(unittest.TestCase):
             env=_environment(Path(self.absent).parent),
         )
         reason = json.loads(completed.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
-        self.assertIn("blind-reads.json", reason)
-        self.assertIn("scripts/init.py", reason)
+        named = ("blind-reads.json", "scripts/init.py")
+        observed = {name: name in reason for name in named}
+        self.assertEqual(observed, {name: True for name in named})
 
     def test_the_empty_object_is_the_projects_word_and_resolves(self):
         # `{}` is how a project asks for the shipped layout and means it.  It is
         # the one shape `scripts/init.py` cannot be needed for, and the one that
         # separates "declared nothing" from "declared the defaults".
-        for key, default in DEFAULTS.items():
-            self.assertEqual(_config_lines(self.empty, key), [default], key)
-        self.assertEqual(_write(self.empty, "lanes.py", "/repo/tests/t.py"), DENY)
-        self.assertEqual(_write(self.empty, "lanes.py", "/repo/src/main.py"), SILENT)
+        observed = {key: _config_lines(self.empty, key) for key in DEFAULTS}
+        observed["tests lane"] = _write(self.empty, "lanes.py", "/repo/tests/t.py")
+        observed["src/main.py"] = _write(self.empty, "lanes.py", "/repo/src/main.py")
+        defaults = {key: [default] for key, default in DEFAULTS.items()}
+        self.assertEqual(observed, {**defaults, "tests lane": DENY, "src/main.py": SILENT})
 
 
 if __name__ == "__main__":
@@ -564,8 +633,8 @@ class TwoScalarsResolvedOnTheirOwn(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="scalars-config-")
-        cls.bare = _copy(cls.tmp.name, "SBARE", {})
-        cls.named = _copy(
+        cls.bare = copy_hook_dir(cls.tmp.name, "SBARE", {})
+        cls.named = copy_hook_dir(
             cls.tmp.name,
             "SNAMED",
             {"target_branch": "dev", "gate_command": "scripts/gates/check-gates.sh"},
@@ -579,19 +648,21 @@ class TwoScalarsResolvedOnTheirOwn(unittest.TestCase):
         # The empty object names neither and is still the project's word, so
         # both scalars are the kit's.  An absent file is a fault instead, and
         # `ADeclarationThatIsAFault` is where that is pinned.
-        for key, default in SCALARS.items():
-            self.assertEqual(_config_lines(self.bare, key), [default], key)
+        observed = {key: _config_lines(self.bare, key) for key in SCALARS}
+        self.assertEqual(observed, {key: [default] for key, default in SCALARS.items()})
 
     def test_the_reader_answers_the_two_names_a_project_gives(self):
-        self.assertEqual(_config_lines(self.named, "target_branch"), ["dev"])
+        keys = ("target_branch", "gate_command")
+        observed = {key: _config_lines(self.named, key) for key in keys}
         self.assertEqual(
-            _config_lines(self.named, "gate_command"), ["scripts/gates/check-gates.sh"]
+            observed,
+            {"target_branch": ["dev"], "gate_command": ["scripts/gates/check-gates.sh"]},
         )
 
     def test_an_unusable_value_falls_back_alone(self):
         # A newline is what separates a branch name from a second command
         # smuggled after it, so a multi-line value is not a scalar at all.
-        for label, conf, expected in (
+        cases = (
             ("SLIST", {"target_branch": ["dev"], "gate_command": "gate"}, ["main", "gate"]),
             ("SEMPTY", {"target_branch": "  ", "gate_command": "gate"}, ["main", "gate"]),
             (
@@ -599,28 +670,31 @@ class TwoScalarsResolvedOnTheirOwn(unittest.TestCase):
                 {"target_branch": "dev", "gate_command": "a\nrm -rf /"},
                 ["dev", "make check"],
             ),
-        ):
-            copy = _copy(self.tmp.name, label, conf)
-            read = [
+        )
+        observed = {}
+        for label, conf, _ in cases:
+            copy = copy_hook_dir(self.tmp.name, label, conf)
+            observed[label] = [
                 _config_lines(copy, "target_branch")[0],
                 _config_lines(copy, "gate_command")[0],
             ]
-            self.assertEqual(read, expected, conf)
+        self.assertEqual(observed, {label: expected for label, _, expected in cases})
 
     def test_a_directory_set_that_moves_nothing_still_leaves_the_scalars(self):
         # The all-or-nothing rule is about names that can collide.  A branch and
         # a command cannot collide with a lane, so voiding the directories has
         # no reason to reach them, and a merge that silently converged on the
         # wrong branch is the cost of letting it.
-        copy = _copy(
+        copy = copy_hook_dir(
             self.tmp.name,
             "SVOID",
             {"tests_dir": "docs", "target_branch": "dev", "gate_command": "gate"},
         )
-        for key, default in DEFAULTS.items():
-            self.assertEqual(_config_lines(copy, key), [default], key)
-        self.assertEqual(_config_lines(copy, "target_branch"), ["dev"])
-        self.assertEqual(_config_lines(copy, "gate_command"), ["gate"])
+        observed = {key: _config_lines(copy, key) for key in DEFAULTS}
+        observed["target_branch"] = _config_lines(copy, "target_branch")
+        observed["gate_command"] = _config_lines(copy, "gate_command")
+        defaults = {key: [default] for key, default in DEFAULTS.items()}
+        self.assertEqual(observed, {**defaults, "target_branch": ["dev"], "gate_command": ["gate"]})
 
 
 def _git(cwd, *args):
@@ -687,30 +761,36 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
         return completed
 
     def _tests_dir(self, cwd):
+        """(exit status, the one line the reader printed, its stderr)."""
         completed = self._run(cwd)
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        return completed.stdout.strip()
+        return completed.returncode, completed.stdout.strip(), completed.stderr
 
     def test_the_worktree_carries_no_declaration_of_its_own(self):
-        self.assertFalse((self.tree / ".claude" / "blind-reads.json").exists())
-        self.assertTrue((self.tree / ".git").is_file())
+        observed = {
+            "declaration": (self.tree / ".claude" / "blind-reads.json").exists(),
+            "pointer file": (self.tree / ".git").is_file(),
+        }
+        self.assertEqual(observed, {"declaration": False, "pointer file": True})
 
     def test_the_main_checkout_reads_its_declaration(self):
-        self.assertEqual(self._tests_dir(self.project), "spec")
+        self.assertEqual(self._tests_dir(self.project), (0, "spec", ""))
 
     def test_the_worktree_reads_the_projects_declaration_and_not_the_default(self):
-        self.assertEqual(self._tests_dir(self.tree), "spec")
+        self.assertEqual(self._tests_dir(self.tree), (0, "spec", ""))
 
     def test_a_directory_under_the_worktree_reads_it_too(self):
         deeper = self.tree / "spec" / "unit"
         deeper.mkdir(parents=True, exist_ok=True)
-        self.assertEqual(self._tests_dir(deeper), "spec")
+        self.assertEqual(self._tests_dir(deeper), (0, "spec", ""))
 
     def test_outside_any_checkout_there_is_no_project_and_that_is_a_fault(self):
         # No project and no copy beside the kit is no declaration at all.  The
         # reader exits non-zero and names the file, because a `tests_dir` printed
         # here would be substituted into a shell that binds a lane with it.
         completed = self._run(self.tmp.name)
-        self.assertEqual(completed.returncode, 2)
-        self.assertEqual(completed.stdout, "")
-        self.assertIn("blind-reads.json", completed.stderr)
+        observed = {
+            "status": completed.returncode,
+            "stdout": completed.stdout,
+            "names the file": "blind-reads.json" in completed.stderr,
+        }
+        self.assertEqual(observed, {"status": 2, "stdout": "", "names the file": True})

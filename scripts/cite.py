@@ -13,9 +13,15 @@ A citation is a backticked `path:line` or `path:line-line`. The path may be
 omitted -- `:49` -- to continue the nearest preceding full citation. A number in
 prose without backticks is not a citation and is never resolved.
 
-    --check DOC   one row per reported citation, exit 1 where any row fails
-    --fix DOC     fill a number from its quoted anchor where the anchor is
-                  unique in the file, refusing on zero matches or several
+    --check DOC        one row per reported citation, exit 1 where any row fails
+    --check-all [DOC...]
+                       --check over several documents, each row prefixed with
+                       its document, exit 1 where any document has a failing
+                       row. Named no document it takes every tracked `*.md` of
+                       the checkout it is run in, which is the whole of what
+                       this repository ships as prose.
+    --fix DOC          fill a number from its quoted anchor where the anchor is
+                        unique in the file, refusing on zero matches or several
 
 The failing rows are `MISSING` (no such path), `RANGE` (a number or span past
 the end of the file), `AMBIGUOUS` (a basename more than one path carries),
@@ -44,10 +50,17 @@ no checkout falls back to this file's own checkout.
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+#: fixed at load, unlike ROOT: `${CLAUDE_PLUGIN_ROOT}/...` names the kit's own
+#: checkout even where a document being checked sits in a consumer's.
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+
+PLUGIN_ROOT_VAR = "${CLAUDE_PLUGIN_ROOT}/"
 
 
 def checkout_of(doc: Path, fallback: Path = ROOT) -> Path:
@@ -237,6 +250,13 @@ def resolve(cite: Citation) -> None:
     if not named:
         cite.verdict = "ORPHAN"
         return
+    if named.startswith(PLUGIN_ROOT_VAR):
+        target = PLUGIN_ROOT / named[len(PLUGIN_ROOT_VAR) :]
+        if not target.is_file():
+            cite.verdict = "MISSING"
+            return
+        cite.resolved = target
+        return
     path = Path(named)
     if path.is_absolute():
         try:
@@ -367,14 +387,62 @@ def apply_fixes(text: str) -> tuple[str, list[str]]:
     return "".join(lines), rows
 
 
+def tracked_markdown() -> list[str]:
+    """Every tracked `*.md` of the checkout this run sits in, repo-relative.
+
+    `git ls-files` rather than a walk, so a draft nobody has added and a file
+    an ignore rule covers are not checked, and the set is the same one a
+    reviewer sees in the diff.
+    """
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "*.md"],
+        capture_output=True,
+        text=True,
+    )
+    if listed.returncode != 0:
+        raise SystemExit("--check-all with no document needs a checkout: git ls-files failed here")
+    return [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
+
+
+def check_all(paths: list[str]) -> int:
+    """`--check-all`: every row of every document, each resolved against its
+    own checkout, prefixed with the document it came from. Exits 1 where any
+    document carries a failing row.
+
+    Handed no path it takes `tracked_markdown()`, so the mode has a default set
+    and a run over the whole tree needs no shell expansion to name it."""
+    global ROOT
+    failed = False
+    for p in paths or tracked_markdown():
+        doc = Path(p)
+        text = doc.read_text(encoding="utf-8")
+        ROOT = checkout_of(doc)
+        rows = report(text)
+        for row in rows:
+            print(f"{doc}: {row}")
+        if any(row.split()[0] in FAILING for row in rows):
+            failed = True
+    return 1 if failed else 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", metavar="DOC", help="resolve and report, exit 1 on a failing row")
+    mode.add_argument(
+        "--check-all",
+        metavar="DOC",
+        nargs="*",
+        help="check several documents, or every tracked *.md when named none, "
+        "exit 1 where any carries a failing row",
+    )
     mode.add_argument("--fix", metavar="DOC", help="fill a number from its unique quoted anchor")
     args = ap.parse_args(argv)
+
+    if args.check_all is not None:
+        return check_all(args.check_all)
 
     doc = Path(args.check or args.fix)
     text = doc.read_text(encoding="utf-8")
@@ -395,93 +463,9 @@ def main(argv: list[str]) -> int:
     return 0
 
 
-def self_test() -> int:
-    """Pin the rules of the grammar and the two modes, on a throwaway tree."""
-    import tempfile
-
-    global ROOT
-    keep = ROOT
-    rules = {}
-    with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as away:
-        tree, elsewhere = Path(tmp), Path(away)
-        ROOT = tree
-        (tree / "docs").mkdir()
-        (tree / "other").mkdir()
-        (tree / "docs" / "a.md").write_text("one\ntwo\nthree\n", encoding="utf-8")
-        (tree / "docs" / "b.md").write_text("alpha\nbeta\n", encoding="utf-8")
-        (tree / "docs" / "twin.md").write_text("x\n", encoding="utf-8")
-        (tree / "other" / "twin.md").write_text("x\n", encoding="utf-8")
-        (tree / "docs" / "pair.md").write_text("first half\nsecond half\n", encoding="utf-8")
-        (tree / "docs" / "twice.md").write_text("same\nsame\n", encoding="utf-8")
-        outside = elsewhere / "OUT.md"
-        outside.write_text("out one\nout two\n", encoding="utf-8")
-
-        def codes(doc: str) -> list[str]:
-            return [row.split()[0] for row in report(doc)]
-
-        rules["1 a path absent from the checkout is MISSING, one present is not"] = (
-            codes("`docs/nope.md:1`") == ["MISSING"] and codes("`docs/a.md:1`") == []
-        )
-        rules["2 a span past the file's last line is RANGE, one ending on it is not"] = (
-            codes("`docs/a.md:2-9`") == ["RANGE"] and codes("`docs/a.md:2-3`") == []
-        )
-        rules["3 a basename two paths carry is AMBIGUOUS, one path carries resolves"] = (
-            codes("`twin.md:1`") == ["AMBIGUOUS"] and codes("`pair.md:1`") == []
-        )
-        rules["4 a bare number with no full citation before it is ORPHAN"] = codes("`:2`") == [
-            "INHERITED-FROM",
-            "ORPHAN",
-        ] and codes("`docs/a.md:1` and `:2`") == ["INHERITED-FROM"]
-        rules["5 INHERITED-FROM prints on a passing continuation and a failing one"] = codes(
-            "`docs/a.md:1` `:2`"
-        ) == ["INHERITED-FROM"] and codes("`docs/a.md:1` `:9`") == ["INHERITED-FROM", "RANGE"]
-        rules["6 a bare number inherits the nearest preceding path, not the first"] = report(
-            "`docs/a.md:1` `docs/b.md:1` `:2`"
-        )[-1].endswith("docs/b.md") and report("`docs/b.md:1` `docs/a.md:1` `:2`")[-1].endswith(
-            "docs/a.md"
-        )
-        rules["7 an anchor is read on the cited line only, never elsewhere in the file"] = codes(
-            '`docs/a.md:2` "two"'
-        ) == [] and codes('`docs/a.md:1` "two"') == ["QUOTE"]
-        rules["8 an anchor on a span's second line passes, one on neither fails"] = codes(
-            '`docs/pair.md:1-2` "second half"'
-        ) == [] and codes('`docs/pair.md:1-2` "nowhere"') == ["QUOTE"]
-        rules["9 a citation with no anchor is checked for existence only"] = codes(
-            "the sentence says something else entirely `docs/a.md:2`"
-        ) == [] and codes("the sentence says something else entirely `docs/a.md:9`") == ["RANGE"]
-        rules["10 a path outside the checkout resolves, and prints CROSS-REPO"] = codes(
-            f"`{outside}:1`"
-        ) == ["CROSS-REPO"] and codes(f"`{elsewhere / 'gone.md'}:1`") == ["MISSING"]
-        rules["11 only a backticked path:line is a citation"] = codes(
-            "`docs/a.md:1` and docs/a.md:99 in prose"
-        ) == [] and codes("`docs/a.md:1` and `docs/a.md:99`") == ["RANGE"]
-        unique, _ = apply_fixes('`docs/a.md:1` "three"')
-        several, _ = apply_fixes('`docs/twice.md:9` "same"')
-        rules["12 --fix fills from a unique anchor and refuses on several"] = (
-            unique == '`docs/a.md:3` "three"' and several == '`docs/twice.md:9` "same"'
-        )
-        both = '`docs/a.md:3` "three" and `docs/a.md:1` "two"'
-        rules["13 --fix moves the citation that missed its anchor and no other"] = (
-            apply_fixes(both)[0] == '`docs/a.md:3` "three" and `docs/a.md:2` "two"'
-        )
-        (elsewhere / ".git").mkdir()
-        (elsewhere / "sub").mkdir()
-        homeless = tree / "docs" / "plan.md"
-        rules["14 the root is the document's own checkout, the script's only where it has none"] = (
-            checkout_of(elsewhere / "sub" / "plan.md", tree) == elsewhere
-            and checkout_of(homeless, tree) == tree
-        )
-        (elsewhere / "wt").mkdir()
-        (elsewhere / "wt" / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
-        rules["15 a worktree's .git file marks its root ahead of the checkout above it"] = (
-            checkout_of(elsewhere / "wt" / "plan.md", tree) == elsewhere / "wt"
-        )
-    ROOT = keep
-
-    for label, ok in rules.items():
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
-    return 0 if all(rules.values()) else 1
-
-
 if __name__ == "__main__":
-    sys.exit(self_test() if "--self-test" in sys.argv else main(sys.argv[1:]))
+    if "--self-test" in sys.argv:
+        from cite_selftest import self_test
+
+        sys.exit(self_test())
+    sys.exit(main(sys.argv[1:]))

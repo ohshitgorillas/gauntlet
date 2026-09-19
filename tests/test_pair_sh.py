@@ -247,9 +247,9 @@ def test_review_creates_the_reviews_directory_the_reviewer_writes_into(tmp_path)
     # reviewer denied every read of the lane cannot tell whether it is there.
     repo = _repo(tmp_path, _block(BODY_NEW), REVIEWER)
     shutil.rmtree(repo / "gauntlet" / "reviews")
+    announced = ["REVIEW gauntlet/reviews/demo.1.txt"]
     lines = _pair(repo, "review", SLUG)
-    assert lines == ["REVIEW gauntlet/reviews/demo.1.txt"]
-    assert (repo / "gauntlet" / "reviews").is_dir()
+    assert (lines, (repo / "gauntlet" / "reviews").is_dir()) == (announced, True)
 
 
 NEW_ROUND = (

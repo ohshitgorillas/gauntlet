@@ -48,6 +48,25 @@ gates=(
     "symbol-closure|python3 scripts/gates/symbol-closure.py --self-test"
     "file-length|python3 scripts/gates/file-length.py --check"
     "file-length-self|python3 scripts/gates/file-length.py --self-test"
+    "gates-wired|python3 scripts/gates/gates-wired.py --check"
+    "gates-wired-self|python3 scripts/gates/gates-wired.py --self-test"
+    "md-softwrap|python3 scripts/gates/md-softwrap.py --check"
+    "md-softwrap-self|python3 scripts/gates/md-softwrap.py --self-test"
+    "nesting|python3 scripts/gates/nesting.py"
+    "nesting-self|python3 scripts/gates/nesting.py --self-test"
+    "no-barrels|python3 scripts/gates/no-barrels.py"
+    "no-barrels-self|python3 scripts/gates/no-barrels.py --self-test"
+    "changelog|python3 scripts/gates/changelog.py"
+    "changelog-self|python3 scripts/gates/changelog.py --self-test"
+    "commit-msg|python3 scripts/gates/commit-msg.py"
+    "commit-msg-self|python3 scripts/gates/commit-msg.py --self-test"
+    "test-assertions|python3 scripts/gates/test-assertions.py"
+    "test-assertions-self|python3 scripts/gates/test-assertions.py --self-test"
+    "no-copy-assertions|python3 scripts/gates/no-copy-assertions.py"
+    "no-copy-assertions-self|python3 scripts/gates/no-copy-assertions.py --self-test"
+    "test-clocks|python3 scripts/gates/test-clocks.py"
+    "test-clocks-self|python3 scripts/gates/test-clocks.py --self-test"
+    "cite-check|python3 scripts/cite.py --check-all"
 )
 
 failed=0
@@ -64,7 +83,7 @@ for entry in "${gates[@]}"; do
         verdict=FAIL
         failed=1
     fi
-    printf '%s  %-14s %6ss\n' "$verdict" "$name" "$secs"
+    printf '%s  %-23s %6ss\n' "$verdict" "$name" "$secs"
 done
 
 echo "output: ${out#"$root"/}/<gate>.txt"

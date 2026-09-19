@@ -221,9 +221,9 @@ class RemovedWithTheClassifier(unittest.TestCase):
             "sed -i 's/a/b/' src/m.py",
         )
         expected = {command: PASSES for command in commands}
-        for agent in ("arbiter", "prosecutor"):
-            with self.subTest(agent=agent):
-                self.assertEqual(lane_sweep(expected, REPO_CWD, agent), expected)
+        reviewers = ("arbiter", "prosecutor")
+        actual = {agent: lane_sweep(expected, REPO_CWD, agent) for agent in reviewers}
+        self.assertEqual(actual, {agent: expected for agent in reviewers})
 
 
 class NoImplReadsShellShapes(unittest.TestCase):
@@ -563,8 +563,8 @@ class TheCallerGate(unittest.TestCase):
             for entry in MANIFEST["hooks"]["PreToolUse"]
             for hook in entry["hooks"]
         }
-        self.assertIn("no-impl-reads.py", wired)
-        self.assertIn("blind-bash.py", wired)
+        blind_guards = ("no-impl-reads.py", "blind-bash.py")
+        self.assertEqual({guard: guard in wired for guard in blind_guards}, dict.fromkeys(blind_guards, True))
 
     def test_the_manifest_is_the_only_place_the_kit_hooks_are_wired(self):
         # This repo is its own consumer, so a kit hook left declared in
@@ -578,9 +578,7 @@ class TheCallerGate(unittest.TestCase):
             for entry in event
             for hook in entry.get("hooks", ())
         }
-        for command in project_wired:
-            with self.subTest(command=command):
-                self.assertNotIn("/hooks/", command)
+        self.assertEqual([command for command in sorted(project_wired) if "/hooks/" in command], [])
 
     def test_every_hook_command_the_manifest_names_resolves_in_the_kit(self):
         # `${CLAUDE_PLUGIN_ROOT}` is the root of this repo once it is installed,
@@ -591,19 +589,22 @@ class TheCallerGate(unittest.TestCase):
             for entry in event
             for hook in entry["hooks"]
         ]
-        self.assertEqual(len(commands), 9)
-        for command in commands:
-            with self.subTest(command=command):
-                self.assertIn("${CLAUDE_PLUGIN_ROOT}", command)
-                self.assertNotIn("${CLAUDE_PROJECT_DIR}", command)
-                script = command.split("/hooks/", 1)[1].split()[0]
-                self.assertTrue((HOOK_DIR / script).is_file())
+        scripts = [command.split("/hooks/", 1)[1].split()[0] for command in commands]
+        actual = {
+            "count": len(commands),
+            "off the plugin root": [c for c in commands if "${CLAUDE_PLUGIN_ROOT}" not in c],
+            "on the project dir": [c for c in commands if "${CLAUDE_PROJECT_DIR}" in c],
+            "absent from the kit": [s for s in scripts if not (HOOK_DIR / s).is_file()],
+        }
+        self.assertEqual(
+            actual,
+            {"count": 9, "off the plugin root": [], "on the project dir": [], "absent from the kit": []},
+        )
 
+    def test_no_agent_definition_wires_a_hook_in_its_own_frontmatter(self):
         definitions = sorted((WORKTREE_ROOT / "agents").glob("*.md"))
-        self.assertTrue(definitions)
-        for definition in definitions:
-            with self.subTest(agent=definition.name):
-                self.assertNotIn("hooks:", definition.read_text())
+        wiring = [definition.name for definition in definitions if "hooks:" in definition.read_text()]
+        self.assertEqual((bool(definitions), wiring), (True, []))
 
 
 if __name__ == "__main__":

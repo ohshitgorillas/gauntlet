@@ -5,10 +5,12 @@ Project rule: documentation is soft-wrapped. One paragraph, list item, or
 blockquote is one logical line; wrapping is the viewer's job, not the author's.
 Hard-wrapped prose makes every later edit a reflow and every diff unreadable.
 
-Two modes:
+Three modes:
 
   --check FILE...   exit 1 if any file carries hard-wrapped prose (prints paths)
+                    with no FILE, checks every tracked `*.md` from `git ls-files`
   --fix   FILE...   rewrite the files in place, joining continuation lines
+  --self-test       one PASS or FAIL line per rule this gate holds
 
 With no flag, reads a PostToolUse hook payload on stdin and blocks (exit 2) when
 the file just written is hard-wrapped.
@@ -22,6 +24,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -170,6 +173,22 @@ def reflow(source: str) -> str:
     return "\n".join(out)
 
 
+def tracked_md() -> list[str]:
+    """Return the tracked Markdown files of the tree the gate is run in.
+
+    The no-argument default for `--check`. A gate that has to be handed its
+    paths checks whatever the caller remembered; reading the index instead
+    means a new document is covered the moment it is added.
+    """
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "*.md"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
+
+
 def _offenders(paths: list[str]) -> list[Path]:
     bad = []
     for raw in paths:
@@ -197,7 +216,7 @@ def main() -> int:
                     path.write_text(new, encoding="utf-8")
                     print(f"reflowed {path}")
             return 0
-        bad = _offenders(paths)
+        bad = _offenders(paths or tracked_md())
         for path in bad:
             print(f"hard-wrapped: {path}")
         return 1 if bad else 0
@@ -219,4 +238,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if "--self-test" in sys.argv:
+        from md_softwrap_selftest import self_test
+
+        sys.exit(self_test())
     sys.exit(main())

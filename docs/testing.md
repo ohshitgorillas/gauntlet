@@ -10,7 +10,7 @@ Break rule = review say no. Even if test green.
 
 1. **Test behavior, never implementation.** Give input/wire traffic, public API give result. Refactor keep behavior but test break = test bad. Module shape, private helper, inside state, call order, log word — no touch.
 
-2. **One assertion per test.** Many case = framework parametrize, never assert in loop. Boolean AND = one assertion each side. `x is not None and x["k"] == v` trick fix: empty value of same type instead of null check (`(x or {})["k"] == v`), so missing key fail alone. `<gate for this>`.
+2. **One assertion per test.** Many case = framework parametrize, never assert in loop. Boolean AND = one assertion each side. `x is not None and x["k"] == v` trick fix: empty value of same type instead of null check (`(x or {})["k"] == v`), so missing key fail alone. `scripts/gates/test-assertions.py`.
 
 3. **Public API only.** No private attribute, no monkeypatch inside.
 
@@ -37,7 +37,7 @@ Break rule = review say no. Even if test green.
    - Vendored/built data blob never give expected value — test join/lookup against owned fixtures; data well-formedness is a data gate, not a behavior test.
    - Curated count/order is copy.
    - Selector need wording → add stable test id. Nothing live through remove wording → delete via `motion: strike`, or `motion: amend` where behavior under it stay pinned. Never hand-edit `<tests dir>/`.
-   - `<mechanical gate for this>`.
+   - `scripts/gates/no-copy-assertions.py`.
 
 10. **A test discriminates, or it's a tautology.** Name failing implementation and a passing one, both plausible; if failing one is only "feature absent," test pins nothing. Shapes that fail this:
     - Single input/single expected value = lookup-table entry. Need relation between two observations, or two distinct expected values on same surface.
@@ -60,7 +60,7 @@ Break rule = review say no. Even if test green.
 
 13. **Fakes answer from tables, never logic.** Fake that work out reply by code's own algorithm = second wrong implementation.
 
-14. **Helpers return values.** No assert outside test function; fixture that must refuse to run raises. `<gate for this>`.
+14. **Helpers return values.** No assert outside test function; fixture that must refuse to run raises. `scripts/gates/test-assertions.py`.
 
 15. **Lowest lane.** Pure function → store/service → API → rendered component → browser. Higher-lane test a lower one already covers is deleted.
 
