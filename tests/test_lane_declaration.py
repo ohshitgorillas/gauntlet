@@ -68,7 +68,7 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
         environment = dict(os.environ)
         environment.pop("GAUNTLET", None)
         environment.pop("CLAUDE_PROJECT_DIR", None)
-        completed = subprocess.run(
+        return subprocess.run(
             [sys.executable, str(HOOK_DIR / "shell_shapes.py"), "--config", "tests_dir"],
             cwd=str(cwd),
             capture_output=True,
@@ -76,7 +76,6 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
             check=False,
             env=environment,
         )
-        return completed
 
     def _tests_dir(self, cwd):
         """(exit status, the one line the reader printed, its stderr)."""
