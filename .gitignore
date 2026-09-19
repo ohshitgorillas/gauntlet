@@ -11,3 +11,5 @@ gauntlet/specs/drafts/
 .venv/
 .claude/logs/
 .triviajudge/
+.coverage
+.coverage.json

@@ -24,11 +24,11 @@ Green means every gate passes, not just the first. One command runs them:
 scripts/gates/check-gates.sh
 ```
 
-It runs `pytest` on `tests/` and the `--self-test` of `lanes.py`, `no-impl-reads.py`, `blind-bash.py`, `gauntlet-off.py`, `bwrap-wrap.py`, `lane-audit.py`, `pair-passthrough.py`, `strike-diff.py`, `pair/cli.py`, `cite.py`, `init.py`, `symbol-closure.py` and `file-length.py`, plus the `--check` of `file-length.py`, one after another under `nice -n 19 ionice -c3`. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
+It runs `pytest` on `tests/` under `coverage`, the `--self-test` of every hook and script that offers one, the `--check` of every gate under `scripts/gates/`, and the lint gates `ruff check`, `black --check`, `mypy hooks scripts` and `shellcheck` over the shell scripts, one after another under `nice -n 19 ionice -c3`. `scripts/gates/gates-wired.py` fails when a gate script exists that the array does not name, so the array is the list. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
 
 Each `--self-test` prints one `PASS` or `FAIL` per rule that script exists to hold, and they cover cases the suite does not. A hook change that passes `pytest` and fails its own `--self-test` is exactly what this bar catches.
 
-No linter is installed here. `ruff`, `black` and `eslint` appear in the agent definitions as instructions for the project those agents are copied into, not as a bar for this repo; do not run them here and do not add them to a report.
+`ruff`, `black`, `mypy` and `coverage` live in `.venv/bin` and are configured in `pyproject.toml`; `shellcheck` is the host's. They are gates here, run through `check-gates.sh` like the rest. `eslint` appears in the agent definitions as an instruction for a project those agents are copied into and is not a bar for this repo. `mypy` runs on `hooks/` and `scripts/` only: the suite under `tests/` is untyped on purpose and is held by `ruff`'s `PT` rules instead.
 
 Inside a `.claude/worktrees/*` tree, run that tree's own `scripts/gates/check-gates.sh`. It sets `PYTHONPATH` to the tree it sits in, because without it the suite tests the parent checkout and tells you nothing about the tree you are in.
 

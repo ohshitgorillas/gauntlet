@@ -13,18 +13,21 @@
 # Works from the main checkout and from a .claude/worktrees/* tree: the suite
 # runs with PYTHONPATH set to the tree the script sits in, and a tree without
 # its own .venv uses the main checkout's.
+#
+# The lint gates are ruff, black, mypy, shellcheck and coverage, run after
+# pytest and before the self-tests.
 
 set -u
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$root" || exit 2
 
-pytest=$root/.venv/bin/pytest
-if [[ ! -x $pytest ]]; then
+venv=$root/.venv
+if [[ ! -x $venv/bin/pytest ]]; then
     common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-    pytest=$(dirname "$common")/.venv/bin/pytest
+    venv=$(dirname "$common")/.venv
 fi
-if [[ ! -x $pytest ]]; then
+if [[ ! -x $venv/bin/pytest ]]; then
     echo "no .venv/bin/pytest in $root or the main checkout" >&2
     exit 2
 fi
@@ -33,7 +36,12 @@ out=$root/state/gates
 mkdir -p "$out"
 
 gates=(
-    "pytest|env PYTHONPATH=$root $pytest tests -q"
+    "pytest|env PYTHONPATH=$root $venv/bin/coverage run -m pytest tests -q"
+    "ruff|$venv/bin/ruff check ."
+    "black|$venv/bin/black --check ."
+    "mypy|$venv/bin/mypy hooks scripts"
+    "shellcheck|shellcheck -S style scripts/pair.sh scripts/blind.sh scripts/gates/check-gates.sh"
+    "coverage|$venv/bin/coverage report"
     "lanes|python3 hooks/lanes.py --self-test"
     "no-impl-reads|python3 hooks/no-impl-reads.py --self-test"
     "blind-bash|python3 hooks/blind-bash.py --self-test"
@@ -56,6 +64,8 @@ gates=(
     "nesting-self|python3 scripts/gates/nesting.py --self-test"
     "no-barrels|python3 scripts/gates/no-barrels.py"
     "no-barrels-self|python3 scripts/gates/no-barrels.py --self-test"
+    "subprocess-timeout|python3 scripts/gates/subprocess-timeout.py"
+    "subprocess-timeout-self|python3 scripts/gates/subprocess-timeout.py --self-test"
     "changelog|python3 scripts/gates/changelog.py"
     "changelog-self|python3 scripts/gates/changelog.py --self-test"
     "commit-msg|python3 scripts/gates/commit-msg.py"

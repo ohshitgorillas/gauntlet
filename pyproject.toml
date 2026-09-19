@@ -13,7 +13,19 @@ extend-exclude = [".claude/worktrees", ".venv", "state"]
 # BLE and TRY are load-bearing rather than taste. A lane hook decides whether a
 # tool call is allowed; an exception it swallows is a call it waved through, so
 # a bare `except` in this tree is a lane that fails open.
-select = ["E", "F", "B", "SIM", "UP", "RET", "ARG", "PTH", "C901", "BLE", "TRY"]
+select = [
+    "E", "F", "B", "SIM", "UP", "RET", "ARG", "PTH", "C901", "BLE", "TRY", "I",
+    # A subprocess whose exit status nobody reads is the same fail-open shape
+    # as a swallowed exception, and `shell=True` hands a hook's argument to a
+    # second parser the hook never sees.
+    "PLW1510", "S602",
+    # A shebang on a file nobody can execute is a lie about how it is run.
+    "EXE",
+    # An import inside a function hides a dependency until the call.
+    "PLC0415",
+    # pytest shapes: a fixture that yields nothing, a bare `assert x == x`.
+    "PT",
+]
 # Two of `TRY` are off because they cut against the reason `TRY` is on. TRY003
 # wants the message moved inside a subclass; the messages here name the tool
 # that is missing or the shape the judge answered with, and a subclass per
@@ -23,6 +35,10 @@ select = ["E", "F", "B", "SIM", "UP", "RET", "ARG", "PTH", "C901", "BLE", "TRY"]
 # one clean gate line -- a `TypeError` there escapes the handler and prints a
 # traceback instead.
 ignore = ["TRY003", "TRY004"]
+
+[tool.ruff.lint.per-file-ignores]
+# A test module is not a package, and a test body imports what it patches.
+"tests/*" = ["PLC0415"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -37,10 +53,23 @@ strict = true
 mypy_path = "hooks"
 exclude = ['^\.claude/worktrees/', '^\.venv/']
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+filterwarnings = ["error"]
+xfail_strict = true
+
 [tool.coverage.run]
 branch = true
 source = ["hooks", "scripts"]
 omit = ["*/__pycache__/*", ".claude/worktrees/*"]
+
+[tool.coverage.report]
+# The floor is the measured figure rounded down, raised as the suite grows.
+# Most of the suite drives the gates and hooks as subprocesses, which this
+# tracer does not follow, so the figure understates what the suite exercises.
+fail_under = 14
+skip_covered = false
 
 [tool.coverage.json]
 output = ".coverage.json"
