@@ -4,49 +4,50 @@ motion: rehome
 brief:
 > Black reformat after, own commit.
 
-1. strike tests/test_tests_config.py::TheWalkFindsTheProjectFromInsideAWorktree::test_the_worktree_carries_no_declaration_of_its_own
-   moved: `project_checkout`, `config_path`, `config`, `_declared` and `config_fault` left `hooks/lane_config.py` for the new `hooks/lane_declaration.py`, so the walk these five tests exercise is another module's now; `black` over the tree then took `tests/test_tests_config.py` to 820 lines, past the 800-line cap `scripts/gates/file-length.py` holds.
-   assertion: self.assertEqual(observed, {"declaration": False, "pointer file": True})
-   as: tests/test_lane_declaration.py::TheWalkFindsTheProjectFromInsideAWorktree::test_the_worktree_carries_no_declaration_of_its_own
+1. strike tests/test_tests_config.py::test_the_worktree_carries_no_declaration_of_its_own
+   moved: `project_checkout`, `config_path`, `config`, `_declared` and `config_fault` left `hooks/lane_config.py` for the new `hooks/lane_declaration.py`, so the walk these five tests exercise is another module's now, and the file they sit in is named for the module they no longer reach.
+   assertion: assert observed == {"declaration": False, "pointer file": True}
+   as: tests/test_lane_declaration.py::test_the_worktree_carries_no_declaration_of_its_own
 
-2. strike tests/test_tests_config.py::TheWalkFindsTheProjectFromInsideAWorktree::test_the_main_checkout_reads_its_declaration
-   moved: the same module split and the same cap, per line 1.
-   assertion: self.assertEqual(self._tests_dir(self.project), (0, "spec", ""))
-   as: tests/test_lane_declaration.py::TheWalkFindsTheProjectFromInsideAWorktree::test_the_main_checkout_reads_its_declaration
+2. strike tests/test_tests_config.py::test_the_main_checkout_reads_its_declaration
+   moved: the same module split, per line 1.
+   assertion: assert self._tests_dir(self.project) == (0, "spec", "")
+   as: tests/test_lane_declaration.py::test_the_main_checkout_reads_its_declaration
 
-3. strike tests/test_tests_config.py::TheWalkFindsTheProjectFromInsideAWorktree::test_the_worktree_reads_the_projects_declaration_and_not_the_default
-   moved: the same module split and the same cap, per line 1.
-   assertion: self.assertEqual(self._tests_dir(self.tree), (0, "spec", ""))
-   as: tests/test_lane_declaration.py::TheWalkFindsTheProjectFromInsideAWorktree::test_the_worktree_reads_the_projects_declaration_and_not_the_default
+3. strike tests/test_tests_config.py::test_the_worktree_reads_the_projects_declaration_and_not_the_default
+   moved: the same module split, per line 1.
+   assertion: assert self._tests_dir(self.tree) == (0, "spec", "")
+   as: tests/test_lane_declaration.py::test_the_worktree_reads_the_projects_declaration_and_not_the_default
 
-4. strike tests/test_tests_config.py::TheWalkFindsTheProjectFromInsideAWorktree::test_a_directory_under_the_worktree_reads_it_too
-   moved: the same module split and the same cap, per line 1.
-   assertion: self.assertEqual(self._tests_dir(deeper), (0, "spec", ""))
-   as: tests/test_lane_declaration.py::TheWalkFindsTheProjectFromInsideAWorktree::test_a_directory_under_the_worktree_reads_it_too
+4. strike tests/test_tests_config.py::test_a_directory_under_the_worktree_reads_it_too
+   moved: the same module split, per line 1.
+   assertion: assert self._tests_dir(deeper) == (0, "spec", "")
+   as: tests/test_lane_declaration.py::test_a_directory_under_the_worktree_reads_it_too
 
-5. strike tests/test_tests_config.py::TheWalkFindsTheProjectFromInsideAWorktree::test_outside_any_checkout_there_is_no_project_and_that_is_a_fault
-   moved: the same module split and the same cap, per line 1.
-   assertion: self.assertEqual(observed, {"status": 2, "stdout": "", "names the file": True})
-   as: tests/test_lane_declaration.py::TheWalkFindsTheProjectFromInsideAWorktree::test_outside_any_checkout_there_is_no_project_and_that_is_a_fault
+5. strike tests/test_tests_config.py::test_outside_any_checkout_there_is_no_project_and_that_is_a_fault
+   moved: the same module split, per line 1.
+   assertion: assert observed == {"status": 2, "stdout": "", "names the file": True}
+   as: tests/test_lane_declaration.py::test_outside_any_checkout_there_is_no_project_and_that_is_a_fault
 
 --- reviewer ---
 READY
-discriminates: N/A - motion: rehome; no line pins new behavior, every assertion stays byte-identical
+discriminates: N/A - motion: rehome; nothing is pinned new, every assertion stays byte-identical
 
-1  ADMITTED  target exists at tests/test_tests_config.py:792 and its body carries the quoted assertion byte-identical at :797; as: names a different file, tests/test_lane_declaration.py, same class and test name; moved: names a module split outside tests/ (hooks/lane_declaration.py) plus the 800-line cap, and tests/test_tests_config.py measures 820 lines (wc -l)
-2  ADMITTED  target exists at tests/test_tests_config.py:799, quoted assertion byte-identical at :800; as: names tests/test_lane_declaration.py, a different file; moved: carries line 1's fact by reference
-3  ADMITTED  target exists at tests/test_tests_config.py:802, quoted assertion byte-identical at :803; as: names tests/test_lane_declaration.py, a different file; moved: carries line 1's fact by reference
-4  ADMITTED  target exists at tests/test_tests_config.py:805, quoted assertion byte-identical at :808; as: names tests/test_lane_declaration.py, a different file; moved: carries line 1's fact by reference
-5  ADMITTED  target exists at tests/test_tests_config.py:810, quoted assertion byte-identical at :820; as: names tests/test_lane_declaration.py, a different file; moved: carries line 1's fact by reference
+1  ADMITTED  target tests/test_tests_config.py::test_the_worktree_carries_no_declaration_of_its_own names one test (grep: `def test_the_worktree_carries_no_declaration_of_its_own` appears once under tests/); quoted assertion byte-identical at tests/test_tests_config.py:777 (grep -nF); as: tests/test_lane_declaration.py::<same name>, a different file under tests/; moved: names a fact outside tests/ - five symbols left hooks/lane_config.py for the new hooks/lane_declaration.py
+2  ADMITTED  target names one test (unique under tests/); quoted assertion byte-identical at tests/test_tests_config.py:780; as: names tests/test_lane_declaration.py, a different file; moved: carries line 1's fact by reference
+3  ADMITTED  target names one test (unique under tests/); quoted assertion byte-identical at tests/test_tests_config.py:783; as: names tests/test_lane_declaration.py, a different file; moved: carries line 1's fact by reference
+4  ADMITTED  target names one test (unique under tests/); quoted assertion byte-identical at tests/test_tests_config.py:788; as: names tests/test_lane_declaration.py, a different file; moved: carries line 1's fact by reference
+5  ADMITTED  target names one test (unique under tests/); quoted assertion byte-identical at tests/test_tests_config.py:800; as: names tests/test_lane_declaration.py, a different file; moved: carries line 1's fact by reference
 
-null stub: N/A under motion: rehome - nothing is pinned new, so an absent feature is not a thing any line could admit
+null stub: N/A under motion: rehome - no line pins a new observable, so an absent feature is not a thing any line here could admit
   satisfies: none   fails: 1, 2, 3, 4, 5
 hard-coded stub: N/A under motion: rehome - no line names an input/outcome pair a table could answer
   satisfies: none   fails: 1, 2, 3, 4, 5
 
 survives: 5
 
-notes (facts I am barred from reading; for the owner, not gating):
-- the claim that `project_checkout`, `config_path`, `config`, `_declared` and `config_fault` left hooks/lane_config.py for hooks/lane_declaration.py rests on hooks/, which I may not read. hooks/lane_declaration.py exists by directory listing; whether those five symbols are in it is unverified here.
-- the 800-line cap is attributed to scripts/gates/file-length.py; I verified only that tests/test_tests_config.py is 820 lines.
-- tests/test_lane_declaration.py does not exist yet; the merge check on `as:` is the scrivener's to satisfy.
+notes (facts I am barred from reading, or facts for the owner; not gating):
+- the whole of `moved:` rests on hooks/, which I may not read. Whether `project_checkout`, `config_path`, `config`, `_declared` and `config_fault` are now in hooks/lane_declaration.py rather than hooks/lane_config.py is unverified here.
+- inside tests/, these five tests drive `HOOK_DIR / "shell_shapes.py" --config tests_dir` (tests/test_tests_config.py:759-767), and no test under tests/ names `lane_config` or `lane_declaration` at all (grep -rn over tests/). The link from the named split to these five tests therefore runs through hooks/ internals I cannot read; on the evidence available to me the surface they touch is shell_shapes.py.
+- two facts asserted in the round-1 reviewer section of gauntlet/specs/approved/walk-tests-rehome.txt do not hold against the tree I measured: the quoted assertions there are `self.assertEqual(...)` whereas the file carries plain `assert` statements, and it records `820 lines (wc -l)` whereas `wc -l tests/test_tests_config.py` returns 800. This round's block quotes the assertions as they stand and drops the line-cap claim, which is why the block is admitted on the module split alone.
+- the brief is one sentence, "Black reformat after, own commit.", which states no behavior and nothing any rehome line contradicts. It also asks for nothing this block does: the rehome itself is unbriefed. Not a (m) strike - (m) strikes on contradiction - but the owner should know the five moves rest on the main agent's reading, not on a sentence of theirs.
