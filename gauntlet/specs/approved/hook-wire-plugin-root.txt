@@ -1,59 +1,21 @@
 slug: hook-wire-plugin-root
-motion: amend
+motion: strike
 
 brief:
-> Draft a motion: amend block for tests/test_hook_wire.py::NoImplReadsShellShapes::test_a_search_rooted_at_the_bare_gauntlet_directory_is_denied and tests/test_hook_wire.py::NoImplReadsOverTheTrackedTree::test_the_denied_set_is_the_gauntlet_tree_less_its_allowed_leaves that runs the hook with CLAUDE_PLUGIN_ROOT set to WORKTREE_ROOT, carry it through an arbiter and a scrivener.
+> I have excised the tests. Proceed.
 
 1. strike tests/test_hook_wire.py::NoImplReadsShellShapes::test_a_search_rooted_at_the_bare_gauntlet_directory_is_denied
    rule: docs/testing.md rule 16
    assertion: assert actual == expected
-   replace: For a blind reader's Grep rooted at a directory, no-impl-reads answers one map: over the checkout whose hooks are under test, its bare gauntlet directory, gauntlet/plans, gauntlet/specs, gauntlet/specs/drafts and gauntlet/specs/approved-old denied, and gauntlet/specs/approved, a directory beneath it and docs allowed; over a second tree of that same shape which is not that checkout, its docs denied; and that one map comes back with CLAUDE_PLUGIN_ROOT absent from the environment, with CLAUDE_PLUGIN_ROOT naming the checkout under test, and with CLAUDE_PLUGIN_ROOT naming a directory that holds no kit.
-   as: tests/test_hook_wire.py::test_a_search_rooted_at_the_bare_gauntlet_directory_is_denied_under_any_plugin_root
-   kills: A guard that takes its prose allowance from whatever CLAUDE_PLUGIN_ROOT the launching shell carried: asked about the docs directory of the very checkout its own hooks sit in, it answers denied, so the blind reader is refused the prose the denial text sends it to.
 
 2. strike tests/test_hook_wire.py::NoImplReadsOverTheTrackedTree::test_the_denied_set_is_the_gauntlet_tree_less_its_allowed_leaves
    rule: docs/testing.md rule 16
    assertion: assert actual == expected
-   replace: Over every path git tracks in the checkout whose hooks are under test, no-impl-reads answers a blind reader's Read with one pair of denied sets -- empty for the listing docs/ tests/ state/, and for the listing gauntlet/ every tracked path but those under gauntlet/specs/approved/, gauntlet/red/ and gauntlet/merge/ -- and the same pair comes back with CLAUDE_PLUGIN_ROOT absent from the environment, with CLAUDE_PLUGIN_ROOT naming the checkout under test, and with CLAUDE_PLUGIN_ROOT naming a directory that holds no kit.
-   as: tests/test_hook_wire.py::test_the_denied_set_is_the_gauntlet_tree_less_its_allowed_leaves_under_any_plugin_root
-   kills: A guard that scores a path against one checkout while it reads its allowances out of another: over the listing docs/ tests/ state/ it denies docs/agents.md, docs/approved-specs.md, docs/exemptions.md, docs/plans.md and docs/workflow.mermaid, so a blind writer working anywhere but the main checkout loses the kit's prose entire.
 
 --- reviewer ---
 
 READY
-discriminates: differential on the no-impl-reads decision surface -- the same relative docs directory answers allowed under the checkout whose hooks are under test and denied under a second tree of that shape, and the whole map holds across three CLAUDE_PLUGIN_ROOT states
-
-return, finding by finding:
-  R1 (both targets named no test node): repaired. Both `strike` targets now class-qualified, `NoImplReadsShellShapes` and
-     `NoImplReadsOverTheTrackedTree`, matching `tests/test_hook_wire.py:230` and `:294`.
-  R2 (line 1 taken whole by the hard-coded stub): repaired. Line 1 now carries a second tree of the same shape that is not the checkout
-     under test, and denies its docs directory while the first tree's docs is allowed. A table keyed on the path literals the block names
-     cannot answer for that tree -- its root is not a string the writer holds -- and a table keyed on the tail `/docs` gets the second
-     tree's answer wrong. The line now forces a comparison against a discovered root.
-  R3 (brief's set-to-WORKTREE_ROOT condition pinned by no line): repaired. Both lines name three environment states, one of them
-     CLAUDE_PLUGIN_ROOT naming the checkout under test.
-
-carried from round 1, not relitigated: strike halves sound on the merits -- rule 16 fits, and the coupling is visible in the test file
-alone at `tests/test_hook_wire.py:76-83`, where `hook_decision` builds the child environment as `dict(os.environ)` with only `GAUNTLET`
-popped; (k) exempt by motion on both lines, `docs/testing.md` rule 8, so neither line owes a `bite:` and neither field is blank; `as:`
-renames legal under rule 6.
-
-1  ADMITTED  a blind reader's Grep rooted at each named directory of the checkout under test, and at the docs directory of a second tree
-   of that shape, under CLAUDE_PLUGIN_ROOT absent / naming the checkout under test / naming a kitless directory -> one map, bare gauntlet,
-   gauntlet/plans, gauntlet/specs, gauntlet/specs/drafts, gauntlet/specs/approved-old and the second tree's docs denied, and
-   gauntlet/specs/approved, a directory beneath it and docs allowed; a guard taking its allowance from the launching shell's
-   CLAUDE_PLUGIN_ROOT fails it at the docs directory of the checkout under test, which it answers denied; bite: exempt by motion,
-   characterization under rule 8.
-2  ADMITTED  a blind reader's Read of every path git tracks under the listings docs/ tests/ state/ and gauntlet/, under the same three
-   CLAUDE_PLUGIN_ROOT states -> one pair of denied sets, empty for the first listing and every tracked path but those under
-   gauntlet/specs/approved/, gauntlet/red/ and gauntlet/merge/ for the second; a guard scoring a path against one checkout while reading
-   its allowances out of another fails it at docs/agents.md, which lands in the first listing's denied set where the expected set is empty;
-   bite: exempt by motion, characterization under rule 8.
-
-null stub: no-impl-reads answers every payload SILENT -- no denial, no allowance, the guard absent.
-  satisfies: none   fails: 1, 2
-hard-coded stub: a table from the exact path strings the block names to DENY or SILENT, keyed on nothing else, reading no environment and
-classifying no path outside the table.
-  satisfies: none   fails: 1, 2
+1  ADMITTED  target under tests/, rule 16 fits: hook_decision builds the child environment from dict(os.environ) with only GAUNTLET popped (tests/test_hook_wire.py:76-83), so the quoted assertion's expected value turns on an inherited CLAUDE_PLUGIN_ROOT
+2  ADMITTED  same helper, same coupling, same rule
 
 survives: 2
