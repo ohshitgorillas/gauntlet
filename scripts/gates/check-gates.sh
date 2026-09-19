@@ -46,6 +46,8 @@ gates=(
     "cite|python3 scripts/cite.py --self-test"
     "init|python3 scripts/init.py --self-test"
     "symbol-closure|python3 scripts/gates/symbol-closure.py --self-test"
+    "file-length|python3 scripts/gates/file-length.py --check"
+    "file-length-self|python3 scripts/gates/file-length.py --self-test"
 )
 
 failed=0

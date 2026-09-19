@@ -24,7 +24,7 @@ Green means every gate passes, not just the first. One command runs them:
 scripts/gates/check-gates.sh
 ```
 
-It runs `pytest` on `tests/` and the `--self-test` of `lanes.py`, `no-impl-reads.py`, `blind-bash.py`, `gauntlet-off.py`, `bwrap-wrap.py`, `lane-audit.py`, `pair-passthrough.py`, `strike-diff.py`, `pair/cli.py`, `cite.py`, `init.py` and `symbol-closure.py`, one after another under `nice -n 19 ionice -c3`. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
+It runs `pytest` on `tests/` and the `--self-test` of `lanes.py`, `no-impl-reads.py`, `blind-bash.py`, `gauntlet-off.py`, `bwrap-wrap.py`, `lane-audit.py`, `pair-passthrough.py`, `strike-diff.py`, `pair/cli.py`, `cite.py`, `init.py`, `symbol-closure.py` and `file-length.py`, plus the `--check` of `file-length.py`, one after another under `nice -n 19 ionice -c3`. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
 
 Each `--self-test` prints one `PASS` or `FAIL` per rule that script exists to hold, and they cover cases the suite does not. A hook change that passes `pytest` and fails its own `--self-test` is exactly what this bar catches.
 
