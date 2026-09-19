@@ -1,20 +1,4 @@
-"""The declaration a project makes, and the directories it names.
-
-`blind-reads.json` carries eight keys, and they are the whole of what varies
-between the projects this kit is copied into. It is read from
-`$CLAUDE_PROJECT_DIR/.claude/blind-reads.json`, and from beside this file when
-the project names none: the config belongs to the project, not to wherever the
-hook file happens to sit.
-
-The file is required. A declaration that is there and parses is the project's
-word, and `{}` is a word like any other -- it asks for the kit's defaults and
-gets them. Absent, unreadable, not JSON and not a JSON object are faults, and a
-fault is a denial out of every hook and a non-zero exit out of `--config`,
-naming the path. They answered as an empty config once, which made a typo in
-the file a merge onto the wrong branch and a red run with its deselection
-dropped, silently. The fault is held rather than raised at import: seven hooks
-build their lane constants at module level, and a hook that raises there takes
-the session with it and prints no denial at all.
+"""The keys a declaration names, and what each one is when it names none.
 
 The three directories resolve together while the scalars and runners resolve
 per key: a scalar or a runner collides with nothing, while `tests_dir` naming
@@ -26,158 +10,19 @@ to `docs`. Nothing else is in the file: the readable set is
 from __future__ import annotations
 
 import functools
-import json
 import os
 import shlex
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from lane_declaration import _declared, _under
+
 #: the lane directories this kit's hooks guard are not literals: four of them
 #: are the fixed suffixes below, under whatever `gauntlet_dir` resolves to, and
 #: the fifth is `tests_dir`, which is the project's own. `lane_dirs()` is the
 #: whole table, derived beside the rest of the config further down this file.
 LANE_SUFFIXES = ("plans/approved", "specs/approved", "verdicts", "reviews")
-
-def project_checkout(start: Path) -> Path | None:
-    """The main checkout holding `start`, following a worktree's pointer file.
-
-    A worktree's `.git` is a file reading `gitdir: <main>/.git/worktrees/<name>`
-    rather than a directory, so a walk that stops at the first `.git` stops in
-    the worktree. The declaration lives in the main checkout, and a worktree
-    that carries no copy of it would otherwise read as a project declaring
-    nothing. The pointer names the main checkout's `.git`, whose parent is the
-    checkout.
-
-    Anything else a pointer file names -- a submodule's `<super>/.git/modules/`,
-    an unreadable file, a spelling this does not know -- is the directory
-    holding it, which is what the walk answered before.
-    """
-    for candidate in (start, *start.parents):
-        dot_git = candidate / ".git"
-        if dot_git.is_dir():
-            return candidate
-        if dot_git.is_file():
-            try:
-                pointer = dot_git.read_text(encoding="utf-8").strip()
-            except OSError:
-                return candidate
-            if not pointer.startswith("gitdir:"):
-                return candidate
-            gitdir = Path(pointer[len("gitdir:") :].strip())
-            if not gitdir.is_absolute():
-                gitdir = (candidate / gitdir).resolve()
-            common = gitdir.parent.parent
-            if gitdir.parent.name == "worktrees" and common.name == ".git":
-                return common.parent
-            return candidate
-    return None
-
-
-class ConfigFault(Exception):
-    """The project's declaration is absent or will not parse.
-
-    Not a default. A project that declares nothing and a project whose
-    declaration is a typo are both faults, and the empty object is the only
-    way to ask for the kit's defaults and mean it.
-    """
-
-
-def config_path() -> Path:
-    """The file this project's declaration is read from, present or not.
-
-    `$CLAUDE_PROJECT_DIR/.claude/blind-reads.json` is the declaration. The
-    project path wins because the config is the project's: the kit ships as a
-    plugin and lives outside the checkout entirely, shared by every project it
-    runs for, and only the project path distinguishes them.
-
-    That variable is set for a hook and is not promised to a script, so where
-    it is unset the checkout holding the working directory stands in as the
-    project. `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh` and
-    `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh` run with the checkout as their
-    working directory and would otherwise read a project's declaration as
-    absent. Both scripts resolve the checkout at entry and export the
-    variable, so the walk is the last fallback rather than the usual path;
-    where it does run it follows a worktree's pointer file to the main
-    checkout, because that is where the declaration is.
-
-    The copy beside this file is the last fallback, for a kit copied into a
-    tree rather than installed. The kit itself ships none, and the fallback is
-    reached only where the project names no file at all: a project path that
-    exists is the declaration whatever it holds, so a malformed project file
-    never half-applies by falling through to a second source. Where neither
-    file is there the path named is the project's, because that is the one to
-    write.
-    """
-    beside = Path(__file__).resolve().parent / "blind-reads.json"
-    project = os.environ.get("CLAUDE_PROJECT_DIR")
-    if not project:
-        root = project_checkout(Path.cwd().resolve())
-        project = str(root) if root else None
-    if not project:
-        return beside
-    candidate = Path(project) / ".claude" / "blind-reads.json"
-    return beside if not candidate.is_file() and beside.is_file() else candidate
-
-
-def config() -> dict[str, Any]:
-    """The project's declaration, or a `ConfigFault` naming the file.
-
-    A file that is there and parses is the project's word, and `{}` is a word
-    like any other: it asks for the kit's defaults and gets them. Absent,
-    unreadable, not JSON, and not a JSON object are the four faults. They were
-    one answer with "declares nothing" once -- all five came back `{}` -- which
-    meant a typo in the file moved `scripts/pair.sh merge` onto whatever
-    `target_branch` defaults to and dropped a runner's deselection, with
-    nothing said to anyone.
-
-    The fault is raised rather than printed. `hook_main` turns it into a
-    denial and the `--config` reader turns it into a non-zero exit naming the
-    path, so an operator reads the path instead of a traceback out of a hook.
-    """
-    source = config_path()
-    try:
-        with source.open(encoding="utf-8") as fh:
-            loaded = json.load(fh)
-    except FileNotFoundError:
-        raise ConfigFault(
-            f"no declaration at {source}: run scripts/init.py to write one"
-        ) from None
-    except OSError as exc:
-        raise ConfigFault(f"the declaration at {source} cannot be read ({exc})") from None
-    except ValueError as exc:
-        raise ConfigFault(f"the declaration at {source} is not valid JSON ({exc})") from None
-    if not isinstance(loaded, dict):
-        raise ConfigFault(f"the declaration at {source} is not a JSON object")
-    return loaded
-
-
-@functools.lru_cache(maxsize=1)
-def _declared() -> tuple[dict[str, Any], str | None]:
-    """The declaration and the fault it is, read once per process.
-
-    The fault is held here rather than raised because the callers are
-    module-level constants in seven hooks and in this file: a hook that raises
-    while importing takes the whole session with it, and the denial it owed
-    the operator is never printed. So the resolved values stay the kit's
-    defaults and the fault waits at the entry point, which is the one place
-    that can shape it.
-    """
-    try:
-        return config(), None
-    except ConfigFault as exc:
-        return {}, str(exc)
-
-
-def config_fault() -> str | None:
-    """The fault this project's declaration is, or `None` when it is its word."""
-    return _declared()[1]
-
-
-def _under(path: str, parent: str) -> bool:
-    """Is `path` `parent` itself, or something beneath it? Both normalized."""
-    return path == parent or path.startswith(parent + "/")
-
 
 # --- the three directories a project names, and what they are when it does not
 
@@ -203,6 +48,11 @@ DEFAULT_SCALARS = {
 #: of them reads. The key is the command text exactly as it is typed, and the
 #: default is the empty mapping: a project that declares none unwraps none.
 DEFAULT_UNWRAPPED: dict[str, list[str]] = {}
+
+#: the paths a project declares writable inside a wrapped shell on top of the
+#: checkout itself, and the empty list a project that declares none takes. Every
+#: path outside the checkout is already readable, so the key is writable-only.
+DEFAULT_EXTRA_BINDS: list[str] = []
 
 #: the two runner keys, and the invocation each takes when the file names none.
 #: They are what `scripts/blind.sh test` and `scripts/pair.sh red` run, without
@@ -307,6 +157,45 @@ def unwrapped_from(conf: dict[str, Any]) -> dict[str, list[str]]:
     return resolved
 
 
+def _expand_home(path: str) -> str:
+    """`~` and `~/...` against `HOME`, and the path unchanged where there is none.
+
+    `os.path.expanduser` falls back to the password database, which answers a
+    home directory for a process that has no `HOME` at all. A declaration read
+    in that environment would bind a path the project never spelled, so the
+    expansion is `HOME` or nothing and an unexpanded `~` stays relative -- which
+    is what the mount table drops it for.
+    """
+    if path != "~" and not path.startswith("~/"):
+        return path
+    home = os.environ.get("HOME")
+    return home + path[1:] if home else path
+
+
+def extra_binds_from(conf: dict[str, Any]) -> list[str]:
+    """The extra writable paths this config declares, `~` expanded.
+
+    All or nothing, like the unwrapped commands: a value that is not a list, an
+    entry that is not a string, and an empty entry each void the whole key. Half
+    of a mistyped list taking effect would open a path the project never named.
+
+    Shape and `~` only. Whether a path is absolute, whether its source is live,
+    and whether it stands over something a profile protects are questions about
+    a checkout and a host, and they are asked where the mount table is built.
+    """
+    if "extra_binds" not in conf:
+        return []
+    declared = conf.get("extra_binds")
+    if not isinstance(declared, list):
+        return []
+    resolved: list[str] = []
+    for entry in declared:
+        if not isinstance(entry, str) or not entry:
+            return []
+        resolved.append(_expand_home(entry))
+    return resolved
+
+
 def scalars_from(conf: dict[str, Any]) -> dict[str, str]:
     """The two scalars this config resolves to, defaults filled in.
 
@@ -369,6 +258,12 @@ def runners() -> dict[str, list[str]]:
 def unwrapped_commands() -> dict[str, list[str]]:
     """The declared unwrapped commands, read once per process."""
     return unwrapped_from(_declared()[0])
+
+
+@functools.lru_cache(maxsize=1)
+def extra_binds() -> list[str]:
+    """The declared extra writable paths, read once per process."""
+    return extra_binds_from(_declared()[0])
 
 
 def unwrapped_command_texts() -> list[str]:
@@ -464,7 +359,7 @@ def lane_dirs() -> dict[str, str]:
 LANE_DIRS = tuple(lane_dirs().values())
 
 
-#: what `--config <key>` answers: the eight keys the file carries, and the four
+#: what `--config <key>` answers: the nine keys the file carries, and the four
 #: derived lanes, so a shell script asks for a lane rather than rebuilding one
 #: out of the base and a suffix it would have to hardcode. A runner answers one
 #: word per line; every other key answers one line.
@@ -477,6 +372,7 @@ CONFIG_READERS: dict[str, Callable[[], str | list[str]]] = {
     "pytest_command": pytest_command,
     "node_command": node_command,
     "unwrapped_commands": unwrapped_command_texts,
+    "extra_binds": extra_binds,
     "plans_lane": plans_lane,
     "specs_lane": specs_lane,
     "verdicts_lane": verdicts_lane,

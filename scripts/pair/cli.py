@@ -40,10 +40,10 @@ import converge  # noqa: E402
 import trees  # noqa: E402
 from trees import REVIEWS, TARGET, die, git, git_ok, note, path  # noqa: E402
 
-#: imported here rather than taken from `trees`, which does not re-export it.
-#: The import above is what put the hooks directory on `sys.path`, so these
-#: lines have to follow it.
+#: imported here rather than taken from `trees`, which does not re-export them.
+#: The import above put the hooks directory on `sys.path`, so these follow it.
 import lane_config  # noqa: E402
+import lane_declaration  # noqa: E402
 import lane_paths  # noqa: E402
 
 USAGE = (
@@ -408,7 +408,7 @@ def main(argv: list[str]) -> int:
     #: the driver converges onto `target_branch` and runs `gate_command`, both
     #: of them configured, so a declaration that will not load is a merge onto
     #: whatever the kit defaults to. It is a fault here, not a default.
-    fault = lane_config.config_fault()
+    fault = lane_declaration.config_fault()
     if fault is not None:
         die("pair: " + fault)
     if not argv:

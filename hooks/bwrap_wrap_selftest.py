@@ -17,6 +17,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import hook_payload  # noqa: E402
+import bwrap_probe  # noqa: E402
 import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
 
@@ -30,10 +31,10 @@ PASSTHROUGH_AGENTS = _bw.PASSTHROUGH_AGENTS
 PROTECTED_IN_CHECKOUT = _bw.PROTECTED_IN_CHECKOUT
 REVIEWS_DIR = _bw.REVIEWS_DIR
 WORKTREES = _bw.WORKTREES
-_NO_BWRAP = _bw._NO_BWRAP
+_NO_BWRAP = bwrap_probe._NO_BWRAP
 _answer = _bw._answer
 _heredoc = _bw._heredoc
-bwrap_fault = _bw.bwrap_fault
+bwrap_fault = bwrap_probe.bwrap_fault
 worktrees = _bw.worktrees
 wrap = _bw.wrap
 
@@ -159,7 +160,81 @@ def _self_test_in(tmp: str) -> int:
     empty = str(Path(tmp) / "empty-bin")
     Path(empty).mkdir(parents=True, exist_ok=True)
 
+    #: the declared extra binds, against real paths outside the checkout
+    outside = str(Path(tmp) / "outside")
+    inside = str(Path(root) / "inside")
+    in_tree = str(Path(tree) / "inside")
+    linked = str(Path(tmp) / "linked")
+    for made in (outside, inside, in_tree):
+        Path(made).mkdir(parents=True, exist_ok=True)
+    if not Path(linked).exists():
+        Path(linked).symlink_to(root)
+    home = os.environ.get("HOME") or str(Path(tmp) / "home")
+
+    def extras(entries: list[Any], agent: str = "prosecutor") -> str:
+        """The wrapped command under one `extra_binds` declaration.
+
+        The declaration is resolved through the reader, so a malformed list
+        reaches the mount table exactly as a project's mistyped one would.
+        """
+        declared = lane_config.extra_binds_from({"extra_binds": entries})
+        was = lane_config.extra_binds
+        lane_config.extra_binds = lambda: declared
+        try:
+            return wrap(semicolon, root, agent)
+        finally:
+            lane_config.extra_binds = was
+
+    def bound(entries: list[Any], path: str, agent: str = "prosecutor") -> bool:
+        """Is `path` writable under that declaration?"""
+        return f"--bind-try {path} {path}" in extras(entries, agent)
+
+    def named_without_home(entry: str) -> bool:
+        """Is `entry` named at all with no `HOME` to expand it against?
+
+        The name is distinctive on purpose: an entry that survives unexpanded
+        is spelled `~/...`, and half of that spelling is a word the profile
+        carries anyway.
+        """
+        was = os.environ.pop("HOME", None)
+        try:
+            return "gauntlet-extra-probe" in extras([entry])
+        finally:
+            if was is not None:
+                os.environ["HOME"] = was
+
     lines = {
+        "a declared path outside every checkout is bound writable": bound([outside], outside),
+        "a declared path whose source is not live is not bound": not bound([gone], gone),
+        "a relative entry is not bound": "relative/cache" not in extras(["relative/cache"]),
+        "a `~` entry with no HOME to expand it is not bound": not named_without_home(
+            "~/gauntlet-extra-probe"
+        ),
+        "an entry standing over a path the profile guards is dropped": not any(
+            bound([one], one) for one in ("/dev", "/proc", "/run/user", home)
+        ),
+        "the /tmp mountpoint is dropped and a path under it is not": (
+            not bound(["/tmp"], "/tmp") and bound([outside], outside)
+        ),
+        "an entry equal to the checkout, inside it, or over it is dropped": not any(
+            bound([one], one) for one in (root, inside, str(Path(tmp)))
+        ),
+        "an entry inside a worktree is dropped": not bound([in_tree], in_tree),
+        "an entry resolving into a checkout is dropped whatever it is spelled": not bound(
+            [linked], linked
+        ),
+        "the reviewer profile takes no declared extra": not bound([outside], outside, "arbiter"),
+        "one malformed entry voids the whole key": not bound([outside, 5], outside),
+        "one path named twice is bound once": (
+            extras([outside, outside]).count(f"--bind-try {outside} {outside}") == 1
+        ),
+        "the extras stand after the read-only lanes they must not walk back": (
+            extras([outside]).index(f"--bind-try {outside} {outside}")
+            > max(
+                extras([outside]).index(f"--ro-bind-try {root}/{lane} {root}/{lane}")
+                for lane in lane_config.LANE_DIRS
+            )
+        ),
         "the caller's text survives the wrap byte for byte, whatever it is": (
             semicolon in default and heredoc in awkward
         ),

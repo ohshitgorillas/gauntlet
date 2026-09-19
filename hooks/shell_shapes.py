@@ -23,10 +23,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import lane_config  # noqa: E402
+import lane_declaration  # noqa: E402
 
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--config":
-        fault = lane_config.config_fault()
+        fault = lane_declaration.config_fault()
         if fault is not None:
             sys.stderr.write(f"shell_shapes.py: {fault}\n")
             sys.exit(2)

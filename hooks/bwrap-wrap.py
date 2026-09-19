@@ -39,7 +39,9 @@ caller.
     checkout it was spawned to judge.
   * **default** for every other caller, the main agent included. Everything
     readable.
-    Writable: the repository, the session's own `/tmp`, and `~/.cache`.
+    Writable: the repository, the session's own `/tmp`, `~/.cache`, and every
+    live path the project declares under `extra_binds` that stands over nothing
+    the profile protects.
     Read-only again inside the repository: every lane directory in every
     checkout, `<gauntlet dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `hooks/`, `agents/`, `scripts/`,
     `.git/hooks` and `.git/config`. `~/.gitconfig` is read-only. `/run/user` is masked with an
@@ -90,11 +92,8 @@ classifier again.
 
 from __future__ import annotations
 
-import functools
 import importlib
 import os
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -104,6 +103,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hook_payload  # noqa: E402
 import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
+import lane_paths  # noqa: E402
+from bwrap_probe import bwrap_fault  # noqa: E402
 
 pair_passthrough = importlib.import_module("pair-passthrough")
 
@@ -131,69 +132,6 @@ PROTECTED_IN_CHECKOUT = lane_config.LANE_DIRS + (
 REVIEWS_DIR = lane_config.reviews_lane()
 
 WORKTREES = ".claude/worktrees"
-
-_NO_BWRAP = (
-    "This kit runs every Bash command inside `bwrap`, and `bwrap` is not on this host. "
-    "Install `bubblewrap` (Fedora/RHEL: `sudo dnf install bubblewrap`; Debian/Ubuntu: "
-    "`sudo apt install bubblewrap`). The hook fails closed rather than running the "
-    "command unconfined. (hooks/bwrap-wrap.py)"
-)
-
-
-_BWRAP_BROKEN = (
-    "This kit runs every Bash command inside `bwrap`. `bwrap` is installed on this host "
-    "but will not run here, so every wrapped command would die at exec. `bwrap` said: "
-    "{said}. Usual causes: unprivileged user namespaces off "
-    "(`sysctl kernel.unprivileged_userns_clone`, `user.max_user_namespaces`), or a "
-    "seccomp/LSM policy refusing the setup. The hook fails closed rather than running "
-    "the command unconfined. (hooks/bwrap-wrap.py)"
-)
-
-#: the smallest profile that still does what every real profile does: make a
-#: user namespace, bind a root, mount `/dev` and `/proc`, unshare the pid
-#: namespace. A host that refuses any of those refuses every profile here.
-_PROBE = (
-    "--ro-bind",
-    "/",
-    "/",
-    "--dev",
-    "/dev",
-    "--proc",
-    "/proc",
-    "--unshare-pid",
-    "--die-with-parent",
-    "--",
-    "true",
-)
-
-
-def _first_line(text: str) -> str:
-    return (text or "").strip().split("\n")[0].strip()
-
-
-@functools.lru_cache(maxsize=1)
-def bwrap_fault() -> str | None:
-    """Why `bwrap` cannot be used on this host right now, or None if it can.
-
-    Installed is not the same as working: user namespaces can be off and a
-    seccomp policy can refuse the setup, and both leave a binary on `PATH` that
-    dies at exec. Nothing but running it answers that, so it is run -- once per
-    process, on `true`, which costs one process for the first `Bash` call of a
-    session and nothing for the rest.
-    """
-    if shutil.which("bwrap") is None:
-        return _NO_BWRAP
-    try:
-        done = subprocess.run(
-            ["bwrap", *_PROBE], capture_output=True, text=True, timeout=30, check=False
-        )
-    except (OSError, subprocess.SubprocessError) as error:
-        return _BWRAP_BROKEN.format(said=_first_line(str(error)) or type(error).__name__)
-    if done.returncode == 0:
-        return None
-    said = _first_line(done.stderr) or f"exit status {done.returncode}"
-    return _BWRAP_BROKEN.format(said=said)
-
 
 def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
     """The hook's answer for this payload, or None to say nothing at all."""
@@ -321,6 +259,62 @@ def _checkout_readonly(checkout: str) -> list[str]:
     return args
 
 
+def _stands_over(one: str, other: str) -> bool:
+    """Is `one` `other`, or an ancestor or a descendant of it? Resolved paths."""
+    return one == other or one.startswith(other + "/") or other.startswith(one + "/")
+
+
+def _extra_binds(root: str) -> list[str]:
+    """The paths the project declares writable on top of the checkout.
+
+    Every path outside the checkout is already readable through `--ro-bind / /`,
+    so the key adds one thing: a writable path in no lane, held until now by the
+    sandbox alone.
+
+    Drops are silent and per entry, because an entry that voids the mount table
+    would cost the session every `Bash` call rather than one path. A path that
+    is not absolute names nothing here -- `~` with no `HOME` arrives that way. A
+    path standing over one the profile guards is dropped from either side, since
+    an ancestor reaches a lane or remounts a mask exactly as a descendant does.
+    A source that is not live is no bind source. Two entries naming one path
+    bind once.
+
+    `/tmp` is guarded from one side only: it gives a session its own scratch
+    directory rather than closing a route out, so a declared path under it is
+    the hole this key exists to make. The mountpoint itself still drops.
+
+    Comparison runs on resolved paths, so a symlinked entry is judged by where
+    it lands; the bind is emitted at the entry's own spelling, which is the name
+    a shell inside the wrap will use.
+    """
+    home = os.environ.get("HOME") or root
+    protected = [
+        "/dev",
+        "/proc",
+        "/run/user",
+        str(Path(home) / ".gitconfig"),
+        root,
+        *worktrees(root),
+    ]
+    guarded = [lane_paths.real_path(one, root) for one in protected]
+    scratch = [lane_paths.real_path(one, root) for one in ("/tmp",)]
+    args: list[str] = []
+    bound: set[str] = set()
+    for entry in lane_config.extra_binds():
+        if not Path(entry).is_absolute():
+            continue
+        target = lane_paths.real_path(entry, root)
+        if any(_stands_over(target, one) for one in guarded):
+            continue
+        if any(target == one or one.startswith(target + "/") for one in scratch):
+            continue
+        if target in bound:
+            continue
+        bound.add(target)
+        args += _bind("--bind-try", entry)
+    return args
+
+
 def wrap(command: str, root: str, agent: str) -> str:
     """The `bwrap` invocation that runs `command`, as one shell command string.
 
@@ -362,6 +356,11 @@ def _profile(root: str, agent: str) -> list[str]:
             # nothing else; under `--bind` it killed the command outright.
             args += _bind("--bind-try", tree)
             args += _checkout_readonly(tree)
+
+        # the project's own writable paths, after the lanes so a declaration
+        # cannot walk one back, and before the declared reads below so a
+        # command's inputs stay the last word
+        args += _extra_binds(root)
 
         # last, so they stand over the writable binds above: a path a declared
         # command reads is read-only to every wrapped shell. The one command

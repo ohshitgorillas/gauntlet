@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **A project declares extra writable paths under `extra_binds`.** A ninth key in `.claude/blind-reads.json`, a list of paths, empty by default: each live entry is bound writable inside the default wrapped profile at its own spelling, so a package cache, a build cache or a scratch tree outside the checkout is reachable by a wrapped shell. The key is writable-only, since every path outside the checkout is already readable, and it reaches the author's profile and not a blind reviewer's. An entry is dropped on its own where it is not absolute, where its source is not live, or where it stands over the `/run/user` or `/tmp` masks, `/dev`, `/proc`, `~/.gitconfig`, the checkout or a worktree, from either side; a malformed list voids the whole key. `python3 hooks/shell_shapes.py --config extra_binds` prints one path per line, and `python3 scripts/init.py` writes the key at `[]`.
+
 ## [0.2.3] - 2026-09-19
 
 ### Fixed
