@@ -1,0 +1,188 @@
+slug: auditor
+discovery: detective
+
+brief:
+> Draft the stage-1 plan for slug `auditor`: a seventh agent under `agents/` with tools `Read`, `Grep` and `Glob` only, blind to `<source dir>/` through the `BLIND` tuple in `hooks/no-impl-reads.py` with its own `--self-test` row, that sweeps existing tests under `<tests dir>/` and returns one row per test.
+  delivered: `agents/auditor.md` and the two hook edits under **Which files get touched**.
+> Make the sweep scope whatever the owner states in the brief — a file, a contract, "any test containing X", "any test touching Y" are examples, not the set — and have the auditor resolve that wording to a target list it prints before the rows, so the owner sees what was swept.
+  delivered: the `targets:` section of `agents/auditor.md` under **Which files get touched**.
+> Set the row grammar to `VALID` by default; `STRIKE` or `AMEND` only with a `docs/testing.md` rule number and the assertion quoted from the file, `AMEND` carrying one more line for the behavior the test pins; `NOTE` for a fact it cannot read; no finding of the `removed:` kind, ever.
+  delivered: the `rows:` section of `agents/auditor.md` under **Which files get touched**.
+> Have the main agent fold the rows into `motion: strike` and `motion: amend` blocks, one per motion kind per file, that run through `agents/arbiter.md`, `agents/scrivener.md` and `scripts/strike-diff.py` unchanged, and put any change one of those three would need under Open questions.
+  delivered: **Caller-side delta**, which resolves the three against the fold and finds no change owed by any of them.
+> Touch `docs/agents.md`, `README.md` at the tests-only lane and the roster count, and `CHANGELOG.md` under `[Unreleased]`; done when `<gauntlet dir>/plans/approved/auditor.txt` exists.
+  delivered: the three prose files under **Which files get touched**.
+> Fold `CLAUDE.md:72` and `scripts/pair.sh:3` into the count fix, eight at both; strike the exclusion paragraph under What it costs.
+  delivered: the `CLAUDE.md:72` and `scripts/pair.sh:3` bullet under **Which files get touched**.
+
+## What is wrong
+
+The tests-only lane opens on a test somebody already found. `README.md:55`: "Bring a failing test that violates" it. Nothing in the kit finds one. The roster at `docs/agents.md:7-13` is seven agents, none of which reads existing tests against policy: `detective` locates, `examiner` measures, `prosecutor` and `arbiter` judge a draft, `scrivener` writes, `juror` rules one run, `bailiff` watches one merged block.
+
+`bailiff` is closest and does not reach. `agents/bailiff.md:42`: "Rules 4, 6, 13 and 14 belong to this job, and only this one." Its window is one block's implementation phase — `agents/bailiff.md:7`, "You watch that window and nothing else." A test that landed before the kit, or under another block, is never read again.
+
+The main agent cannot take the sweep. Rule 9 turns on a question it cannot ask about itself: `docs/testing.md:34`, "writer must read implementation to know this literal? Then copy". The main agent has read `<source dir>/`, so no literal reads to it the way it reads to a writer who has not. Same failure `docs/agents.md:28` names for a reviewer: "A reviewer that can read the code will rationalize a spec line that merely describes what the code already does".
+
+So unswept tests stay in the suite, and the route that removes them stays gated on a human noticing.
+
+## What the owner sees change
+
+The owner states a sweep scope in a brief, in their own words. The auditor prints a target list first — one `<tests dir>/<file>::<test>` per line — then one row per target. The owner sees what was swept before reading any finding.
+
+Rows carry no argument. `STRIKE` and `AMEND` each name a `docs/testing.md` rule number and quote the offending assertion out of the test file; `AMEND` adds one line naming the behavior the test pins. Everything else is `VALID`. A fact the auditor could not read is `NOTE`, never a finding.
+
+Rows are not a route. The owner reads the target list and the rows and says which rows go; only then does the main agent fold `STRIKE` rows into `motion: strike` blocks and `AMEND` rows into `motion: amend` blocks, one block per kind per file, each walking the tests-only lane as a hand-drafted block does today.
+
+## Which files get touched, and roughly how
+
+**`agents/auditor.md`, new.** Frontmatter `name: auditor`, `tools: Read, Grep, Glob`, `model: inherit` — sixteen rules against arbitrary test code is the `bailiff`'s kind of reading, and `agents/bailiff.md:5` takes the session's model for it. No `Write`: rows are the return value, the shape `agents/bailiff.md:75` states, "Never write. You hold no `Write`". No `Bash`: `hooks/blind-bash.py:91` gates a blind shell on `BLIND = ("scrivener", "bailiff")`, and an agent holding no `Bash` needs no row there. Body in the compressed register `CLAUDE.md:72` sets for `agents/`.
+
+Three sections carry the work:
+
+- *Scope.* The owner's wording resolved to targets by `Grep`/`Glob` over `<tests dir>/` alone. The wording is not a fixed set — a file, a contract, "any test containing X", "any test touching Y" all resolve the same way. A scope naming no test returns an empty target list and no rows, never a widened sweep.
+- *`targets:`.* One `<tests dir>/<file>::<test>` per line, printed before any row, so a scope resolved too narrow or too wide is visible before the findings are.
+- *`rows:`.* One row per target, in target order. `VALID <target>` is the default and carries nothing else. `STRIKE <target>` and `AMEND <target>` each carry `rule: docs/testing.md rule <n>` and `assertion: <quoted from the test file>`, the two fields `docs/testing.md:75-76` names; `AMEND` carries `pins: <the behavior the test pins>` beside them. `NOTE <target>: <the fact>` for anything resting on a file it cannot read. A row that cannot carry both a rule number and a quoted assertion is `VALID` — the default is the passing one here, opposite of a reviewer's, because a sweeper's false finding spends a lane round on a test that pins.
+
+One rule per row, because `docs/testing.md:89` puts one on a line: "Exactly one of `rule:` or `removed:` per line". The rule a row carries is the one the quoted assertion breaks. A target breaking a second rule under a second assertion takes one row still, and the row's kind decides which violation it carries: `STRIKE` only where nothing in that test pins behavior worth keeping, `AMEND` otherwise — so a target whose violations split across the two kinds is `AMEND`, whose line carries both halves at `docs/testing.md:95-104`, while a `STRIKE` row would drop the pinned half unrecorded. The uncarried violation is not lost: the replacement `AMEND` names is a new test, and a sweep re-run over the landed file rows on it again.
+
+No `removed:` row, ever. `docs/testing.md:89` also requires that the sentence "must appear in block's own" brief. That sentence is the owner's, quoted, and the auditor holds no dropped-behavior sentence to quote; a sweeper composing one hands the `arbiter` text nothing can check. Dropped behavior reaches the lane through the owner, as it does now.
+
+No rehome row either. `docs/testing.md:127` requires a "fact outside" the tests directory "that force move", and the auditor is blind to exactly that, so the motion's one required field is unreachable to it.
+
+**`agents/bailiff.md:42`**, one clause. It reads "Rules 4, 6, 13 and 14 belong to this job, and only this one", and the auditor rules on 4 and 13 among the rest, so the clause as written is overturned rather than met. What it becomes is a bound on the block rounds: those four rules belong to the `bailiff` among the rounds that judge a block, because a spec block carries no test code and stage 1 cannot see them. A sweep judges no block — it reads tests already in the tree, under no slug — so it is outside what the clause divides, and the `bailiff` keeps those four rules for every merged block.
+
+**`README.md:64`**, the other rule this overturns, and the same shape of repair. It reads "The route is the decision, and a brief that leaves it to the agent holding the file is how a test gets edited in place." A sweep brief names a scope and no structure line. It may, because a sweep drafts no block and writes nothing: the rows go to the owner, and the route is named when the owner says which rows go, ahead of the fold. The sentence gains that case — a brief that puts `<tests dir>/` in scope names the route, and a brief that asks for a sweep of it names a scope, because the sweep's output is findings and not a change.
+
+**`hooks/no-impl-reads.py`.** `BLIND` at `hooks/no-impl-reads.py:115-120` gains `"auditor"`. The allowlist needs nothing: `DEFAULT_ALLOW` at `hooks/no-impl-reads.py:168-175` already carries `DOCS + "/testing.md"` and `TESTS + "/"`, which is the whole of what a sweep reads. Three count words go to five: `hooks/no-impl-reads.py:12` "the four blind agents", `hooks/no-impl-reads.py:23` "The rule the four work under", `hooks/no-impl-reads.py:335` "runs for the four blind agents".
+
+**`hooks/no_impl_reads_selftest.py`.** Row 11 at `hooks/no_impl_reads_selftest.py:299-324` gains four cases beside the ones it holds: `auditor` denied on a source path, `auditor` allowed on `docs/testing.md`, and both again under `gauntlet:auditor`, the plugin spelling its rows at `hooks/no_impl_reads_selftest.py:319-324` already carry for the other four. Its title at `hooks/no_impl_reads_selftest.py:299`, "the four blind agents are judged, and no other caller is", takes the same count.
+
+**`docs/approved-specs.md:82`**, a fifth site of that count: "the four blind agents for the read block". Five, with the read block unchanged in shape.
+
+**`hooks/lanes.py`: no change.** Its four agent constants at `hooks/lanes.py:97-100` are writers. The auditor writes nothing, so it is a caller the table holds no row for — the standing `bailiff` has at `docs/agents.md:12`.
+
+**`docs/agents.md`.** `docs/agents.md:3` "Eight agents" becomes nine. The table gains a row: `auditor`, sees the code **no**, writes nothing, hooks `lanes`, `no-impl-reads`. `docs/agents.md:24` names four blind agents and becomes five. `docs/agents.md:28` gains one sentence for why the sweeper is among them, in the shape the other four have there: a sweeper that read the code cannot answer rule 9's question about itself. The tests-only lane section at `docs/agents.md:86-91` gains the step that produces a block, ahead of its step 1.
+
+**`README.md`.** The list at `README.md:5-10` runs to six because `bailiff` is missing from it while `README.md:35` carries the bailiff. The list gains both `bailiff` and `auditor`, and `README.md:3` "six subagents" becomes eight. The `bailiff` row is in scope by `/home/atom/dev/CLAUDE.md:117`: it is the same defect as the count this change is already fixing, in the same list, with the same cause. The tests-only lane at `README.md:53-66` takes the sweep at `README.md:55` as the other route in, and the amendment to `README.md:64` above.
+
+**`CLAUDE.md:72` and `scripts/pair.sh:3`**, the two definition counts. `CLAUDE.md:72` says "the five agent definitions under" `agents/` and `scripts/pair.sh:3` says its name is a literal in "the five agent" definitions; both are already wrong at seven and both become eight. They count definition files rather than the roster a consumer reads, so the arithmetic is the one this change moves.
+
+**`CHANGELOG.md`.** One `### Added` entry under `[Unreleased]` at `CHANGELOG.md:5`. Consumer-visible by this repo's own test: an agent definition and a hook row ship in the plugin.
+
+**`.claude-plugin/plugin.json`: no change.** Its description at `.claude-plugin/plugin.json:3` names slugs and no count, so no number in it goes stale.
+
+## Caller-side delta
+
+The three the fold runs through take no change, each for a resolvable reason.
+
+`agents/arbiter.md:80` holds strike grammar, `agents/arbiter.md:82` amend grammar. Both judge fields, never provenance: target under the tests lane, rule number real, quoted assertion really breaking it. Nothing there asks whose hand drafted the line.
+
+`agents/scrivener.md:34` and `agents/scrivener.md:36` remove targets and write the replacements `as:` names. Same fields.
+
+`scripts/strike-diff.py:63-66` parses `rule|assertion|replace|as`, and `block_kind` at `scripts/strike-diff.py:107-114` reads the structure line. Both shapes the fold emits are ones it already checks.
+
+Two constraints the fold obeys rather than changes, both pre-existing:
+
+- A mixed block is rejected — `agents/arbiter.md:80`, "Mixed block under". Hence one block per motion kind, which is the owner's grouping.
+- An amend block caps at four `replace:` lines — `docs/testing.md:110`, "Four-line cap count". A file with five `AMEND` rows folds into two blocks, not one. Per-file grouping is a floor, not a ceiling.
+
+Per-file grouping is the owner's instruction and not a constraint the tree imposes: `scripts/strike-diff.py:219` names every file any line in the block names, so a two-file block draws no `UNNAMED` from it.
+
+## What it costs
+
+One slug per block. A sweep with findings in five files is five slugs, each with its own `arbiter` round, `scrivener` run and `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`. Cost scales with files touched, not with rows.
+
+Two blocks over the same file run one after the other, never concurrently: both land in that file, and the second block's base has to hold the first block's landing or its targets read as already gone.
+
+`tests/` cases for the new `BLIND` member are not the main agent's to write. `CLAUDE.md:54` is the rule — "A write to `tests/` from the main agent comes back denied" — so those cases arrive through an approved block and the `scrivener`, after this plan lands. The two `--self-test` files sit in `hooks/`, not `tests/`, so they move in the implementation pass itself.
+
+Every row is judged from the test file alone. A rule 4 or rule 13 finding rests on what a fake speaks to — `docs/testing.md:17`, `docs/testing.md:61` — and where that wire fact lives in `<source dir>/` the row is a `NOTE` and not a finding. Blindness buys the sweep its standing and pays for it here.
+
+`VALID` by default means a missed violation is silent. The sweep is a floor under the suite, never a proof it is clean.
+
+## Open questions
+
+None.
+
+--- reviewer ---
+READY
+
+a  PASS  Both meaning changes are now stated outright as part of the change being proposed, not as side effects: the bullet at "**`agents/bailiff.md:42`**, one clause" says the clause "is overturned rather than met" and gives what it becomes, and "**`README.md:64`**, the other rule this overturns" does the same. The tests-lane brief's new case is authorized by owner words quoted in `brief:`.
+
+b  PASS  Both failed claims are repaired and every new citation resolves. `DEFAULT_ALLOW` is at `hooks/no-impl-reads.py:168-175` and its members include `DOCS + "/testing.md"` and `TESTS + "/"`. `scripts/strike-diff.py:219` is `named = {line.path for line in lines}`, which is what "names every file any line in the block names" says. `docs/testing.md:95-104` is the amend block shape under "One line carry both halves — what go, what take its place". `/home/atom/dev/CLAUDE.md:117` is 10.2, "In scope: the identical defect elsewhere, a near-identical one differing only in names or literals, and one that shares the first's cause". `docs/approved-specs.md:82` carries "the four blind agents for the read block". `scripts/pair.sh:3` carries "in the five agent". `docs/testing.md:89` carries both fragments the plan takes from it, "Exactly one of `rule:` or `removed:` per line" and "must appear in block's own". `BLIND` spans `hooks/no-impl-reads.py:115-120`. `README.md:35` carries the bailiff and `README.md:5-10` runs to six without it.
+
+c  PASS  My count of sites carrying the word is five and the plan now names five: `hooks/no-impl-reads.py:12`, `:23`, `:335`, the selftest title at `hooks/no_impl_reads_selftest.py:299`, `docs/agents.md:24`, plus `docs/approved-specs.md:82` as its own bullet. `scripts/pair.sh:3` and `CLAUDE.md:72` are named under **What it costs** with the reason both are out, which is the repair as named.
+
+d  PASS  Cause named upstream of appearance: the lane opens on a test the owner brings (`README.md:55`), no roster agent reads existing tests against policy (`docs/agents.md:7-13`), and the main agent cannot ask rule 9's question about itself (`docs/testing.md:34`, `docs/agents.md:28`).
+
+e  PASS  Both rules I found are now named and their disposition stated plainly. `agents/bailiff.md:42` is overturned and becomes a bound on the block rounds, with the `bailiff` keeping those four rules for every merged block. `README.md:64` is overturned and gains the sweep case, with the route named by the owner ahead of the fold — and **What the owner sees change** carries the same order at "Rows are not a route." The rules the plan meets rather than overturns are unchanged: `docs/testing.md:89`, `:110`, `:127`, `agents/arbiter.md:80`, `CLAUDE.md:54`.
+
+f  PASS  Both readings I asked for are given at "One rule per row, because `docs/testing.md:89` puts one on a line": the row carries the rule its quoted assertion breaks, and a target whose violations split across the two kinds is `AMEND`, whose line carries both halves at `docs/testing.md:95-104`. The uncarried violation is accounted for rather than dropped. The previously stated boundaries stand — empty scope, five `AMEND` rows against the four-line cap, two blocks over one file serialized, a source-side fact degrading to `NOTE`.
+
+g  PASS  **Open questions** is `None`, and both questions were resolved rather than dropped: the `bailiff` row and the count move to eight under `/home/atom/dev/CLAUDE.md:117`, and no cap on the sweep, on `agents/bailiff.md:42`'s "One row per violation, no cap".
+
+h  PASS  Reach claims carry mechanism and hold in the one-hop bound. `hooks/lanes.py:97-100` are writer constants and the auditor holds no write tool. One-hop readers of `BLIND`: `hooks/no-impl-reads.py:339`, the selftest row, and `tests/test_hook_wire.py:479-490`, whose expected dict enumerates named callers rather than the tuple. `.claude-plugin/plugin.json:3` names slugs and carries no numeral, so the reworded claim that no number in it goes stale holds. The three fold consumers judge fields and not provenance.
+
+i  PASS  `brief:` block present, five quoted sentences, exactly one `delivered:` line each, nothing beneath any of them, no `dropped:`. Each names an element that exists in the body.
+
+j  N/A   This repository's architecture doc names no composition-root file, so the check has no subject here.
+
+k  PASS  Each `delivered:` element reads as its sentence reads. Tools, `BLIND` membership and the `--self-test` row in the `agents/auditor.md` and hook bullets; scope resolution and the printed target list in *Scope.* and *`targets:`*; the four row kinds, the two required fields, the `AMEND` extra line and the `removed:` prohibition in *`rows:`* and the paragraph at "No `removed:` row, ever"; the fold and the three unchanged consumers in **Caller-side delta**; the three prose files named. The (l) deletion I ordered in round 1 removed a reconciling aside, not a condition of any element, and every element still reads as its sentence reads.
+
+l  PASS  The clause I named is gone. Every new sentence carries a fact not in the citation beside it or in an earlier section: the two overturn bullets state what each rule becomes, the one-rule-per-row paragraph states a policy the cited line does not, the `docs/approved-specs.md:82` bullet is a site not named elsewhere, and the two stale-count sentences under **What it costs** carry the reason both are out.
+
+--- reviewer ---
+ANOTHER PASS
+
+repair (l): delete the second sentence of the sixth `delivered:` line — "It overrides the sentence above it that left both out, and the plan follows this one." The brief sentence above it, "Touch `docs/agents.md`, `README.md` at the tests-only lane and the roster count", left neither count out; the plan's own paragraph under **What it costs** did, and that paragraph is now struck, so nothing on disk contradicts the amendment and nothing is owed to record it. `docs/plans.md:36` asks for the override note where one brief sentence overrides an earlier brief sentence, which is not this case. Leave the line at "delivered: the `CLAUDE.md:72` and `scripts/pair.sh:3` bullet under **Which files get touched**."
+
+a  PASS  carried: "a  PASS  Both meaning changes are now stated outright as part of the change being proposed, not as side effects: the bullet at \"**`agents/bailiff.md:42`**, one clause\" says the clause \"is overturned rather than met\" and gives what it becomes, and \"**`README.md:64`**, the other rule this overturns\" does the same. The tests-lane brief's new case is authorized by owner words quoted in `brief:`."
+
+b  PASS  The amended bullet's two citations resolve, read independently of any script run. `CLAUDE.md:72` reads "`docs/testing.md` and the five agent definitions under `agents/` are caveman-compressed", and `scripts/pair.sh:3` ends "in the five agent", continuing "definitions" on `scripts/pair.sh:4`. Both are wrong at seven today, and eight is the arithmetic after `agents/auditor.md` lands.
+
+c  PASS  I counted the live sites of that count myself: `CLAUDE.md:72` and `scripts/pair.sh:3`, and no third. `CHANGELOG.md:67`, `:78` and `:128` carry counts as history rather than as a live reading, and `docs/plans.md:46` names the definitions with no number. The bullet names both sites the owner's amendment names, and the set is complete.
+
+d  PASS  carried: "d  PASS  Cause named upstream of appearance: the lane opens on a test the owner brings (`README.md:55`), no roster agent reads existing tests against policy (`docs/agents.md:7-13`), and the main agent cannot ask rule 9's question about itself (`docs/testing.md:34`, `docs/agents.md:28`)."
+
+e  PASS  carried: "e  PASS  Both rules I found are now named and their disposition stated plainly. `agents/bailiff.md:42` is overturned and becomes a bound on the block rounds, with the `bailiff` keeping those four rules for every merged block. `README.md:64` is overturned and gains the sweep case, with the route named by the owner ahead of the fold — and **What the owner sees change** carries the same order at \"Rows are not a route.\" The rules the plan meets rather than overturns are unchanged: `docs/testing.md:89`, `:110`, `:127`, `agents/arbiter.md:80`, `CLAUDE.md:54`."
+
+f  PASS  carried: "f  PASS  Both readings I asked for are given at \"One rule per row, because `docs/testing.md:89` puts one on a line\": the row carries the rule its quoted assertion breaks, and a target whose violations split across the two kinds is `AMEND`, whose line carries both halves at `docs/testing.md:95-104`. The uncarried violation is accounted for rather than dropped. The previously stated boundaries stand — empty scope, five `AMEND` rows against the four-line cap, two blocks over one file serialized, a source-side fact degrading to `NOTE`."
+
+g  PASS  carried: "g  PASS  **Open questions** is `None`, and both questions were resolved rather than dropped: the `bailiff` row and the count move to eight under `/home/atom/dev/CLAUDE.md:117`, and no cap on the sweep, on `agents/bailiff.md:42`'s \"One row per violation, no cap\"."
+
+h  PASS  carried: "h  PASS  Reach claims carry mechanism and hold in the one-hop bound. `hooks/lanes.py:97-100` are writer constants and the auditor holds no write tool. One-hop readers of `BLIND`: `hooks/no-impl-reads.py:339`, the selftest row, and `tests/test_hook_wire.py:479-490`, whose expected dict enumerates named callers rather than the tuple. `.claude-plugin/plugin.json:3` names slugs and carries no numeral, so the reworded claim that no number in it goes stale holds. The three fold consumers judge fields and not provenance."
+
+i  PASS  Six quoted brief sentences now, six `delivered:` lines, one each, nothing beneath any of them, no `dropped:`. The sixth names the `CLAUDE.md:72` and `scripts/pair.sh:3` bullet, which exists in the body. The argument riding on that line is (l)'s, not this check's.
+
+j  N/A   This repository's architecture doc names no composition-root file, so the check has no subject here.
+
+k  PASS  The amendment reads as its sentence reads. "eight at both" — the bullet takes `CLAUDE.md:72` and `scripts/pair.sh:3` to eight, which is seven definition files plus `agents/auditor.md`. "strike the exclusion paragraph under What it costs" — that paragraph is gone, and **What it costs** ends at the `VALID`-by-default sentence. The (l) repair above deletes an aside, not a condition of any element.
+
+l  FAIL  One restatement, on the sixth `delivered:` line: "It overrides the sentence above it that left both out, and the plan follows this one." It is argument on a coverage line, the shape struck from the first `delivered:` line in round 1, and what it names is not the sentence above it. Repair is deletion. Every other amended sentence carries a fact not in its citation or an earlier section: the bullet states two counts and the arithmetic that moves them, and the struck paragraph took its reasoning with it.
+
+--- reviewer ---
+READY
+
+a  PASS  carried: "Both meaning changes are now stated outright as part of the change being proposed, not as side effects: the bullet at "**`agents/bailiff.md:42`**, one clause" says the clause "is overturned rather than met" and gives what it becomes, and "**`README.md:64`**, the other rule this overturns" does the same. The tests-lane brief's new case is authorized by owner words quoted in `brief:`."
+
+b  PASS  carried: "The amended bullet's two citations resolve, read independently of any script run. `CLAUDE.md:72` reads "`docs/testing.md` and the five agent definitions under `agents/` are caveman-compressed", and `scripts/pair.sh:3` ends "in the five agent", continuing "definitions" on `scripts/pair.sh:4`. Both are wrong at seven today, and eight is the arithmetic after `agents/auditor.md` lands."
+
+c  PASS  carried: "I counted the live sites of that count myself: `CLAUDE.md:72` and `scripts/pair.sh:3`, and no third. `CHANGELOG.md:67`, `:78` and `:128` carry counts as history rather than as a live reading, and `docs/plans.md:46` names the definitions with no number. The bullet names both sites the owner's amendment names, and the set is complete."
+
+d  PASS  carried: "Cause named upstream of appearance: the lane opens on a test the owner brings (`README.md:55`), no roster agent reads existing tests against policy (`docs/agents.md:7-13`), and the main agent cannot ask rule 9's question about itself (`docs/testing.md:34`, `docs/agents.md:28`)."
+
+e  PASS  carried: "Both rules I found are now named and their disposition stated plainly. `agents/bailiff.md:42` is overturned and becomes a bound on the block rounds, with the `bailiff` keeping those four rules for every merged block. `README.md:64` is overturned and gains the sweep case, with the route named by the owner ahead of the fold — and **What the owner sees change** carries the same order at "Rows are not a route." The rules the plan meets rather than overturns are unchanged: `docs/testing.md:89`, `:110`, `:127`, `agents/arbiter.md:80`, `CLAUDE.md:54`."
+
+f  PASS  carried: "Both readings I asked for are given at "One rule per row, because `docs/testing.md:89` puts one on a line": the row carries the rule its quoted assertion breaks, and a target whose violations split across the two kinds is `AMEND`, whose line carries both halves at `docs/testing.md:95-104`. The uncarried violation is accounted for rather than dropped. The previously stated boundaries stand — empty scope, five `AMEND` rows against the four-line cap, two blocks over one file serialized, a source-side fact degrading to `NOTE`."
+
+g  PASS  carried: "**Open questions** is `None`, and both questions were resolved rather than dropped: the `bailiff` row and the count move to eight under `/home/atom/dev/CLAUDE.md:117`, and no cap on the sweep, on `agents/bailiff.md:42`'s "One row per violation, no cap"."
+
+h  PASS  carried: "Reach claims carry mechanism and hold in the one-hop bound. `hooks/lanes.py:97-100` are writer constants and the auditor holds no write tool. One-hop readers of `BLIND`: `hooks/no-impl-reads.py:339`, the selftest row, and `tests/test_hook_wire.py:479-490`, whose expected dict enumerates named callers rather than the tuple. `.claude-plugin/plugin.json:3` names slugs and carries no numeral, so the reworded claim that no number in it goes stale holds. The three fold consumers judge fields and not provenance."
+
+i  PASS  Six quoted brief sentences, six `delivered:` lines, one each, nothing beneath any of them and nothing beside the element name on the sixth. The sixth now reads whole: "delivered: the `CLAUDE.md:72` and `scripts/pair.sh:3` bullet under **Which files get touched**", and that bullet is in the body.
+
+j  N/A   This repository's architecture doc names no composition-root file, so the check has no subject here.
+
+k  PASS  carried: "The amendment reads as its sentence reads. "eight at both" — the bullet takes `CLAUDE.md:72` and `scripts/pair.sh:3` to eight, which is seven definition files plus `agents/auditor.md`. "strike the exclusion paragraph under What it costs" — that paragraph is gone, and **What it costs** ends at the `VALID`-by-default sentence. The (l) repair above deletes an aside, not a condition of any element."
+
+l  PASS  The sentence I named is deleted and nothing replaced it. I diffed the draft against the approved round-2 body: the only differences are the owner's three amendment changes — the sixth brief sentence with its one-line `delivered:`, the `CLAUDE.md:72` and `scripts/pair.sh:3` bullet, and the struck exclusion paragraph. No sentence entered the body unread, and every sentence in the amendment carries a fact not in its citation or an earlier section.

@@ -1,0 +1,30 @@
+slug: auditor
+kind: new
+
+brief:
+> Draft the stage-2 spec block for slug `auditor`, pinning `hooks/no-impl-reads.py` alone: what callers `auditor` and `gauntlet:auditor` get on a `<source dir>/` path, on `docs/testing.md`, and on a `<tests dir>/` path, one line per outcome that differs.
+
+1. `hooks/no-impl-reads.py` answers `deny` on a `Read` of a `<source dir>/` path from `agent_type` `auditor` and from `agent_type` `gauntlet:auditor`, and is silent on the same paths from a caller outside the blind set. Move the caller over two source paths that share no directory and one of which sits under a name the allowlist admits at the root: at `hooks/shell_shapes.py` and at `src/docs/impl.py`, `auditor` -> deny and `gauntlet:auditor` -> deny; at both of the same paths, `examiner` -> silent and a payload with no `agent_type` key -> silent.
+   kills: an implementation that adds the sweeper to the roster and the agent definition without adding it to `BLIND` leaves the auditor reading the code it is sweeping tests against, so its `STRIKE` and `AMEND` rows are shaped by the implementation and mirror the defect they are meant to catch — the failure `hooks/no-impl-reads.py:23-28` exists to prevent, arriving under a seventh agent nobody added to the tuple.
+   bite: HEAD is silent at both spellings and both paths. `printf '{"tool_name":"Read","tool_input":{"file_path":"'$PWD'/hooks/shell_shapes.py"},"agent_type":"auditor","cwd":"'$PWD'"}' | python3 hooks/no-impl-reads.py` prints nothing and exits 0; the same command with `"gauntlet:auditor"`, and with `src/docs/impl.py` in place of the path, prints nothing and exits 0; the same command with `"scrivener"` prints the `permissionDecision` `deny` object.
+   existing: delta on `tests/test_hook_wire.py:476` `test_the_blind_agents_are_read_blocked_and_the_main_agent_is_not`, whose caller dict of ten names gains `"auditor": DENY` and `"gauntlet:auditor": DENY`, and whose held path `SOURCE = "hooks/shell_shapes.py"` at `tests/test_hook_wire.py:473` gains `src/docs/impl.py` as a second held path. Neither auditor spelling is in that dict today, so the case passes unchanged whether the tuple gains the sweeper or not.
+
+2. The same two callers keep the reads the sweep is made of, and keep them by the root-anchored allowlist rather than by name: with the caller held at `auditor`, `docs/testing.md` -> silent, `tests/test_hook_wire.py` -> silent, `src/docs/impl.py` -> deny, `hooks/shell_shapes.py` -> deny; repeat all four under `gauntlet:auditor` for the same four answers.
+   kills: an implementation that blinds the sweeper with a list of its own, or by denying the caller outright rather than by joining it to the allowlist `DEFAULT_ALLOW` at `hooks/no-impl-reads.py:168-175` already carries, takes away the test files it sweeps and the rule numbers every `STRIKE` and `AMEND` row must cite, so every row it can still return is `NOTE`; one that admits an allowlist entry at any depth hands the same sweeper `src/docs/impl.py` under a directory name the project chose.
+   bite: HEAD is silent at all five inputs, including the two this line denies, because `auditor` is outside `BLIND` at `hooks/no-impl-reads.py:115-120` and passes unjudged. `printf '{"tool_name":"Read","tool_input":{"file_path":"'$PWD'/docs/testing.md"},"agent_type":"auditor","cwd":"'$PWD'"}' | python3 hooks/no-impl-reads.py` prints nothing and exits 0, and so does the same command at `tests/test_hook_wire.py`, at `src/docs/impl.py` and at `hooks/shell_shapes.py`. HEAD satisfies the silent half of this line by accident and fails its deny half.
+   existing: delta on `tests/test_hook_wire.py:271` `test_allowlisted_directories_are_anchored_at_the_repo_root`, whose fixed caller `BLIND_READER = "scrivener"` at `tests/test_hook_wire.py:60` becomes a swept dimension over `scrivener`, `auditor` and `gauntlet:auditor`, the path sweep it already holds unchanged.
+
+--- reviewer ---
+
+READY
+discriminates: sweep on `hooks/no-impl-reads.py`'s read decision — line 1 moves the caller over two directory-disjoint source paths, line 2 moves the path under each spelling with the root-anchored contrast `docs/testing.md` -> silent beside `src/docs/impl.py` -> deny
+
+1  AMENDED tests/test_hook_wire.py:476: `test_the_blind_agents_are_read_blocked_and_the_main_agent_is_not` gains `"auditor": DENY` and `"gauntlet:auditor": DENY` in its ten-name caller dict, and its held `SOURCE = "hooks/shell_shapes.py"` (tests/test_hook_wire.py:473) becomes two held paths with `src/docs/impl.py` beside it; no new test.
+2  AMENDED tests/test_hook_wire.py:271: `test_allowlisted_directories_are_anchored_at_the_repo_root` turns its fixed caller `BLIND_READER = "scrivener"` (tests/test_hook_wire.py:60) into a swept dimension over `scrivener`, `auditor`, `gauntlet:auditor`, path sweep unchanged; no new test.
+
+null stub: `no-impl-reads.py` decides nothing — every read passes unjudged for every caller and every path, stdout empty, exit 0.
+  satisfies: none   fails: 1, 2
+hard-coded stub: deny for the named blind spellings at the exact paths given, silent at every other named input — it must now reproduce the root anchoring, since `docs/` is silent at the root and `src/docs/impl.py` denies one level down under the same directory name, at both spellings and at a caller outside the blind set.
+  satisfies: none   fails: 1, 2
+
+survives: 0
