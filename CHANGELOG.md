@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **An `auditor` agent sweeps the suite against the policy file.** Blind: `Read`, `Grep`, `Glob`, and a row in the `BLIND` tuple of `no-impl-reads.py` denies it the source. It resolves the owner's scope wording to a target list, prints the list, then returns one row per target — `VALID` by default, `STRIKE` or `AMEND` with a rule number and a quoted assertion, `NOTE` for a fact it cannot read.
+
 ## [0.3.0] - 2026-09-19
 
 ### Added

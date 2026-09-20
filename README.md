@@ -1,6 +1,6 @@
 # Gauntlet
 
-Gauntlet is a set of six subagents that surround the main agent, built around two blind reviewers:
+Gauntlet is a set of eight subagents that surround the main agent, built around two blind reviewers:
 
 1. An adversarial plan reviewer (`prosecutor`)
 2. A discovery locator for plans (`detective`)
@@ -8,6 +8,8 @@ Gauntlet is a set of six subagents that surround the main agent, built around tw
 4. A measurement agent (`examiner`)
 5. A blind test writer (`scrivener`)
 6. A blind juror for the red run (`juror`)
+7. A blind post-merge test checker (`bailiff`)
+8. A blind sweeper of tests already in the tree (`auditor`)
 
 "Blind" in this instance means that those agents are forbidden from reading, and therefore making judgment calls based on, implementation.
 
@@ -52,7 +54,7 @@ No hook enforces this, the same gap `docs/exemptions.md` states for the `EXEMPT`
 
 ## The tests-only lane
 
-A change confined to `<tests dir>/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not fourteen:
+A change confined to `<tests dir>/` does not pay implementation prices. Bring a failing test that violates `docs/testing.md` — a wall-clock wait, a hostname, an assertion copied out of the source — and the chain is four steps, not fourteen. The other way in is a sweep: state a scope in your own words, and an `auditor`, blind to the implementation, resolves it to a target list under `<tests dir>/`, prints that list, and returns one row per target — `VALID`, `STRIKE`, `AMEND` or `NOTE`. The rows are findings and not a change: you read them and say which ones go, and the main agent folds those into blocks that walk the same four steps.
 
 1. The main agent drafts a `motion: strike` block (the test goes), a `motion: amend` block (the test goes, and one line names the behavior that replaces it), or a `motion: rehome` block (the assertion survives byte-identical while what surrounds it moves, to another file or in place). A strike line cites the rule the test breaks, or — where the test breaks none and the behavior it pins is one the owner dropped — quotes the owner's sentence that dropped it. A rehome line cites neither: it names the fact outside the test directory that moved.
 2. The `arbiter` reviews it against the test file, which it is allowed to read, and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
@@ -61,7 +63,7 @@ A change confined to `<tests dir>/` does not pay implementation prices. Bring a 
 
 No plan gate, no red run, no juror, no post-merge review round. The `Stop` hook fires on a red run that exists and never on the absence of one, so it stays silent here. Those three exist to police an implementation phase, and a tests-only change has none. What still holds is the part that matters: the main agent never writes `<tests dir>/`, and never decides on its own that a test it finds inconvenient pins nothing.
 
-A brief that puts `<tests dir>/` in scope names the structure line the change takes: `motion: strike`, `motion: amend`, `motion: rehome`, or a `kind:` block through the full chain. A brief that cannot name one is not ready to put tests in scope. The route is the decision, and a brief that leaves it to the agent holding the file is how a test gets edited in place.
+A brief that puts `<tests dir>/` in scope names the structure line the change takes: `motion: strike`, `motion: amend`, `motion: rehome`, or a `kind:` block through the full chain. A brief that cannot name one is not ready to put tests in scope. The route is the decision, and a brief that leaves it to the agent holding the file is how a test gets edited in place. A brief that asks for a sweep of `<tests dir>/` names a scope instead, and may: the `auditor` drafts no block and writes nothing, so its rows go to you, and the route is named when you say which rows go, ahead of the fold.
 
 See `docs/agents.md` for what each agent is allowed to see and write, and `docs/approved-specs.md` for the hook that makes step 7 and step 8 a fact on disk rather than a step that happened somewhere in the transcript.
 

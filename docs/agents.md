@@ -1,6 +1,6 @@
 # The roster
 
-Eight agents, and the whole system is the shape of what each one is not allowed to see or write.
+Nine agents, and the whole system is the shape of what each one is not allowed to see or write.
 
 | Agent | Sees the code | Writes | Hooks |
 | --- | --- | --- | --- |
@@ -11,6 +11,7 @@ Eight agents, and the whole system is the shape of what each one is not allowed 
 | `scrivener` | **no** | `<tests dir>/` of its own spec worktree | `lanes`, `no-impl-reads`, `blind-bash` |
 | `bailiff` | **no** | nothing | `lanes`, `no-impl-reads`, `blind-bash` |
 | `juror` | **no** | nothing | `lanes`, `no-impl-reads` |
+| `auditor` | **no** | nothing | `lanes`, `no-impl-reads` |
 | the main agent | yes | everything else | all of them, session-wide |
 
 ## The switch
@@ -21,11 +22,11 @@ One statement here covers every sentence in this file that says a hook denies so
 
 ## Who is blind, and why
 
-The `arbiter`, the `scrivener`, the `juror` and the `bailiff` are the four that never read the implementation. Everything else in the repo exists to keep that true.
+The `arbiter`, the `scrivener`, the `juror`, the `bailiff` and the `auditor` are the five that never read the implementation. Everything else in the repo exists to keep that true.
 
 Under `GAUNTLET=off` it is not true. `no-impl-reads.py` and `blind-bash.py` are two of the three hooks the switch silences, so a `arbiter` or a `scrivener` spawned in a bypassed session can read the implementation and can run any shell command, and nothing denies it. Blindness is the property the whole chain rests on, so a spec block or a test produced in such a session is worth what an unblind agent's work is worth, and it lands in a tracked file that looks like any other. A session with the gauntlet off should not run the chain.
 
-A reviewer that can read the code will rationalize a spec line that merely describes what the code already does — the line looks true, because it is, and it pins nothing. A test writer that can read the code writes a test that mirrors it: the test and the implementation share the same mistake, so it goes green on a wrong implementation and nobody sees. A certifier that can read the code reads a `GREEN` as the implementation already being right rather than as the test failing to bite, which is the one reading the red run exists to rule out. A post-merge checker that can read the code reads a softened assertion as matching what the code turned out to do, which is exactly the change it is there to catch.
+A reviewer that can read the code will rationalize a spec line that merely describes what the code already does — the line looks true, because it is, and it pins nothing. A test writer that can read the code writes a test that mirrors it: the test and the implementation share the same mistake, so it goes green on a wrong implementation and nobody sees. A certifier that can read the code reads a `GREEN` as the implementation already being right rather than as the test failing to bite, which is the one reading the red run exists to rule out. A post-merge checker that can read the code reads a softened assertion as matching what the code turned out to do, which is exactly the change it is there to catch. A sweeper that can read the code cannot answer rule 9's question about itself — "writer must read implementation to know this literal?" — because it has read it, so the copy-pinning tests it exists to find are the ones it stops being able to see.
 
 The certifier is also blind to the test it is judging in a second sense: it did not write it. The `scrivener` grading its own red run is the same conflict one stage down from an agent testing its own code, so the run output goes to a fresh agent that holds none of the reasons the test was written the way it was.
 
@@ -85,14 +86,15 @@ The two runners are `pytest_command` and `node_command` of that same file, read 
 
 A change confined to `<tests dir>/` — a test that violates `docs/testing.md` and has to go, or to be replaced — skips steps 1 and 2 entirely. No `detective`, no plan, no `prosecutor`, no owner plan approval.
 
-1. The main agent drafts a `motion: strike`, `motion: amend` or `motion: rehome` block and sends it to a `arbiter`.
-2. The reviewer resolves each line's quoted assertion against the test file itself — `<tests dir>/` is open to it, and the implementation is not what these lines rest on — and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
-3. The `scrivener` removes the targets and writes the replacements its `as:` fields name.
-4. `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py`, run by `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: none of the three shapes has an implementation phase, so the window those two watch does not exist.
+1. A block comes from a test the owner brought, or from a sweep: the owner states a scope, one `auditor` resolves it to a target list under `<tests dir>/` and returns `VALID`, `STRIKE`, `AMEND` or `NOTE` per target, and the owner says which rows go. The rows are findings, not a route.
+2. The main agent drafts a `motion: strike`, `motion: amend` or `motion: rehome` block and sends it to a `arbiter`. A fold of `auditor` rows is one block per motion kind per file, and the `arbiter` judges it as it judges a hand-drafted one.
+3. The reviewer resolves each line's quoted assertion against the test file itself — `<tests dir>/` is open to it, and the implementation is not what these lines rest on — and writes `<gauntlet dir>/specs/approved/<slug>.txt` on `READY`.
+4. The `scrivener` removes the targets and writes the replacements its `as:` fields name.
+5. `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py`, run by `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`, checks the landed diff against the block by name and by quoted assertion text. There is no red run and no post-merge reviewer round: none of the three shapes has an implementation phase, so the window those two watch does not exist.
 
 The plan gate is what the lane drops, and it drops it because the gate resolves citations into the implementation. These lines cite `<tests dir>/`.
 
-Steps 4 and 5 are the load-bearing pair, which is why a hook and not a convention stands between them: `<gauntlet dir>/specs/approved/` is written by the reviewer alone, so the file's existence is the writer's proof that the lines were reviewed. Rules in `approved-specs.md`.
+Steps 4 and 5 of the chain above are the load-bearing pair, which is why a hook and not a convention stands between them: `<gauntlet dir>/specs/approved/` is written by the reviewer alone, so the file's existence is the writer's proof that the lines were reviewed. Rules in `approved-specs.md`.
 
 ## Verdicts, not grades
 

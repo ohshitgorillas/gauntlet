@@ -296,7 +296,7 @@ def self_test() -> int:
                 denied(read(f"{root}/reference/protocol.md")),
             )
         ),
-        "11 the four blind agents are judged, and no other caller is": all(
+        "11 the five blind agents are judged, and no other caller is": all(
             (
                 #: the allowlist runs for a caller in BLIND, in both directions
                 denied(blind(f"{root}/src/core/manager.py")),
@@ -304,6 +304,8 @@ def self_test() -> int:
                 denied(blind(f"{root}/src/core/manager.py", "juror")),
                 denied(blind(f"{root}/src/core/manager.py", "arbiter")),
                 denied(blind(f"{root}/src/core/manager.py", "bailiff")),
+                denied(blind(f"{root}/src/core/manager.py", "auditor")),
+                allowed(blind(f"{root}/docs/testing.md", "auditor")),
                 #: the main agent carries no `agent_type` at all, and session
                 #: wiring puts its every read here: it passes unjudged
                 allowed(blind(f"{root}/src/core/manager.py", None)),
@@ -321,6 +323,8 @@ def self_test() -> int:
                 denied(blind(f"{root}/src/core/manager.py", "gauntlet:juror")),
                 denied(blind(f"{root}/src/core/manager.py", "gauntlet:arbiter")),
                 denied(blind(f"{root}/src/core/manager.py", "gauntlet:bailiff")),
+                denied(blind(f"{root}/src/core/manager.py", "gauntlet:auditor")),
+                allowed(blind(f"{root}/docs/testing.md", "gauntlet:auditor")),
                 allowed(blind(f"{root}/src/core/manager.py", "gauntlet:prosecutor")),
             )
         ),

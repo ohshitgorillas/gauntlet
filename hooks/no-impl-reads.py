@@ -9,7 +9,7 @@ wiring is the only wiring a packaged hook has.
 Session-wide is not session-blind. `agent_type` is present in the payload only
 for subagent calls, so an absent key is the main agent, which passes untouched
 -- it has to read the code to adjudicate a failing test. A caller not in
-`BLIND` passes the same way, unjudged, so nothing outside the four blind agents
+`BLIND` passes the same way, unjudged, so nothing outside the five blind agents
 is read-blocked by this hook.
 
 The fail direction is the price of that guard, and it is the opposite of the
@@ -20,7 +20,7 @@ for subagents would hand the blind agents the implementation rather than deny
 them their spec. Guarding by caller identity buys packaging and cannot fail
 closed; guarding by wiring scope failed closed and does not survive packaging.
 
-The rule the four work under is that a spec is judged, and a test written,
+The rule the five work under is that a spec is judged, and a test written,
 from the behavior contract and never from the code under test. A test shaped
 against the implementation mirrors it, and goes green on an implementation
 that is wrong in exactly the way the main agent was wrong. A prompt alone does not
@@ -117,6 +117,7 @@ BLIND = (
     "scrivener",
     "juror",
     "bailiff",
+    "auditor",
 )
 
 #: the blind writer's lane, `tests` unless `blind-reads.json` names another
@@ -332,7 +333,7 @@ def _caller_verdict(
     """Why this call is refused, or None to let it through, judged by caller.
 
     Session wiring puts every agent's reads in front of this hook, so the
-    allowlist below runs for the four blind agents and for nobody else. An
+    allowlist below runs for the five blind agents and for nobody else. An
     absent `agent_type` is the main agent and passes; a name not in `BLIND`
     passes too, unjudged rather than allowlisted.
     """

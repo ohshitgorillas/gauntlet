@@ -69,6 +69,6 @@ State a rule once, in the file that owns it, and cite it from anywhere else that
 - `docs/exemptions.md` — the `EXEMPT` register.
 - `README.md` — the entry point and the shape of the chain.
 
-Two prose registers, and an edit matches the file it lands in. `docs/testing.md` and the five agent definitions under `agents/` are caveman-compressed — clipped articles, fragments, dense. `README.md` and the rest of `docs/` are full English. Neither is a style to spread into the other.
+Two prose registers, and an edit matches the file it lands in. `docs/testing.md` and the eight agent definitions under `agents/` are caveman-compressed — clipped articles, fragments, dense. `README.md` and the rest of `docs/` are full English. Neither is a style to spread into the other.
 
 `<project>`, `<source dir>`, `<live marker>` and their siblings are template placeholders, left unexpanded on purpose: the docs ship to be copied. Do not fill them in with this repo's own values.
