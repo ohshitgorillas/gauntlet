@@ -57,7 +57,9 @@ NOGIT_CWD = "/nogit"
 #: `no-impl-reads.py` and `blind-bash.py` are wired session-wide and gated on
 #: `agent_type`, so a payload naming no caller is the main agent and passes
 #: both unjudged. Every case about what a blind agent may read or run names one.
-BLIND_READER = "scrivener"
+#: The read guard is held under every spelling a blind sweeper arrives as, so
+#: the allowlist is one table for the tuple rather than one per name.
+BLIND_READERS = ("scrivener", "auditor", "gauntlet:auditor")
 
 
 #: ``plugin_root=`` selectors for ``hook_decision``. The default leaves the
@@ -274,10 +276,13 @@ class NoImplReadsShellShapes(unittest.TestCase):
         # directories at the root; nested under src/ they name implementation.
         # A guard matching an allowlist entry at any depth hands the blind agent
         # src/docs/impl.py whole.
-        expected = {
+        # auditor line 2.  The sweeper keeps the reads a sweep is made of by
+        # the same root-anchored table, under both spellings it arrives as.
+        paths = {
             str(REPO_CWD / "src" / "docs" / "impl.py"): DENY,
             str(REPO_CWD / "src" / "tests" / "impl.py"): DENY,
             str(REPO_CWD / "docs" / "testing.md"): SILENT,
+            str(REPO_CWD / "tests" / "test_hook_wire.py"): SILENT,
             # gauntlet-dir-move line 3.  The gauntlet/ denial carries one
             # re-allowance, and it is rooted at the approved specs rather than
             # at the stage directory above them: rebased one level up it hands
@@ -293,10 +298,15 @@ class NoImplReadsShellShapes(unittest.TestCase):
             str(REPO_CWD / "gauntlet" / "specs" / "drafts" / "demo.txt"): DENY,
             str(REPO_CWD / "gauntlet" / "verdicts" / "demo.txt"): DENY,
         }
+        expected = {
+            (reader, file_path): verdict
+            for reader in BLIND_READERS
+            for file_path, verdict in paths.items()
+        }
         actual = sweep(
             "no-impl-reads.py",
             expected,
-            lambda file_path: read_payload(file_path, REPO_CWD, BLIND_READER),
+            lambda key: read_payload(key[1], REPO_CWD, key[0]),
         )
         assert actual == expected
 
@@ -468,20 +478,23 @@ class TheCallerGate(unittest.TestCase):
 
     maxDiff = None
 
-    #: an implementation path on no allowlist, and a shell command that is not
-    #: the blind agents' one entry point
-    SOURCE = "hooks/shell_shapes.py"
+    #: two implementation paths on no allowlist, sharing no directory, one of
+    #: them under a name the allowlist admits only at the root; and a shell
+    #: command that is not the blind agents' one entry point
+    SOURCES = ("hooks/shell_shapes.py", "src/docs/impl.py")
     COMMAND = "cat hooks/shell_shapes.py"
 
     def test_the_blind_agents_are_read_blocked_and_the_main_agent_is_not(self):
         # An absent `agent_type` is the main agent, which has to read the
         # implementation to adjudicate a failing test. A guard that judged
         # every caller would blind it the moment the hook went session-wide.
-        expected = {
+        callers = {
             "arbiter": DENY,
             "scrivener": DENY,
             "juror": DENY,
             "bailiff": DENY,
+            "auditor": DENY,
+            "gauntlet:auditor": DENY,
             None: SILENT,
             "": SILENT,
             "prosecutor": SILENT,
@@ -489,12 +502,17 @@ class TheCallerGate(unittest.TestCase):
             "detective": SILENT,
             "general-purpose": SILENT,
         }
+        expected = {
+            (agent, source): verdict
+            for agent, verdict in callers.items()
+            for source in self.SOURCES
+        }
         actual = {
-            agent: hook_decision(
+            (agent, source): hook_decision(
                 "no-impl-reads.py",
-                read_payload(REPO_CWD / self.SOURCE, REPO_CWD, agent),
+                read_payload(REPO_CWD / source, REPO_CWD, agent),
             )
-            for agent in expected
+            for agent, source in expected
         }
         assert actual == expected
 
