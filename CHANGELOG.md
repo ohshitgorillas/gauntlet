@@ -8,6 +8,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - **`scripts/cite.py --check-all` resolves several documents in one run.** Each row is prefixed with its document, and with no document named it reads every tracked `*.md` from `git ls-files`. A citation whose path begins with `${CLAUDE_PLUGIN_ROOT}/` resolves against the kit's own checkout rather than the document's.
 - **A project declares extra writable paths under `extra_binds`.** A ninth key in `.claude/blind-reads.json`, a list of absolute paths, empty by default: each live entry is bound writable inside the author's wrapped profile, so a package cache or scratch tree outside the checkout is reachable. The key adds write access only, to the author's profile. An entry over a protected mount, the checkout or a worktree is dropped; a malformed list voids the key.
 
+### Fixed
+- **`scripts/pair.sh merge` lands a pair whose implementation branch is already combined into its spec branch.** The combine is skipped and the gate runs.
+
 ## [0.2.3] - 2026-09-19
 
 ### Fixed

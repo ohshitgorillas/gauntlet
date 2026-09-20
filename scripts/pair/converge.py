@@ -109,9 +109,13 @@ def combine(slug: str) -> None:
     """Merge the implementation branch into the spec tree.
 
     An implementation branch already an ancestor of the spec branch is a combine
-    that has run: merging again is a no-op, but a second `--no-ff` merge commit
-    over one that already landed would flatten nothing and prove nothing, so it
-    is refused rather than repeated.
+    that has run: the spec tree already holds every commit the merge would
+    bring, so the step is skipped and the converge carries on to the gate. A
+    second `--no-ff` merge commit over one that already landed would flatten
+    nothing and prove nothing, which is why it is skipped rather than repeated.
+    A re-run after a red gate arrives in exactly this state, and the way out of
+    a red gate that re-approves the block leaves the branch an ancestor, so
+    stopping here would strand the pair with no verb that lands it.
     """
     spec = trees.spec_tree(slug)
     branch = trees.impl_branch(slug)
@@ -119,15 +123,14 @@ def combine(slug: str) -> None:
         note("  " + branch + " carries no commit of its own; nothing to combine")
         return
     if git_ok("merge-base", "--is-ancestor", branch, "HEAD", tree=spec):
-        die(
-            "pair: "
+        note(
+            "  "
             + branch
             + " is already combined into "
             + trees.spec_branch(slug)
-            + " -- rerun the gate in "
-            + spec
-            + " rather than combining twice."
+            + "; going straight to the gate"
         )
+        return
     if not git_ok("merge", "--no-ff", "--no-edit", branch, tree=spec):
         die(
             "pair: merging "
