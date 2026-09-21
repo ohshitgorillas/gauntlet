@@ -436,18 +436,34 @@ def test_merge_lands_the_spec_tree_on_a_target_branch_that_moved_under_it(tmp_pa
 FOLLOW_UP_FILE = "tests/test_d.py"
 FOLLOW_UP_TEXT = "def test_d():\n    assert 4 + 4 == 8\n"
 
+#: a committed test the spec worktree carries and the primary checkout does
+#: not, since the pair is cut before it is written
+SPEC_ONLY_FILE = "tests/test_spec_only.py"
+SPEC_ONLY_TEXT = "def test_spec_only():\n    assert 6 + 6 == 12\n"
+#: the other side of the same pair: an untracked file written into the primary
+#: checkout after the worktree is cut, which nothing carries across to it
+CHECKOUT_ONLY_FILE = ".claude/checkout_only.txt"
+CHECKOUT_ONLY_TEXT = "a file the primary checkout alone holds\n"
+
 
 def _merge_after_check(tmp_path, gate, follow_up):
     """Open a pair, run `pair.sh check` unless `gate` is None, then merge.
 
     `gate` is the gate command `blind-reads.json` names, so "false" drives a
-    check whose gate reads red; None runs no check at all. `follow_up` commits
-    a further test in the spec worktree after the check and before the merge,
-    so the trees moved under the reading the check recorded. Returns the
-    merge's first stdout line ("" where it printed none), its exit status, and
-    whether the target branch's HEAD moved across it.
+    check whose gate reads red; None runs no check at all. A file only the spec
+    worktree holds is committed there and a file only the primary checkout
+    holds sits beside it, so a `test -f` gate reads a different answer in each
+    of the two trees. `follow_up` commits a further test in the spec worktree
+    after the check and before the merge, so the trees moved under the reading
+    the check recorded. Returns the merge's first stdout line ("" where it
+    printed none), its exit status, and whether the target branch's HEAD moved
+    across it.
     """
     repo, worktree = _open_on_gate(tmp_path, GATE if gate is None else gate)
+    (worktree / SPEC_ONLY_FILE).write_text(SPEC_ONLY_TEXT)
+    _git(worktree, "add", "-A")
+    _git(worktree, "commit", "-m", "a test the spec tree alone holds")
+    (repo / CHECKOUT_ONLY_FILE).write_text(CHECKOUT_ONLY_TEXT)
     if gate is not None:
         _pair(repo, "check", SLUG)
     if follow_up:
@@ -471,12 +487,23 @@ def _merge_after_check(tmp_path, gate, follow_up):
         # a passing reading covers the tips it recorded and no later ones
         (GATE, True, ("UNCHECKED " + SLUG, 1, False)),
         (GATE, False, ("TEST CHECK " + SLUG, 0, True)),
+        # the declaration's value is a command and its arguments, not one
+        # program name: `make check` is the value the kit ships as its default
+        ("git version", False, ("TEST CHECK " + SLUG, 0, True)),
+        ("git no-such-subcommand", False, ("UNCHECKED " + SLUG, 1, False)),
+        # and it reads the tree being merged, not the primary checkout
+        ("test -f " + SPEC_ONLY_FILE, False, ("TEST CHECK " + SLUG, 0, True)),
+        ("test -f " + CHECKOUT_ONLY_FILE, False, ("UNCHECKED " + SLUG, 1, False)),
     ],
     ids=[
         "no-check-has-run",
         "the-newest-check-read-red",
         "a-commit-followed-the-passing-check",
         "the-newest-check-read-green",
+        "a-gate-of-a-program-and-an-argument-that-passes",
+        "a-gate-of-a-program-and-an-argument-that-fails",
+        "a-gate-on-a-file-the-spec-tree-alone-holds",
+        "a-gate-on-a-file-the-checkout-alone-holds",
     ],
 )
 def test_a_red_gate_leaves_the_target_branch_and_both_trees_exactly_as_they_were(
