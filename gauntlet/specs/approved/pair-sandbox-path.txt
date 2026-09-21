@@ -1,0 +1,32 @@
+slug: pair-sandbox-path
+kind: characterization
+brief:
+> - Sandbox path: pair-passthrough.py and bwrap-wrap.py tested as hooks in tests/test_bwrap_wrap.py, never with pair.sh executing inside bwrap.
+
+1. For one whole command text, `cd . && scripts/pair.sh review <slug>` at a checkout whose reviewers' lane already holds two round files for that slug, the round number in the stdout of running the command the hooks return is 1 where the caller's agent type is one of the blind reviewers and 3 where the caller is the main agent.
+   kills: a wrap that shows every caller the reviewers' lane as the checkout holds it, so a reviewer's own shell reads the rounds other reviewers wrote and the lane's read denial is defeated by running a command instead of a tool.
+   bite: characterization, `docs/testing.md` rule 8 exempts the bite, said and not assumed: the line states behavior HEAD already has, so the red run is green.
+   existing: tests/test_bwrap_wrap.py::test_a_write_under_the_replacement_lands_by_path_and_by_caller
+
+--- reviewer ---
+READY
+discriminates: differential on the caller axis - one command text, two agent types, two distinct round numbers in the stdout of the same run
+
+1  AMENDED tests/test_bwrap_wrap.py::test_a_write_under_the_replacement_lands_by_path_and_by_caller: its parametrize gains the two caller cases for the whole command text `cd . && scripts/pair.sh review <slug>` against a reviewers' lane seeded with two round files for that slug, and the outcome the case helper reports becomes the round number the returned command prints rather than "written"/"refused"; no new test.
+
+null stub: the hooks answer with the caller's command text unchanged - no worktree scan, no bind list, nothing denied, no sandbox entered.
+  satisfies: none   fails: 1
+hard-coded stub: a table over the command text the line names, mapping it to a command to run and nothing else.
+  satisfies: none   fails: 1
+
+survives: 1
+
+why the stubs miss it, since the last three rounds turned on them. The command text is held fixed and the caller varied, so a table keyed on text has one entry and one answer, and one answer cannot be both 1 and 3. A table keyed on the caller as well escapes only two ways: fabricate the driver's stdout, which is not a shape this hook has - it answers with a command to run, not with output - or give the reviewer a run whose view of the reviewers' lane differs from the checkout's, which is the per-caller mount policy itself and not a stub of it. The no-op hook gives both callers the checkout as it stands, so both read three round files and both print 3, and the line's reviewer arm fails it. That is also the line's `kills:` exactly, and the defect it names is one a user meets: a blind reviewer reading the rounds other reviewers wrote by running a command instead of calling a tool.
+
+the two expected values are fixture-derived, not design literals. The test seeds the lane with two round files, so 3 is one more than what the checkout holds and 1 is one more than what a masked lane holds; the invariant is that the number reflects what that caller can see, read at two callers (rule 11, property at two inputs). The failure this would file is "a reviewer's shell can see the other reviewers' rounds", which is a bug report and not a diff.
+
+brief, block level: closed. "never with pair.sh executing inside bwrap" is pinned by a line that runs the driver through the wrap - the `cd . && ` form is the wrapped arm, per tests/test_bwrap_wrap.py::test_only_a_whole_command_that_is_one_pair_subcommand_call_escapes_the_wrap - and reads what it printed.
+
+previous findings, all closed: the literal-table finding, by holding the text fixed and varying the caller; the `existing:` clause, which names the test the delta lands in; line 2 of round 1 and the lines of rounds 2 and 3, dropped or replaced. The escalation is answered by the owner's ruling to take this route and judge it on its merits, which is what this round did.
+
+notes (facts I cannot read, not grounds for the verdict): whether the reviewers' lane is masked rather than merely unwritable for a blind reviewer inside the wrap, and how pair.sh picks the round number, live in hooks/bwrap-wrap.py and scripts/pair.sh, denied to me. If the reviewer's run in fact sees the seeded files, the line is false as written and the red run will say so; the writer and the gate settle it. The line takes the rule 8 characterization exemption correctly, said and not assumed. The delta also inherits the file's `_bwrap_usable()` skip, which is an environment precondition and mechanism, not an exemption.
