@@ -1,0 +1,42 @@
+slug: collateral-lane
+kind: new
+brief:
+> Find the approved plan at `gauntlet/plans/approved/collateral-lane.txt` for the slug `collateral-lane`. Take the slug through stage 2 to its completion and present at READY.
+
+1. `python3 scripts/strike-diff.py --collateral --spec <block> --base <base> --head <head>`, run over a block whose one `collateral:` row names `tests/test_a.py::test_x` and quotes `assertion: assert banner() == "no rows to show"`, and over a base and head whose diff also changes `tests/test_b.py`, which no row names, prints as its whole stdout the single line `OK tests/test_a.py::test_x` at a head whose `test_x` body carries that assertion byte-identical, and the single line `ALTERED tests/test_a.py::test_x` at a head whose `test_x` body carries `assert banner() == "nothing here"` while the sibling `test_y` in the same file carries the quoted assertion.
+   kills: the quoted assertion is read against the target's whole file rather than the target test's own body, so the second head's whole stdout is `OK tests/test_a.py::test_x` on the sibling's copy.
+   bite: null stub fails at both inputs (surface new); at HEAD the invocation exits 2 printing `strike-diff.py: error: unrecognized arguments: --collateral`, measured by `python3 scripts/strike-diff.py --collateral --spec b.txt --base HEAD --head HEAD`.
+   existing: none, `grep -rn collateral tests/` returns no line (exit 1)
+
+2. The same invocation over the same row prints `MISSING tests/test_a.py::test_x` at a head whose `tests/test_a.py` defines no `test_x`, and `ALTERED tests/test_a.py::test_x` at a head that defines `test_x` with `assert banner() == "nothing here"` as its whole body.
+   kills: a head that defines no `test_x` prints `ALTERED tests/test_a.py::test_x`, so a row whose test was deleted outright reads as a rewritten assertion and the deletion is reported as a softening of a test that is still there.
+   bite: null stub fails at both inputs (surface new); at HEAD the invocation exits 2 printing `strike-diff.py: error: unrecognized arguments: --collateral`, measured by `python3 scripts/strike-diff.py --collateral --spec b.txt --base HEAD --head HEAD`.
+   existing: none, `grep -rn collateral tests/` returns no line (exit 1)
+
+4. `scripts/pair.sh respec <slug>`, run on an open pair whose approved block carries a new round, prints `RESPEC COLLATERAL <spec path> <commit>` where that block and the block committed on `spec/<slug>` differ in `collateral:` rows alone, and `RESPEC <spec path> <commit>` where they also differ in a behavior line.
+   kills: the two blocks are compared by how many lines differ rather than by which section the differing lines sit in, so a respec that rewrites one behavior line and one row prints `RESPEC COLLATERAL <spec path> <commit>` and the owner's word is skipped on a changed contract line.
+   bite: HEAD prints `RESPEC gauntlet/specs/approved/demo.txt <commit>`, exit 0, at both inputs -- measured by `scripts/pair.sh respec demo` in a throwaway repository built from `tests/support/pair_fixture.py`, once with the two blocks differing in a `collateral:` row alone and once with a behavior line differing too.
+   existing: tests/test_pair_sh.py::test_respec_lands_the_block_only_under_a_round_newer_than_the_committed_one
+
+--- reviewer ---
+READY
+discriminates: differential on the `--collateral` verdict line for one row -- OK / ALTERED / MISSING at one target across heads, whole stdout compared
+
+1  ADMITTED  `python3 scripts/strike-diff.py --collateral --spec <block> --base <base> --head <head>` over a one-row block naming `tests/test_a.py::test_x` with `assert banner() == "no rows to show"`, at a base/head pair whose diff also changes the unnamed `tests/test_b.py` -> whole stdout is the single line `OK tests/test_a.py::test_x` at a head whose `test_x` body carries the assertion byte-identical, and the single line `ALTERED tests/test_a.py::test_x` at a head whose `test_x` carries `assert banner() == "nothing here"` while sibling `test_y` carries the quoted text; reading the assertion against the whole file rather than the target's body fails it at the second head, whose whole stdout becomes `OK tests/test_a.py::test_x`; bite: null stub fails at both inputs, and at HEAD the flag is unrecognized, exit 2
+2  ADMITTED  carried -- the same invocation and row -> `MISSING tests/test_a.py::test_x` at a head whose `tests/test_a.py` defines no `test_x`, `ALTERED tests/test_a.py::test_x` at a head defining `test_x` with `assert banner() == "nothing here"` as its whole body; an implementation that reports a deleted test as ALTERED fails it at the first head; bite: null stub fails at both inputs
+4  AMENDED tests/test_pair_sh.py:302: carried -- add two parametrize cases, two blocks differing in a `collateral:` row alone and two differing in a behavior line as well, and widen `_respec_shape` past `fields[0]` so `RESPEC COLLATERAL` is distinguishable from `RESPEC`; no new test
+
+null stub: the `--collateral` flag and the collateral comparison do not exist -- `strike-diff.py` reports nothing for a `collateral:` row and `pair.sh respec` prints what it prints today.
+  satisfies: none   fails: 1, 2, 4
+hard-coded stub: for every `collateral:` row in the block, print `OK <target>`; never read the head's test bodies and never sweep the diff; in `pair.sh respec`, keep printing `RESPEC <spec path> <commit>`.
+  satisfies: none   fails: 1, 2, 4
+
+survives: 2
+
+Finding withdrawn. My round-1 note said the `brief:` names no behavior and that the plan might state a collateral behavior no line pins. The plan's own scoping sentence, quoted back at `:86`, puts exactly two surfaces in a spec block -- the `strike-diff.py` parser and its verdicts, and the respec diff-shape check -- and both are pinned: verdict tokens and the absent `UNNAMED` sweep by lines 1 and 2, the diff-shape branch by line 4. The row's other readers named in that plan are prose files and `hooks/lanes.py` denial text, which a behavior line cannot pin and which the cap would not hold anyway. Nothing outstanding.
+
+Two things the block does not pin, accepted rather than held against it, both inside the four-line cap: the fallback where a block cannot be parted into structure line, brief and behavior lines and so prints `RESPEC` as today, and a block carrying more than one row. Neither is a defect in a surviving line.
+
+`OK`, `ALTERED`, `MISSING` and `RESPEC` are not copy under rule 9: they are this tool's stdout protocol, read by other agents, and already documented at `docs/agents.md:62` and `docs/workflow.mermaid:495-496`.
+
+`grep -rn collateral tests/ docs/` returns nothing, and every test in `tests/test_strike_diff.py` drives the motion path with a `motion: strike` block, so lines 1 and 2 fold into neither `tests/test_strike_diff.py:129` nor `:137`.
