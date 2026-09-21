@@ -58,6 +58,7 @@ ALLOWANCE: dict[str, int] = {
     "hooks/gauntlet-off.py": 423,
     "hooks/bwrap-wrap.py": 416,
     "hooks/bwrap_wrap_selftest.py": 401,
+    "hooks/blind-bash.py": 448,
 }
 
 #: Paths the owner has exempted from the cap by hand, with his reason. An entry here still
