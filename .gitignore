@@ -13,3 +13,4 @@ gauntlet/specs/drafts/
 .triviajudge/
 .coverage
 .coverage.json
+.coverage.*

@@ -16,6 +16,13 @@
 #
 # The lint gates are ruff, black, mypy, shellcheck and coverage, run after
 # pytest and before the self-tests.
+#
+# The suite drives most of this kit as a subprocess, so the pytest gate puts
+# scripts/coverage_subprocess on PYTHONPATH and names COVERAGE_PROCESS_START:
+# the tracer then starts in each of those processes rather than measuring only
+# the wrappers. COVERAGE_FILE is absolute because a subprocess run from a
+# throwaway checkout would otherwise leave its data beside that checkout.
+# coverage-combine folds the per-process files together before coverage reports.
 
 set -u
 
@@ -36,11 +43,12 @@ out=$root/state/gates
 mkdir -p "$out"
 
 gates=(
-    "pytest|env PYTHONPATH=$root $venv/bin/coverage run -m pytest tests -q"
+    "pytest|env PYTHONPATH=$root/scripts/coverage_subprocess:$root COVERAGE_PROCESS_START=$root/pyproject.toml COVERAGE_FILE=$root/.coverage $venv/bin/coverage run -m pytest tests -q"
     "ruff|$venv/bin/ruff check ."
     "black|$venv/bin/black --check ."
     "mypy|$venv/bin/mypy hooks scripts"
     "shellcheck|shellcheck -S style scripts/pair.sh scripts/blind.sh scripts/gates/check-gates.sh"
+    "coverage-combine|$venv/bin/coverage combine"
     "coverage|$venv/bin/coverage report"
     "lanes|python3 hooks/lanes.py --self-test"
     "no-impl-reads|python3 hooks/no-impl-reads.py --self-test"

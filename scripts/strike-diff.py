@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Check a landed tests-only change against the block that approved it.
+"""Check a landed change's tests against the block that approved it.
 
-`motion: strike`, `motion: amend` and `motion: rehome` have no implementation phase, so the
-post-merge reviewer round that catches a softened test has no window to watch.
-What it watched for still happens here, in one move rather than two: the
-deletion is itself the softening. This script is that check, and it is
-mechanical so it costs no reviewer round.
+Two shapes come here. `motion: strike`, `motion: amend` and `motion: rehome` have no
+implementation phase, so the post-merge reviewer round that catches a softened
+test has no window to watch; what it watched for still happens in one move
+rather than two, because the deletion is itself the softening. A `kind:` block
+has that phase and takes its reviewer round, and what comes here is its
+`collateral:` rows -- tests the change breaks and no behavior line pins, whose
+assertions the block promised would survive byte-identical. Both checks are
+mechanical, so neither costs a reviewer round.
 
 Run by `scripts/pair.sh merge`, never by a hook: a PreToolUse entry fires on a
 tool call, and a comparison of two commits has none.
@@ -13,11 +16,14 @@ tool call, and a comparison of two commits has none.
 It reads the committed approved block for a slug and prints one line per
 target:
 
-    OK <target>            the strike landed
+    OK <target>            the strike landed, or the row's assertion survived
     UNSATISFIED <target>   the target is still there, assertion and all,
                            or an in-place rehome's body never changed
-    MISSING <as-name>      the replacement the line promised never landed
-    ALTERED <as-name>      a rehome's landing is there, its assertion rewritten
+    MISSING <name>         the replacement the line promised never landed, or
+                           a row's target is no longer defined
+    ALTERED <name>         a rehome's landing is there with its assertion
+                           rewritten, or a row's target no longer carries the
+                           quoted assertion in its own body
     UNNAMED <path>         a file under tests/ changed that no line names
 
 A strike target is satisfied on either of two facts: the test name is gone
@@ -41,6 +47,11 @@ survives while what surrounds it moves. Nothing leaves the file, so the two
 facts that satisfy a strike cannot hold, and the target is read against `base`
 instead -- its body has to differ from the one it had there. A body that is
 byte-identical on both sides records nothing and is `UNSATISFIED`.
+
+`--collateral` reads the `collateral:` rows instead of the numbered lines, and
+sweeps no unnamed file. A `kind:` block's merge lands every test its writer
+wrote for the behavior lines, and no row names one of them, so the `UNNAMED`
+line `report()` prints would fire on the whole landed suite.
 """
 
 import argparse
@@ -61,18 +72,22 @@ except ImportError:
 TESTS = lane_config.tests_dir() + "/"
 
 _LINE = re.compile(r"^\s*\d+\.\s+strike\s+(?P<target>\S+)\s*$")
-_FIELD = re.compile(r"^\s*(?P<key>rule|assertion|replace|as):\s*(?P<value>.*)$")
+_FIELD = re.compile(r"^\s*(?P<key>rule|assertion|replace|as|breaks):\s*(?P<value>.*)$")
 #: the structure line, `kind:` or `motion:`, whichever comes first
 _KIND = re.compile(r"^\s*(?:kind|motion):\s*(?P<kind>.*?)\s*$")
+#: the `collateral:` header of a `kind:` block, and the `- <target>` rows under it
+_COLLATERAL = re.compile(r"^\s*collateral:\s*$")
+_ROW = re.compile(r"^\s*-\s+(?P<target>\S+)\s*$")
 
 
 class Line:
-    """One strike or amend line of an approved block."""
+    """One strike or amend line, or one `collateral:` row, of an approved block."""
 
     def __init__(self, target: str) -> None:
         self.target = target
         self.assertion = ""
         self.landing = ""  # the `as:` field, empty on a `motion: strike` line
+        self.breaks = ""  # the `breaks:` field, empty outside a `collateral:` row
 
     @property
     def path(self) -> str:
@@ -102,6 +117,39 @@ def parse_block(text: str) -> list[Line]:
             elif key == "as":
                 lines[-1].landing = value
     return lines
+
+
+def parse_collateral(text: str) -> list[Line]:
+    """The `collateral:` rows of a block, in block order.
+
+    The section sits under the behavior lines and runs to the end of the
+    contract, so any later unindented line closes it. A block with no header,
+    and a header with no row under it, both read as no rows: the absent section
+    is how a block says it breaks nothing.
+    """
+    contract, _, _ = text.partition("--- reviewer ---")
+    rows: list[Line] = []
+    inside = False
+    for raw in contract.splitlines():
+        if _COLLATERAL.match(raw):
+            inside = True
+            continue
+        if not inside:
+            continue
+        head = _ROW.match(raw)
+        if head:
+            rows.append(Line(head.group("target")))
+            continue
+        field = _FIELD.match(raw)
+        if field and rows:
+            key, value = field.group("key"), field.group("value").strip()
+            if key == "assertion":
+                rows[-1].assertion = value
+            elif key == "breaks":
+                rows[-1].breaks = value
+        elif raw.strip() and not raw.startswith((" ", "\t")):
+            inside = False
+    return rows
 
 
 def block_kind(text: str) -> str:
@@ -234,23 +282,61 @@ def report(block: str, base: str, head: str) -> list[str]:
     return out
 
 
+def collateral_body_verdict(source: str | None, line: Line) -> str:
+    """`OK`, `MISSING` or `ALTERED` for one row, against one file's text.
+
+    The row's whole promise is that the named test's own assertion came through
+    the change untouched, so the quoted text is read in that test's body and
+    nowhere else. A target the head no longer defines is `MISSING` rather than
+    `ALTERED`: a deleted test is a deletion, and reporting it as a rewritten
+    assertion would name a softening of a test that is not there.
+    """
+    body = test_body(source, line.test) if source is not None and line.test else None
+    if body is None:
+        return f"MISSING {line.target}"
+    if line.assertion and line.assertion in body:
+        return f"OK {line.target}"
+    return f"ALTERED {line.target}"
+
+
+def collateral_verdict(line: Line, head: str) -> str:
+    """The row's verdict against the file as that commit holds it."""
+    return collateral_body_verdict(file_at(head, line.path), line)
+
+
+def collateral_report(block: str, base: str, head: str) -> list[str]:  # noqa: ARG001
+    """One verdict per `collateral:` row, and no sweep of the changed files.
+
+    `base` is taken so the call reads like `report()`'s at the one call site
+    that makes both, and it is not read: a row's promise is about the head
+    alone, and the tests a `kind:` block's writer landed are files no row names.
+    """
+    return [collateral_verdict(row, head) for row in parse_collateral(block)]
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--spec", required=True, help=lane_config.specs_lane() + "/<slug>.txt")
     ap.add_argument("--base", required=True, help="the commit the change started from")
     ap.add_argument("--head", required=True, help="the commit that landed it")
+    ap.add_argument(
+        "--collateral",
+        action="store_true",
+        help="read the block's collateral: rows instead of its numbered lines",
+    )
     args = ap.parse_args(argv)
 
     block = Path(args.spec).read_text(encoding="utf-8")
 
-    verdicts = report(block, args.base, args.head)
+    run = collateral_report if args.collateral else report
+    verdicts = run(block, args.base, args.head)
     for verdict in verdicts:
         print(verdict)
     return 0 if all(v.startswith("OK ") for v in verdicts) else 1
 
 
 def self_test() -> int:
-    """Pin the eight lines of the merge check."""
+    """Pin the thirteen lines of the merge check."""
     block = (
         "slug: s\nmotion: amend\n\n"
         "1. strike tests/test_a.py::test_x\n"
@@ -282,6 +368,31 @@ def self_test() -> int:
         "    assert other == 1\n"
     )
 
+    rows_block = (
+        "slug: s\nkind: new\n\n"
+        "1. the banner names the empty set\n"
+        "   kills: it names the first row instead\n"
+        "\n"
+        "collateral:\n"
+        "- tests/test_a.py::test_x\n"
+        "  breaks: the keyword the helper passes was renamed\n"
+        '  assertion: assert banner() == "no rows to show"\n'
+    )
+    row = parse_collateral(rows_block)[0]
+    held = (
+        "def test_x():\n"
+        '    assert banner() == "no rows to show"\n\n'
+        "def test_y():\n"
+        "    assert other == 1\n"
+    )
+    to_sibling = (
+        "def test_x():\n"
+        '    assert banner() == "nothing here"\n\n'
+        "def test_y():\n"
+        '    assert banner() == "no rows to show"\n'
+    )
+    deleted = "def test_y():\n    assert other == 1\n"
+
     lines = {
         "1 a target keeping its assertion is unsatisfied, one that dropped it is OK": (
             line.assertion in (test_body(kept, "test_x") or "")
@@ -312,6 +423,25 @@ def self_test() -> int:
         ),
         "8 an in-place line whose body is byte-identical moved nothing": (
             not moved_in_place(kept, kept, "test_x")
+        ),
+        "9 a collateral row parses to its target, its breaks and its quoted assertion": (
+            row.target == "tests/test_a.py::test_x"
+            and row.breaks == "the keyword the helper passes was renamed"
+            and row.assertion == 'assert banner() == "no rows to show"'
+        ),
+        "10 a row whose assertion survived in its own body is OK": (
+            collateral_body_verdict(held, row) == "OK tests/test_a.py::test_x"
+        ),
+        "11 a row whose assertion moved to a sibling is ALTERED": (
+            collateral_body_verdict(to_sibling, row) == "ALTERED tests/test_a.py::test_x"
+        ),
+        "12 a row whose target is gone is MISSING, never ALTERED": (
+            collateral_body_verdict(deleted, row) == "MISSING tests/test_a.py::test_x"
+            and collateral_body_verdict(None, row) == "MISSING tests/test_a.py::test_x"
+        ),
+        "13 only the rows are rows: a behavior line and a block with no section are none": (
+            [one.target for one in parse_collateral(rows_block)] == ["tests/test_a.py::test_x"]
+            and parse_collateral(block) == []
         ),
     }
     for label, ok in lines.items():

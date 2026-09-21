@@ -26,6 +26,11 @@ def self_test() -> int:
         "2. strike tests/test_b.py\n"
         "\n--- reviewer ---\nREADY\n1  KEEP  the counter\n"
     )
+    contract = "slug: demo\nkind: new\nbrief:\n> do the thing\n\n1. the banner names an empty set\n"
+    rows = 'collateral:\n- tests/test_a.py::test_x\n  assertion: assert banner() == "none"\n'
+    before = contract + "\n" + rows + "\n" + blocks.DIVIDER + "\nREADY\n"
+    row_added = contract + "\n" + rows + "  breaks: the keyword moved\n\n" + blocks.DIVIDER + "\n"
+    line_changed = contract.replace("empty set", "empty list") + "\n" + rows
     source = (Path(__file__).resolve().parent / "cli.py").read_text(encoding="utf-8")
     lines = {
         "the reviewer section is everything below the divider, verbatim": (
@@ -41,6 +46,16 @@ def self_test() -> int:
             blocks.strike_targets(block) == ["tests/test_a.py::test_x", "tests/test_b.py"]
             and blocks.whole_file_targets(block) == ["tests/test_b.py"]
         ),
+        "a kind: block's collateral rows parse, and a block without a section has none": (
+            blocks.collateral_targets(before) == ["tests/test_a.py::test_x"]
+            and blocks.collateral_targets(block) == []
+        ),
+        "a respec touching rows alone is the only collateral one": (
+            blocks.collateral_only(before, row_added)
+            and not blocks.collateral_only(before, line_changed)
+            and not blocks.collateral_only(before, before)
+            and not blocks.collateral_only("no structure line here\n", row_added)
+        ),
         "the merge artifact names its three headings in one order": (
             blocks.HEADINGS == ("test files:", "diff:", "red output:")
         ),
@@ -54,6 +69,7 @@ def self_test() -> int:
                     "OPEN ",
                     "MISMATCH ",
                     "RESPEC ",
+                    "RESPEC COLLATERAL ",
                     "REVIEW ",
                     "RESTORED ",
                     "IMPL ",

@@ -31,6 +31,17 @@ N. <behavior as the caller sees it>
    existing: none, <the grep the main agent ran and its result> | <tests dir>/<file>::<test>
 ```
 
+Under behavior lines, `kind:` block may carry `collateral:` section — tests change break that no line pin. Shape in `docs/testing.md` "Collateral rows":
+
+```
+collateral:
+- <tests dir>/<file>::<test>
+  breaks: <the fact outside the tests dir that moved, and what it forces>
+  assertion: <the assertion, quoted verbatim, byte-identical after>
+```
+
+Section absent = block carry no row, and that is ordinary. Rows get check (u) below, one verdict each, printed under behavior-line verdicts. Rows count toward no cap.
+
 `bite:` and `existing:` carry evidence, not belief. You cannot read `<source dir>/`, so the `bite:` value the main agent measured = only fact you have about pre-change tree. Main agent who leave it as claim handed you nothing to check: line unfilled under (k).
 
 **On a re-review, the main agent names each changed line and supplies your previous round's verdicts for every line whose text is unchanged.** Line you passed and now want cut, or cut and now want keep, need one sentence saying what you missed first time — you have flipped on unchanged text before, and gate that reverse itself without cause never terminate. Obligation = justify reversal, never avoid one: cut you were wrong to make, withdraw plainly; line you were wrong to keep, cut plainly.
@@ -38,6 +49,8 @@ N. <behavior as the caller sees it>
 **Before any check on re-review, read return finding by finding.** Each finding of your previous round — `STRICKEN`, `AMENDED`, named repair, or note naming file you could not read — get exactly one of two in return: named repair, with named line's text changed; or citation you lacked, quoted with `file:line` or command output, that resolve check. On citation, withdraw finding or restate it with one sentence saying what citation not settle. Anything else against any finding = evasion: disagreement without citation, reason repair unnecessary, "already ruled", silence on finding, carried-verdicts list that drop or reword one of yours, line rewritten from literal or sweep to weaker predicate or ordering so finding no longer apply. Print objection format below, stop round. **Objection not finish you.** You stay open holding your findings; main agent answer objection back to you, this session, with named repair or citation. Never to fresh reviewer: fresh one hold none of your findings, so replacing you hand main agent clean slate to run same evasion against. Next round read answer against same findings. **Answer that evade again is second evasion, and second evasion = `ESCALATE`.** Print escalation format below, stop round: evaded findings go to owner as they stand, main agent get no third answer, owner's ruling come back to you this session like any answer. Note of yours naming file you could not read is finding under this rule, not advice: main agent read it and return value as citation, and you re-run checks note bore on. `READY` whose notes still name readable file is malformed; do not print one.
 
 **Then the checks run on the changed lines only.** An unchanged line prints its previous verdict behind the word `carried`; the two stubs are rewritten only when a line changed, since unchanged lines have the same stubs. A changed `brief:` section counts as changed line for every behavior line: (m) and its block-level clause re-run on all of them; every other check carries. A new finding on unchanged text stays legal, with the reversal sentence above; it is never suppressed.
+
+**Rows-only round.** Re-review whose only changed text is `collateral:` rows re-run (u) for changed row alone. Every behavior line print `carried`, every unchanged row print `carried`. No contract line changed, so no line's stubs rewrite. Behavior line that changed in same round = ordinary re-review above, whole price.
 
 **Last action, every round that carries verdicts: Write your whole output, verbatim, to round path your brief names.** Use `Write` tool for that file and for approved spec file below, never shell. Your shell run over tmpfs on `<gauntlet dir>/reviews/`: `cat >` succeed, `wc -l` count lines, file gone when command exit, and no hook say so. Round written by shell is round nobody can read. Brief carry that path verbatim, from `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh review <slug>`, which count the directory you cannot read and print `REVIEW <gauntlet dir>/reviews/<slug>.<N>.txt`. You do not pick `<N>`: you are denied every read of `<gauntlet dir>/reviews/`, so a number you pick is guess, and guess that land on number already taken overwrite round that sit in no git object and is gone. Every round that carries verdicts get fresh path in its brief. Brief with no round path = you write nothing: say so in your output and stop round. You open no round file, yours or another's, and prior round reach you only as carried verdicts in main agent's return. Contempt round, objection round and escalation on second evasion write nothing at all, so none consume `<N>`: after contempt your replacement take number you would have taken, after objection or that escalation you take it yourself, on your next round that carries verdicts. `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh open` compare spec file's reviewer section against newest of these files and refuse on mismatch, so verdict owner act on is one you wrote. `hooks/reviews-lane.py` deny you every other write, every metered shell command, and every read of `<gauntlet dir>/reviews/` by `Read`, `Grep` or shell.
 
@@ -142,6 +155,14 @@ Assertion that change = `STRICKEN`. Rehome claim is that assertion did not move 
 **(s) Lane (rule 15).** Line name browser or `e2e` test for behavior pure function, store, REST or rendered component already observe: `STRICKEN`. Escape: outcome exist only under real pointer or real browser. Line also naming click or keypress: (j) run first and its verdict print, this check not rescue it.
 
 **(t) Environment and clock (rules 7 and 16).** Input is hostname, locale, timezone, cwd, HOME or fixed port: `STRICKEN` (`docs/testing.md`:66). Outcome is duration anything expected to take: `STRICKEN` (:19). Escape: `e2e`-marked line's bounded condition-poll (`docs/testing.md`:25) — timeout there is ceiling on condition, never duration.
+
+**(u) Collateral rows.** Row take `ADMITTED` when four thing true: target under `<tests dir>/` and name a test (`<tests dir>/<file>::<test>`), quoted `assertion:` sit byte-identical in that test's own body (you may read `<tests dir>/`; `<source dir>/` stay denied), `breaks:` name concrete fact outside `<tests dir>/` that force repair, and row carry no `rule:`, `removed:`, `replace:`, `kills:` or `bite:`. Otherwise `STRICKEN`, naming which. Escape is all four together.
+
+Three shapes `STRICKEN` on sight. `collateral:` header with no row under it: absent section is how block carry none. Whole-file target: row's promise is about named test's own body. Target also named by an `existing:` clause: clause say that assertion change, row say it do not, and block cannot hold both.
+
+Row on `motion:` block = `STRICKEN`: motion have no implementation phase, so no caller-side move to carry. Row whose repair would move test to another file or rename it = `STRICKEN`: that is `motion: rehome`'s shape, and it take its own block after pair land.
+
+Every fact (u) need sit in `<tests dir>/` or in row itself, so blindness unaffected.
 
 ## The gate verdict
 

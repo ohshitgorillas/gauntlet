@@ -4,11 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **A `kind:` block carries `collateral:` rows for what a change breaks and no behavior line pins.** Each row names a target in the blind writer's lane as `<file>::<name>`, the `breaks:` fact outside that lane that forced the repair, and the `assertion:` that survives byte-identical. The `arbiter` rules on them with check (u), the `scrivener` admits a delta naming a row's target, `scripts/strike-diff.py --collateral` prints `OK`, `ALTERED` or `MISSING` per row at `scripts/pair.sh merge`, and the `bailiff` returns `HELD` or `ALTERED` per row after it.
+- **`scripts/pair.sh respec` prints `RESPEC COLLATERAL` for a re-approved block that differs in `collateral:` rows alone.** The comparison is by section and not by how many lines differ, so a behavior line that changed in the same round prints `RESPEC` and owes the owner's word; a block it cannot part into its structure line, `brief:` and behavior lines prints `RESPEC` too.
+- **An `auditor` agent sweeps the suite against the policy file.** Blind: `Read`, `Grep`, `Glob`, and a row in the `BLIND` tuple of `no-impl-reads.py` denies it the source. It resolves the owner's scope wording to a target list, prints the list, then returns one row per target — `VALID` by default, `STRIKE` or `AMEND` with a rule number and a quoted assertion, `NOTE` for a fact it cannot read.
+
 ### Fixed
 - **An `arbiter` round reaches `<gauntlet dir>/reviews/` on disk.** The definition names the `Write` tool for the round file and the approved block; a shell redirect from a reviewer lands nowhere.
-
-### Added
-- **An `auditor` agent sweeps the suite against the policy file.** Blind: `Read`, `Grep`, `Glob`, and a row in the `BLIND` tuple of `no-impl-reads.py` denies it the source. It resolves the owner's scope wording to a target list, prints the list, then returns one row per target — `VALID` by default, `STRIKE` or `AMEND` with a rule number and a quoted assertion, `NOTE` for a fact it cannot read.
 
 ## [0.3.0] - 2026-09-19
 

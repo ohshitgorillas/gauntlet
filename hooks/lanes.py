@@ -165,8 +165,10 @@ _TESTS_LANE = (
     "spec: a re-approved line, a new `spec:` commit, a delta to the writer. A "
     "test whose assertion survives unchanged goes through "
     "`motion: rehome`, which quotes that assertion and names where it lands, its "
-    "own file included. "
-    "Either route, never by hand, never in the impl tree, never on the branch. "
+    "own file included. A test a change breaks and no behavior line pins goes "
+    "through a `collateral:` row of that block, which quotes the assertion the "
+    "writer carries through byte-identical. "
+    "Any of the three, never by hand, never in the impl tree, never on the branch. "
     "(hooks/lanes.py)"
 )
 _WRITER_LANE = (
