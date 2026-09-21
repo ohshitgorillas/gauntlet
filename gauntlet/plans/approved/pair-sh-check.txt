@@ -1,0 +1,141 @@
+slug: pair-sh-check
+discovery: detective
+
+brief:
+> Add a check subcommand to scripts/pair/cli.py, dispatched from main, that runs cmd_merge's current path through converge.rebase_if_moved, converge.combine and converge.gate, never calls converge.land or converge.cleanup, writes a numbered <gauntlet dir>/merge/<slug>.<N>.txt that never overwrites an earlier one and opens with the tips of spec/<slug>, impl/<slug> and target_branch plus gate: PASS or gate: FAIL, and prints CHECK <that path> PASS exit 0 or CHECK <that path> FAIL exit 1.
+> Remove the gate from cmd_merge and make it read the newest <gauntlet dir>/merge/<slug>.<N>.txt, refuse with UNCHECKED <slug> exit 1 unless that file says gate: PASS and its three tips equal the current ones, and otherwise land as today with _brief naming that file.
+> Update the pair.sh rows in docs/agents.md and the merge steps in README.md and docs/agents.md so check is where the gate runs and merge is where a checked pair lands.
+> Done when, on a pair whose gate is red, pair.sh merge prints UNCHECKED, pair.sh check prints FAIL, a code commit on impl/<slug> followed by pair.sh check prints PASS, and pair.sh merge then lands with target_branch unmoved until that point.
+> USE THE MOTHERFUCKING PLAN GATE, DO NOT WORK DIRECTLY.
+
+delivered: `cmd_check` under Which files get touched, `scripts/pair/cli.py` row.
+delivered: `cmd_merge` under Which files get touched, `scripts/pair/cli.py` row.
+delivered: the docs rows under Which files get touched.
+delivered: the five readings under What the owner sees change.
+dropped: names a route, not plan content; no body element carries it. Open questions 1.
+
+## What is wrong
+
+Gate and land are one verb. `scripts/pair/cli.py:234` runs `converge.gate` and `scripts/pair/cli.py:260` runs `converge.land` inside one `_converge_and_land`, under one lock, on one invocation. Owner cannot see a pair's gate reading without also authorizing the land that follows it in the same process.
+
+A red gate leaves nothing a later verb reads: `scripts/pair/converge.py:36` `report_red` writes to stderr, and the one file it leaves, `scripts/pair/converge.py:53`, is the same `<gauntlet dir>/merge/<slug>.txt` a green merge overwrites at `scripts/pair/blocks.py:160`. One path per slug, so a second run erases the first reading.
+
+Nothing records which tips a gate reading was taken over.
+
+## What the owner sees change
+
+Five readings. The first four on one pair whose gate is red:
+
+- `pair.sh merge <slug>` prints `UNCHECKED <slug>`, exit 1. Nothing lands. No gate runs.
+- `pair.sh check <slug>` prints `CHECK <gauntlet dir>/merge/<slug>.1.txt FAIL`, exit 1. Target branch untouched.
+- a code commit on `impl/<slug>`, then `pair.sh check <slug>` prints `CHECK <gauntlet dir>/merge/<slug>.2.txt PASS`, exit 0. `.1.txt` still on disk.
+- `pair.sh merge <slug>` then prints its `TEST CHECK` brief naming `.2.txt`, lands, cleans up. Target branch moves here and nowhere before it.
+
+The fifth is the target branch moving between a green `check` and the `merge`: `merge` rebases, the recorded target sha is no longer the tip, and it prints `UNCHECKED <slug>`, exit 1. Rerun `check` over the rebased trees.
+
+A `motion: strike`, `motion: amend` or `motion: rehome` pair reads the same. `check` runs its gate and writes the numbered artifact whatever the structure line; `merge` reads that artifact, then prints the `strike-diff.py` verdict lines and lands as it does today.
+
+## Which files get touched, and roughly how
+
+`scripts/pair/cli.py`
+- new `cmd_check(slug)`: the preamble `cmd_merge` runs now at `scripts/pair/cli.py:265-283` — `approved`, spec tree present, `has_impl`, `_check_lanes`, `trees.commit_tree` on both trees — then `converge.Lock`, `converge.rebase_if_moved`, `converge.combine`, `converge.gate`. Never `converge.land`, never `converge.cleanup`.
+- that preamble is lifted into one helper both verbs call, so the two cannot drift.
+- `cmd_check` writes the artifact through `blocks.merge_artifact` with the gate reading and the three tips, and prints one line: `CHECK <path> PASS` exit 0, `CHECK <path> FAIL` exit 1. On `FAIL` the stderr guidance at `scripts/pair/converge.py:36-50` still prints.
+- `_converge_and_land` loses `scripts/pair/cli.py:233-236`, the gate banner, the gate call and its red branch. Between the combine and the land it reads the newest numbered artifact: absent, `gate: FAIL`, or a tip that is not the current one, and it prints `UNCHECKED <slug>` and returns 1. The `strike_report` and `collateral_report` branches at `scripts/pair/cli.py:238-257` stay where they are, unchanged, and `_brief` at `scripts/pair/cli.py:200` names the checked artifact rather than writing a fresh one.
+- tips are compared after the combine, so a commit the verb itself makes moves the tip and the pair reads as unchecked: a tree dirty at `merge` is work the gate never saw.
+- MEASURED: `check` leaves the combine commit on the spec branch, so `merge`'s own combine is the already-an-ancestor skip at `scripts/pair/converge.py:158-166` and the post-combine spec tip is the one the artifact recorded. `scripts/pair.sh merge pair-sh-check` printed `impl/pair-sh-check is already combined into spec/pair-sh-check; going straight to the gate` and landed; `gauntlet/merge/pair-sh-check.1.txt` opens `spec/pair-sh-check: e615c3c8`, `git merge-base --is-ancestor e9434e8 e615c3c8` succeeds and `git rev-parse main` reports `e615c3c8`.
+- step banners: `check` prints `[1/5]` to `[5/5]`, ending at the gate; `merge` keeps six, with step five the checked-artifact reading instead of the gate.
+- the dispatch map at `scripts/pair/cli.py:427-434` gains `"check": cmd_check`, and `USAGE` at `scripts/pair/cli.py:49` and the docstring verb list at `scripts/pair/cli.py:4-15` gain the verb.
+- the file is at its allowance, `scripts/gates/file-length.py:57`, and the gate refuses a line over it, `scripts/gates/file-length.py:19-21`. So the non-printing helpers leave: `approved` at `scripts/pair/cli.py:67`, `round_match` at `scripts/pair/cli.py:76`, `_commit_block` at `scripts/pair/cli.py:114`, `_pytest_argv` at `scripts/pair/cli.py:173`, `_check_lanes` at `scripts/pair/cli.py:212`, and the lifted preamble. What stays is dispatch and the lines `scripts/pair/cli.py:20` calls this file's own: `out`, `_brief` and every `cmd_`.
+
+`scripts/pair/steps.py`, new
+- nine call sites, all of them in `scripts/pair/cli.py`: `approved` at `scripts/pair/cli.py:92`, `scripts/pair/cli.py:135`, `scripts/pair/cli.py:191` and `scripts/pair/cli.py:266`; `round_match` at `scripts/pair/cli.py:93` and `scripts/pair/cli.py:139`; `_commit_block` at `scripts/pair/cli.py:108`; `_pytest_argv` at `scripts/pair/cli.py:196`; `_check_lanes` at `scripts/pair/cli.py:278`. Each becomes `steps.`-qualified under one `import steps`, the shape `blocks` and `converge` already take at `scripts/pair/cli.py:38-39`. No `from steps import ...`: that leaves the nine byte-identical and makes the new module a forwarder nobody can see from a call site.
+- the helpers above, moved verbatim where the move is verbatim, plus `prepare(slug)` returning the two trees and `has_impl`, and `checked(slug, tree, has_impl)` returning the artifact path whose header matches the live tips and says `gate: PASS`, or `None`. It prints nothing: `scripts/pair/cli.py:17-20` holds stdout to the driver, and the selftest check at `scripts/pair/selftest.py:87-92` names the modules that must not print, so `steps.py` joins that tuple and "the three modules beside it", `scripts/pair/cli.py:19`, reads four.
+
+`scripts/pair/blocks.py`
+- `merge_path(slug)` at `scripts/pair/blocks.py:63` takes a number: `<gauntlet dir>/merge/<slug>.<N>.txt`. `highest_merge(slug)` counts what is on disk by the shape `highest_round` uses at `scripts/pair/blocks.py:83`, so an unnumbered `<slug>.txt` from before this change counts as nothing and is left alone. `newest_merge(slug)` returns the highest, or `None`.
+- `merge_artifact` at `scripts/pair/blocks.py:154` takes the tips and the gate reading, writes to `highest_merge(slug) + 1`, and opens the file with four lines above `HEADINGS`: `spec/<slug>: <sha>`, `impl/<slug>: <sha>` or `-` where no implementation tree was cut, `<target_branch>: <sha>`, `gate: PASS` or `gate: FAIL`.
+- a reader, `check_header(text)`, returns those four values, and is what `merge` compares against the live tips. One parser, so the writer and the reader cannot part.
+
+`scripts/pair/converge.py`
+- `report_red` at `scripts/pair/converge.py:36` takes the artifact path the caller already wrote instead of calling `merge_artifact` itself at `scripts/pair/converge.py:53`. Two artifacts for one gate run is the alternative.
+
+`scripts/pair/selftest.py`
+- `CHECK ` and `UNCHECKED ` join the literal tuple at `scripts/pair/selftest.py:69`. One check pins the four header lines and their order, beside the `HEADINGS` check at `scripts/pair/selftest.py:59`.
+
+`docs/agents.md`
+- table rows: `pair.sh check <slug>` `CHECK <path> PASS`, `pair.sh check <slug>` `CHECK <path> FAIL`, and `pair.sh merge <slug>` `UNCHECKED <slug>`. `docs/agents.md:57` names the numbered path; `docs/agents.md:58`, the verdict row, takes no path and stands as it is.
+- `docs/agents.md:74`, the evidence paragraph, carries the four header lines above the three headings.
+- `docs/agents.md:78`, the six steps, parts into two: `check` runs lane check, commit, rebase, combine, gate; `merge` runs lane check, commit, rebase, combine, the checked-artifact reading, land.
+- `docs/agents.md:80`, the red-gate paragraph, is `check`'s reading.
+- `docs/agents.md:44`, the `bailiff` step, names the numbered artifact.
+
+`agents/bailiff.md`
+- `agents/bailiff.md:58` makes the `NO EVIDENCE` repair a rerun of `pair.sh merge <slug>`. `merge` writes no artifact after this change, so that line names `pair.sh check <slug>` and then `pair.sh merge <slug>`.
+- `agents/bailiff.md:25` spells the artifact `<gauntlet dir>/merge/<slug>.txt` and says "re-running `merge` write same file again". Numbered path, and the rerun is `check`, which writes the next number.
+
+`docs/workflow.mermaid`
+- `docs/workflow.mermaid:479` carries the merge as six steps; `docs/workflow.mermaid:513` asks whether the merge output is there; `docs/workflow.mermaid:515` sends the repair to "run the merge again"; `docs/workflow.mermaid:568` is the `noevidence --> merge` edge. The gate node and the red-gate edge move to a `check` node, and that edge points at it.
+
+`README.md`
+- workflow step 13, `README.md:36`, parts: the gate runs under `pair.sh check`, and `pair.sh merge` lands a pair a check passed.
+
+`CHANGELOG.md`
+- one `### Added` entry under `[Unreleased]` at `CHANGELOG.md:5`. `pair.sh` is the shipped product, so a consumer's merge behavior changed.
+
+## Caller-side delta
+
+`agents/bailiff.md:21` reads the `merge output:` path out of the brief and never constructs it, so the numbered name reaches the `bailiff` through the brief unchanged. `agents/bailiff.md:58` names a verb instead, and is under Which files get touched.
+
+`hooks/no-impl-reads.py:159` and `hooks/bwrap-wrap.py:122` name the merge directory, not a file in it. `tests/test_hook_wire.py:176` carries the prefix `gauntlet/merge/`. All three hold.
+
+The `bwrap` carve-out "names no verb", `hooks/pair-passthrough.py:28-34`, and matches `pair.sh` followed by bare tokens at `hooks/pair-passthrough.py:86`, so `check` needs no entry.
+
+## What it costs
+
+`tests/test_pair_sh_merge.py` breaks. Five call sites run the verb — `tests/test_pair_sh_merge.py:131`, `tests/test_pair_sh_merge.py:381`, `tests/test_pair_sh_merge.py:447`, `tests/test_pair_sh_merge.py:485` and `tests/test_pair_sh_merge.py:517` — and each needs a `check` ahead of it. `tests/test_pair_sh_merge.py:132` builds the artifact path as `gauntlet/merge/<slug>.txt`, which is now numbered. The decisive one is `tests/test_pair_sh_merge.py:414`, the red-gate test: `merge` no longer gates, so what it measures moves to `check`. Those tests are the blind writer's, so the repair is a spec block through the `arbiter` and the `scrivener`. Cost is one full chain round on top of this one.
+
+The ratchet forces the split. Before this change `scripts/pair/cli.py` was 446 lines against an allowance of 446, so the verb cannot be added without `scripts/pair/steps.py` carrying the helpers out. MEASURED: the allowance entry is lowered to what `wc -l scripts/pair/cli.py` reports after the split -- `402 scripts/pair/cli.py`, and `scripts/gates/file-length.py:57` now reads `"scripts/pair/cli.py": 402` -- since `scripts/gates/file-length.py:21-23` fails a file measuring under its entry too.
+
+`merge` gains a mode where it does no work and exits 1.
+
+Left out: no expiry on a check, no `--force` past one. A stale reading is caught by the tips and by nothing else.
+
+## Open questions
+
+1. "> USE THE MOTHERFUCKING PLAN GATE, DO NOT WORK DIRECTLY." asks for a route and not for content in the plan. Dropped from the body; this draft, the `detective` round behind it and the `prosecutor` rounds on it are the answer.
+--- reviewer ---
+READY
+
+a  PASS  carried: "Meaning change is the change proposed, not a side effect: the merge artifact's path and header, and the `merge` verb's gating, are redefined by the owner's own words quoted in `brief:` lines 1 and 2 ("writes a numbered <gauntlet dir>/merge/<slug>.<N>.txt", "Remove the gate from cmd_merge")."
+b  PASS  One citation is new this round and it resolves: `scripts/pair/cli.py:38-39` is `import blocks` / `import converge`, which is the import shape the plan says `steps` takes. Every other citation carried its resolution from the previous round, where all of them were opened.
+c  PASS  The count matches mine exactly: nine call sites, all inside `scripts/pair/cli.py` — `approved` at `:92`, `:135`, `:191`, `:266`; `round_match` at `:93`, `:139`; `_commit_block` at `:108`; `_pytest_argv` at `:196`; `_check_lanes` at `:278`. Nothing outside that file calls any of the five. The plan names the qualified-call form and refuses `from steps import ...` by name, so the forwarder shape this check exists to catch is closed rather than left open.
+d  PASS  carried: "Cause is named upstream of appearance: "Gate and land are one verb", one `_converge_and_land`, one lock, one invocation, and one path per slug so a second run erases the first reading. The owner-visible readings follow from that, rather than standing in for it."
+e  PASS  carried: "The ratchet is named and answered rather than overturned: the plan cites the entry at `scripts/gates/file-length.py:57` and the growth rule at `:19-21`, takes the split the gate's own "A file that needs more room needs a split" demands, and carries the lowered entry as an `ASSUMED` against `:21-23`. The two rules the new module touches are named with it — the stdout ownership at `scripts/pair/cli.py:19` reading four instead of three, and the non-printing tuple at `scripts/pair/selftest.py:90`. I confirmed no other rule reaches the split: nothing outside `scripts/pair.sh:26` and `scripts/gates/check-gates.sh:61` names a module in that package, and neither names one that moves. Every moved helper exits through `die` and calls `out` nowhere, so "It prints nothing" holds."
+f  PASS  carried: "Boundaries read: absent artifact, `gate: FAIL`, a legacy unnumbered `<slug>.txt` counting as nothing, no implementation tree (`-` for the impl tip), the three `motion:` kinds, a target branch that moved between check and merge, a tree dirty at merge, and `.1.txt` surviving beside `.2.txt`. The tip comparison is placed after the combine, which is where the edge lives."
+g  PASS  carried: "The one numbered item is not a question addressed to anyone: it is the repetition check (i) requires of the `dropped:` line for "> USE THE MOTHERFUCKING PLAN GATE, DO NOT WORK DIRECTLY", and the plan answers it in place. Nothing here needs the owner's ruling."
+h  PASS  carried: "The reach claims name their mechanism and hold on reading. `hooks/no-impl-reads.py:159` is `GAUNTLET_BASE + "/merge"` and `hooks/bwrap-wrap.py:122` is `gauntlet_dir() + "/merge"` — directories, so a numbered leaf under them is covered; `tests/test_hook_wire.py:176` is the prefix `"gauntlet/merge/"`. The `bwrap` carve-out reads "The argument grammar is the other half, and it names no verb" at `hooks/pair-passthrough.py:28`, and `:86` matches on bare tokens, so `check` needs no entry. One-hop trace from `merge_artifact`, `merge_path` and `cmd_merge` turned up the two doc sites under (c) and nothing else."
+i  PASS  carried: "`brief:` heading carries five quoted lines, and five lines sit beneath it, one per sentence, in order, each exactly `delivered:` or `dropped:` with nothing under it. Each `delivered:` resolves: `cmd_check` and `cmd_merge` to the `scripts/pair/cli.py` bullets, the docs rows to the `docs/agents.md` and `README.md` bullets, the five readings to What the owner sees change. The `dropped:` reappears as Open questions 1."
+j  N/A   carried: "No architecture doc in this repository names a composition-root file, so this check has no surface here."
+k  PASS  carried: "Brief sentence 1's "dispatched from main" is delivered: the `scripts/pair/cli.py` row now names the dispatch map at `scripts/pair/cli.py:427-434` gaining `"check": cmd_check`. Sentences 2, 3 and 4 read as their elements read, unchanged from the previous round."
+l  PASS  The one new sentence carries only facts that are nowhere else: the nine locations, the qualified-call form, and the named refusal of the import form. Nothing under `scripts/pair/steps.py`, new repeats what the `scripts/pair/cli.py` row already carries.
+--- reviewer ---
+READY
+
+a  PASS  carried: "Meaning change is the change proposed, not a side effect: the merge artifact's path and header, and the `merge` verb's gating, are redefined by the owner's own words quoted in `brief:` lines 1 and 2 ("writes a numbered <gauntlet dir>/merge/<slug>.<N>.txt", "Remove the gate from cmd_merge")."
+b  PASS  The changed line lost a clause and gained nothing, so its citations are the ones I opened last round and they resolve: `scripts/pair/converge.py:158-166` is the `git_ok("merge-base", "--is-ancestor", branch, "HEAD", tree=spec)` branch whose note ends `"; going straight to the gate"`, the string the line quotes; `gauntlet/merge/pair-sh-check.1.txt` opens `spec/pair-sh-check: e615c3c8e1afadb1b6a65bd4894ad7fc2a7c218d`; `git merge-base --is-ancestor e9434e8 e615c3c8` exits 0; `git rev-parse main` reports `e615c3c8e1afadb1b6a65bd4894ad7fc2a7c218d`. The two unchanged lines resolve on the same readings: `wc -l scripts/pair/cli.py` is `402`, `scripts/gates/file-length.py:57` is `"scripts/pair/cli.py": 402`, `:21-23` reads "measuring *under* the entry also fails, until the entry is lowered to match", and the past-tense 446 is `git show be217cf~1:scripts/pair/cli.py | wc -l` with that revision's `:57` reading 446.
+c  PASS  carried: "The count matches mine exactly: nine call sites, all inside `scripts/pair/cli.py` — `approved` at `:92`, `:135`, `:191`, `:266`; `round_match` at `:93`, `:139`; `_commit_block` at `:108`; `_pytest_argv` at `:196`; `_check_lanes` at `:278`. Nothing outside that file calls any of the five. The plan names the qualified-call form and refuses `from steps import ...` by name, so the forwarder shape this check exists to catch is closed rather than left open."
+d  PASS  carried: "Cause is named upstream of appearance: "Gate and land are one verb", one `_converge_and_land`, one lock, one invocation, and one path per slug so a second run erases the first reading. The owner-visible readings follow from that, rather than standing in for it."
+e  PASS  carried: "Re-run: two of the three lines are this check's subject. The ratchet is satisfied rather than overturned — the entry at `scripts/gates/file-length.py:57` is lowered to the measured 402, which is what `:21-23` requires of a file that shrank; no allowance raised, and `scripts/gates/file-length.py:26` "A file that needs more room needs a split" is the rule the split took."
+f  PASS  carried: "Boundaries read: absent artifact, `gate: FAIL`, a legacy unnumbered `<slug>.txt` counting as nothing, no implementation tree (`-` for the impl tip), the three `motion:` kinds, a target branch that moved between check and merge, a tree dirty at merge, and `.1.txt` surviving beside `.2.txt`. The tip comparison is placed after the combine, which is where the edge lives."
+g  PASS  carried: "The one numbered item is not a question addressed to anyone: it is the repetition check (i) requires of the `dropped:` line for "> USE THE MOTHERFUCKING PLAN GATE, DO NOT WORK DIRECTLY", and the plan answers it in place. Nothing here needs the owner's ruling."
+h  PASS  carried: "The reach claims name their mechanism and hold on reading. `hooks/no-impl-reads.py:159` is `GAUNTLET_BASE + "/merge"` and `hooks/bwrap-wrap.py:122` is `gauntlet_dir() + "/merge"` — directories, so a numbered leaf under them is covered; `tests/test_hook_wire.py:176` is the prefix `"gauntlet/merge/"`. The `bwrap` carve-out reads "The argument grammar is the other half, and it names no verb" at `hooks/pair-passthrough.py:28`, and `:86` matches on bare tokens, so `check` needs no entry. One-hop trace from `merge_artifact`, `merge_path` and `cmd_merge` turned up the two doc sites under (c) and nothing else."
+i  PASS  carried: "`brief:` heading carries five quoted lines, and five lines sit beneath it, one per sentence, in order, each exactly `delivered:` or `dropped:` with nothing under it. Each `delivered:` resolves: `cmd_check` and `cmd_merge` to the `scripts/pair/cli.py` bullets, the docs rows to the `docs/agents.md` and `README.md` bullets, the five readings to What the owner sees change. The `dropped:` reappears as Open questions 1."
+j  N/A   carried: "No architecture doc in this repository names a composition-root file, so this check has no surface here."
+k  PASS  carried: "Brief sentence 1's "dispatched from main" is delivered: the `scripts/pair/cli.py` row now names the dispatch map at `scripts/pair/cli.py:427-434` gaining `"check": cmd_check`. Sentences 2, 3 and 4 read as their elements read, unchanged from the previous round."
+l  PASS  The round-6 repair is taken: the closing clause is gone and the line now reads claim, then evidence, with the evidence sentence ending at "`git rev-parse main` reports `e615c3c8`". The other two lines each state their fact once — the pre-change 446 reading in one, the measured 402 and the rule it answers in the other.
+
+Notes.
+- `scripts/pair.sh merge pair-sh-check` is not a command I can re-run: the pair landed and its trees are gone. `docs/plans.md:92` is met for that line by the three commands beside it, which I did re-run.
+- The body's other citations point at the pre-change tree and are not re-resolved: `scripts/pair/cli.py:427-434` cannot exist in a 402-line file and was correct when approved. Only a line the amendment rewrites takes the current tree's numbering.
+- A rewritten plan is a new artifact, `docs/plans.md:102`: `approved` is owed again against the plan as it now stands before implementation continues on it.

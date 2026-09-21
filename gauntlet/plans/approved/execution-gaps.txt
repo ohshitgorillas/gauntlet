@@ -1,0 +1,88 @@
+slug: execution-gaps
+discovery: detective
+
+brief:
+> Gaps
+> - close verb: no test. cmd_close at scripts/pair/cli.py:295 reached only by scripts/pair/selftest.py parsing checks, if at all.
+> - Real gate_command: fixture gate always passes except one test forcing red. No make check shape.
+> - Sandbox path: pair-passthrough.py and bwrap-wrap.py tested as hooks in tests/test_bwrap_wrap.py, never with pair.sh executing inside bwrap.
+> - blind.sh: zero execution tests. tests/test_tests_config.py:520 greps script text only. Defects fixed today were invisible to the gate for this reason.
+> Resolve thru the plan gate.
+
+delivered: "Gaps" — What is wrong, the opening line
+delivered: "close verb: no test." — Which files get touched, item 1
+delivered: "cmd_close at scripts/pair/cli.py:295 reached only by" — What is wrong, the `close` paragraph
+delivered: "Real gate_command: fixture gate always passes" — What is wrong, the `gate_command` paragraph
+delivered: "No make check shape." — Which files get touched, item 2
+delivered: "Sandbox path: pair-passthrough.py and bwrap-wrap.py" — Which files get touched, item 3
+delivered: "blind.sh: zero execution tests." — Which files get touched, item 4
+delivered: "tests/test_tests_config.py:520 greps script text only." — What is wrong, the `blind.sh` paragraph
+delivered: "Defects fixed today were invisible to the gate" — What is wrong, the `blind.sh` paragraph, last sentence
+delivered: "Resolve thru the plan gate." — What it costs, the four-pair count
+
+## What is wrong
+
+Four surfaces this kit ships run in no test. Each is reached by a text grep or by nothing.
+
+`close`. `scripts/pair/cli.py:295` defines `cmd_close`, dispatched at `:434`. No file under `tests/` names the verb. `scripts/pair/selftest.py` does not either: its only reach is the source-text check "every contract literal this driver prints is in this file" (`scripts/pair/selftest.py:65`), which asserts the byte string `"CLOSED "` (`:78`) sits in `cli.py`. So the refusal on a dirty tree (`scripts/pair/cli.py:316-317`), the exit status that refusal sets, the removal of a clean tree (`:321-322`), the survival of the branch behind it and the die on a slug with no worktree (`:313`) run unmeasured.
+
+`gate_command`. The fixture writes `"gate_command": GATE` (`tests/support/pair_fixture.py:129`) with `GATE = "true"` (`:23`), and one merge test overrides it per-call (`tests/test_pair_sh_merge.py:369`). Both values are one word. `converge.gate` splits the value — `argv = shlex.split(GATE)` (`scripts/pair/converge.py:181`) — runs it in the spec tree (`:185`), and dies on an empty value (`:183`). A one-word value exercises none of those three: the split is identity, the working directory is invisible to `true`, and the empty case never arrives.
+
+Sandbox. `tests/test_bwrap_wrap.py` runs a replacement in two helpers, `_write_outcome` (`tests/test_bwrap_wrap.py:194`, run at `:208-210`) and `_probe_content_after_the_write` (`:354`, run at `:367`), the second under `test_a_path_a_declared_command_reads_is_read_only_inside_the_wrap` (`:384`). Both run a `printf` write. The `pair.sh` carve-out is a second decision, `is_pair_command` (`hooks/pair-passthrough.py:85`) with `resolved_pair_command` (`:104`) behind it, and it is read on the replacement's head alone — `head.is_absolute() and head.is_file()` (`tests/test_bwrap_wrap.py:245`). No test runs a `pair.sh` command that came back from the hook, carved out or wrapped. The pair's own suite runs `pair.sh` as a plain subprocess with no hook in the loop (`tests/support/pair_fixture.py:147`).
+
+`blind.sh`. `tests/test_tests_config.py` reads the script as text — `text = BLIND_SH.read_text()` (`tests/test_tests_config.py:526`) and the same read at `:539`. No test executes it. Commit `60e7c1b` rewrote which checkout the script resolves for a runner and which for a bare path (`scripts/blind.sh:39`, `:48`, `:124`), and `git show --stat 60e7c1b` names three files — `CHANGELOG.md`, `agents/scrivener.md`, `scripts/blind.sh` — and none under `tests/`, so the gate read the same script text either side of the defect.
+
+## What the owner sees change
+
+`scripts/gates/check-gates.sh` goes red on a defect of the shape `60e7c1b` fixed.
+
+## Which files get touched, and roughly how
+
+Rule 2 (`docs/testing.md:13`) is in force over every case below: each is one assertion, and a case described here as two readings of one relation is a parametrize arm, never a conjunction inside one test.
+
+1. New `tests/test_pair_sh_close.py`. Opens a pair with `_pair(repo, "open", SLUG)` and moves one thing per arm: a tree with no uncommitted file is gone from disk afterwards and a tree carrying one is still there; the branch a closed tree stood on still resolves where the same slug under `abort` leaves none; the exit status is 0 where every named tree was clean and 1 where one was not. At the edge `f` names, a slug whose worktrees are already gone: `scripts/pair/cli.py:313` dies before the loop, so status is 2 and no `CLOSED` or `REFUSED` line is printed — one arm against the clean-tree arm. Imports the builders in `tests/support/pair_fixture.py`, adds none.
+
+2. `tests/test_pair_sh_merge.py`, through the existing per-call gate override at `tests/test_pair_sh_merge.py:369`. Gate values, one relation per arm pair: a two-word command whose second word decides the outcome, so the split is what carries it; a command reading a file the spec tree holds and the main checkout does not, so the working directory is what carries it; the empty string against a one-word command, where the empty one stops the merge at `scripts/pair/converge.py:183` with the target branch unmoved.
+
+3. `tests/test_bwrap_wrap.py`, beside `_write_outcome` (`tests/test_bwrap_wrap.py:194`). The subject is a `pair.sh` command executed after the hook has answered, which no case there does today. One relation, two arms: `scripts/pair.sh` plus bare tokens comes back as this kit's own entry (`hooks/pair-passthrough.py:94`) and, run, reaches `cli.py` and prints its line; the same text with `cd . && ` in front comes back wrapped and, run, is `bwrap` around `pair.sh`, where the write the verb makes is refused. Skipped on a host without `bwrap`, through the existing `_bwrap_usable` (`tests/test_bwrap_wrap.py:182`).
+
+4. New `tests/test_blind_sh.py`. Builds a checkout through `_repo` (`tests/support/pair_fixture.py:105`) — whose declaration carries `target_branch` and `gate_command` alone (`:128-129`), the runner coming from `_venv_shim` (`:96-102`) at `:139` — cuts a worktree, and runs `scripts/blind.sh` as a subprocess. Arms: `test` with a worktree path collects the file in that worktree where a bare path collects the namesake in the caller's tree; `status` answers from the worktree where the slug has one and from the main checkout where it does not; `show` likewise. The two edges `f` names are read as one arm pair: run outside any checkout, the script exits 2 at `scripts/blind.sh:39-41`, where the same call inside one exits 0. The unresolvable common dir at `:44-46` stays out: `git rev-parse --git-common-dir` answers for every tree the first branch admitted, so no input the harness can build separates it.
+
+5. `CHANGELOG.md` — nothing. Tests are not a consumer-visible change.
+
+## Caller-side delta
+
+Two existing files take insertions, `tests/test_pair_sh_merge.py` under item 2 and `tests/test_bwrap_wrap.py` under item 3. Nothing outside `tests/` changes.
+
+Six approved behavior lines name tests in `tests/test_bwrap_wrap.py` by name and by line — `gauntlet/specs/approved/extra-binds.txt:11`, `:16`, `:21` and `gauntlet/specs/approved/unwrapped-commands.txt:11`, `:16`, `:21` — and `gauntlet/specs/approved/extra-binds.txt:11` names `_write_outcome`, the helper item 3 sits beside. All six stand. Each is an `existing:` clause, read by the `arbiter` when its block was drafted and by nothing since; the one gate that opens a path under `gauntlet/specs/approved/` matches the directory name (`scripts/gates/commit-msg.py:37`) and reads no line inside the file. The numbers have drifted already: `gauntlet/specs/approved/extra-binds.txt:11` cites `tests/test_bwrap_wrap.py:219` for `test_a_write_under_the_replacement_lands_by_path_and_by_caller`, which is at `tests/test_bwrap_wrap.py:223` today, and no gate reports it. The named tests keep their names and their bodies.
+
+No approved behavior line names `tests/test_pair_sh_merge.py`, `tests/test_pair_sh_close.py` or `tests/test_blind_sh.py`.
+
+## What it costs
+
+Four blocks, one per surface, because the arbiter's cap is four behavior lines (`agents/arbiter.md:141`) and no two of these four surfaces share a wrong implementation. `kind: characterization` on each: the behavior is HEAD's, so the red run is green and `docs/testing.md` rule 8 (`docs/testing.md:32`) exempts the bite. That is four pairs through the full chain, which is the route a `kind:` block takes (`README.md:68`).
+
+Suite wall time. Item 3 and item 4 each start `bwrap`, item 4 once per `test` arm; item 4 also drives the `_venv_shim` runner per arm. The `blind.sh` lint gates are not driven: a `ruff` and a `black` run per arm buys nothing item 3 does not already hold about the sandbox.
+
+Left out: `scripts/blind.sh:79`'s bind table is not asserted path by path. The tests above read what a subcommand produces, and a mount-table assertion pins the implementation.
+
+## Open questions
+
+None.
+--- reviewer ---
+READY
+
+a  N/A   no changed sentence redefines an existing named thing: every touched file is new or existing under `tests/`, `CHANGELOG.md` takes nothing, and no layer, field, signal, route or rule changes meaning.
+b  PASS  the three round 1 claims are repaired and the new citations resolve. The Sandbox paragraph now names both run sites — `_write_outcome` (`tests/test_bwrap_wrap.py:194`, run at `:208-210`) and `_probe_content_after_the_write` (`:354`, run at `:367`) under `test_a_path_a_declared_command_reads_is_read_only_inside_the_wrap` (`:384`) — and the new carve-out citations hold: `hooks/pair-passthrough.py:85` is `def is_pair_command`, `:104` is `def resolved_pair_command`, `:94` is `def kit_entry`, whose body returns this kit's own `scripts/pair.sh`. Item 4's declaration claim holds: `tests/support/pair_fixture.py:128-129` writes `target_branch` and `gate_command` and nothing else, `:96-102` is `_venv_shim`, called at `:139`. The `blind.sh` paragraph's replacement claim holds: `git show --stat 60e7c1b` lists `CHANGELOG.md`, `agents/scrivener.md`, `scripts/blind.sh` and no file under `tests/`. Item 1's `status is 2` resolves at `scripts/pair/trees.py:88-89`, the `die` `scripts/pair/cli.py:313` calls. `docs/testing.md:13` is rule 2 and `:32` is rule 8. `discovery: detective` unchanged, and the continuation citations resolve against the right paths: the Sandbox paragraph writes `tests/test_bwrap_wrap.py:245` in full where it returns from `hooks/pair-passthrough.py`, and item 4's `:96-102`, `:128-129` and `:139` sit under `tests/support/pair_fixture.py:105`.
+c  N/A   carried: `c  N/A   the plan splits, extracts and moves nothing; every item adds a test file or a case to one.`
+d  PASS  the rewritten Sandbox paragraph keeps the cause above the appearance and sharpens it: the carve-out is a second decision read on the replacement's head alone (`tests/test_bwrap_wrap.py:245`) and no test runs what the hook returned for a `pair.sh` command. The `blind.sh` paragraph names the text-read cause (`tests/test_tests_config.py:526`) and derives the green gate from it rather than the other way round.
+e  PASS  the repair is on the page: `Rule 2 (docs/testing.md:13) is in force over every case below` opens **Which files get touched**, and items 1 to 4 are written as arms rather than conjunctions. `docs/testing.md:32` is named for the bite exemption and `agents/arbiter.md:141` for the cap. No rule the changed sentences reach is left unnamed: the `bwrap`-missing skip stays mechanism under `docs/testing.md:171`, `scripts/gates/subprocess-timeout.py` walks `hooks/` and `scripts/` only, and item 5 obeys the CHANGELOG rule.
+f  PASS  both edges are read. Item 1 gives status 2 and no `CLOSED` or `REFUSED` line at `scripts/pair/cli.py:313`, against the clean-tree arm, and `die` is status 2 at `scripts/pair/trees.py:88-89`. Item 4 reads `scripts/blind.sh:39-41` as an arm pair and takes the uniformity escape for `:44-46`, which the script supports: `:43` runs `--git-common-dir` only after `:39`'s `--show-toplevel` succeeded, so the second guard has no input the first admits and no harness input separates it.
+g  PASS  carried: `g  PASS  **Open questions** is `None`, and no sentence in the body defers a decision to the owner; nothing is padded and nothing already answered is passed along.`
+h  PASS  the mechanism is named and it holds under my own trace. **Caller-side delta** names all six lines — `gauntlet/specs/approved/extra-binds.txt:11`, `:16`, `:21` and `gauntlet/specs/approved/unwrapped-commands.txt:11`, `:16`, `:21` — and the drift it cites is real: `extra-binds.txt:11` cites `tests/test_bwrap_wrap.py:219` for `test_a_write_under_the_replacement_lands_by_path_and_by_caller`, which is at `:223` today. One hop from the changed files: `scripts/gates/commit-msg.py:37` is `APPROVED_PATH = "specs/approved/"`, matched against diff paths, and it is the only gate naming that directory. `scripts/pair/cli.py:67-72` opens a file under it and reads the text whole, which the plan's "gate" wording leaves out, but no reader resolves an `existing:` clause: `grep -rn existing scripts/ hooks/ --include=*.py --include=*.sh` returns only `strike-diff.py:229`'s comment, `init.py`'s declaration prose and `lane_paths.py:104`, and the merge check reads `assertion:` text in a test body rather than a cited line number. No approved behavior line names `tests/test_pair_sh_merge.py`, `tests/test_pair_sh_close.py` or `tests/test_blind_sh.py`, and the two existing files are named as taking insertions.
+i  PASS  ten coverage lines against ten brief sentences, each quoting the first words of the sentence it covers, `"Resolve thru the plan gate."` included, and each naming an element that exists in the body — the opening line of **What is wrong**, its `close`, `gate_command` and `blind.sh` paragraphs, items 1 to 4, and the four-pair count in **What it costs**. Nothing sits beneath any line.
+j  N/A   the plan-gate check (j) is unfilled in the reviewer definition and this repository names no composition-root file; no changed sentence adds a method, attribute or import to one.
+k  PASS  the sandbox sentence is delivered as it reads: item 3's subject is a `pair.sh` command executed after the hook has answered, on two arms — carved out to `hooks/pair-passthrough.py:94`'s entry and run, against the same text with `cd . && ` in front, which `ALLOWED` (`hooks/pair-passthrough.py:82`) does not admit, so it comes back wrapped and runs `pair.sh` inside `bwrap`. `pair-passthrough.py` is named in the body. The other nine read as their sentences read, the `blind.sh` last-sentence line included: `so the gate read the same script text either side of the defect` is what "Defects fixed today were invisible to the gate for this reason." says. My own repairs narrow no sentence: each added a reading or a citation and dropped no case the brief covers.
+l  PASS  the round 1 sentence is gone and **What the owner sees change** is one sentence. Every sentence added this round carries a fact not already beside its citation or in an earlier section: the arm readings in items 1 to 4, the two run sites and the carve-out decision in the Sandbox paragraph, the `git show --stat` file list, and the six spec lines with their drift in **Caller-side delta**.
+
+notes: none.

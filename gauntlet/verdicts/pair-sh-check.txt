@@ -1,0 +1,5 @@
+RED 1: assert (first, second) == (("PASS", 0), ("FAIL", 1))  [AssertionError: assert (('', 2), ('', 2)) == (('PASS', 0), ('FAIL', 1))]
+RED 2: assert (names, _gate_lines(repo, names)) == (["demo.1.txt", "demo.2.txt"], ["gate: PASS", "gate: FAIL"])  [AssertionError: assert ([], []) == (['demo.1.txt', 'demo.2.txt'], ['gate: PASS', 'gate: FAIL'])]
+RED 3: assert _merge_after_check(tmp_path, gate, follow_up) == expected  [AssertionError: assert ('TEST CHECK demo', 0, True) == ('UNCHECKED demo', 1, False), case "no-check-has-run"]
+RED 4: assert _brief_shape(lines) == expected  [AssertionError: at index 1 diff: 'merge output: gauntlet/merge/demo.txt' != 'merge output: gauntlet/merge/demo.1.txt', case "kind-new-one-file"]
+RED 5: assert (red, green) == ((False, True, True, "gate: FAIL"), (False, True, True, "gate: PASS"))  [AssertionError: assert ((False, True, True, ''), (False, True, True, '')) == ((False, True, True, 'gate: FAIL'), (False, True, True, 'gate: PASS'))]
