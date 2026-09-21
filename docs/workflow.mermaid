@@ -10,6 +10,22 @@ flowchart TD
     lane["`**The tests-only lane**
     no discovery, no plan, no plan review.
     A test is struck or amended under review instead.`"]
+    sweepq{"`A test you brought,
+    or a sweep of the suite?`"}
+    sweep("`**You**
+    state the scope of the sweep in your own words.
+    A scope is not a target list: naming one is the agent's job.`")
+    auditor[["`**Auditor**
+    blind to the implementation. It resolves your scope to a target list
+    under the tests directory, prints that list first, and returns one row
+    per target: VALID, STRIKE, AMEND, or NOTE for a fact it cannot read.`"]]
+    rowspick("`**You**
+    read the target list, then the rows, and say which rows go.
+    The rows are findings, never a route: the auditor drafts no block
+    and writes nothing.`")
+    fold["`The main agent folds the rows you picked into blocks,
+    one block per motion kind per file. From here the lane runs
+    exactly as it runs for a block drafted by hand.`"]
 
     questions["`The main agent gathers every question it has
     about the codebase into a single brief.`"]
@@ -52,6 +68,10 @@ flowchart TD
     The first round is exhaustive: every collision, every unexamined
     edge case and every open question is named at once.
     Later rounds re-read only the sentences that changed.`"]
+    collat1["`Where the plan's caller-side change reaches the test directory,
+    the reviewer holds the plan to naming every test it breaks, by file and
+    test name, and counts them. That count is what the spec block's
+    collateral rows are held to at stage 2.`"]
     gate{"`The reviewer's verdict`"}
 
     another["`**Another pass**
@@ -60,7 +80,8 @@ flowchart TD
     repair["`The main agent repairs the named sentences,
     and says which sentences it changed.`"]
     leash["`A cap of eight rounds.
-    A plan that cannot settle in eight comes to you.`"]
+    A plan that cannot settle in eight comes to you.
+    A round that goes to you with a question does not count against it.`"]
 
     esc["`**Escalation**
     A check failed again after the repair meant to fix it.
@@ -96,6 +117,13 @@ flowchart TD
 
     brief --> testsonly
     testsonly -- yes --> lane
+    lane --> sweepq
+    sweepq -- "a test you brought" --> motiondraft
+    sweepq -- "a sweep" --> sweep
+    sweep --> auditor
+    auditor --> rowspick
+    rowspick --> fold
+    fold --> motiondraft
     testsonly -- no --> questions
     questions --> detective
     detective --> cites
@@ -114,7 +142,8 @@ flowchart TD
     evasion --> repair
     evasioncheck -- yes --> checks
     rereview -- "first round" --> checks
-    checks --> gate
+    checks --> collat1
+    collat1 --> gate
     gate --> another
     gate --> esc
     gate --> escq
@@ -143,6 +172,11 @@ flowchart TD
     a structure line, the owner's brief quoted verbatim,
     and numbered behavior lines, each carrying
     kills:, bite: and existing:.`"]
+    collatrows["`A kind: block may also carry collateral: rows, one per test
+    the change breaks that no behavior line pins: the target test,
+    breaks: naming the fact outside the test directory that forced
+    the repair, and the assertion that survives byte-identical.
+    Rows count toward no line cap.`"]
     motiondraft["`The main agent drafts a motion block:
     strike, amend with the line that replaces the target,
     or rehome, which moves the target with its assertion unchanged.
@@ -200,6 +234,16 @@ flowchart TD
     implementation-shaped wording, an absence, two outcomes in one line,
     reachability, bite, a design pin, existence only, self-consistency,
     a golden dump, internals, the wrong lane, environment and clock.`"]
+    rowcheck["`Check (u) rules one verdict per collateral row: the target is
+    a test under the tests directory, its quoted assertion sits there
+    byte-identical, and breaks: names a concrete fact outside that
+    directory. All four hold or the row is cut. A repeat round that
+    changed rows alone re-runs this check and carries every behavior line.`"]
+    exempt("`**You**
+    grant an EXEMPT entry before a test is written that keeps an
+    existence-only outcome or a skip marker: the rule it suspends,
+    the site, and your own sentence granting it, in the register.
+    Its absence is never a reason to keep the line.`")
     unread{"`Does a verdict rest on code
     the reviewer may not read?`"}
     note["`It is a note, never a STRICKEN. The note names the fact
@@ -246,9 +290,9 @@ flowchart TD
     stage3["`**Stage 3**`"]
 
     stage2 --> specdraft
-    lane --> motiondraft
     motiondraft --> arb
-    specdraft --> measure
+    specdraft --> collatrows
+    collatrows --> measure
     measure -- yes --> examiner
     measure -- "one command" --> selfmeasure
     examiner --> measured
@@ -270,7 +314,9 @@ flowchart TD
     lookup --> another2
     discrim -- "it discriminates" --> stubs
     stubs --> perline
-    perline --> unread
+    perline --> rowcheck
+    rowcheck --> exempt
+    exempt --> unread
     unread -- yes --> note
     note --> gate2
     unread -- no --> gate2
@@ -341,6 +387,16 @@ flowchart TD
     written["`The tests are written, one per line, plus any fixture
     or fake capability the lines need. A helper is amended on one
     ground only: it disagrees with a wire fact the writer can cite.`"]
+    hasrows{"`Does the block carry collateral: rows?`"}
+    rowrepair{"`Can the row be repaired
+    with its assertion untouched?`"}
+    collatwork["`The one delta the writer admits: a test a committed
+    collateral: row names. It repairs what surrounds the assertion —
+    helper, decorator, parametrize list, import — and carries the row's
+    quoted assertion through byte-identical.`"]
+    collatstop["`A row whose assertion would have to be rewritten, and one
+    whose repair would move or rename the test, are reported and stopped on.
+    Both belong to another block, not to a delta.`"]
 
     redrun["`The main agent commits the tests and runs pair.sh red,
     which saves the run's output to a file and prints its path
@@ -373,7 +429,9 @@ flowchart TD
     to the spec gate. For characterization and refactor it is expected.`"]
     invalidv["`**INVALID**
     the run broke on the writer's own hand: a fixture typo,
-    a bad import, a syntax error. No line was judged.`"]
+    a bad import, a syntax error. No line was judged.
+    A line with no test of its own in the output is INVALID too:
+    silence is never read as a pass.`"]
     writerfix["`The writer fixes its own hand and says what it fixed.
     The next run goes to a fresh juror.`"]
     verdictfile["`The verdicts are written to the verdicts lane,
@@ -409,7 +467,13 @@ flowchart TD
     writable -- no --> untestable
     untestable --> stage2
     writable -- yes --> written
-    written --> redrun
+    written --> hasrows
+    hasrows -- no --> redrun
+    hasrows -- yes --> rowrepair
+    rowrepair -- no --> collatstop
+    collatstop --> stage2
+    rowrepair -- yes --> collatwork
+    collatwork --> redrun
     redrun --> juror
     juror --> tamper
     tamper -- "caught" --> tampered
@@ -453,6 +517,31 @@ flowchart TD
     respeccommit["`pair.sh respec lands the re-approved block
     as a spec commit on the spec branch. The delta brief names
     that commit, and the writer reads the changed line from it.`"]
+    assumed{"`Did implementation settle a value
+    the approved plan could only estimate?`"}
+    noround["`An amendment whose measured value changes no plan line
+    is not a round. No reviewer is spawned, nothing is rewritten,
+    and the main agent records the reading in its report.`"]
+    planamend["`**An amendment, not a redraft**
+    The amended lines go back to a **Prosecutor** with the measured value
+    and the command that produced it. The reviewer re-runs the command,
+    so a number with no command behind it is not an amendment.
+    The checks run on the amended lines alone; the rest carry.
+    The round does not count against the eight.`"]
+    amendwrite[["`**The Prosecutor** rewrites the approved plan on READY:
+    the amended body, then every reviewer block, oldest first.`"]]
+    amendword("`**You**
+    read the rewritten plan and give the word again.
+    A rewritten plan is a new artifact, so your first word
+    does not carry to it, and implementation waits.`")
+
+    respecword{"`Does the re-approved block differ from the committed one
+    in collateral: rows alone?`"}
+    respeccollat["`**RESPEC COLLATERAL**
+    No contract line changed: the structure line, the brief and every
+    behavior line are byte-identical, so the round costs one Arbiter pass
+    and no second word from you. A behavior line changed in the same round
+    prints RESPEC and pays the full price, your word included.`"]
     scriv2[["`**The Scrivener**
     makes the change, and refuses a delta that names no newer
     spec commit. Fix test 3, recompute the numbers,
@@ -462,13 +551,23 @@ flowchart TD
 
     stage4 --> impltree
     impltree --> implwork
-    implwork --> suite
+    implwork --> assumed
+    assumed -- no --> suite
+    assumed -- "yes, and no plan line moves" --> noround
+    noround --> suite
+    assumed -- yes --> planamend
+    planamend --> amendwrite
+    amendwrite --> amendword
+    amendword --> implwork
     suite -- no --> tworoutes
     tworoutes --> fixcode
     fixcode --> implwork
     tworoutes --> respec
     respec --> stage2
-    respec --> respeccommit
+    respec --> respecword
+    respecword -- "no, a behavior line changed" --> respeccommit
+    respecword -- yes --> respeccollat
+    respeccollat --> respeccommit
     respeccommit --> scriv2
     scriv2 --> suite
     suite -- yes --> stage5
@@ -490,11 +589,22 @@ flowchart TD
     Both trees and both branches are removed.`"]
 
     route5{"`What does the structure line say?`"}
+    lanecheck{"`Does each tree hold only its own lane,
+    and does each branch rebase onto the target?`"}
+    lanestop["`The merge stops before the gate ever runs, and the files
+    the check names are the repair. Nothing lands and both trees stand.`"]
     strikediff["`The landed diff is checked against the committed block
     mechanically, by target name and by quoted assertion text.
-    A rewritten assertion is ALTERED, and an in-place rehome whose
-    body never changed is UNSATISFIED.
+    A rewritten assertion is ALTERED, a replacement that never landed
+    is MISSING, and an in-place rehome whose body never changed
+    is UNSATISFIED.
     No red run and no reviewer round: there was no window to watch.`"]
+    rowsatmerge["`A kind: block's collateral: rows take the same mechanical
+    check, one OK, ALTERED or MISSING per row, printed above the
+    TEST CHECK brief. Anything but OK stops the land.`"]
+    rowstop["`The assertion a row promised did not survive.
+    Nothing lands: restore it in the implementation tree,
+    or take the change as a tests-only block of its own.`"]
     testcheck["`The script prints the TEST CHECK brief:
     the two commits, and the merge output the evidence sits in.`"]
     bailiff[["`**Bailiff**
@@ -520,6 +630,10 @@ flowchart TD
     to the red commit, SOFT where either differs, MISSING where no test
     covers the line, EXTRA past the line count. A strike line inverts
     MISSING alone: there, the test being gone is the success.`"]
+    rows5["`Plus one verdict per collateral: row, read from the same
+    committed block: HELD where the quoted assertion still sits
+    byte-identical in that test's own body, ALTERED where it does not.
+    An ALTERED row forces another pass, exactly as a SOFT line does.`"]
     rules5["`Plus one row per test-policy violation the block could not see,
     because a block carries no test code: a fake speaking over our own
     code rather than the wire, a test name that states no behavior,
@@ -550,14 +664,20 @@ flowchart TD
     pins a line an adversarial reviewer passed blind.`"]
 
     stage5 --> merge
-    merge --> gatecmd
+    merge --> lanecheck
+    lanecheck -- no --> lanestop
+    lanestop --> tworoutes
+    lanecheck -- yes --> gatecmd
     gatecmd -- no --> redgate
     redgate --> tworoutes
     gatecmd -- yes --> landed
     landed --> route5
     route5 -- "motion: strike, amend, rehome" --> strikediff
     strikediff --> done
-    route5 -- "kind: new, characterization, refactor" --> testcheck
+    route5 -- "kind: new, characterization, refactor" --> rowsatmerge
+    rowsatmerge -- "a row not OK" --> rowstop
+    rowstop --> tworoutes
+    rowsatmerge -- "every row OK, or no rows" --> testcheck
     testcheck --> bailiff
     bailiff --> lead5
     lead5 -- "caught" --> contempt5
@@ -567,7 +687,8 @@ flowchart TD
     evidence -- no --> noevidence
     noevidence --> merge
     evidence -- yes --> perline5
-    perline5 --> rules5
+    perline5 --> rows5
+    rows5 --> rules5
     rules5 --> unread5
     unread5 -- yes --> note5
     note5 --> verdict5
@@ -591,10 +712,11 @@ flowchart TD
     class detective,pros,fresh,write agent
     class examiner,arb,fresharb,writespec agent
     class scriv,juror,freshjuror,scriv2 agent
-    class bailiff,freshbail agent
+    class bailiff,freshbail,auditor,amendwrite agent
     class brief,design,owner,word owner
     class ownerrule,owner2,word2 owner
     class owner3,word3,owner5 owner
+    class sweep,rowspick,exempt,amendword owner
     class amend,ok exit
     class amend2,ok2,stage3 exit
     class amend3,ok3,stage4 exit
