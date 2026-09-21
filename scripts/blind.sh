@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
-# The whole shell of a blind agent, in three subcommands.
+# The whole shell of a blind agent, in four subcommands.
 #
 #   blind.sh test <path>             run the suite and the mechanical gates
+#   blind.sh format <path>           rewrite that file with the fix tools
 #   blind.sh status <slug>           is that block's approved spec committed
 #   blind.sh show <commit> <slug>    print that block's approved spec
 #
@@ -12,10 +13,12 @@
 # the hook decides nothing about what a subcommand does, and this file offers
 # no way to say anything the hook did not already admit.
 #
-# Every subcommand runs under `bwrap` with the whole filesystem read-only,
-# because a blind agent's one command is not a way to write. The exception is
-# the agent's own lane: a `test` run binds the tree's `tests/` back writable,
-# which is the directory `lanes.py` already lets that agent write.
+# Every subcommand runs under `bwrap` with the whole filesystem read-only, and
+# one of them writes. The exception the mount table makes is the agent's own
+# lane: a run binds the tree's `tests/` back writable, which is the directory
+# `lanes.py` already lets that agent write, and `format` writes one tool's
+# output into one path inside it. `test` stays read-only, so a green gate is
+# evidence rather than a thing the verifier produced.
 #
 # It does not mask the implementation. A test run needs the code it tests on
 # disk, and a mask turns the suite into a collect error, which separates
@@ -64,7 +67,7 @@ die() {
 }
 
 usage() {
-	echo "usage: blind.sh test <path> | status <slug> | show <commit> <slug>" >&2
+	echo "usage: blind.sh test <path> | format <path> | status <slug> | show <commit> <slug>" >&2
 	exit 2
 }
 
@@ -119,64 +122,98 @@ read_runner() {
 	esac
 }
 
-cmd_test() {
-	[ $# -eq 1 ] || usage
-	local path=$1 tree=$CALLER rel=$1 status=0 ran=0 tests ext
-	tests=$(cfg tests_dir)
+#: the tree a path runs in, the path inside it, and the lane, for both verbs.
+#: One helper, so `test` and `format` cannot part on which tree a worktree path
+#: names. It sets `TREE`, `REL`, `TESTS`, and the two the gate runner keeps.
+target() {
+	local path=$1
+	TREE=$CALLER
+	REL=$path
+	STATUS=0
+	RAN=0
+	TESTS=$(cfg tests_dir)
 
 	#: a path into a spec worktree names the tree it runs in; anything else is
 	#: the caller's own tree, and the hook admits no third shape. A blind
 	#: writer's shell stands in the main checkout, so the worktree form is the
 	#: one that reaches its tree; the bare form is for a caller already inside.
 	if [[ $path == .claude/worktrees/*-spec/* ]]; then
-		#: `$tests` is quoted inside both expansions because it is the needle,
+		#: `$TESTS` is quoted inside both expansions because it is the needle,
 		#: not the pattern: a `tests_dir` carrying `*` or `?` would otherwise
 		#: match a directory it does not name.
-		tree=$ROOT/${path%%/"$tests"/*}
-		rel=$tests/${path#*/"$tests"/}
+		TREE=$ROOT/${path%%/"$TESTS"/*}
+		REL=$TESTS/${path#*/"$TESTS"/}
 	fi
-	[ -f "$tree/$rel" ] || die "no such test file: $path"
+	[ -f "$TREE/$REL" ] || die "no such test file: $path"
+}
 
-	run_gate() {
-		local label=$1
-		shift
-		if [ ! -x "$1" ] && ! command -v "$1" >/dev/null 2>&1; then
-			echo "SKIP  $label  (not installed)"
-			return 0
-		fi
-		echo "--- $label"
-		#: the tree is read-only inside the sandbox and a fresh worktree has no
-		#: `.ruff_cache`, which ruff cannot create there and fails on. Its cache
-		#: goes under the sandbox's private `/tmp` instead; pytest already
-		#: carries `-p no:cacheprovider`, and black's cache failure is silent.
-		sandbox --bind "$tree/$tests" "$tree/$tests" \
-			env -C "$tree" PYTHONPATH="$tree" PYTHONDONTWRITEBYTECODE=1 \
-			RUFF_CACHE_DIR=/tmp/ruff-cache "$@"
-		local rc=$?
-		ran=1
-		[ $rc -eq 0 ] || status=1
+run_gate() {
+	local label=$1
+	shift
+	if [ ! -x "$1" ] && ! command -v "$1" >/dev/null 2>&1; then
+		echo "SKIP  $label  (not installed)"
 		return 0
-	}
+	fi
+	echo "--- $label"
+	#: the tree is read-only inside the sandbox and a fresh worktree has no
+	#: `.ruff_cache`, which ruff cannot create there and fails on. Its cache
+	#: goes under the sandbox's private `/tmp` instead; pytest already
+	#: carries `-p no:cacheprovider`, and black's cache failure is silent.
+	#:
+	#: The lane is bound writable for both verbs, because it is the lane and
+	#: not the mount that scopes a `format` run: the argument is one file, and
+	#: a bind of that file alone would turn on whether a fix tool writes in
+	#: place or renames through the directory.
+	sandbox --bind "$TREE/$TESTS" "$TREE/$TESTS" \
+		env -C "$TREE" PYTHONPATH="$TREE" PYTHONDONTWRITEBYTECODE=1 \
+		RUFF_CACHE_DIR=/tmp/ruff-cache "$@"
+	local rc=$?
+	RAN=1
+	[ $rc -eq 0 ] || STATUS=1
+	return 0
+}
+
+cmd_test() {
+	[ $# -eq 1 ] || usage
+	target "$1"
 
 	#: the runner for this file's extension, then the lint gates. The runner is
 	#: `pytest_command` or `node_command` from `blind-reads.json`, so a project
 	#: that deselects a marker or imports a loader names it there rather than
 	#: here; the path and the flags below it are this script's own.
 	local -a runner
-	ext=${rel##*.}
-	if [ "$ext" = py ]; then
+	if [ "${REL##*.}" = py ]; then
 		read_runner runner pytest_command
-		run_gate pytest "${runner[@]}" "$rel" -q -p no:cacheprovider
-		run_gate ruff "$ROOT/.venv/bin/ruff" check "$tests"
-		run_gate black "$ROOT/.venv/bin/black" --check "$tests"
+		run_gate pytest "${runner[@]}" "$REL" -q -p no:cacheprovider
+		run_gate ruff "$ROOT/.venv/bin/ruff" check "$TESTS"
+		run_gate black "$ROOT/.venv/bin/black" --check "$TESTS"
 	else
 		read_runner runner node_command
-		run_gate node "${runner[@]}" "$rel"
-		run_gate eslint npx eslint "$rel"
+		run_gate node "${runner[@]}" "$REL"
+		run_gate eslint npx eslint "$REL"
 	fi
 
-	[ "$ran" -eq 1 ] || die "no gate for $path is installed, so nothing ran"
-	return $status
+	[ "$RAN" -eq 1 ] || die "no gate for $1 is installed, so nothing ran"
+	return $STATUS
+}
+
+#: the one writing verb. The fix tools of the file's extension, over the one
+#: path the argument names and never the lane: that is what keeps a writer off
+#: a test another block pinned. No `--unsafe-fixes`, because a fix that changes
+#: what a test asserts is the writer's to make by hand, where the diff shows it.
+cmd_format() {
+	[ $# -eq 1 ] || usage
+	target "$1"
+
+	if [ "${REL##*.}" = py ]; then
+		run_gate ruff "$ROOT/.venv/bin/ruff" check --fix "$REL"
+		run_gate black "$ROOT/.venv/bin/black" "$REL"
+	else
+		run_gate eslint npx eslint --fix "$REL"
+	fi
+
+	[ "$RAN" -eq 1 ] || die "no gate for $1 is installed, so nothing ran"
+	return $STATUS
 }
 
 cmd_status() {
@@ -198,6 +235,7 @@ sub=$1
 shift
 case $sub in
 test) cmd_test "$@" ;;
+format) cmd_format "$@" ;;
 status) cmd_status "$@" ;;
 show) cmd_show "$@" ;;
 *) usage ;;

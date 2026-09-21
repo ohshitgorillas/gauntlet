@@ -14,8 +14,10 @@ frontmatter wiring it replaces, which never saw a main-agent call either.
 The `juror` and the `arbiter` have no `Bash` at all. The
 `scrivener` and the `bailiff` still need one: a suite run
 against the file they wrote, the working-tree check that proves their spec is
-committed, and a `git show` of that spec. Those three are `scripts/blind.sh`,
-and this hook is what makes them the only three.
+committed, and a `git show` of that spec. The `scrivener` needs a fourth, the
+one that writes: the fix tools over the file it just wrote, so a `ruff` or
+`black` failure on its own hand is its to clear rather than a re-request. Those
+four are `scripts/blind.sh`, and this hook is what makes them the only four.
 
 The check is a whole-string anchored match, never a search. A hook that looks
 for `scripts/blind.sh` anywhere in the command lets a second command appended
@@ -25,9 +27,15 @@ command in front, or an environment assignment in front all fail to match.
 
 Each subcommand admits its own argument shape and nothing wider:
 
-  * `test <path>`   a repo-relative path under `<tests dir>/`
+  * `test <path>`     a repo-relative path under `<tests dir>/`
   * `status <slug>`
   * `show <commit> <slug>`
+  * `format <path>`   the same path shape, and the `scrivener` alone
+
+The fourth shape is caller-specific because it writes. `BLIND` is two agents
+and the three read shapes are common to both, but a write into `<tests dir>/`
+is the `scrivener`'s lane and nobody else's: a flat fourth entry would hand the
+`bailiff` a write that `lanes.py` denies it by every other route.
 
 The argument grammars are the other half of the same rule. A hook that takes
 whatever word follows `show` as the slug admits a relative path walking out of
@@ -103,11 +111,18 @@ COMMIT = r"(?:HEAD|[0-9a-fA-F]{7,40})"
 #: and what refuses it there is normalization, which is why both still run
 TESTPATH = lane_paths.TESTPATH
 
-_ARGS = (
+#: the three shapes every agent in `BLIND` may type. None of them writes.
+_READS = (
     rf"test\s+{TESTPATH}",
     rf"status\s+{SLUG}",
     rf"show\s+{COMMIT}\s+{SLUG}",
 )
+#: the one that writes, and the one caller it is admitted for: `<tests dir>/`
+#: is the `scrivener`'s lane in `lanes.py` and nobody else's
+_WRITES = (rf"format\s+{TESTPATH}",)
+WRITER = "scrivener"
+
+_ARGS = _READS + _WRITES
 #: the head, in the three spellings admitted. `scripts/blind.sh` bare is the
 #: one an agent types; the absolute path and the `${CLAUDE_PLUGIN_ROOT}` the
 #: runtime expands into one are admitted because a brief or a doc may still
@@ -116,11 +131,20 @@ _ARGS = (
 #: a shell of its own authoring.
 _HEAD = r"(?:/[A-Za-z0-9_.@+:/-]*/|\$\{CLAUDE_PLUGIN_ROOT\}/)?" + re.escape(ENTRY)
 
-ALLOWED = tuple(re.compile(rf"\s*{_HEAD}\s+{a}\s*\Z") for a in _ARGS)
+
+def _compiled(args: tuple[str, ...]) -> tuple[re.Pattern[str], ...]:
+    """The whole-string patterns for one set of argument shapes."""
+    return tuple(re.compile(rf"\s*{_HEAD}\s+{a}\s*\Z") for a in args)
+
+
+ALLOWED = _compiled(_ARGS)
+READ_ONLY = _compiled(_READS)
 
 _WHY = (
     "A blind agent's shell is one command: `scripts/blind.sh test <path>`, "
-    "`scripts/blind.sh status <slug>` or `scripts/blind.sh show <commit> <slug>`. The whole "
+    "`scripts/blind.sh status <slug>` or `scripts/blind.sh show <commit> <slug>`, and for the "
+    "scrivener alone `scripts/blind.sh format <path>` -- the writing shape, which is denied "
+    "every other caller because `<tests dir>/` is that one agent's lane. The whole "
     "command text has to be that call and nothing else -- no second command after it, no "
     "command or environment assignment in front of it -- and each argument has to be the "
     "shape its subcommand names. Everything else is denied by name, not by analysis. "
@@ -128,11 +152,16 @@ _WHY = (
 )
 
 
-def _allowed_command(command: str) -> bool:
-    """Whether the whole command text is one `scripts/blind.sh` call we admit."""
+def _allowed_command(command: str, agent: str) -> bool:
+    """Whether the whole command text is one `scripts/blind.sh` call we admit.
+
+    The writing shape is matched only for the caller that owns the lane it
+    writes into, so the set a `bailiff` is held to is the three read shapes.
+    """
     if ".." in command:
         return False
-    return any(p.match(command) for p in ALLOWED)
+    shapes = ALLOWED if agent == WRITER else READ_ONLY
+    return any(p.match(command) for p in shapes)
 
 
 def kit_entry() -> str:
@@ -169,9 +198,10 @@ def _verdict(
     #: wired session-wide, so every agent's shell arrives here. A caller
     #: outside `BLIND` is not this hook's subject and is let through unjudged,
     #: the main agent -- which carries no `agent_type` at all -- included
-    if hook_payload.agent_of(payload) not in BLIND:
+    agent = hook_payload.agent_of(payload)
+    if agent not in BLIND:
         return None
-    return None if _allowed_command(hook_payload.command_of(tool_input)) else _WHY
+    return None if _allowed_command(hook_payload.command_of(tool_input), agent) else _WHY
 
 
 def _answer(payload: hook_payload.Payload) -> dict[str, Any] | None:
@@ -330,10 +360,30 @@ def self_test() -> int:
                 denied(bash(f"scripts/blind.sh show HEAD:{plan} demo")),
                 denied(bash("scripts/blind.sh show 5494faa demo extra")),
                 denied(bash("scripts/blind.sh show demo")),
+                allowed(bash(f"scripts/blind.sh format {wire}")),
+                allowed(bash(f"scripts/blind.sh format .claude/worktrees/demo-spec/{wire}")),
+                denied(bash(f"scripts/blind.sh format {wire} {wire}")),
+                denied(bash(f"scripts/blind.sh format {here}{hook}")),
+                denied(bash(f"scripts/blind.sh format tests/../{here}{hook}")),
+                denied(bash(f"scripts/blind.sh format {wire}; cat {here}{hook}")),
+                denied(bash("scripts/blind.sh format")),
                 #: the subcommand name alone is not a pass: the arguments decide
                 denied(bash(f"scripts/blind.sh status {wire} extra")),
                 denied(bash("scripts/blind.sh merge demo")),
                 denied(bash("scripts/blind.sh")),
+            )
+        ),
+        "2a the writing shape is the scrivener's, and the bailiff's shell stays read-only": all(
+            (
+                allowed(bash(f"scripts/blind.sh format {wire}", "scrivener")),
+                allowed(bash(f"scripts/blind.sh format {wire}", "gauntlet:scrivener")),
+                denied(bash(f"scripts/blind.sh format {wire}", "bailiff")),
+                denied(bash(f"scripts/blind.sh format {wire}", "gauntlet:bailiff")),
+                #: and the three read shapes are still common to both
+                allowed(bash(f"scripts/blind.sh test {wire}", "bailiff")),
+                allowed(bash("scripts/blind.sh show HEAD demo", "bailiff")),
+                #: a caller this hook does not answer for is unjudged, as ever
+                allowed(bash(f"scripts/blind.sh format {wire}", None)),
             )
         ),
         "3 the two blind agents are judged, and no other caller is": all(

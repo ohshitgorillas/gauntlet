@@ -92,6 +92,10 @@ A line you cannot test as written — no public entry point for its input, an ou
 
 Verify before you report: `scripts/blind.sh test .claude/worktrees/<slug>-spec/<tests dir>/<file>` runs the tests you wrote and the mechanical gates that apply to them — `ruff` and `black` for a Python file, `eslint` for a JS one — in one call.
 
+A lint FAIL naming a file you wrote or amended is yours. Run `scripts/blind.sh format <that path>`, re-run `test`, report the clean gate. Residue `--fix` cannot reach, you fix by `Edit` and re-run; residue you cannot fix is a finding you report. A report carrying a `ruff`, `black` or `eslint` FAIL on your own file is a defect.
+
+A FAIL naming a file no line of your block sends you into is a finding you report, never a path you format.
+
 ## The red run is not yours to certify
 
 After you report, the main agent commits your tests and runs them with `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh red`, which saves the output to a file and prints nothing else. That path goes to a `juror`, which is blind exactly as you are and returns one verdict per spec line. You do not grade your own run: the agent that wrote the test is the worst reader of whether it bit.
