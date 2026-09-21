@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-20
+
 ### Added
 - **`scripts/blind.sh format <path>` is the blind shell's fourth subcommand, and the first that writes.** It runs `ruff check --fix` then `black` over the one path it is given, `eslint --fix` for a JS file, inside the sandbox with the caller's own lane bound writable, and exits with whatever the fix tools still find. `blind-bash.py` admits it for the `scrivener` alone, whose lane it writes into, and denies it every other caller.
 - **`scripts/pair.sh check <slug>` gates a pair without landing it, and `merge` lands only what a check passed.** `check` converges the pair and runs the gate, writing a numbered `<gauntlet dir>/merge/<slug>.<N>.txt` that opens with the tips of `spec/<slug>`, `impl/<slug>` and the target branch and a `gate:` line, and prints `CHECK <path> PASS` or `FAIL`. `merge` reads the newest reading and prints `UNCHECKED <slug>` where it is absent, red or stale.
