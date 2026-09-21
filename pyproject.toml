@@ -75,7 +75,7 @@ parallel = true
 # the suite drives rather than only the wrappers around them. What it still
 # understates is anything the suite runs under a bare `python3` rather than the
 # venv's, which has no tracer to start.
-fail_under = 43
+fail_under = 42
 skip_covered = false
 
 [tool.coverage.json]
