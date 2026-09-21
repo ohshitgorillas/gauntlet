@@ -1,0 +1,135 @@
+slug: collateral-lane
+discovery: detective
+
+brief:
+> Draft the stage 1 plan for slug `collateral-lane` in `~/dev/gauntlet`, and cite the open pair `junk-run-rule` in `~/dev/hqptuner` as the case the plan routes to a merge.
+> Plan a `collateral:` section for `kind:` spec blocks, rows of `<tests dir>/<file>::<test>`, `breaks:`, `assertion:`, checked by the `arbiter` against `<tests dir>/`, admitted by the `scrivener` as a delta target, counted by the `prosecutor` against the plan's caller-side delta, and verified byte-identical by `scripts/strike-diff.py` and the `bailiff` at merge.
+> Plan a `pair.sh respec` path that takes an `arbiter` round on `collateral:` rows alone with no second owner word where a mechanical diff-shape check finds no other change.
+> Stop once the plan is presented on `READY`.
+> P1. collateral: section in the spec block (closes Form 1, issues 1-4, 6). After the behavior lines, a kind: block may carry collateral: rows: <tests dir>/<file>::<test>, breaks: <caller-side fact>, assertion: <quoted, byte-identical after>. Arbiter check: target exists, quoted assertion present, breaks: names a fact outside <tests dir>/. Scrivener admits a delta naming a collateral target. strike-diff.py at merge and bailiff post-merge verify assertion byte-identical. Plan's caller-side delta over <tests dir>/ maps onto these rows, so the prosecutor can count them.
+> P2. Proportional respec: collateral-only amendment (closes Form 2). A respec whose diff against the committed block touches only collateral: rows takes an arbiter round on those rows alone, carried verdicts elsewhere, and no second owner word, on the ground that no contract line changed. pair.sh respec verifies the diff shape mechanically and refuses the shortcut otherwise. Behavior-line changes keep the full cost.
+
+delivered: What is wrong, the junk-run-rule paragraph
+delivered: Which files get touched, items 1 through 9
+delivered: Which files get touched, item 9, the respec shortcut
+delivered: What it costs, the stop condition
+delivered: What the owner sees change, the row shape
+delivered: What the owner sees change, the row shape
+delivered: Which files get touched, item 2
+delivered: Which files get touched, item 3
+delivered: Which files get touched, items 6, 7, 8 and 5
+delivered: Which files get touched, item 4
+delivered: Which files get touched, item 9, the diff-shape check
+delivered: Which files get touched, item 2, the rows-only round
+delivered: Which files get touched, item 9, the diff-shape check
+delivered: What it costs, the shortcut's price
+
+## What is wrong
+
+`kind:` block carries no row for a test the change breaks but does not pin. `existing:` names a test the behavior line pins, and its delta rewrites that test's own assertion (`agents/arbiter.md:106`). Test broken by a caller-side move — renamed keyword, moved fixture, renumbered index — pins nothing in the block, stops the suite anyway.
+
+`junk-run-rule` in `~/dev/hqptuner` is open on that. Its block renames `classify`/`verdicts`' keyword to `run: junkrun.JunkRun | None` "in place of `block`" (`/home/atom/dev/hqptuner/gauntlet/specs/approved/junk-run-rule.txt:13-14`). Two call sites carry the old keyword, both in module-level helpers of one file: `_corner_on` (`/home/atom/dev/hqptuner/tests/engine/test_junkadvisor.py:59`, its call at `:64`) and `_verdict_corners` (`:192`, its call at `:195`); a third helper, `_blocked` (`:157`), builds the record `:64` passes. They feed two tests — `test_20k_is_earned_only_on_a_deep_drop`, whose body is one assertion, "assert _corner_on(*call) == corner" (`:189`), and `test_a_tone_keeps_its_corner_off_the_block`, "assert _verdict_corners(_with_a_27k_tone(_junk_over_music(junk_db))) == seen" (`:205`). Both assertions survive the rename untouched; the helpers and the parametrize list above each `def` do not. All four `existing:` clauses read `none` (`/home/atom/dev/hqptuner/gauntlet/specs/approved/junk-run-rule.txt:34`, `:44`, `:53`, `:65`). The reviewer's round says the consequence out loud (`/home/atom/dev/hqptuner/gauntlet/specs/approved/junk-run-rule.txt:92`): "that delta is the main agent's to carry to the writer and is no part of these four lines". The writer refuses it — `agents/scrivener.md:50` — and the tests lane denies every other hand the file (`README.md:16`). Both worktrees live, and the pair has no route to a merge.
+
+Two routes exist, neither fits. `motion: rehome` carries the wanted shape — `moved:`, quoted `assertion:`, byte-identical after (`docs/testing.md:116-133`) — but is a tests-only block with no implementation phase (`scripts/strike-diff.py:4`), so it cannot ride a `kind:` block's pair. Widening `existing:` makes the block claim the behavior line pins that test, which check (b) reads as a delta of its assertion.
+
+So collateral ships as prose. `/home/atom/dev/hqptuner/gauntlet/specs/approved/matrix-profile-combobox.txt:9` hangs "collateral, named so the writer may repair what the same surface change moves" off a behavior line, over two files. No parser reads it, no check resolves it, no merge check holds what it names.
+
+Merge holds nothing here. `scripts/pair/cli.py:242` sets `mechanical` on the three motion kinds alone, so `strike-diff.py` runs for no `kind:` block (`scripts/pair/cli.py:249-253`); the `bailiff` rules per behavior line — `PIN`, `SOFT`, `MISSING`, `EXTRA` (`agents/bailiff.md:33-36`) — with no token for a test no line names.
+
+The plan gate already counts them and has nowhere to put them. Check (c) counts call sites the plan says change (`agents/prosecutor.md:55`), and hqptuner's approved plan lists the three under `<tests dir>/` and stops there: "They go through the tests lane; I write nothing under `tests/`" (`/home/atom/dev/hqptuner/gauntlet/plans/approved/junk-run-rule.txt:73`).
+
+## What the owner sees change
+
+A `kind:` block may carry a `collateral:` section under its behavior lines, one row per broken test:
+
+```
+collateral:
+- <tests dir>/<file>::<test>
+  breaks: <the fact outside <tests dir>/ that moved, and what it forces>
+  assertion: <the assertion, quoted verbatim, byte-identical after>
+```
+
+The target is always a test. A helper, a fixture, a parametrize list, an import: named in `breaks:`, repaired by the writer, never a target — the row's promise is about the named test's own body. So `junk-run-rule` carries two rows, one per test its three helpers feed.
+
+A respec whose diff touches rows alone: one `arbiter` round, no second owner word.
+
+## Which files get touched, and roughly how
+
+1. `docs/testing.md` — a "Collateral rows" section after "Rehome motions" (`docs/testing.md:114-133`), in that section's register. Rows are block grammar, not a numbered rule, so nothing renumbers (`docs/testing.md:5`). It states: `kind:` blocks only; target always `<tests dir>/<file>::<test>`, a whole-file target malformed; no `rule:`, `removed:`, `replace:`, `kills:` or `bite:`, since nothing pinned changes; `breaks:` names a fact outside `<tests dir>/` and is prose a reviewer reads; the assertion is byte-identical after. Four readings at the edges. No ceiling on rows — each costs one `(u)` reading and one merge verdict, and the cap at `agents/arbiter.md:128` counts behavior lines. A `collateral:` header with no row under it is malformed, since the absent section is how a block carries none. A test named by both a row and an `existing:` clause is malformed too: the clause says its assertion changes, the row says it does not. A repair that has to move the test to another file or rename it is no row at all — that is `motion: rehome`'s shape, which cannot ride this pair, so the move goes as its own tests-only block once the pair lands.
+
+2. `agents/arbiter.md` — the block grammar under Inputs gains the section; a new check `(u)` lands after `(t)` (`agents/arbiter.md:144`): the target resolves to a test in `<tests dir>/`, the quoted `assertion:` sits byte-identical in that test's own body, `breaks:` names a fact outside `<tests dir>/`, and the three malformed shapes item 1 names are struck. Default `STRICKEN`, escape is all four. Row verdicts print under the behavior lines. `agents/arbiter.md:40` gains the rows-only round: a changed row re-runs `(u)` for that row alone, and every behavior line prints `carried`. Blindness is unaffected — every fact `(u)` needs is in `<tests dir>/` or in the row.
+
+3. `agents/scrivener.md:50` — the delta refusal gains one named exception: a delta whose target a committed `collateral:` row names. The writer repairs what surrounds it — helper, decorator, import — and carries the quoted assertion byte-identical, the discipline it holds under `motion: rehome` (`agents/scrivener.md:38`). A row whose assertion it would have to rewrite is a finding it reports and stops on.
+
+4. `agents/prosecutor.md:55` — check (c) gains one clause: where the plan's caller-side delta reaches `<tests dir>/`, the plan names each broken test as `<file>::<test>`, and the reviewer counts them itself. That count is what the block's rows are held to one stage later.
+
+5. `agents/bailiff.md` — one row per `collateral:` row beside the per-line verdicts: `HELD`, or `ALTERED <before -> after>`, which forces `ANOTHER PASS` as a `SOFT` does (`agents/bailiff.md:49`). No brief change: the block is read from the spec commit (`agents/bailiff.md:27`), so rows arrive with it.
+
+6. `scripts/strike-diff.py` — the docstring (`scripts/strike-diff.py:2-8`) scopes the script to blocks with no implementation phase and is rewritten to carry a `kind:` block's rows, which have one. `_FIELD` (`scripts/strike-diff.py:64`) gains `breaks`. `_LINE` (`scripts/strike-diff.py:63`) matches `N. strike <target>` and no row, so a `parse_collateral` reads the section into the existing `Line` shape (`scripts/strike-diff.py:69-84`). `collateral_verdict` reuses the byte-identical body read `rehome_verdict` makes (`scripts/strike-diff.py:200-214`), returning `OK`, `MISSING` or `ALTERED`. A new entry point `collateral_report(block, base, head)` sits beside `report()` (`scripts/strike-diff.py:217`): one verdict per row and no `UNNAMED` sweep, because `report()` names every changed file no line claims (`scripts/strike-diff.py:233`), which on a `kind:` block is every test the writer just landed. `report()` itself is untouched, so the motion path keeps its verdicts. `main` gains `--collateral`, and `--self-test` (`scripts/strike-diff.py:252`) gains one case per verdict plus one for a landed test no row names.
+
+7. `scripts/pair/blocks.py` — a `collateral_report` beside `strike_report` (`scripts/pair/blocks.py:173`), same `chdir` discipline, reading the rows from the committed block.
+
+8. `scripts/pair/cli.py`, merge — `_converge_and_land` (`scripts/pair/cli.py:242`): a `kind:` block carrying rows runs that check and prints its verdicts beside `_brief`, and a verdict other than `OK` dies as the mechanical branch does (`scripts/pair/cli.py:255-256`). The `mechanical` flag keeps its three kinds.
+
+9. `scripts/pair/cli.py`, respec — `cmd_respec` (`scripts/pair/cli.py:134`) compares the approved text against `git show HEAD:<spec path>` before it writes. Where the structure line, `brief:` and every behavior line are byte-identical and only rows differ, it prints `RESPEC COLLATERAL <path> <commit>`, the main agent's evidence that no second owner word is owed; anything else, and any block it cannot part into those pieces, prints `RESPEC` as today. `round_match` (`scripts/pair/cli.py:76`) and `blocks.committed_section` (`scripts/pair/blocks.py:189`) are untouched, so the shortcut skips the owner and never the `arbiter`.
+
+10. `hooks/lanes.py` — `_TESTS_LANE` (`hooks/lanes.py:162-171`) is the denial text a hand gets off `<tests dir>/`, and it enumerates the routes a test changes by: "a re-approved line, a new `spec:` commit, a delta to the writer", `motion: rehome`, then "Either route, never by hand". A row is a third route, so that text gains it and stops naming two.
+
+11. `docs/agents.md` — `docs/agents.md:56` conditions the `strike-diff.py` verdict lines on "the structure line is `motion: strike`, `motion: amend` or `motion: rehome`", which this change overturns: the row gains the `kind:` block that carries collateral rows. `docs/agents.md:62` is the `respec` output contract and gains `RESPEC COLLATERAL`. The `arbiter`, `scrivener`, `prosecutor` and `bailiff` roster rows carry the new check, the admitted delta and the new tokens.
+
+12. `README.md` — the approval-word section, `README.md:47`, gains the one exception: a collateral-only respec of a block, on the ground the brief names, that no contract line changed. `README.md:49` stands as written; it rules on an approved plan's amendment, which rewrites the body the owner read, where this leaves every contract line byte-identical. The workflow list gains the row at step 8's delta.
+
+13. `CHANGELOG.md` — one `Added` entry under `[Unreleased]`, in the commit that lands the change: the grammar, the merge check and the respec path are what a consumer running the installed plugin sees change.
+
+14. `scripts/pair/selftest.py` — it holds `scripts/pair` and reads block grammar through `blocks.reviewer_section` and `blocks.block_kind` (`scripts/pair/selftest.py:30-38`). It gains a row for `collateral_report`'s rows and one for the second `cmd_respec` output.
+
+15. `tests/` — through the chain, not by hand: the `strike-diff.py` parser and its verdicts, and the respec diff-shape check, are the surfaces a spec block pins.
+
+## Caller-side delta
+
+Every reader of block grammar is in the touched list: the four agent definitions, `docs/testing.md`, `strike-diff.py`, `blocks.py`, `cli.py`, `selftest.py`, `lanes.py`, `docs/agents.md`. No lane moves and no lane table changes, so `lane_config.py`, `lane_paths.py` and the other hooks hold. `scripts/init.py` writes the lane skeleton and names no block field. Consumers take the change with the plugin; an installed copy that writes no row behaves as it does today, since every reader treats an absent section as empty.
+
+## What it costs
+
+Fourteen paths, one of them a directory; eight are prose. `check-gates.sh` runs `ruff`, `black`, `mypy`, `shellcheck`, the suite under `coverage` and every `--self-test`. `strike-diff.py --self-test` grows, and its docstring count moves with it (`scripts/strike-diff.py:253`). `lanes.py --self-test` does not: `hooks/lanes_selftest.py` pins no `_TESTS_LANE` prose, so item 10 changes a denial message and no pinned line.
+
+The change's own tests go through the tests lane, so it pays a spec block and a `scrivener` round of this repo's own chain before it lands.
+
+The shortcut's price is the owner's sight of a respec round. A collateral-only respec lands on one `arbiter` round, so the mechanical diff-shape check is the whole guard: it admits the shortcut only on a block it parted into structure line, `brief:`, behavior lines and rows, and refuses otherwise. A behavior line that changes in the same respec takes the full price, owner's word included.
+
+Left out: no lane hook and no `PreToolUse` matcher judges a row — the `arbiter` judges it and the merge check holds it, which is where every other block field is judged. `motion: rehome` is untouched.
+
+Work stops when the plan is presented on `READY`.
+
+## Open questions
+
+None.
+
+--- reviewer ---
+READY
+
+a  PASS  carried: Three named things change meaning and each is stated outright as the change proposed, not as a means: the `strike-diff.py` scope docstring (`scripts/strike-diff.py:2-8`, item 6), `docs/agents.md:56`'s condition on the three motions ("which this change overturns", item 11), and `_TESTS_LANE`'s two routes (`hooks/lanes.py:162-171`, item 10, "that text gains it and stops naming two"). `mechanical` (`scripts/pair/cli.py:242`) keeps its three kinds, and `report()` keeps its verdicts.
+
+b  PASS  "Fourteen paths, one of them a directory; eight are prose" is what the list holds: fifteen items over fourteen paths, items 8 and 9 both `scripts/pair/cli.py`, and the prose ones are `docs/testing.md`, the four agent definitions, `docs/agents.md`, `README.md` and `CHANGELOG.md`. Every other citation stands as resolved in the rounds before: `/home/atom/dev/hqptuner/tests/engine/test_junkadvisor.py:64` and `:195` are the two `block=` sites and `:157-159` builds the record `:64` passes; `:189` and `:205` are the two test bodies; `scripts/pair/selftest.py:30-38`, `scripts/strike-diff.py:63`, `:64`, `:69-84`, `:200-214`, `:217`, `:233`, `:252`, `:253`, `scripts/pair/cli.py:76`, `:134`, `:242`, `:255-256`, `agents/arbiter.md:40`, `:106`, `:128`, `:144`, `agents/scrivener.md:38`, `:50`, `agents/prosecutor.md:55`, `agents/bailiff.md:27`, `:33-36`, `:49`, `hooks/lanes.py:162-171`, `docs/agents.md:56`, `:62`, `docs/testing.md:5`, `README.md:16`, `:47`, `:49` and the four hqptuner spec citations read as the plan says. `discovery: detective` is right: the plan cites files outside its touched list.
+
+c  N/A   carried: Still nothing splits, extracts or moves: no symbol changes path or spelling.
+
+d  PASS  carried: Cause named upstream of the symptom, "`kind:` block carries no row for a test the change breaks but does not pin", with `agents/scrivener.md:50` and `README.md:16` as why the broken test has no hand to repair it. Second round on this surface; the fix list did not grow, it moved `report()` out of the change and added the readers I named.
+
+e  PASS  carried: The rules named in round 2 stand as they were, and the one new item touches none: `scripts/pair/selftest.py` is the gate `CLAUDE.md` names, and item 14 adds rows to it rather than overturning what it holds — `blocks.strike_targets` at `scripts/pair/selftest.py:40-41` keeps its rule, since a row is no strike target.
+
+f  PASS  carried: The six boundaries are read, and the one sentence that changed still reads at the edge: "the row's promise is about the named test's own body", with `junk-run-rule` carrying "two rows, one per test its three helpers feed", which is what `test_body` (`scripts/strike-diff.py:133-151`) makes true — three helpers move, two bodies hold, `:189` and `:205`.
+
+g  PASS  carried: "Open questions: None" still right; nothing in the rewrite raises a question a doc, the code or the owner's own brief leaves open.
+
+h  PASS  carried: "Every reader of block grammar is in the touched list" now holds against the tree: `strike-diff.py`, `blocks.py`, `cli.py`, `selftest.py`, `lanes.py` and the four agent definitions are the readers, and `blocks.strike_targets`, the one call I had not placed, is `selftest.py`'s and is in item 14's file. `hooks/lane_config.py`, `hooks/lane_paths.py`, `hooks/lanes_selftest.py` and `scripts/init.py` name no block field.
+
+i  PASS  carried: `brief:` quoted, fourteen sentences, fourteen `delivered:` lines, one each, nothing beneath any, no `dropped:`; every line names an element that exists in the body.
+
+j  N/A   carried: No composition-root file in this repository's architecture; `scripts/pair/cli.py` is a command dispatcher.
+
+k  PASS  carried: The eleventh and twelfth lines now answer their own sentences: "P2. Proportional respec: collateral-only amendment" takes item 9's diff-shape check, and "takes an arbiter round on those rows alone, carried verdicts elsewhere, and no second owner word" takes item 2's rows-only round, which is the clause `agents/arbiter.md:40` gains. The other twelve read as their sentences read.
+
+l  PASS  carried: The sentences added this round carry fact: item 14 names why that file is touched and what it gains, and the two self-test sentences under "What it costs" state which `--self-test` grows and which does not, with the reason. Nothing lands in two sections.
+
+notes: none.

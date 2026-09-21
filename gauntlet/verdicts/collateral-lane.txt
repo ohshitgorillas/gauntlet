@@ -1,0 +1,3 @@
+RED 1: assert _collateral_report(tmp_path, COLLATERAL_BLOCK, repo, base, head) == expected -- assert [] == ['OK tests/test_a.py::test_x'] (body-carries-the-assertion) and assert [] == ['ALTERED tests/test_a.py::test_x'] (sibling-carries-it-instead)
+RED 2: assert _collateral_report(tmp_path, COLLATERAL_BLOCK, repo, base, head) == expected -- assert [] == ['MISSING tests/test_a.py::test_x'] (target-gone-from-the-file) and assert [] == ['ALTERED tests/test_a.py::test_x'] (target-still-there-rewritten)
+RED 4: assert _respec_shape(lines, tree) == expected -- AssertionError: At index 0 diff: 'RESPEC' != 'RESPEC COLLATERAL'
