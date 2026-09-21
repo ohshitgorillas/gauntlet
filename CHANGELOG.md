@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-21
+
 ### Fixed
 - **A wrapped shell writes `scripts/`, `hooks/` and `agents/` again.** `bwrap-wrap.py` bound those three bare directory names read-only in whatever checkout it wrapped, so a consumer project whose own source sits under one of them got `EROFS` from every wrapped shell, and `pre-commit`'s `git checkout -- .` could not restore the worktree, failing any commit that touched it. The lane directories, `<gauntlet dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `.git/hooks` and `.git/config` stay read-only in every wrapped shell.
 
