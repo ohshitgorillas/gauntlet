@@ -152,7 +152,9 @@ def combine(slug: str) -> None:
             + "; going straight to the gate"
         )
         return
-    if not git_ok("merge", "--no-ff", "--no-edit", branch, tree=spec):
+    #: the subject git would write itself carries no prefix, and the combined
+    #: tree's HEAD is this commit when the gate runs `commit-msg.py` over it
+    if not git_ok("merge", "--no-ff", "-m", "merge: " + slug, branch, tree=spec):
         die(
             "pair: merging "
             + branch
