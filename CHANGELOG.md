@@ -10,6 +10,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - **An `auditor` agent sweeps the suite against the policy file.** Blind: `Read`, `Grep`, `Glob`, and a row in the `BLIND` tuple of `no-impl-reads.py` denies it the source. It resolves the owner's scope wording to a target list, prints the list, then returns one row per target — `VALID` by default, `STRIKE` or `AMEND` with a rule number and a quoted assertion, `NOTE` for a fact it cannot read.
 
 ### Fixed
+- **`scripts/blind.sh` runs a file in the tree its path names.** `.claude/worktrees/<slug>-spec/<lane>/<file>` is that worktree and a bare `<lane>/<file>` is the caller's own tree, from any working directory; the runner and `.venv/` come from the main checkout either way. The `scrivener` definition names the worktree form, since its shell stands in the main checkout.
+- **`ruff` caches under the sandbox's private `/tmp`.** A spec worktree is read-only inside the sandbox and carries no `.ruff_cache`, so the gate passes there.
 - **An `arbiter` round reaches `<gauntlet dir>/reviews/` on disk.** The definition names the `Write` tool for the round file and the approved block; a shell redirect from a reviewer lands nowhere.
 
 ## [0.3.0] - 2026-09-19

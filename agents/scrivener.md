@@ -57,11 +57,13 @@ Your task prompt gives you an **absolute path** to the test file you are writing
 
 Your tree contains no implementation of the behavior you are specifying, and none arrives while you are working. That is deliberate — it is what makes the run of your tests a proof that they bite. Tests of yours that pass in this tree are a finding to report, not a success, unless the block's structure line is `kind: characterization`, `kind: refactor`, `motion: amend`, `motion: strike` or `motion: rehome`, where green is the expected result.
 
-Run the suite through the one shell you are admitted, which runs it from inside your tree against your tree's code:
+Run the suite through the one shell you are admitted. Name the file by its path from the main checkout, through your worktree, and the run happens inside your tree against your tree's code:
 
 ```
-scripts/blind.sh test <tests dir>/<file>
+scripts/blind.sh test .claude/worktrees/<slug>-spec/<tests dir>/<file>
 ```
+
+A bare `<tests dir>/<file>` resolves against the tree your shell stands in, which is the main checkout, not yours: it runs the main checkout's copy of the file, or none.
 
 It picks the pytest or `node --test` runner from the file's extension, so the same call runs a Python test and a JS one.
 
@@ -88,7 +90,7 @@ An amendment is in service of a spec line, never a change of its own: the line i
 
 A line you cannot test as written — no public entry point for its input, an outcome that is copy (`docs/testing.md` rule 9), an outcome you would have to read the implementation to phrase — gets no test. It gets `UNTESTABLE N: <reason>` in your report, and the main agent returns the line to the arbiter. Do not write the weak test instead; a weak test goes green and nobody sees it.
 
-Verify before you report: `scripts/blind.sh test <tests dir>/<file>` runs the tests you wrote and the mechanical gates that apply to them — `ruff` and `black` for a Python file, `eslint` for a JS one — in one call.
+Verify before you report: `scripts/blind.sh test .claude/worktrees/<slug>-spec/<tests dir>/<file>` runs the tests you wrote and the mechanical gates that apply to them — `ruff` and `black` for a Python file, `eslint` for a JS one — in one call.
 
 ## The red run is not yours to certify
 

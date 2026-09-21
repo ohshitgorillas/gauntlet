@@ -30,24 +30,32 @@
 
 set -uo pipefail
 
-ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+#: Two trees. `CALLER` is the checkout the command was typed in, which is a
+#: spec worktree when the caller's working directory sits inside one. `ROOT` is
+#: the main checkout: `--git-common-dir` is the main checkout's `.git` from
+#: inside a worktree as well, and the checkout is its parent. `.venv/` and the
+#: worktrees live under `ROOT` and nowhere else, so a runner is found there
+#: whatever tree the caller stands in; a bare test path is the caller's.
+CALLER=$(git rev-parse --show-toplevel 2>/dev/null) || {
 	echo "blind.sh: not inside a git checkout" >&2
 	exit 2
 }
+common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+[ -n "$common_dir" ] || {
+	echo "blind.sh: cannot resolve the main checkout" >&2
+	exit 2
+}
+ROOT=$(dirname "$common_dir")
 cd "$ROOT" || exit 2
 
 #: `shell_shapes.config()` reads the declaration from `$CLAUDE_PROJECT_DIR`, and
-#: the variable is set for a hook but not for a `Bash` child. So the checkout is
-#: resolved once here and exported for everything below. `--git-common-dir` is
-#: the main checkout's `.git` from inside a worktree as well, and the checkout
-#: is its parent: the declaration is the project's, and a worktree carries no
-#: copy of it. A variable already set is the caller's and stands.
+#: the variable is set for a hook but not for a `Bash` child. So the main
+#: checkout is exported for everything below: the declaration is the project's,
+#: and a worktree carries no copy of it. A variable already set is the caller's
+#: and stands.
 if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
-	if common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) &&
-		[ -n "$common_dir" ]; then
-		CLAUDE_PROJECT_DIR=$(dirname "$common_dir")
-		export CLAUDE_PROJECT_DIR
-	fi
+	CLAUDE_PROJECT_DIR=$ROOT
+	export CLAUDE_PROJECT_DIR
 fi
 
 die() {
@@ -113,11 +121,13 @@ read_runner() {
 
 cmd_test() {
 	[ $# -eq 1 ] || usage
-	local path=$1 tree=$ROOT rel=$1 status=0 ran=0 tests ext
+	local path=$1 tree=$CALLER rel=$1 status=0 ran=0 tests ext
 	tests=$(cfg tests_dir)
 
 	#: a path into a spec worktree names the tree it runs in; anything else is
-	#: the main checkout, and the hook admits no third shape
+	#: the caller's own tree, and the hook admits no third shape. A blind
+	#: writer's shell stands in the main checkout, so the worktree form is the
+	#: one that reaches its tree; the bare form is for a caller already inside.
 	if [[ $path == .claude/worktrees/*-spec/* ]]; then
 		#: `$tests` is quoted inside both expansions because it is the needle,
 		#: not the pattern: a `tests_dir` carrying `*` or `?` would otherwise
@@ -135,8 +145,13 @@ cmd_test() {
 			return 0
 		fi
 		echo "--- $label"
+		#: the tree is read-only inside the sandbox and a fresh worktree has no
+		#: `.ruff_cache`, which ruff cannot create there and fails on. Its cache
+		#: goes under the sandbox's private `/tmp` instead; pytest already
+		#: carries `-p no:cacheprovider`, and black's cache failure is silent.
 		sandbox --bind "$tree/$tests" "$tree/$tests" \
-			env -C "$tree" PYTHONPATH="$tree" PYTHONDONTWRITEBYTECODE=1 "$@"
+			env -C "$tree" PYTHONPATH="$tree" PYTHONDONTWRITEBYTECODE=1 \
+			RUFF_CACHE_DIR=/tmp/ruff-cache "$@"
 		local rc=$?
 		ran=1
 		[ $rc -eq 0 ] || status=1
