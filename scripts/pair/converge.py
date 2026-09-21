@@ -137,6 +137,11 @@ def combine(slug: str) -> None:
     A re-run after a red gate arrives in exactly this state, and the way out of
     a red gate that re-approves the block leaves the branch an ancestor, so
     stopping here would strand the pair with no verb that lands it.
+
+    The merge carries `merge: <slug>` as its subject. This commit is the
+    combined tree's `HEAD` when the gate runs, and `scripts/gates/commit-msg.py`
+    reads that `HEAD`, so the subject git would write for itself fails the gate
+    that every landing change has to pass.
     """
     spec = trees.spec_tree(slug)
     branch = trees.impl_branch(slug)
