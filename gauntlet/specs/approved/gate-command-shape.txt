@@ -1,0 +1,30 @@
+slug: gate-command-shape
+kind: characterization
+brief:
+> - Real gate_command: fixture gate always passes except one test forcing red. No make check shape.
+
+1. With `gate_command` in the checkout's declaration set to `git version`, `pair.sh merge <slug>` moves the target branch's HEAD; with it set to `git no-such-subcommand`, the same merge leaves the target branch's HEAD where it was.
+   kills: a merge that runs the configured value as one program name rather than as a command and its arguments, so `make check` — the value the kit ships as its own default — names no program and fails at every tree, whatever the tree holds.
+   bite: characterization, `docs/testing.md` rule 8 exempts the bite, said and not assumed: every line in this block states behavior HEAD already has, so the red run is green.
+   existing: tests/test_pair_sh_merge.py::test_a_red_gate_leaves_the_target_branch_and_both_trees_exactly_as_they_were
+
+2. With `gate_command` set to `test -f <a path the spec worktree holds and the main checkout does not>`, `pair.sh merge <slug>` moves the target branch's HEAD; with `gate_command` set to `test -f <a path the main checkout holds and the spec worktree does not>`, the same merge leaves the target branch's HEAD where it was.
+   kills: a gate run against the main checkout rather than against the tree being merged, so the gate reads the files the pair did not change and passes a tree that fails it.
+   bite: characterization, `docs/testing.md` rule 8 exempts the bite, said and not assumed.
+   existing: tests/test_pair_sh_merge.py::test_a_red_gate_leaves_the_target_branch_and_both_trees_exactly_as_they_were
+
+--- reviewer ---
+READY
+discriminates: differential on the merge gate - gate_command's exit status against the tree being merged decides whether the target branch's HEAD moves, stated at two inputs per line rather than at one literal
+
+1  AMENDED tests/test_pair_sh_merge.py:405: the `gate` parametrize of test_a_red_gate_leaves_the_target_branch_and_both_trees_exactly_as_they_were gains two cases, `git version` and `git no-such-subcommand`, landed and red on the tuple it already asserts; no new test.
+2  AMENDED tests/test_pair_sh_merge.py:405: the same parametrize gains two `test -f` cases, one path the spec worktree alone holds and one the main checkout alone holds, with `_converge` writing the worktree-only file; no new test.
+3  STRICKEN  n: exit 2 versus exit 1 is a sibling status code no file under docs/ states as contract, and both inputs produce the same landing outcome (HEAD unmoved), so the line's only contrast is two design literals on the status surface.
+
+null stub: pair.sh merge runs no gate and never moves the target branch's HEAD; every configured gate_command is ignored and the command exits zero.
+  satisfies: none   fails: 1, 2, 3
+hard-coded stub: a table keyed on the literal gate_command string returns the named landing and exit status and nothing is ever executed in any tree.
+  satisfies: 3   fails: 1, 2
+survives: 0
+
+note for the owner, from a file the reviewer may not read: whether any caller of scripts/pair.sh branches on exit 2 as distinct from exit 1 is the one fact that would re-open line 3 under (n)'s documented-contract escape; it does not hold the gate, and line 3 can return as the invariant "a declaration naming no gate command lands nothing" stated against a declaration that names one.
