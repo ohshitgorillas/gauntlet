@@ -1,0 +1,29 @@
+slug: pair-sh-close-run
+kind: characterization
+brief:
+> - close verb: no test. cmd_close at scripts/pair/cli.py:295 reached only by scripts/pair/selftest.py parsing checks, if at all.
+
+1. The set of paths `git worktree list --porcelain` reports after `pair.sh close <slug>` run against a pair whose spec worktree holds no uncommitted change is the pre-call set with that worktree's path removed; the set it reports after the same command run against a pair whose spec worktree holds an uncommitted change to a tracked file equals the pre-call set.
+   kills: a close that removes a worktree whatever it holds, so an uncommitted red run that exists in no git object is discarded and cannot be recovered.
+   bite: characterization, `docs/testing.md` rule 8 exempts the bite, said and not assumed: every line in this block states behavior HEAD already has, so the red run is green.
+   existing: none, `grep -rn "close\|CLOSED\|REFUSED" tests/ --include=*.py` -> tests/test_changelog_gate.py:9, tests/test_tests_config.py:35, tests/test_extra_binds.py:46,144,171,187,205,221, tests/test_cite.py:308,313, every hit the word `closes`/`closer`/`REFUSED` in another surface's fixture and none naming the pair.sh verb
+
+3. The exit status of `pair.sh close <slug>` is 0 where both of the pair's worktrees hold no uncommitted change and 1 where the implementation worktree holds an uncommitted change to a tracked file and the spec worktree does not.
+   kills: a close that refuses one tree and still exits 0, so a caller driving it from a script reads a refusal as a completed close and goes on to the next slug.
+   bite: characterization, `docs/testing.md` rule 8 exempts the bite, said and not assumed.
+   existing: none, same grep as line 1
+
+--- reviewer ---
+READY
+discriminates: differential on the worktree path set after `pair.sh close` (line 1), plus a two-value sweep on close's exit status (line 3)
+
+1  AMENDED tests/test_pair_sh.py:403: tests/test_pair_sh.py::test_abort_removes_the_tree_and_the_branch_that_list_reports already parametrizes a verb over the pair state `_pair_state` projects, spec-tree presence included, so the clean-close case is one more `(verb, expected)` card and the dirty-spec case is the one fixture entry `_opened_then` grows to dirty the tree before the verb; no new test.
+2  STRICKEN h': the close half is an absence -- the branch was not deleted -- which a close that does nothing satisfies, and the abort half is behavior HEAD already has and the null stub leaves untouched, so the line pins nothing; fold branch survival into line 1's single state comparison (the tuple at tests/test_pair_sh.py:355 already carries tree and branch together).
+3  ADMITTED  clean pair / impl tree dirty on a tracked file, spec clean -> exit status 0 / 1; "a close that refuses one tree and still exits 0" fails it at the dirty-impl input; bite: characterization, docs/testing.md rule 8 exempt, stated by the block and not assumed
+4  STRICKEN  o: "count of its stdout lines" is a length -- 1 line versus 0 -- which is existence-only, and the two inputs differ in the slug string alone, so a stub dispatching on that string reproduces both pairs without doing any of close's work; drop the line count and fold the unknown-slug case into line 3 as a third exit-status input, or pin the documented `CLOSED <path>` / `REFUSED <path> uncommitted` shape of docs/agents.md:68-69 instead of a count.
+
+null stub: close is a no-op -- no worktree removed, no branch touched, nothing printed, exit 0; abort, list and open stay as HEAD has them.
+  satisfies: 2   fails: 1, 3, 4
+hard-coded stub: close dispatches on its slug argument alone -- known slug prints one canned line and exits 0, the unknown slug prints nothing and exits 2 -- and inspects no worktree, so it cannot tell the clean pair from the dirty one that carries the same slug.
+  satisfies: 2, 4   fails: 1, 3
+survives: 1
