@@ -1,0 +1,4 @@
+RED 1: "{'format, named lane admitted': False} != {'format, named lane admitted': True}" (tests/test_tests_config.py::TestsDirMovesTheWritersLane::test_the_blind_runner_reads_the_named_lane_and_not_the_default)
+RED 2: "{('scrivener', 'scripts/blind.sh format tests/t.py'): 'deny'} != {('scrivener', 'scripts/blind.sh format tests/t.py'): 'admitted'}" (tests/test_hook_wire.py::TheCallerGate::test_the_two_shell_locked_agents_are_locked_and_no_other_caller_is)
+RED 3: "{'format': 'import os\n\nx = [1,2]\n'} != {'format': 'x = [1, 2]\n'}" (tests/test_blind_sh_format.py::TheWritingVerbRepairsTheLaneFile::test_format_rewrites_the_file_where_test_leaves_the_same_bytes)
+RED 4: "{'nothing left to find': 'non-zero'} != {'nothing left to find': 'zero'}" (tests/test_blind_sh_format.py::TheWritingVerbRepairsTheLaneFile::test_the_status_reports_what_the_gates_still_find_after_the_repair)

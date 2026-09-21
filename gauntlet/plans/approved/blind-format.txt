@@ -1,0 +1,109 @@
+slug: blind-format
+discovery: detective
+
+brief:
+> On agent hygiene: I see a lot of re-requests going out to the Scrivener to have it fix, e.g., ruff, lint, etc. errors.
+> In other words, the Scrivener has no personal hygiene.
+> Is it possible to make the Scrivener clean up after itself on its own, or would that cross the line into letting it have tools that would give it implementation access?
+> Agreed on (2) scoped.
+> Take it to stage 1.
+
+delivered: What is wrong, the two paragraphs on the missing writer and the missing rule.
+delivered: What is wrong, the second paragraph.
+delivered: `cmd_format` under Which files get touched, `scripts/blind.sh` row, plus the `_ARGS` and caller-gate rows under `hooks/blind-bash.py`.
+delivered: the single-path argument under Which files get touched, `scripts/blind.sh` row.
+delivered: this plan.
+
+## What is wrong
+
+No writing formatter in the blind shell. `scripts/blind.sh:171` runs `black --check`, check mode only, and `hooks/blind-bash.py:106-110` admits three subcommands, none of which writes. Scrivener sees `FAIL black`, cannot reformat, reports the failure up. Main agent re-requests.
+
+No rule making the failure the scrivener's. `agents/scrivener.md:93` says the run "runs the tests you wrote and the mechanical gates that apply to them" and stops there. Nothing says a `ruff` or `black` FAIL on its own file is its to fix before reporting.
+
+Fixing it needs no implementation access. The lint lives in files under the scrivener's own write lane, `hooks/lanes.py:215-222`, and `ruff` and `black` read and rewrite only the path given. What `hooks/no-impl-reads.py` denies is unchanged; its count of the shell's invocations, `hooks/no-impl-reads.py:88`, is not.
+
+Lint is dir-wide where the suite run is not. `scripts/blind.sh:170-171` lint `"$tests"`, the whole directory, while the runner at `scripts/blind.sh:169` takes `"$rel"`. So a scrivener's own run can FAIL on a file another block pinned.
+
+## What the owner sees change
+
+Seven readings.
+
+- Scrivener hits `FAIL ruff` or `FAIL black` on the file it wrote. Runs `scripts/blind.sh format <same path>`, re-runs `test`, reports a clean gate. No re-request.
+- Scrivener runs `format` on a path outside `<tests dir>/`, or on two paths, or with any second command: denied by `hooks/blind-bash.py`, same denial text as any other shape.
+- Bailiff runs `format`: denied. Its one read command is unchanged.
+- Scrivener's run FAILs on a file no brief of its names: `format` on that path is admitted by the hook and refused by the agent's own rule. The hook admits any path under the lane, so what holds here is `agents/scrivener.md`, not the tree.
+- `ruff check --fix` leaves errors it cannot fix: `format` writes what it fixed and exits non-zero, listing the residue. Scrivener fixes the rest by `Edit` and re-runs `test`, and a residue it cannot fix is a finding it reports.
+- No `ruff` and no `black` installed: `format` dies on the floor at `scripts/blind.sh:178`, `no gate for <path> is installed, so nothing ran`, rather than exiting 0 having done nothing.
+- A lane file whose extension is not `.py`: the eslint branch, exactly as `cmd_test` reads today at `scripts/blind.sh:167-176`.
+
+## Which files get touched, and roughly how
+
+`scripts/blind.sh`
+- new `cmd_format(path)`: the path resolution at `scripts/blind.sh:131-137` lifted into one helper `cmd_test` and `cmd_format` both call, so the two cannot part on which tree a worktree path names. The `.py`-or-else split at `scripts/blind.sh:167-176` and the `ran` floor at `scripts/blind.sh:178` are carried, not rewritten: one reading for both verbs.
+- `cmd_format` reuses `run_gate`'s sandbox line, `scripts/blind.sh:152` — `--bind "$tree/$tests" "$tree/$tests"`, the lane `lanes.py` already lets the scrivener write. That mount table is the whole write path: `hooks/bwrap-wrap.py:111-112` puts the scrivener on the passthrough profile, so no second wrap stands over it and nothing in that hook changes. No wider bind: scope is the argument, not the mount. A writable bind of the file alone was the alternative and is rejected — it turns on whether `ruff` and `black` write in place or rename through the directory, and the mount must not depend on a tool's write strategy.
+- py: `"$ROOT/.venv/bin/ruff" check --fix "$rel"` then `"$ROOT/.venv/bin/black" "$rel"`. js: `npx eslint --fix "$rel"`. One path, never `"$tests"` — that is what keeps `format` off tests the block does not own. No `--unsafe-fixes`: a fix that changes what a test asserts is the scrivener's to make by hand, through `Edit`, where it is visible in the diff.
+- `SKIP <label> (not installed)` and the exit-status accumulation come from `run_gate` unchanged, so a tree with no `ruff` reads the same under both verbs.
+- `case` at `scripts/blind.sh:199-204` gains `format) cmd_format "$@" ;;`, and `usage` gains its line.
+- `scripts/blind.sh:3`, "The whole shell of a blind agent, in three subcommands.", and the subcommand list at `scripts/blind.sh:5-7`, take the fourth.
+- header comment `scripts/blind.sh:15-18` is now false: "a blind agent's one command is not a way to write". Rewritten to say the shell holds one writing subcommand, that it writes only inside the lane `lanes.py` already grants, and that `test` stays read-only so a green gate is evidence rather than a thing the verifier produced.
+- `test` is not given `--fix`, and keeps linting `"$tests"` dir-wide. Narrowing it to `"$rel"` would lose the lint on `conftest.py` and `fake_*.py`, which the scrivener may amend, `agents/scrivener.md:87`.
+
+`hooks/blind-bash.py`
+- `_ARGS` at `hooks/blind-bash.py:106-110` gains `rf"format\s+{TESTPATH}"`, the same shape `test` takes at `hooks/blind-bash.py:107`.
+- `format` is admitted for the scrivener alone. `BLIND` at `hooks/blind-bash.py:91` is `("scrivener", "bailiff")` and `ALLOWED` at `hooks/blind-bash.py:119` is not per-caller, so a fourth shape added flat hands the bailiff a write into `<tests dir>/` that `lanes.py` denies it at every other route. `_verdict` at `hooks/blind-bash.py:163` already holds the caller, so the writing shape is matched against a caller-specific tuple and the three read shapes stay common to both.
+- `_WHY` at `hooks/blind-bash.py:121-128` enumerates the admitted commands and gains `format`, with the caller bound stated: the denial has to say why a bailiff typing it is refused.
+- docstring paragraphs at `hooks/blind-bash.py:15-18` and `hooks/blind-bash.py:28-30` enumerate three subcommands and gain the fourth.
+- `self_test()` at `hooks/blind-bash.py:212-213`, "Pin the four spec lines of the blind agents' one command", gains rows: `format <path>` admitted for the scrivener, the same text denied for the bailiff, `format` with two paths denied, `format` with a path outside the lane denied.
+
+`hooks/no-impl-reads.py`
+- `hooks/no-impl-reads.py:88`, "which admits three invocations by name", takes the fourth. Nothing this hook denies moves.
+
+`agents/scrivener.md`
+- the verify sentence at `agents/scrivener.md:93` gains the cleanup rule: a `ruff`, `black` or `eslint` FAIL naming a file you wrote or amended is yours — run `scripts/blind.sh format <that path>`, re-run `test`, and a report carrying a lint FAIL on your own file is a defect.
+- and its bound: a FAIL naming a file no line of your block sends you into is a finding you report, never a path you format.
+
+`docs/agents.md`
+- `docs/agents.md:89`, "`blind-bash.py` admits `scripts/blind.sh test <path>` and no runner argument beside it", takes `format` beside `test`, plus one sentence saying `format`'s two fix tools are the script's own and take no configuration.
+
+`README.md`
+- `README.md:91` names `scripts/blind.sh test` beside `pair.sh red` in the same runner paragraph and takes the same sentence.
+
+`CHANGELOG.md`
+- one `### Added` entry under `[Unreleased]` at `CHANGELOG.md:5`. The hook and the script are kit a consumer installs, so the fourth subcommand is consumer-visible.
+
+## Caller-side delta
+
+`hooks/no-impl-reads.py`, `agents/scrivener.md`, `docs/agents.md`, `README.md`, `CHANGELOG.md`, all named above. No other agent definition names `blind.sh` except `agents/bailiff.md:27`, which names only `show` and is unchanged.
+
+## What it costs
+
+The blind shell goes from three commands to four, and the fourth is the first that writes. Every previous line of defense here was "the shell cannot write at all"; after this it is "the shell writes one tool's output into one path inside one lane, for one caller". That is a narrower guarantee, and `hooks/blind-bash.py`'s caller gate is the whole of what holds it.
+
+`CLAUDE.md:35`, "The lane hooks stay on and unweakened", is the repo rule this runs at. A shape added to `ALLOWED` widens what `blind-bash.py` lets through, so this plan amends that hook's admitted set in the open rather than narrowing a matcher to land a change: no entry commented out, and `--self-test` gains a row for every shape added and every caller refused.
+
+`ruff check --fix` can delete an unused import that was the tell of a wrong test. Safe fixes only, and the diff is the scrivener's to report, but the class of loss is real and is not fully closed by excluding `--unsafe-fixes`.
+
+Tests for the new shapes land under `<tests dir>/`, which is closed to the main agent, `hooks/lanes.py:215-222`. They come through an approved spec block and the scrivener, like any other test in this repo.
+
+`scripts/blind.sh` carries no `--self-test` and gains none here: its behavior is exercised through `hooks/blind-bash.py --self-test` and the suite, and adding a self-test arm to a `bwrap`-wrapped shell script is its own change.
+
+Left out: narrowing `test`'s lint to the file argument, for the reason under Which files get touched, and any change to what `no-impl-reads.py` denies.
+
+## Open questions
+
+None.
+--- reviewer ---
+READY
+
+a  PASS  carried: states the redefinition outright as the change proposed — the header-comment bullet rewriting `scripts/blind.sh:15-18`, whose "a blind agent's one command is not a way to write" is verbatim at `:16`, and the first paragraph of What it costs; owner's authorization quoted in `brief:`.
+b  PASS  carried: every citation resolves and says what the plan says it says. Round 1's three miscitations are corrected and re-resolved: `docs/agents.md:89` carries "`blind-bash.py` admits `scripts/blind.sh test <path>` and no runner argument beside it" verbatim, the docs bullet now names that sentence instead of rows that do not exist, and `agents/bailiff.md:27` is described as naming only `show`, which is what it names. New citations resolve too: `scripts/blind.sh:3` is "The whole shell of a blind agent, in three subcommands.", `:5-7` is the three-line subcommand list, `:167-176` is the `.py`-or-else construct through its `fi`, `:178` is the `ran` floor, `hooks/no-impl-reads.py:88` carries "which admits three invocations by name" verbatim, `hooks/bwrap-wrap.py:111-112` carries "`scripts/blind.sh` is their one command and it runs its own `bwrap`, so this hook leaves them alone", and `CLAUDE.md:35` carries "The lane hooks stay on and unweakened" — one `CLAUDE.md` in the tree, so the basename resolves. `discovery: detective` is right: the plan cites `hooks/lanes.py`, `hooks/bwrap-wrap.py`, `agents/bailiff.md` and `CLAUDE.md` outside its touched list.
+c  PASS  carried: counted against `grep -rn "blind\.sh"` over the checkout. The two sites round 1 left out are in: `hooks/no-impl-reads.py` has its own row under Which files get touched and heads the Caller-side delta list, and `scripts/blind.sh:3` with `:5-7` has a bullet. Nothing else in the tree states the subcommand count and goes false — `hooks/blind-bash.py:2` and `:18` are inside the `:15-18` range the plan already names, `hooks/bwrap-wrap.py:36` says "the one command those agents have" and stays true of a four-subcommand script, and no test pins the admitted-shape count.
+d  PASS  carried: cause named upstream of the symptom — no writing subcommand in the shell (`scripts/blind.sh:171`, `hooks/blind-bash.py:106-110`) plus no rule making the FAIL the scrivener's (`agents/scrivener.md:93`) — with the re-request derived from both. No fix list growing across rounds: the file list grew once, to close round 1's count, and not by adding symptoms.
+e  PASS  carried: every rule the change touches is named and its fate stated. The "three read commands, cannot write" invariant is named in all four places it is written — `scripts/blind.sh:3`, `:15-18`, `hooks/blind-bash.py:15-18` with `:28-30`, `hooks/no-impl-reads.py:88` — and each is said to take the fourth. The repo rule is named and read at `CLAUDE.md:35`, with which way it goes stated: a shape added to `ALLOWED` widens the admitted set in the open, no matcher narrowed, no entry commented out, `--self-test` gaining a row per shape and per refused caller.
+f  PASS  carried: seven readings, and the three boundaries round 1 left unread are among them: unfixable residue (`format` writes what it fixed, exits non-zero, scrivener finishes by `Edit` or reports it), nothing installed (dies on the floor at `scripts/blind.sh:178` rather than exiting 0 having done nothing), and a lane file whose extension is not `.py` (the eslint branch, as `cmd_test` reads at `scripts/blind.sh:167-176`). The identity boundary — a file already clean — is covered by the first reading's "re-runs `test`, reports a clean gate".
+g  PASS  carried: Open questions is `None`, and nothing in the body is a question held back. Round 1's only entry was the routing sentence, which is not a question and is delivered by this draft existing.
+h  PASS  carried: both reach claims carry their mechanism. "Nothing this hook denies moves" is held by the one-hop read: `hooks/no-impl-reads.py` is a `Read`/`Grep`/`Glob` gate that judges no shell command, its own `:88` says so, and the plan touches only the count in that sentence. "Nothing in that hook changes", of `hooks/bwrap-wrap.py`, is held by `:111-112`: the scrivener is on the passthrough profile, so `blind.sh`'s own mount table is the whole write path. Round 1's counterexample, `hooks/no-impl-reads.py:88` against "untouched", is gone — the claim is now the narrow one the line supports.
+i  PASS  carried: `brief:` block present, five quoted sentences, five coverage lines, one line each, nothing beneath any of them, no `dropped:` left to reappear. Each `delivered:` resolves: the two What-is-wrong paragraphs; the second of them; `cmd_format` with the `_ARGS` and caller-gate rows; the single-path bullet "One path, never `"$tests"`"; and, for the routing sentence, the plan itself.
+j  N/A   carried: this project's architecture docs name no composition-root file, and the check is unfilled in this reviewer's sheet; the plan touches no such file either way.
+k  PASS  carried: each `delivered:` element read against its sentence on the sentence's plain meaning. The diagnostic paragraphs carry the re-request cause with no condition the brief does not state. `cmd_format` plus the caller-gated `_ARGS` row answers both halves of "clean up after itself on its own, or would that cross the line into letting it have tools that would give it implementation access": the scrivener types the second command itself, and the write lands only in the lane `hooks/lanes.py:215-222` already grants it. The single-path bullet carries "Agreed on (2) scoped" without narrowing past it, and the unfixable-residue reading keeps "ruff, lint, etc." covered rather than quietly bounded to what `--fix` can reach. The one repair above is a deletion and leaves its element reading as its sentence reads.
+l  PASS  the round 2 repair landed on the sentence it named. The bound bullet now ends at "never a path you format.", and the fact it used to repeat — that the hook admits the path and the agent's rule is what refuses it — stands once, in the fourth reading under What the owner sees change. What is left of the bullet is the text of the bound itself, which no earlier section carries. The plan is 94 lines, as it was, so the deletion is the whole of the change.
