@@ -15,14 +15,18 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
-HOOK = Path(__file__).resolve().parent.parent / "hooks" / "bwrap-wrap.py"
+CHECKOUT = Path(__file__).resolve().parent.parent
+HOOK = CHECKOUT / "hooks" / "bwrap-wrap.py"
 
 PROSECUTOR = "prosecutor"
 ARBITER = "arbiter"
+#: the caller with no `agent_type` at all, which is the main agent
+MAIN_AGENT = None
 
 SEMICOLON_TEXT = "echo hi; cat /etc/hostname"
 HEREDOC_TEXT = "echo $(cat /etc/hostname) <<'X'"
@@ -84,9 +88,12 @@ def _run_hook(repo, agent_type, command):
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",
         "cwd": str(repo),
-        "agent_type": agent_type,
         "tool_input": {"command": command},
     }
+    #: `agent_type` is present only on subagent calls (docs/approved-specs.md
+    #: line 98), so the main agent is the caller that carries no such key
+    if agent_type is not None:
+        payload["agent_type"] = agent_type
     env = {
         "PATH": os.environ.get("PATH", ""),
         "HOME": str(repo),
@@ -211,22 +218,130 @@ def _write_outcome(repo, agent_type, relative_path):
     return "written" if done.returncode == 0 and target.is_file() else "refused"
 
 
+#: the two case shapes the parametrize below carries: a write at a path, and a
+#: whole command text run through whatever replacement the hook gives back
+WRITE = "write"
+RUN = "run"
+
+ROUND_SLUG = "roundprobe"
+SEEDED_ROUNDS = 2
+REVIEW_COMMAND = "cd . && scripts/pair.sh review " + ROUND_SLUG
+#: one more than what each caller's own view of the reviewers' lane holds: the
+#: checkout holds the two seeded rounds, a masked lane holds none
+AUTHORS_ROUND = SEEDED_ROUNDS + 1
+REVIEWERS_ROUND = 1
+
+
+def _seed_rounds(repo, slug, count):
+    """Put `count` round files for `slug` in the reviewers' lane of `repo`.
+
+    The names are `<slug>.<N>.txt` under `<gauntlet dir>/reviews/`, which is the
+    lane's own shape per docs/agents.md "`pair.sh review <slug>`".
+    """
+    for number in range(1, count + 1):
+        (repo / "gauntlet" / "reviews" / f"{slug}.{number}.txt").write_text("round\n")
+
+
+def _with_driver(repo):
+    """Give `repo` a copy of this checkout's scripts and hooks, and a `.git`.
+
+    The command text names a driver relative to the fixture root, so the driver
+    has to be on disk there for a wrapped run to have anything to run. The files
+    are copied, never read here.
+    """
+    for name in ("scripts", "hooks"):
+        shutil.copytree(CHECKOUT / name, repo / name, dirs_exist_ok=True)
+    subprocess.run(["git", "init", "-q", str(repo)], capture_output=True, check=False)
+    return repo
+
+
+#: a wrapped run carries masks over `/tmp` and `/run/user` (README, "Setup"),
+#: so a fixture a wrapped command has to reach cannot live under `tmp_path`
+IN_TREE_FIXTURES = CHECKOUT / "tests" / ".in-tree-fixtures"
+
+
+@pytest.fixture
+def in_tree_base():
+    """A scratch directory inside the checkout, removed when the test ends."""
+    IN_TREE_FIXTURES.mkdir(parents=True, exist_ok=True)
+    base = Path(tempfile.mkdtemp(dir=IN_TREE_FIXTURES))
+    yield base
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def _prepared(repo, action):
+    """Give `repo`, carrying the driver and the seeded rounds where a case runs one."""
+    if action == RUN:
+        _seed_rounds(_with_driver(repo), ROUND_SLUG, SEEDED_ROUNDS)
+    return repo
+
+
+def _round_number(stdout, stderr):
+    """The `<N>` of a `<slug>.<N>.txt` path the run printed, else the run's output.
+
+    Reading the number off the printed path keeps the assertion on a number the
+    run produced rather than on any word the driver chose to print beside it.
+    """
+    for token in reversed(stdout.split()):
+        fields = Path(token).name.split(".")
+        if len(fields) == 3 and fields[1].isdigit():
+            return int(fields[1])
+    return (stdout + stderr).strip()
+
+
+def _printed_round(repo, agent_type, command):
+    """Run the replacement for `command`; give the round number its stdout names.
+
+    Gives "unwrapped" where the hook returned no replacement to run at all, and
+    the run's own output where no `<slug>.<N>.txt` path came back, so a driver
+    that failed shows in the failure rather than as some other number.
+    """
+    wrapped = _updated_command(_run_hook(repo, agent_type, command))
+    if wrapped is None:
+        return "unwrapped"
+    done = subprocess.run(
+        ["/bin/sh", "-c", wrapped],
+        cwd=repo,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(repo)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return _round_number(done.stdout, done.stderr)
+
+
+def _case_outcome(repo, agent_type, action, subject):
+    """What the case achieved: the write's outcome, or the round number printed."""
+    if action == WRITE:
+        return _write_outcome(repo, agent_type, subject)
+    return _printed_round(repo, agent_type, subject)
+
+
 @pytest.mark.parametrize(
-    ("agent_type", "relative_path", "expected"),
+    ("agent_type", "action", "subject", "expected"),
     [
-        (PROSECUTOR, "probe.txt", "written"),
-        (PROSECUTOR, "gauntlet/specs/approved/probe.txt", "refused"),
-        (ARBITER, "probe.txt", "refused"),
+        (PROSECUTOR, WRITE, "probe.txt", "written"),
+        (PROSECUTOR, WRITE, "gauntlet/specs/approved/probe.txt", "refused"),
+        (ARBITER, WRITE, "probe.txt", "refused"),
+        (ARBITER, RUN, REVIEW_COMMAND, REVIEWERS_ROUND),
+        (MAIN_AGENT, RUN, REVIEW_COMMAND, AUTHORS_ROUND),
     ],
-    ids=["author-at-the-root", "author-into-the-spec-lane", "reviewer-at-the-root"],
+    ids=[
+        "author-at-the-root",
+        "author-into-the-spec-lane",
+        "reviewer-at-the-root",
+        "reviewer-counting-the-rounds-in-the-reviewers-lane",
+        "main-agent-counting-the-rounds-in-the-reviewers-lane",
+    ],
 )
 def test_a_write_under_the_replacement_lands_by_path_and_by_caller(
-    tmp_path, agent_type, relative_path, expected
+    tmp_path, in_tree_base, agent_type, action, subject, expected
 ):
     if not _bwrap_usable():
         pytest.skip("bwrap is not runnable on this host")
-    repo = _repo(tmp_path, trees=(TREE_ALPHA,))
-    assert _write_outcome(repo, agent_type, relative_path) == expected
+    base = in_tree_base if action == RUN else tmp_path
+    repo = _prepared(_repo(base, trees=(TREE_ALPHA,)), action)
+    assert _case_outcome(repo, agent_type, action, subject) == expected
 
 
 def _carve_out(repo, command):
