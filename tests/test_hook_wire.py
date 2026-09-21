@@ -484,6 +484,14 @@ class TheCallerGate(unittest.TestCase):
     SOURCES = ("hooks/shell_shapes.py", "src/docs/impl.py")
     COMMAND = "cat hooks/shell_shapes.py"
 
+    #: the writing verb of the one entry point, which is the writer's own and
+    #: nobody else's: the reviewing agents run the suite, they do not rewrite it
+    FORMAT = "scripts/blind.sh format tests/t.py"
+
+    #: an admitted Bash call comes back as an `updatedInput` rewrite carrying
+    #: the command, rather than as the silence an unjudged caller gets
+    ADMITTED = "admitted"
+
     def test_the_blind_agents_are_read_blocked_and_the_main_agent_is_not(self):
         # An absent `agent_type` is the main agent, which has to read the
         # implementation to adjudicate a failing test. A guard that judged
@@ -520,7 +528,12 @@ class TheCallerGate(unittest.TestCase):
         # `blind-bash.py` is an allowlist of one entry point, so a caller it
         # judges loses every other command. Wired session-wide without the
         # gate it would take the main agent's shell outright.
-        expected = {
+        # The allowlist is read per caller and not per command: the writer is
+        # the one caller that may rewrite the lane, so the writing verb is the
+        # one command the two judged callers are answered differently at, and
+        # a hook admitting it for its whole blind tuple hands the reviewing
+        # agent a write into the tests dir every other route denies it.
+        judged = {
             "scrivener": DENY,
             "bailiff": DENY,
             None: SILENT,
@@ -530,12 +543,21 @@ class TheCallerGate(unittest.TestCase):
             "prosecutor": SILENT,
             "general-purpose": SILENT,
         }
+        expected = {
+            **{(agent, self.COMMAND): verdict for agent, verdict in judged.items()},
+            **{(agent, self.FORMAT): verdict for agent, verdict in judged.items()},
+            ("scrivener", self.FORMAT): self.ADMITTED,
+        }
+
+        def classify(command, answer):
+            return self.ADMITTED if command in answer else answer
+
         actual = {
-            agent: hook_decision(
-                "blind-bash.py",
-                bash_payload(self.COMMAND, REPO_CWD, agent),
+            (agent, command): classify(
+                command,
+                hook_decision("blind-bash.py", bash_payload(command, REPO_CWD, agent)),
             )
-            for agent in expected
+            for agent, command in expected
         }
         assert actual == expected
 

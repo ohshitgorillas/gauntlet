@@ -234,8 +234,15 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
         # rather than as silence, so what is read here is the command it left.
         # The shape is the whole invocation and its arity, at either lane, and
         # an argument that opens under the lane and walks out of it is not a run.
+        # The writing verb takes the same path argument and is read against the
+        # same declaration, so it is the same question asked of a shell that
+        # rewrites the file rather than one that only reads it: a lane matched
+        # against a literal name hands the writer a rewrite of a directory no
+        # hook is guarding, which is the one thing this shell exists to prevent.
         moved_lane = "scripts/blind.sh test spec/t.py"
         default_lane = "scripts/blind.sh test tests/t.py"
+        moved_format = "scripts/blind.sh format spec/t.py"
+        default_format = "scripts/blind.sh format tests/t.py"
 
         def run(copy, command):
             return _bash(copy, "blind-bash.py", command, "scrivener")
@@ -249,6 +256,24 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
             "a walk out of the lane": run(
                 self.moved, "scripts/blind.sh test spec/a/../../gauntlet/specs/approved/x.txt"
             ),
+            "format, named lane admitted": moved_format in run(self.moved, moved_format),
+            "format, default name, moved repo": run(self.moved, default_format),
+            "format, default lane admitted": default_format in run(self.bare, default_format),
+            "format, named name, bare repo": run(self.bare, moved_format),
+            "format, a second command, moved": run(self.moved, "rm spec/t.py && " + moved_format),
+            "format, a second command, bare": run(self.bare, "rm tests/t.py && " + default_format),
+            "format, two arguments, moved": run(
+                self.moved, "scripts/blind.sh format spec/a.py spec/b.py"
+            ),
+            "format, two arguments, bare": run(
+                self.bare, "scripts/blind.sh format tests/a.py tests/b.py"
+            ),
+            "format, a walk out of the lane, moved": run(
+                self.moved, "scripts/blind.sh format spec/a/../../gauntlet/specs/approved/x.txt"
+            ),
+            "format, a walk out of the lane, bare": run(
+                self.bare, "scripts/blind.sh format tests/a/../../gauntlet/specs/approved/x.txt"
+            ),
         }
         assert observed == {
             "named lane admitted": True,
@@ -257,6 +282,16 @@ class TestsDirMovesTheWritersLane(unittest.TestCase):
             "a second command": DENY,
             "two arguments": DENY,
             "a walk out of the lane": DENY,
+            "format, named lane admitted": True,
+            "format, default name, moved repo": DENY,
+            "format, default lane admitted": True,
+            "format, named name, bare repo": DENY,
+            "format, a second command, moved": DENY,
+            "format, a second command, bare": DENY,
+            "format, two arguments, moved": DENY,
+            "format, two arguments, bare": DENY,
+            "format, a walk out of the lane, moved": DENY,
+            "format, a walk out of the lane, bare": DENY,
         }
 
 
