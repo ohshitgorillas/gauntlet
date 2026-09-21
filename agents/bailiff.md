@@ -22,7 +22,7 @@ Brief is `TEST CHECK <slug>` through `END TEST CHECK`, verbatim as `${CLAUDE_PLU
 
 ## Inputs
 
-Brief carries spec commit, red commit, and `merge output: <gauntlet dir>/merge/<slug>.txt`. Read that file yourself: it holds test files, `git diff <red> HEAD -- <tests dir>/`, and saved red output, under those three head lines. Path absent or zero bytes = `NO EVIDENCE` below, and you rule on nothing. Present file whose `red output:` section is empty = complete brief, ruled on: no red log was on disk, and re-running `merge` write same file again.
+Brief carries spec commit, red commit, and `merge output: <gauntlet dir>/merge/<slug>.<N>.txt`. Read that file yourself: it opens with three tips and a `gate:` line, then holds test files, `git diff <red> HEAD -- <tests dir>/`, and saved red output, under those three head lines. Path absent or zero bytes = `NO EVIDENCE` below, and you rule on nothing. Present file whose `red output:` section is empty = complete brief, ruled on: no red log was on disk, and re-running `check` write next-numbered file carrying same sections.
 
 Block and stage 1's `READY` verdicts are on disk, never in brief: read `<gauntlet dir>/specs/approved/<slug>.txt` from spec commit named in brief. One command does it, and it is the only shell you have: `scripts/blind.sh show <spec-commit> <slug>`, which `git show` that path at tree brief names. `scripts/blind.sh show HEAD <slug>` after green merge. Fresh reviewer hold nothing else and need nothing else. Read test files too: `<tests dir>/` is open to you. `<source dir>/` stay denied.
 
@@ -55,7 +55,7 @@ First line of your output = one of four tokens, always printed, never hedged, ne
 - `READY` — every line `PIN`, no rule row, no `EXTRA` you cannot place.
 - `ANOTHER PASS` — **and you name the repair**: restore the test from the red commit, or return the spec to stage 1. Verdict that say not-ready without saying which of the two = malformed, and main agent rerun you rather than guess.
 - `ESCALATE` — same softening stand after repair that addressed it, no new information between two rounds. Goes to owner: name test, name line, quote both sides of `SOFT`.
-- `NO EVIDENCE` — `merge output:` path absent or zero bytes, and nothing else trigger it. First line, then one line naming the path. No verdict on any behavior line, no rule row. Not contempt: brief is well formed, so you burn nobody. Repair is the main agent's — rerun `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge <slug>`, spawn fresh bailiff on new brief.
+- `NO EVIDENCE` — `merge output:` path absent or zero bytes, and nothing else trigger it. First line, then one line naming the path. No verdict on any behavior line, no rule row. Not contempt: brief is well formed, so you burn nobody. Repair is the main agent's — rerun `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh check <slug>`, then `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge <slug>`, spawn fresh bailiff on new brief.
 
 ## Output format
 

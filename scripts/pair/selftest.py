@@ -59,6 +59,17 @@ def self_test() -> int:
         "the merge artifact names its three headings in one order": (
             blocks.HEADINGS == ("test files:", "diff:", "red output:")
         ),
+        "a gate reading opens with its three tips and its verdict, in one order": (
+            blocks.header_keys("demo") == ("spec/demo", "impl/demo", trees.TARGET)
+            and blocks.check_header(
+                "spec/demo: aaa\nimpl/demo: -\n" + trees.TARGET + ": ccc\ngate: PASS\ntest files:\n"
+            )
+            == ("aaa", "-", "ccc", "PASS")
+            and blocks.check_header("test files:\ndiff:\nred output:\n") is None
+        ),
+        "a gate reading is numbered, so a second run keeps the first": (
+            blocks.merge_path("demo", 2) == trees.GAUNTLET + "/merge/demo.2.txt"
+        ),
         "the branch and the gate are what the configuration says they are": (
             lane_config.target_branch() == trees.TARGET and lane_config.gate_command() == trees.GATE
         ),
@@ -81,13 +92,15 @@ def self_test() -> int:
                     "NO PAIRS",
                     "TEST CHECK ",
                     "END TEST CHECK",
+                    "CHECK ",
+                    "UNCHECKED ",
                 )
             )
         ),
         "the libraries beside this file write no contract line": (
             all(
                 "sys.stdout.write" not in _sibling(name)
-                for name in ("trees.py", "blocks.py", "converge.py")
+                for name in ("trees.py", "blocks.py", "converge.py", "steps.py")
             )
         ),
         "a slug is one boring name, and a path is not one": (

@@ -33,7 +33,7 @@ The workflow enforced by Gauntlet is, as its name implies, quite brutal:
 10. The tests run red in the `scrivener`'s tree, and green in the implementation branch.
 11. A `juror`, blind and spawned fresh for that one run, reads the red run's output against the approved block and returns one verdict per behavior line — `RED`, `ERROR`, `GREEN` or `INVALID`. It writes them to `<gauntlet dir>/verdicts/<slug>.txt`, a folder only it can write to, so the main agent, which has read the code, cannot rule on whether its own tests bit. A turn that leaves a red run unruled does not end: the `Stop` hook names the slug.
 12. The main agent has two approaches to a test failing against implementation: fix the code, or send a revised spec back to the `arbiter` for approval. The `scrivener` will refuse any direct attempts by the main agent to weaken the tests to pass at this phase.
-13. Once the test suite is green against implementation, the change merges.
+13. Once the test suite is green against implementation, `pair.sh check` runs the gate over the combined pair and records the verdict beside the three tips it ran over, landing nothing; `pair.sh merge` then lands a pair that reading passed, and refuses any other.
 14. A `bailiff`, blind and spawned fresh, checks the landed tests against the approved block; a test that no longer matches gets restored from the red commit, or the spec goes back to the main agent. It holds none of the reasons the block was passed, so a softened assertion cannot reach it as permission.
 
 ## The approval word

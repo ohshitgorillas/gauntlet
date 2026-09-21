@@ -20,7 +20,7 @@ from pathlib import Path
 from types import ModuleType
 
 import trees
-from trees import GAUNTLET, REVIEWS, SPECS, TESTS, git, git_out, note, path
+from trees import GAUNTLET, REVIEWS, SPECS, TARGET, TESTS, git, git_out, note, path
 
 DIVIDER = "--- reviewer ---"
 
@@ -32,7 +32,7 @@ _KIND = re.compile(r"^(?:kind|motion):\s*(?P<kind>.*?)\s*$")
 #: the header of the `collateral:` section, where a `kind:` block carries one
 _COLLATERAL = re.compile(r"^\s*collateral:\s*$")
 
-#: the three headings `<gauntlet dir>/merge/<slug>.txt` carries, in this order
+#: the three headings `<gauntlet dir>/merge/<slug>.<N>.txt` carries, in this order
 HEADINGS = ("test files:", "diff:", "red output:")
 
 
@@ -60,8 +60,35 @@ def red_path(slug: str) -> str:
     return GAUNTLET + "/red/" + slug + ".txt"
 
 
-def merge_path(slug: str) -> str:
-    return GAUNTLET + "/merge/" + slug + ".txt"
+def merge_path(slug: str, number: int) -> str:
+    return GAUNTLET + "/merge/" + slug + "." + str(number) + ".txt"
+
+
+def highest_merge(slug: str) -> int:
+    """The highest `<N>` on disk for a slug's gate readings, or 0 for none.
+
+    Same shape as `highest_round`, and for the same reason: a name that is not
+    a numbered reading of this slug is not counted. An unnumbered
+    `<slug>.txt` written before the readings were numbered counts as nothing,
+    so it is neither read nor overwritten.
+    """
+    shape = re.compile(re.escape(slug + ".") + r"(\d+)\.txt\Z")
+    best = 0
+    try:
+        names = [entry.name for entry in Path(path(GAUNTLET + "/merge")).iterdir()]
+    except OSError:
+        return 0
+    for name in names:
+        found = shape.match(name)
+        if found:
+            best = max(best, int(found.group(1)))
+    return best
+
+
+def newest_merge(slug: str) -> str | None:
+    """The newest gate reading on disk for this slug, or None for none."""
+    highest = highest_merge(slug)
+    return merge_path(slug, highest) if highest else None
 
 
 def read(relative: str) -> str | None:
@@ -151,13 +178,27 @@ def red_run(slug: str, tree: str, runner: list[str]) -> str:
     return saved
 
 
-def merge_artifact(slug: str, base: str, head: str, tree: str) -> str:
-    """Write `<gauntlet dir>/merge/<slug>.txt` and return its path.
+def merge_artifact(
+    slug: str,
+    base: str,
+    head: str,
+    tree: str,
+    tips: tuple[str, str, str],
+    passed: bool,
+) -> str:
+    """Write the next `<gauntlet dir>/merge/<slug>.<N>.txt` and return its path.
 
     Evidence by path, not by paste: the main agent only carries the brief, and
     the `bailiff` reads this file itself.
+
+    The number is what keeps a reading. A gate runs as often as a pair is
+    fixed, and one path per slug meant the second run erased the first; the
+    file a brief names has to be the file that recorded that gate. Above the
+    three headings sit the three revisions the gate ran over and its verdict,
+    which is what `merge` reads to decide whether the reading is still about
+    the trees in front of it.
     """
-    saved = merge_path(slug)
+    saved = merge_path(slug, highest_merge(slug) + 1)
     where = Path(path(saved))
     where.parent.mkdir(parents=True, exist_ok=True)
     names = git_out("diff", "--name-only", base, head, "--", TESTS + "/", tree=tree)
@@ -166,10 +207,34 @@ def merge_artifact(slug: str, base: str, head: str, tree: str) -> str:
     #: abort that leaves the block unterminated
     red = read(red_path(slug)) or ""
     with where.open("w", encoding="utf-8") as handle:
+        for key, value in zip(header_keys(slug), tips, strict=True):
+            handle.write(key + ": " + value + "\n")
+        handle.write("gate: " + ("PASS" if passed else "FAIL") + "\n")
         handle.write(HEADINGS[0] + "\n" + names)
         handle.write(HEADINGS[1] + "\n" + diff)
         handle.write(HEADINGS[2] + "\n" + red)
     return saved
+
+
+def header_keys(slug: str) -> tuple[str, str, str]:
+    """The three names the gate reading's tip lines carry, in header order."""
+    return trees.spec_branch(slug), trees.impl_branch(slug), TARGET
+
+
+def check_header(text: str) -> tuple[str, str, str, str] | None:
+    """The three tips and the verdict a gate reading opens with, or None.
+
+    One parser beside the writer above, so the file `check` leaves and the
+    file `merge` reads cannot part. `None` for any text whose first four lines
+    are not those four fields, which is every file written before they were.
+    """
+    lines = text.splitlines()[:4]
+    if len(lines) < 4 or not lines[3].startswith("gate: "):
+        return None
+    found = [line.split(": ", 1) for line in lines]
+    if any(len(part) != 2 for part in found):
+        return None
+    return found[0][1], found[1][1], found[2][1], found[3][1]
 
 
 def strike_report(block: str, base: str, head: str, tree: str) -> list[str]:
