@@ -63,12 +63,19 @@ xfail_strict = true
 branch = true
 source = ["hooks", "scripts"]
 omit = ["*/__pycache__/*", ".claude/worktrees/*"]
+# The suite drives most of this kit as a subprocess, so the tracer has to follow
+# one or the figure measures the wrappers and not the work. `parallel` gives each
+# process its own data file; `scripts/coverage_subprocess/sitecustomize.py` starts
+# the tracer in it, and `check-gates.sh` combines them before it reports.
+parallel = true
 
 [tool.coverage.report]
 # The floor is the measured figure rounded down, raised as the suite grows.
-# Most of the suite drives the gates and hooks as subprocesses, which this
-# tracer does not follow, so the figure understates what the suite exercises.
-fail_under = 14
+# The tracer follows a subprocess now, so the figure counts the gates and hooks
+# the suite drives rather than only the wrappers around them. What it still
+# understates is anything the suite runs under a bare `python3` rather than the
+# venv's, which has no tracer to start.
+fail_under = 42
 skip_covered = false
 
 [tool.coverage.json]

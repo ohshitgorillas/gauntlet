@@ -53,7 +53,8 @@ TRACKED = ("*.py", "*.sh")
 #: this table exists to refuse.
 ALLOWANCE: dict[str, int] = {
     "scripts/cite.py": 470,
-    "scripts/pair/cli.py": 448,
+    "scripts/strike-diff.py": 453,
+    "scripts/pair/cli.py": 446,
     "hooks/gauntlet-off.py": 423,
     "hooks/bwrap-wrap.py": 416,
     "hooks/bwrap_wrap_selftest.py": 401,

@@ -28,8 +28,29 @@ import subprocess
 from pathlib import Path
 from typing import TextIO
 
+import blocks
 import trees
 from trees import GATE, TARGET, die, exists, git, git_ok, note, path
+
+
+def report_red(slug: str, tree: str, text: str, base: str, head: str, mechanical: bool) -> None:
+    """What a red gate in the combined tree leaves behind, all of it on stderr.
+
+    Nothing landed, so nothing on stdout should read as the brief of a merged
+    block. Every line here is `note`, which is why it sits in this module and
+    not beside the driver's contract lines.
+    """
+    note("")
+    note("pair: the gate is red in the combined tree. " + TARGET + " is untouched")
+    note("and both trees are left exactly as they are: " + tree)
+    note("A failing test here means the block and the code disagree. The code is")
+    note("wrong and the fix lands in the implementation tree, or the block is wrong")
+    note("and it goes back for re-approval. Tests are not edited to pass.")
+    if mechanical:
+        for line in blocks.strike_report(text, base, head, tree):
+            note("  " + line)
+    else:
+        note("  merge output: " + blocks.merge_artifact(slug, base, head, tree))
 
 
 class Lock:
@@ -116,6 +137,11 @@ def combine(slug: str) -> None:
     A re-run after a red gate arrives in exactly this state, and the way out of
     a red gate that re-approves the block leaves the branch an ancestor, so
     stopping here would strand the pair with no verb that lands it.
+
+    The merge carries `merge: <slug>` as its subject. This commit is the
+    combined tree's `HEAD` when the gate runs, and `scripts/gates/commit-msg.py`
+    reads that `HEAD`, so the subject git would write for itself fails the gate
+    that every landing change has to pass.
     """
     spec = trees.spec_tree(slug)
     branch = trees.impl_branch(slug)
@@ -131,7 +157,9 @@ def combine(slug: str) -> None:
             + "; going straight to the gate"
         )
         return
-    if not git_ok("merge", "--no-ff", "--no-edit", branch, tree=spec):
+    #: the subject git would write itself carries no prefix, and the combined
+    #: tree's HEAD is this commit when the gate runs `commit-msg.py` over it
+    if not git_ok("merge", "--no-ff", "-m", "merge: " + slug, branch, tree=spec):
         die(
             "pair: merging "
             + branch
