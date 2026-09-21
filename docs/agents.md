@@ -43,6 +43,8 @@ Blindness costs something, so it is paid for. The `examiner` measures the values
 7. The main agent implements against the tests, and never edits them.
 8. After `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`, a `bailiff` reads the `TEST CHECK` brief the script printed, and the `<gauntlet dir>/merge/<slug>.txt` that brief names, against the committed block, and returns `PIN`, `SOFT`, `MISSING` or `EXTRA` per behavior line, blind. It is the only round that holds test code, so rules 4, 6, 13 and 14 are checked there and nowhere else.
 
+A `kind:` block's `collateral:` rows run beside that chain rather than through a stage of their own, and four of the agents carry a piece of them. Shape in `testing.md` "Collateral rows". The `prosecutor` at step 2 holds the plan to naming each broken test as `<file>::<test>` where the plan's caller-side delta reaches `<tests dir>/`, and counts them; that count is what the block's rows are held to at step 4, where the `arbiter`'s check (u) resolves each row's target and quoted assertion against `<tests dir>/`. The `scrivener` at step 5 admits a delta naming a row's target — the one delta it admits — and carries the quoted assertion through byte-identical while it repairs what surrounds it. The `bailiff` at step 8 returns `HELD` or `ALTERED` per row, and reads the rows out of the same spec commit it reads the behavior lines from, so its brief does not change.
+
 ## `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh`
 
 The script that moves a block between the reviewer, the writer and the tree. Its subcommands, and their stdout is contract:
@@ -53,13 +55,14 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 | `pair.sh open <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
 | `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
 | `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: <gauntlet dir>/merge/<slug>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor` |
-| `pair.sh merge <slug>` | the `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py` verdict lines | the structure line is `motion: strike`, `motion: amend` or `motion: rehome` |
+| `pair.sh merge <slug>` | the `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py` verdict lines | the structure line is `motion: strike`, `motion: amend` or `motion: rehome`, or a `kind:` block carries `collateral:` rows, whose verdicts print above the `TEST CHECK` brief |
 | `pair.sh review <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.<N>.txt` | `<N>` is one more than the highest already on disk for that slug, 1 where there is none, and `<gauntlet dir>/reviews/` exists |
 | `pair.sh review plan <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.plan.<N>.txt` | the same count over the plan rounds of that slug |
 | `pair.sh restore <slug> <rev>` | `RESTORED <gauntlet dir>/specs/approved/<slug>.txt <rev>` | the approved block on disk is the block as it stood at `<rev>` |
 | `pair.sh impl checkout <slug>` | `IMPL .claude/worktrees/<slug>-impl` | the implementation tree is cut on `impl/<slug>`, or already was and is left on the commit it is on |
 | `pair.sh impl merge <slug>` | `MERGED <slug> <commit>` | `impl/<slug>` is merged and `<commit>` is the primary checkout's HEAD, holding the implementation tree's tip as an ancestor |
 | `pair.sh respec <slug>` | `RESPEC <gauntlet dir>/specs/approved/<slug>.txt <commit>` | the re-approved block is a `spec:` commit on `spec/<slug>`, and its reviewer section is a round newer than the one that branch already committed |
+| `pair.sh respec <slug>` | `RESPEC COLLATERAL <gauntlet dir>/specs/approved/<slug>.txt <commit>` | the same, and that block differs from the one the branch committed in `collateral:` rows alone — the main agent's evidence that no second owner word is owed |
 | `pair.sh respec <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | the block's reviewer section differs from that round file, and nothing is committed |
 | `pair.sh abort <slug>` | `ABORTED <slug>` | both worktrees, both branches and the recorded base for the slug are gone |
 | `pair.sh close <slug>` | `CLOSED <path>` per worktree removed | that tree held no uncommitted work, and its branch and the recorded base are left where they are |
@@ -81,6 +84,10 @@ The target branch and the gate command are `target_branch` and `gate_command` of
 The two runners are `pytest_command` and `node_command` of that same file, read through the same reader and split into arguments the same way. They default to `.venv/bin/pytest` and `node --test`, and they are what `pair.sh red` and `scripts/blind.sh test` run: a project that has to deselect a marker or import a loader names the whole invocation once there instead of editing the two scripts by hand. The test path and the flags each script adds come after the configured words, and a configured word carrying a slash is a path in the checkout while a bare word is on `PATH`. A wider runner widens nothing a blind agent may type: `blind-bash.py` admits `scripts/blind.sh test <path>` and no runner argument beside it, so the invocation is configuration and never agent input.
 
 `respec` lands a re-approved block on the open spec branch as the `spec:` commit the writer's delta names. It makes the same comparison `open` makes and one more: the newest round has to differ from the one the spec branch already committed, because a block whose lines changed under the last `READY` would otherwise pass. It stages the block alone, so tests the writer has not committed stay out of that commit.
+
+It makes a third comparison, against the block the branch already holds, and that one picks the token rather than refusing anything. Where the two blocks part into the same structure line, the same `brief:` and the same behavior lines and differ only in `collateral:` rows, it prints `RESPEC COLLATERAL`: no contract line changed, so the round costs one `arbiter` pass and no second word from the owner. A block either side cannot be parted into those pieces prints `RESPEC`, as does one whose behavior lines differ. The comparison is by section and never by how many lines differ, because a respec that rewrites one behavior line and one row is a changed contract; and it skips the owner alone — the `arbiter` round is what the reviewer-section match above already required.
+
+A `kind:` block's `collateral:` rows are checked at merge by the same `strike-diff.py` the three motions use, under `--collateral`: one `OK`, `ALTERED` or `MISSING` per row, no sweep for files no row names, and anything but `OK` stops the land before the `TEST CHECK` brief is printed. The rows and the reviewer round are not alternatives here — the round rules on the behavior lines, and a row names a test no behavior line pins.
 
 ## The tests-only lane
 

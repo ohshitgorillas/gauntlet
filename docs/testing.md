@@ -132,6 +132,37 @@ No `rule:`, no `removed:`, no `replace:`, no `kills:`, no `bite:`. Nothing pinne
 
 Merge check split on `as:`. Where `as:` name file or test other than target's, line satisfied on two fact together: target gone from its own file (name gone, or name present and quoted `assertion:` gone from that test's body), and `as:` test exist with that same quoted text byte-identical in its own body. Where `as:` equal target, nothing leave the file, so check is other two fact together: quoted `assertion:` byte-identical in that test's body, and that body differ from its body at base. Body byte-identical on both side = `UNSATISFIED`: nothing moved. Assertion text that change under this motion = `STRICKEN`: it belong to `kind: refactor` or to `motion: amend`, where replacement is judged.
 
+## Collateral rows
+
+`kind:` block may carry `collateral:` section under its behavior lines, one row per test change break but no line pin. Caller-side move — renamed keyword, moved fixture, renumbered index — break test that pin nothing in block. Row is how block name it, so writer may repair what surround assertion and merge check hold assertion byte-identical.
+
+```
+collateral:
+- <tests dir>/<file>::<test>
+  breaks: <the fact outside the tests dir that moved, and what it forces>
+  assertion: <the assertion, quoted verbatim, byte-identical after>
+```
+
+`kind:` blocks only. Motion block have no implementation phase, so it have no caller-side move to carry.
+
+Target always `<tests dir>/<file>::<test>`. Whole-file target malformed: row's promise is about named test's own body.
+
+Target always a test. Helper, fixture, parametrize list, import: named in `breaks:`, repaired by writer, never a target.
+
+No `rule:`, no `removed:`, no `replace:`, no `kills:`, no `bite:`. Nothing pinned change, so no rule to cite and no wrong implementation to name.
+
+`breaks:` name fact outside `<tests dir>/` that force repair. Prose, read by reviewer, never mechanically. "Test was stale" is not `breaks:`.
+
+`collateral:` header with no row under it = malformed. Absent section is how block carry none.
+
+Test named by both a row and an `existing:` clause = malformed. Clause say its assertion change, row say it do not.
+
+Repair that must move test to another file or rename it = no row. That is `motion: rehome`'s shape, and rehome cannot ride this pair: move go as own tests-only block once pair land.
+
+No ceiling on rows. Four-line cap count behavior lines; each row cost one reviewer check and one merge verdict.
+
+Merge check read quoted `assertion:` in target test's own body at head. Body, not file — same text can sit in sibling. Present byte-identical = `OK`. Test no longer defined = `MISSING`. Test defined, quoted text gone from its body = `ALTERED`. Anything but `OK` stop the merge.
+
 ## Markers
 
 - Default suite: offline, deterministic, pass with no outside service up.

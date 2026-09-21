@@ -150,6 +150,13 @@ def cmd_respec(slug: str) -> int:
             " not the last one pasted under a changed block."
         )
 
+    #: read before the write, against the block the branch holds rather than the
+    #: file the write is about to replace. A respec that touches rows alone
+    #: changed no contract line, so it owes no second owner word, and this is
+    #: the whole evidence for that: the shortcut skips the owner, never the
+    #: `arbiter`, whose round the comparison above has already matched.
+    shortcut = blocks.collateral_only(blocks.committed_block(tree, slug), text)
+
     Path(path(tree, relative)).write_text(text, encoding="utf-8")
     if git_ok("diff", "--quiet", "HEAD", "--", relative, tree=tree):
         die("pair: " + relative + " matches the block at HEAD -- nothing for the delta to read.")
@@ -158,7 +165,8 @@ def cmd_respec(slug: str) -> int:
     git("add", "--", relative, tree=tree)
     if trees.in_tree(tree, ["git", "commit", "-q", "-m", "spec: " + slug]) != 0:
         die("pair: the spec commit in " + tree + " failed")
-    out("RESPEC " + relative + " " + git("rev-parse", "HEAD", tree=tree))
+    token = "RESPEC COLLATERAL " if shortcut else "RESPEC "
+    out(token + relative + " " + git("rev-parse", "HEAD", tree=tree))
     return 0
 
 
@@ -210,25 +218,6 @@ def _check_lanes(tree: str, impl: str, has_impl: bool) -> None:
         die("pair: the lanes are what make this combine conflict-free; move those files.")
 
 
-def _report_red(slug: str, tree: str, text: str, base: str, head: str, mechanical: bool) -> None:
-    """What a red gate in the combined tree leaves behind, all of it on stderr.
-
-    Nothing landed, so nothing on stdout should read as the brief of a merged
-    block.
-    """
-    note("")
-    note("pair: the gate is red in the combined tree. " + TARGET + " is untouched")
-    note("and both trees are left exactly as they are: " + tree)
-    note("A failing test here means the block and the code disagree. The code is")
-    note("wrong and the fix lands in the implementation tree, or the block is wrong")
-    note("and it goes back for re-approval. Tests are not edited to pass.")
-    if mechanical:
-        for line in blocks.strike_report(text, base, head, tree):
-            note("  " + line)
-    else:
-        note("  merge output: " + blocks.merge_artifact(slug, base, head, tree))
-
-
 def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
     """Rebase, combine, gate and land, with the pair lock already held."""
     note("  [3/6] rebase onto " + TARGET)
@@ -243,7 +232,7 @@ def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
 
     note("  [5/6] gate")
     if not converge.gate(slug):
-        _report_red(slug, tree, text, base, head, mechanical)
+        converge.report_red(slug, tree, text, base, head, mechanical)
         return 1
 
     if mechanical:
@@ -255,6 +244,15 @@ def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
         if not all(line.startswith("OK ") for line in verdicts):
             die("pair: the landed tests do not match the block that approved them.")
     else:
+        #: a block's `collateral:` rows, where it carries any. The reviewer round
+        #: below rules on the behavior lines; these name tests no line pins, so
+        #: the mechanical check is what holds them, and it runs before the brief
+        #: because a brief on stdout is the brief of a block that landed.
+        rows = blocks.collateral_report(text, base, head, tree)
+        for line in rows:
+            out(line)
+        if not all(line.startswith("OK ") for line in rows):
+            die("pair: a collateral row's assertion did not survive the change.")
         for line in _brief(slug, tree, base, head):
             out(line)
 

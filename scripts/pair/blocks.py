@@ -29,6 +29,8 @@ _STRIKE = re.compile(r"^\s*\d+\.\s*strike\s+(?P<target>.*?)\s*$")
 #: the structure line: `kind:` for a block that writes tests, `motion:` for one
 #: that removes or moves them
 _KIND = re.compile(r"^(?:kind|motion):\s*(?P<kind>.*?)\s*$")
+#: the header of the `collateral:` section, where a `kind:` block carries one
+_COLLATERAL = re.compile(r"^\s*collateral:\s*$")
 
 #: the three headings `<gauntlet dir>/merge/<slug>.txt` carries, in this order
 HEADINGS = ("test files:", "diff:", "red output:")
@@ -186,6 +188,38 @@ def strike_report(block: str, base: str, head: str, tree: str) -> list[str]:
         os.chdir(here)
 
 
+def collateral_targets(block: str) -> list[str]:
+    """The targets of the block's `collateral:` rows, in block order.
+
+    Parsed by the same module that rules on them at merge, so the grammar this
+    driver reads and the grammar the check reads cannot drift apart.
+    """
+    module = _load_strike_diff()
+    targets: list[str] = [row.target for row in module.parse_collateral(block)]
+    return targets
+
+
+def collateral_report(block: str, base: str, head: str, tree: str) -> list[str]:
+    """The `scripts/strike-diff.py` verdicts for a `kind:` block's rows.
+
+    Same `chdir` discipline as `strike_report`, for the same reason: that
+    module runs git in the process's own directory.
+    """
+    module = _load_strike_diff()
+    here = Path.cwd()
+    os.chdir(path(tree))
+    try:
+        verdicts: list[str] = module.collateral_report(block, base, head)
+        return verdicts
+    finally:
+        os.chdir(here)
+
+
+def committed_block(tree: str, slug: str) -> str:
+    """The approved block as the spec branch last committed it, whole."""
+    return git_out("show", "HEAD:" + spec_path(slug), tree=tree)
+
+
 def committed_section(tree: str, slug: str) -> str:
     """The block's reviewer section as the spec branch last committed it.
 
@@ -194,7 +228,41 @@ def committed_section(tree: str, slug: str) -> str:
     re-approved block carries a new round, so comparing the two is what keeps
     the last `READY` from being pasted under a changed block.
     """
-    return reviewer_section(git_out("show", "HEAD:" + spec_path(slug), tree=tree))
+    return reviewer_section(committed_block(tree, slug))
+
+
+def _parted(text: str) -> tuple[str, str] | None:
+    """A block's contract above its `collateral:` header, and the rows beneath.
+
+    `None` where the text carries no structure line or no `brief:` section:
+    those are the two pieces the shortcut below has to hold constant, and a
+    text they cannot be read out of is one this comparison does not rule on.
+    """
+    contract, _, _ = text.partition(DIVIDER)
+    rows = contract.splitlines(keepends=True)
+    if not any(_KIND.match(row) for row in rows):
+        return None
+    if not any(row.startswith("brief:") for row in rows):
+        return None
+    for index, row in enumerate(rows):
+        if _COLLATERAL.match(row):
+            return "".join(rows[:index]), "".join(rows[index:])
+    return "".join(rows), ""
+
+
+def collateral_only(before: str, after: str) -> bool:
+    """Whether the two blocks differ in `collateral:` rows and nothing else.
+
+    This is the whole guard on the respec shortcut, so it is a comparison by
+    section and never by how many lines differ: a respec that rewrites one
+    behavior line and one row changes the contract, and the owner reads a
+    changed contract line. Either text this cannot be parted into its pieces
+    answers no, and the respec pays the full price.
+    """
+    two = _parted(before), _parted(after)
+    if two[0] is None or two[1] is None:
+        return False
+    return two[0][0] == two[1][0] and two[0][1] != two[1][1]
 
 
 def strike_whole_files(tree: str, block: str) -> None:

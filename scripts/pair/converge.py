@@ -28,8 +28,29 @@ import subprocess
 from pathlib import Path
 from typing import TextIO
 
+import blocks
 import trees
 from trees import GATE, TARGET, die, exists, git, git_ok, note, path
+
+
+def report_red(slug: str, tree: str, text: str, base: str, head: str, mechanical: bool) -> None:
+    """What a red gate in the combined tree leaves behind, all of it on stderr.
+
+    Nothing landed, so nothing on stdout should read as the brief of a merged
+    block. Every line here is `note`, which is why it sits in this module and
+    not beside the driver's contract lines.
+    """
+    note("")
+    note("pair: the gate is red in the combined tree. " + TARGET + " is untouched")
+    note("and both trees are left exactly as they are: " + tree)
+    note("A failing test here means the block and the code disagree. The code is")
+    note("wrong and the fix lands in the implementation tree, or the block is wrong")
+    note("and it goes back for re-approval. Tests are not edited to pass.")
+    if mechanical:
+        for line in blocks.strike_report(text, base, head, tree):
+            note("  " + line)
+    else:
+        note("  merge output: " + blocks.merge_artifact(slug, base, head, tree))
 
 
 class Lock:

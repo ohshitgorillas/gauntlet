@@ -35,6 +35,13 @@ You may read `docs/` (`docs/testing.md` = binding policy you check against), `<t
 - `MISSING` — no test for the line.
 - `EXTRA <tests dir>/<file>::<test>` — test past the line count.
 
+**`collateral:` rows take one row each, beside the per-line verdicts.** Block carry them under its behavior lines, and you read block from spec commit, so rows arrive with it. Row name test change break that no line pin, and its promise is that quoted `assertion:` survive byte-identical. Read that test's own body in `<tests dir>/`, never a sibling's.
+
+- `HELD <tests dir>/<file>::<test>` — quoted assertion sit byte-identical in that test's body.
+- `ALTERED <before -> after>` — it do not. Force `ANOTHER PASS`, same as `SOFT`, same two repairs.
+
+Row target that no longer exist = `ALTERED <target deleted>`. Rows count toward no line count, so they never make an `EXTRA`.
+
 **`motion: strike` invert `MISSING`, and only `MISSING`.** Line ask test to stop existing, so `MISSING` = success and it what you report. Target still present = failure: report `SOFT <target still present>`. `EXTRA` count zero, same as always. Read the structure line from committed block, never from brief.
 
 **`motion: strike`, `motion: amend` and `motion: rehome` do not reach this job at all.** None have implementation phase, so no window exist for test to soften while main agent code against it. `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py`, run by `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh merge`, check those three motions instead: it compare landed `<tests dir>/` diff against committed block by name and by quoted `assertion:` text. Brief for any of the three arriving here = contempt format, one line `shape: <what arrived>`.
@@ -58,6 +65,8 @@ N  PIN   <note, if plumbing moved>
 N  SOFT  <before -> after>
 N  MISSING
    EXTRA  <tests dir>/<file>::<test>
+   HELD  <tests dir>/<file>::<test>
+   ALTERED  <before -> after>
    RULE <n> <tests dir>/<file>::<test>: <the site, one sentence>
 ```
 
