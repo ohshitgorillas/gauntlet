@@ -1,0 +1,45 @@
+slug: drop-name-binds
+kind: new
+
+brief:
+> Issue from a concurrent session below (`~/dev/hqptuner/`).
+> I consider this behavior a bug and want it resolved immediately.
+> Take this through stage 1 and present the plan when READY.
+> that sounds awfully complicated.
+> how about `scripts/gauntlet/`?
+> Understood, proceed
+> Find the approved plan file `gauntlet/plans/approved/drop-name-binds.txt` for slug `drop-name-binds`.
+> Take the slug through stage 2 of the plan gate, presenting the spec block at READY for approval.
+
+1. Inside a checkout, a default-profile wrapped shell writes the three kit directory names and not the lanes. Hold five probes under `prosecutor`, `printf x > <p>` at `scripts/probe.txt`, `hooks/probe.txt`, `agents/probe.txt`, `gauntlet/specs/approved/probe.txt` and `.claude/probe.txt`, each directory on disk in the checkout: the set of those probe files on disk after the run is {`scripts/probe.txt`, `hooks/probe.txt`, `agents/probe.txt`}.
+   kills: a hook binding the bare names `scripts`, `hooks` and `agents` read-only in whatever checkout it wraps refuses `printf x > scripts/probe.txt` in a consumer project whose own source sits there, so `pre-commit`'s `git checkout -- .` cannot restore `scripts/junkburst/` and a commit touching that directory fails from a wrapped shell.
+   bite: HEAD produces the empty set — all five probes absent after the run, `bash: line 1: scripts/probe.txt: Read-only file system`. Measured by feeding `{"tool_name":"Bash","tool_input":{"command":"printf x > scripts/probe.txt"},"cwd":"<fixture>","agent_type":"prosecutor"}` to `python3 hooks/bwrap-wrap.py`, running the returned `hookSpecificOutput.updatedInput.command` verbatim, and testing the probe's presence, once per probe.
+   existing: `tests/test_bwrap_wrap.py:337` `test_a_write_under_the_replacement_lands_by_path_and_by_caller`. `grep -rn "PROTECTED_IN_CHECKOUT" tests/` returns nothing; `grep -rn "_write_outcome" tests/` returns that test's cases at `tests/test_bwrap_wrap.py:323-325` and `tests/test_extra_binds.py:181`, `:198`, `:215`, `:230`. Every probe in them is the checkout root, a lane directory, or a path outside the checkout; none is under `scripts/`, `hooks/` or `agents/`.
+
+2. The write is the author's and not the reviewer's. Hold one probe, `printf x > scripts/probe.txt` with `scripts/` on disk in the checkout, and move the caller: under `prosecutor` the file is on disk after the run, under `arbiter` it is not.
+   kills: an implementation dropping the read-only bind in every profile gives a blind reviewer a writable `scripts/` in the checkout it judges, so the `arbiter` rewrites `scripts/pair.sh` — the driver that lands the pair it is reviewing — at its own hand.
+   bite: HEAD produces absent under both callers: `bash: line 1: scripts/probe.txt: Read-only file system` under `prosecutor` and `bash: line 1: scripts/probe.txt: No such file or directory` under `arbiter`. Measured by the command in line 1, with `"agent_type"` moved between the two values.
+   existing: `tests/test_bwrap_wrap.py:337` again, whose `reviewer-at-the-root` case at `tests/test_bwrap_wrap.py:325` pins `arbiter` writing `probe.txt` as refused. Its probe is the checkout root, which the author writes today, so it separates the two callers at no path under the three names.
+
+3. A worktree answers as the main checkout does. Hold two probes under `prosecutor`, `printf x > <p>` at `scripts/probe.txt` and `gauntlet/specs/approved/probe.txt`, run with `cwd` at a worktree `.claude/worktrees/alpha-spec` carrying both directories on disk: the set of those probe files on disk after the run is {`scripts/probe.txt`}.
+   kills: an implementation dropping the three names only from the session's own root leaves `.claude/worktrees/alpha-spec/scripts/probe.txt` refused, so the implementation half of a pair cannot write the project's own `scripts/` in the tree the pair is built in.
+   bite: HEAD produces the empty set — both probes absent after the run, `bash: line 1: scripts/probe.txt: Read-only file system`. Measured by the command in line 1 with `"cwd"` set to the worktree.
+   existing: `tests/test_bwrap_wrap.py:172` `test_worktree_binds_follow_the_trees_on_disk_at_the_time_of_the_call` is the only test naming a worktree; it observes which tree paths appear in the replacement text, never what a write inside one achieves. The `grep -rn "_write_outcome" tests/` in line 1 returns no case whose `cwd` is a worktree.
+
+--- reviewer ---
+READY
+discriminates: sweep on the write outcome of a wrapped shell — written/refused across five directories in line 1, plus a caller differential in line 2 and a worktree differential in line 3
+
+1  AMENDED tests/test_bwrap_wrap.py:337: the five probes are five more `(agent_type, WRITE, path, expected)` cases in the existing `test_a_write_under_the_replacement_lands_by_path_and_by_caller` parametrize, which already carries `author-at-the-root` and `author-into-the-spec-lane` on the same surface and helper (`_write_outcome`, tests/test_bwrap_wrap.py:201); no new test.
+2  AMENDED tests/test_bwrap_wrap.py:337: the caller separation at `scripts/probe.txt` is two more cases in that same parametrize beside `reviewer-at-the-root`, which already pins `arbiter` refused on a write path; no new test.
+3  ADMITTED
+
+null stub: feature absent — `hooks/bwrap-wrap.py` unchanged, the three kit names still bound read-only in whatever checkout is wrapped, so every probe under them is refused.
+  satisfies: none   fails: 1, 2, 3
+hard-coded stub: bind the exact probe paths the block names read-write for `prosecutor` and leave everything else read-only — unconstructible here, since `_write_outcome` (tests/test_bwrap_wrap.py:201, tests/test_extra_binds.py:128) unlinks the target before the wrap, so no bind source exists at that path and the cheapest stub that produces these outcomes has to make the containing directory writable, which is the contract itself.
+  satisfies: none   fails: 1, 2, 3
+
+survives: 1
+
+note: the full membership of the protected-in-checkout set lives in `hooks/bwrap-wrap.py`, which this review may not read. Line 1 pins that `gauntlet/specs/approved/` and `.claude/` stay refused; if that set holds further protected paths, no line pins that they survive the drop. `grep -rn "PROTECTED_IN_CHECKOUT" tests/` returns nothing, confirmed.
+note: the brief carries the owner's `how about `scripts/gauntlet/`?`. If the approved plan at `gauntlet/plans/approved/drop-name-binds.txt` (outside this review's read set) puts the kit under `scripts/gauntlet/` and keeps it read-only, no line pins a refusal there, while line 1 pins `scripts/probe.txt` written. Settle against the plan.
