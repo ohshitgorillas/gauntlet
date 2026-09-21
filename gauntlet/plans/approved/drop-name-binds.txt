@@ -1,0 +1,86 @@
+slug: drop-name-binds
+discovery: detective
+
+brief:
+> Issue from a concurrent session below (`~/dev/hqptuner/`).
+> I consider this behavior a bug and want it resolved immediately.
+> Take this through stage 1 and present the plan when READY.
+> that sounds awfully complicated.
+> how about `scripts/gauntlet/`?
+> Understood, proceed
+delivered: What is wrong
+delivered: Which files get touched, and roughly how
+delivered: the plan body, "What is wrong" through "Open questions"
+delivered: Which files get touched, and roughly how
+dropped: superseded by "Understood, proceed"; recorded as Open question 1
+delivered: Which files get touched, and roughly how
+
+## What is wrong
+
+`hooks/bwrap-wrap.py:120-129` binds three bare directory names read-only in every checkout: `:124` `"hooks"`, `:125` `"agents"`, `:126` `"scripts"`. Loop `:258`, bind `:259`.
+
+Names, not kit files. A consumer project owns those names too. `~/dev/hqptuner/scripts/junkburst/` is that project's own source, and a wrapped shell there gets EROFS on it. The `pre-commit` framework restores the worktree with `_CHECKOUT_CMD = ('git', '-c', 'submodule.recurse=0', 'checkout', '--', '.')`, `/home/atom/dev/hqptuner/.venv/lib/python3.14/site-packages/pre_commit/staged_files_only.py:23`, which cannot write a file under `scripts/`, so a commit touching that directory fails from an agent shell.
+
+For the main agent the three entries block nothing it cannot do by another route: the mount reaches shells alone, `.claude-plugin/plugin.json:31`, and the five lanes at `hooks/lanes.py:213-232` cover specs, plans, tests, reviews and verdicts, so `hooks/`, `agents/` and `scripts/` are in no row and `Edit` and `Write` reach all three. For the five agents in `BLIND`, `hooks/no-impl-reads.py:115`, that hook denies the read. The write is denied for two of them, `scrivener` on the tests row `hooks/lanes.py:215-221` and `arbiter` on the reviews row `:223-230`, each through `hooks/lanes.py:254-261`; the verdicts row `:232` carries no `confined_msg`, so a `juror` write to the three names is admitted today and stays admitted under this plan; `agents/juror.md:4` reads `tools: Read, Grep, Glob, Write`, so the `juror` has no shell the mount was holding.
+
+`gauntlet/plans/approved/bash-sandbox.txt:23` is the owner's own approved brief line: "> - Read-only again inside the repo, in every checkout: lane dirs, state/red, state/merge, .claude/, scripts/, .git/hooks, .git/config." `:76` carries it into that plan's body. `scripts/` there is the owner's instruction, not a derivation, so `CHANGELOG.md:96` — "without the two entries one of the kit's own agents could rewrite the hooks that judge it" — is the record for `hooks/` and `agents/` only. This plan reverses that brief line for all three names, on the owner's later word.
+
+`/home/atom/dev/CLAUDE.md:21` — "A hook is not disabled, bypassed, narrowed, or edited to let an action through" — and `CLAUDE.md:35` bind an agent, not the owner. The reading taken: an agent narrowing a mount to land its own blocked command is what those forbid, and this is the owner directing a change to what the hook is for. The hook stays wired, its `--self-test` stays green, and no matcher is commented out.
+
+## What the owner sees change
+
+The default profile only. `_checkout_readonly` is reached at `hooks/bwrap-wrap.py:351` and `:359`, inside the `else` at `:344` of `_profile`, `:329`; the passthrough branch returns at `:150-151` and the reviewer branch takes the `if` above `:344`. A `scrivener`, `bailiff`, `arbiter` or `juror` shell reads exactly as today.
+
+Four agents sit in neither tuple, `hooks/bwrap-wrap.py:113` and `:116`, so each takes the default profile with the main agent: `prosecutor`, `detective`, `examiner` and `auditor`. The first three keep `Bash` and their shells change with this plan; `auditor` has none, `agents/auditor.md:4`.
+
+Shells write `scripts/`, `hooks/` and `agents/` again, in a consumer project and in this repo alike. One edge survives: a consumer whose `unwrapped_commands` declaration names a `reads` path under one of the three names keeps that path "read-only to every wrapped shell", `hooks/bwrap-wrap.py:365-370`, since those binds land last. `.claude/blind-reads.json` carries no such key, so this checkout is uniform. A commit touching `~/dev/hqptuner/scripts/junkburst/` runs from a subagent.
+
+Unchanged: the five lanes, `<gauntlet dir>/red`, `<gauntlet dir>/merge`, `.claude`, `.git/hooks`, `.git/config` stay read-only in every wrapped shell, in the main checkout and in each worktree.
+
+## Which files get touched, and roughly how
+
+`hooks/bwrap-wrap.py` — drop `hooks/bwrap-wrap.py:124`, `:125`, `:126` from `PROTECTED_IN_CHECKOUT`. No branch, no new tuple, no marker: every entry that survives is kit wiring or git state and is real in any checkout.
+
+`hooks/bwrap-wrap.py:45-49` — the docstring's read-only list for the default profile. Drop the same three names from it.
+
+`CHANGELOG.md` — one `### Fixed` bullet under `[Unreleased]`, same commit. The hook is shipped product and a consumer's shells change behavior.
+
+## Caller-side delta
+
+none. No config key, no lane, no agent definition, no script, no command spelling. `hooks/lanes_selftest.py:382` asserts the lanes are a subset — `<= set(importlib.import_module("bwrap-wrap").PROTECTED_IN_CHECKOUT)` — and the lanes stay, so it holds.
+
+## What it costs
+
+In a kit checkout, a `prosecutor`, `detective` or `examiner` shell reaches `hooks/`, `agents/` and `scripts/`, which is the case `CHANGELOG.md:96` names. `detective` holds no `Write`, `agents/detective.md:4`, and `prosecutor` is confined to the reviews and plans lanes by `hooks/lanes.py:223-230`, so for those two the shell opens a path their tools do not give; `examiner` is in no row's writers and holds `Write` already, `agents/examiner.md:4`. For the main agent the same is true of a sweeping command — `sed -i` across the tree — where the targeted route is open per What is wrong.
+
+Two live wirings in this checkout become shell-writable: `.claude/settings.local.json:9` runs `python3 "${CLAUDE_PROJECT_DIR}"/scripts/gates/md-softwrap.py`, and `.claude-plugin/plugin.json:17` runs `lanes.py` out of `${CLAUDE_PLUGIN_ROOT}/hooks/`, this checkout where the plugin is installed from it.
+
+Tests. Nothing pins the three entries: no test in `tests/` names `PROTECTED_IN_CHECKOUT`, and the two read-only assertions in the hook's own self-test, `hooks/bwrap_wrap_selftest.py:266` and `hooks/bwrap_wrap_selftest.py:278`, iterate `lane_config.LANE_DIRS` alone. Their removal needs a spec block and `scrivener` tests: a consumer checkout's `scripts/`, `hooks/` and `agents/` are writable in a default-profile shell, in the main checkout and in a worktree alike.
+
+`hooks/bwrap_wrap_selftest.py:60` builds its fixture tree from the tuple, so three directories stop being created there; `:288`, `:302` and `:314` pass `scripts/blind.sh` and `scripts/pair.sh` command text through that fixture. Collateral to check when the tests are written, not behavior.
+
+Left out: a lane row denying the write tools on the kit's own directories inside a kit checkout. That closes the gap named above and is a different change with its own plan.
+
+Left out: `scripts/gauntlet/`, the namespace the owner raised. It changes `${CLAUDE_PLUGIN_ROOT}/scripts/pair.sh` and `${CLAUDE_PLUGIN_ROOT}/scripts/blind.sh` for every installed consumer, and it does not reach `agents/`, which `README.md:74` has "found by convention" and which `.claude-plugin/plugin.json` carries no key for.
+
+## Open questions
+
+1. `scripts/gauntlet/` was raised and then superseded by "Understood, proceed". This plan follows the later sentence and drops the namespace for the cost under What it costs.
+--- reviewer ---
+READY
+
+a  PASS  the reversal of `gauntlet/plans/approved/bash-sandbox.txt:23` is stated outright as the change proposed, not carried in as a side effect; `PROTECTED_IN_CHECKOUT` keeps its meaning and loses three members.
+b  PASS  resolved: 44; this round's three land — `.claude-plugin/plugin.json:31` is `"matcher": "Bash"` over the block wiring `bwrap-wrap.py` at `:43`, `agents/detective.md:4` reads `tools: Read, Grep, Glob, Bash`, `.claude-plugin/plugin.json:17` is `python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/lanes.py`; `discovery: detective` is present and the plan cites twelve files outside its touched list.
+c  PASS  no split, extract or move; the tuple's three readers — `hooks/bwrap-wrap.py:258`, `hooks/lanes_selftest.py:382`, `hooks/bwrap_wrap_selftest.py:60` — need no edit, and nothing under `tests/` pins the three entries: no file there names `PROTECTED_IN_CHECKOUT` and no read-only assertion there names `scripts/`, `hooks/` or `agents/`.
+d  PASS  cause named upstream of the EROFS — bare directory names in the tuple, matched in any checkout, kit files or not — and the commit failure follows from it.
+e  PASS  every rule in force on the surface is named: `bash-sandbox.txt:23`/`:76` overturned outright on the owner's later word, `CHANGELOG.md:96` scoped to `hooks/` and `agents/`, `/home/atom/dev/CLAUDE.md:21` and `CLAUDE.md:35` answered with the hook left wired and its `--self-test` green; `docs/approved-specs.md:78` governs the lane directories alone, which stay.
+f  PASS  the `unwrapped_commands` sentence gives the boundary reading with `hooks/bwrap-wrap.py:365-370` and states this checkout's own value, `.claude/blind-reads.json` carrying no such key; the other edges are given — passthrough and reviewer profiles at `:150-151` and `:334-343`, agents with no shell at `agents/auditor.md:4` and `agents/juror.md:4`, worktree alongside main checkout — and the one edge the plan does not name, `extra_binds`, I resolved myself: `hooks/bwrap-wrap.py:297` guards on `root`, so no in-checkout declaration ever lands and this change cannot reach it.
+g  PASS  the one numbered item is the repeat of the `dropped:` line that `docs/plans.md:36` requires, and it carries the owner's own later sentence as its answer; no undecided question rides to the owner.
+h  PASS  each reach claim carries its mechanism and the one-hop set is closed: the tuple has three readers, all named; `_extra_binds` does not consult it; `hooks/lanes_selftest.py:382`'s subset assertion holds because `LANE_DIRS` stay; the verdicts row `hooks/lanes.py:232` carries no `confined_msg`, so the `juror` claim holds as written.
+i  PASS  six quoted brief sentences and six lines beneath, one each; every `delivered:` names a section that exists, and the one `dropped:` reappears as Open question 1.
+j  N/A   no architecture doc in this repo names a composition-root file, and the plan touches none.
+k  PASS  each named element reads as its sentence reads — "that sounds awfully complicated" is answered by a three-line deletion with no branch, no new tuple and no marker, and "I consider this behavior a bug" by the drop that frees `~/dev/hqptuner/scripts/junkburst/`.
+l  PASS  no sentence repeats a fact from the citation beside it or from an earlier section; the `bash-sandbox.txt` paragraph now opens on its citation, and "For the main agent the same is true" names What is wrong rather than restating it.
+
+notes:
+1. No previous round's findings reached me and `gauntlet/reviews/` is denied to me, so no check prints `carried`: every letter above was ruled fresh against the tree this round rather than carried from round 5.

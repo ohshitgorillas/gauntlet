@@ -1,0 +1,3 @@
+RED 1: tests/test_bwrap_wrap.py::test_a_write_under_the_replacement_lands_by_path_and_by_caller[author-into-the-scripts-directory] (and [author-into-the-hooks-directory], [author-into-the-agents-directory]) — "AssertionError: assert 'refused' == 'written'"
+RED 2: tests/test_bwrap_wrap.py::test_a_write_under_the_replacement_lands_by_path_and_by_caller[author-into-the-scripts-directory] — "AssertionError: assert 'refused' == 'written'"
+RED 3: tests/test_bwrap_wrap.py::test_a_write_inside_a_worktree_lands_by_path_as_it_does_in_the_checkout — "AssertionError: assert set() == {'scripts/probe.txt'}"
