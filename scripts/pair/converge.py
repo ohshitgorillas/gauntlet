@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """Converging a pair: rebase, combine, gate, land.
 
-`merge` touches the target branch only at the very end, and in this order:
+Two verbs share these steps. `check` gates a pair and stops; `merge` reads what
+`check` left and lands. Neither touches the target branch before the last step:
 
     1. lane check   the spec tree confined to the tests directory, the
                     implementation tree kept out of it
     2. commit       both trees
     3. rebase       both branches onto the target branch, if it moved under them
     4. combine      the implementation branch merged into the SPEC tree
-    5. gate         the configured gate command in that combined tree; a red
-                    gate stops here and the target branch never sees it
-    6. land         the target branch fast-forwarded to it, branches and trees
-                    removed
+    5. gate         `check` runs the configured gate command in that combined
+                    tree and records the verdict with the three tips it ran
+                    over; `merge` reads that record instead of gating again
+    6. land         `merge` only, and only on a passing record taken over the
+                    tips in front of it: the target branch fast-forwarded to
+                    it, branches and trees removed
 
 Steps 3 to 6 hold a lock, so two sessions converging at once queue instead of
 racing the branch tip. Every land is `--ff-only`; nothing is ever force-pushed.
@@ -33,12 +36,16 @@ import trees
 from trees import GATE, TARGET, die, exists, git, git_ok, note, path
 
 
-def report_red(slug: str, tree: str, text: str, base: str, head: str, mechanical: bool) -> None:
+def report_red(tree: str, text: str, base: str, head: str, mechanical: bool, saved: str) -> None:
     """What a red gate in the combined tree leaves behind, all of it on stderr.
 
     Nothing landed, so nothing on stdout should read as the brief of a merged
     block. Every line here is `note`, which is why it sits in this module and
     not beside the driver's contract lines.
+
+    `saved` is the reading the caller has already written. Writing a second one
+    here would give one gate run two files and two numbers, and leave the
+    `bailiff` a choice of evidence.
     """
     note("")
     note("pair: the gate is red in the combined tree. " + TARGET + " is untouched")
@@ -50,7 +57,7 @@ def report_red(slug: str, tree: str, text: str, base: str, head: str, mechanical
         for line in blocks.strike_report(text, base, head, tree):
             note("  " + line)
     else:
-        note("  merge output: " + blocks.merge_artifact(slug, base, head, tree))
+        note("  merge output: " + saved)
 
 
 class Lock:

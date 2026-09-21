@@ -4,7 +4,8 @@
     pair.sh open <slug>      cut the spec worktree and commit the reviewed block
     pair.sh respec <slug>    land a re-approved block on the open spec branch
     pair.sh red <slug>       run the suite there, and remove whole-file targets
-    pair.sh merge <slug>     converge the pair and land it on the target branch
+    pair.sh check <slug>     converge the pair and gate it, landing nothing
+    pair.sh merge <slug>     land a pair a check passed on the target branch
     pair.sh abort <slug>     take the pair back out, trees and branches alike
     pair.sh close <slug>     remove the pair's worktrees, keeping every commit
     pair.sh list             the pairs with a recorded base
@@ -16,7 +17,7 @@
 
 The stdout of each is contract, and `${CLAUDE_PLUGIN_ROOT}/docs/agents.md` carries
 the table. A blind writer reads these literals there, never here. This file owns
-every line of that stdout: the three modules beside it print to stderr only, so a
+every line of that stdout: the four modules beside it print to stderr only, so a
 progress line can never be read as a contract line.
 
 `open` refuses on a mismatch because the approved spec is editable after the
@@ -24,11 +25,18 @@ reviewer passed it and the round file is not. Comparing the two is what makes
 the block that reaches the writer the block that was reviewed, rather than the
 latest one someone typed. `respec` makes the same comparison and one more: the
 round has to be newer than the one the spec branch already committed.
+
+`check` and `merge` are two verbs because gating and landing are two decisions.
+`check` runs the gate over the combined tree and records the verdict beside the
+three tips it ran over; it lands nothing, so a reading costs the owner nothing
+and a red one survives the run that fixes it. `merge` reads that record and
+refuses anything else: no record, a red one, or one taken over a revision that
+has since moved is `UNCHECKED`, because a land on a gate reading of some other
+tree is a land on a gate that never ran.
 """
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 from pathlib import Path
@@ -38,16 +46,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import blocks  # noqa: E402
 import converge  # noqa: E402
 
-#: imported here rather than taken from `trees`, which does not re-export them.
-#: The import above put the hooks directory on `sys.path`, so these follow it.
-import lane_config  # noqa: E402
+#: `lane_declaration` and `lane_paths` are imported here rather than taken from
+#: `trees`, which does not re-export them. The import above put the hooks
+#: directory on `sys.path`, so they follow it, and `steps` sorts in among them.
 import lane_declaration  # noqa: E402
 import lane_paths  # noqa: E402
+import steps  # noqa: E402
 import trees  # noqa: E402
 from trees import REVIEWS, TARGET, die, git, git_ok, note, path  # noqa: E402
 
 USAGE = (
-    "usage: pair.sh open|respec|red|merge|abort|close <slug> | list"
+    "usage: pair.sh open|respec|red|check|merge|abort|close <slug> | list"
     " | review [plan] <slug> | restore <slug> <rev> | impl checkout|merge <slug>"
 )
 
@@ -64,33 +73,12 @@ def check_slug(slug: str) -> str:
     return slug
 
 
-def approved(slug: str) -> tuple[str, str]:
-    """The approved block's path and text, or an exit where there is none."""
-    relative = blocks.spec_path(slug)
-    text = blocks.read(relative)
-    if text is None:
-        die("pair: no approved spec at " + relative)
-    return relative, text
-
-
-def round_match(slug: str, text: str) -> tuple[str, bool]:
-    """The newest round file, and whether the block's reviewer section is it.
-
-    The path comes back either way, because the caller names it on the
-    `MISMATCH` line. `MISMATCH` is a contract line and so is not printed here.
-    """
-    newest = blocks.newest_round(slug)
-    if newest is None:
-        die("pair: no reviewer round on disk for " + slug)
-    return newest, blocks.reviewer_section(text) == (blocks.read(newest) or "")
-
-
 # --- the pair -----------------------------------------------------------------
 
 
 def cmd_open(slug: str) -> int:
-    relative, text = approved(slug)
-    newest, matched = round_match(slug, text)
+    relative, text = steps.approved(slug)
+    newest, matched = steps.round_match(slug, text)
     if not matched:
         out("MISMATCH " + newest)
         return 1
@@ -105,38 +93,18 @@ def cmd_open(slug: str) -> int:
     git("worktree", "add", "--quiet", "-b", trees.spec_branch(slug), tree)
     trees.record_base(slug, base)
     trees.link_tooling(tree)
-    _commit_block(slug, tree, relative, text)
+    steps.commit_block(slug, tree, relative, text)
     note("  base " + base + ", block at " + relative)
     out("OPEN " + tree)
     return 0
 
 
-def _commit_block(slug: str, tree: str, relative: str, text: str) -> None:
-    """Put the approved block on the spec branch, where the writer's brief reads it.
-
-    The block reaches the lane as a file the reviewer wrote, tracked by the
-    primary checkout or not. Every agent downstream reads it out of a commit
-    rather than off disk: the `scrivener` refuses a spec no tree HEAD holds,
-    `blocks.spec_commit` names the commit the `bailiff` is briefed with, and a
-    delta names a `spec:` commit newer than this one. Staging before the
-    comparison is what makes it answer for an untracked block too, which
-    `git diff HEAD` on its own does not see. A branch already holding the block
-    byte for byte takes no second commit.
-    """
-    Path(path(tree, relative)).write_text(text, encoding="utf-8")
-    git("add", "--", relative, tree=tree)
-    if git_ok("diff", "--cached", "--quiet", "HEAD", "--", relative, tree=tree):
-        return
-    if trees.in_tree(tree, ["git", "commit", "-q", "-m", "spec: " + slug]) != 0:
-        die("pair: the spec commit in " + tree + " failed")
-
-
 def cmd_respec(slug: str) -> int:
-    relative, text = approved(slug)
+    relative, text = steps.approved(slug)
     tree = trees.spec_tree(slug)
     if not Path(path(tree)).is_dir():
         die("pair: no spec worktree at " + tree + " -- was this pair opened?")
-    newest, matched = round_match(slug, text)
+    newest, matched = steps.round_match(slug, text)
     if not matched:
         out("MISMATCH " + newest)
         return 1
@@ -170,36 +138,18 @@ def cmd_respec(slug: str) -> int:
     return 0
 
 
-def _pytest_argv() -> list[str]:
-    """The configured python runner, as this checkout runs it.
-
-    `pytest_command` from `blind-reads.json`, so a project that deselects a
-    marker names it once there instead of editing this file and
-    `scripts/blind.sh` both. A word carrying a slash is a path in the checkout
-    and is made absolute, because the run happens with a worktree as its working
-    directory; a bare word is on `PATH` and is left alone. `PYTEST` in the
-    environment replaces the head word and keeps the configured arguments.
-    """
-    words = lane_config.pytest_command()
-    head = os.environ.get("PYTEST") or words[0]
-    if not Path(head).is_absolute() and "/" in head:
-        head = path(head)
-    return [head] + words[1:]
-
-
 def cmd_red(slug: str) -> int:
-    _, text = approved(slug)
+    _, text = steps.approved(slug)
     tree = trees.spec_tree(slug)
     if not Path(path(tree)).is_dir():
         die("pair: no spec worktree at " + tree)
     blocks.strike_whole_files(tree, text)
-    out(blocks.red_run(slug, tree, _pytest_argv()))
+    out(blocks.red_run(slug, tree, steps.pytest_argv()))
     return 0
 
 
-def _brief(slug: str, tree: str, base: str, head: str) -> list[str]:
+def _brief(slug: str, tree: str, saved: str) -> list[str]:
     """The five lines a `bailiff` is briefed with, and the file they name."""
-    saved = blocks.merge_artifact(slug, base, head, tree)
     return [
         "TEST CHECK " + slug,
         "spec commit: " + blocks.spec_commit(tree, slug),
@@ -209,17 +159,39 @@ def _brief(slug: str, tree: str, base: str, head: str) -> list[str]:
     ]
 
 
-def _check_lanes(tree: str, impl: str, has_impl: bool) -> None:
-    """The disjoint-path rule over both trees, or an exit naming the files."""
-    lanes = trees.lane_check(tree, "spec")
-    if has_impl and not trees.lane_check(impl, "impl"):
-        lanes = False
-    if not lanes:
-        die("pair: the lanes are what make this combine conflict-free; move those files.")
+def _gate_it(slug: str, tree: str, text: str, has_impl: bool) -> int:
+    """Rebase, combine and gate, recording the reading, with the lock held."""
+    note("  [3/5] rebase onto " + TARGET)
+    converge.rebase_if_moved(slug, has_impl)
+    if has_impl:
+        note("  [4/5] combine in the spec tree")
+        converge.combine(slug)
+
+    base = git("merge-base", TARGET, trees.spec_branch(slug))
+    head = git("rev-parse", "HEAD", tree=tree)
+
+    note("  [5/5] gate")
+    passed = converge.gate(slug)
+    #: the tips are read after the combine, so the reading names the revision
+    #: the gate ran in rather than the one the verb was handed
+    saved = blocks.merge_artifact(slug, base, head, tree, steps.tips(slug, tree, has_impl), passed)
+    if passed:
+        out("CHECK " + saved + " PASS")
+        return 0
+    mechanical = blocks.block_kind(text) in ("strike", "amend", "rehome")
+    converge.report_red(tree, text, base, head, mechanical, saved)
+    out("CHECK " + saved + " FAIL")
+    return 1
+
+
+def cmd_check(slug: str) -> int:
+    text, tree, _, has_impl = steps.prepare(slug, "5")
+    with converge.Lock():
+        return _gate_it(slug, tree, text, has_impl)
 
 
 def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
-    """Rebase, combine, gate and land, with the pair lock already held."""
+    """Rebase, combine, read the gate reading and land, with the lock held."""
     note("  [3/6] rebase onto " + TARGET)
     converge.rebase_if_moved(slug, has_impl)
     if has_impl:
@@ -230,9 +202,10 @@ def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
     head = git("rev-parse", "HEAD", tree=tree)
     mechanical = blocks.block_kind(text) in ("strike", "amend", "rehome")
 
-    note("  [5/6] gate")
-    if not converge.gate(slug):
-        converge.report_red(slug, tree, text, base, head, mechanical)
+    note("  [5/6] the gate reading")
+    saved = steps.checked(slug, tree, has_impl)
+    if saved is None:
+        out("UNCHECKED " + slug)
         return 1
 
     if mechanical:
@@ -253,7 +226,7 @@ def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
             out(line)
         if not all(line.startswith("OK ") for line in rows):
             die("pair: a collateral row's assertion did not survive the change.")
-        for line in _brief(slug, tree, base, head):
+        for line in _brief(slug, tree, saved):
             out(line)
 
     note("  [6/6] land on " + TARGET)
@@ -263,25 +236,7 @@ def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
 
 
 def cmd_merge(slug: str) -> int:
-    _, text = approved(slug)
-    tree = trees.spec_tree(slug)
-    impl = trees.impl_tree(slug)
-    if not Path(path(tree)).is_dir():
-        die("pair: no spec worktree at " + tree + " -- was this pair opened?")
-    #: an implementation tree that was never cut is a tests-only pair, which is
-    #: the ordinary shape of the three tests-only kinds: skipped, never fatal
-    has_impl = Path(path(impl)).is_dir() and trees.exists(trees.impl_branch(slug))
-    if not has_impl:
-        note("  no implementation tree for " + slug + "; the spec tree lands alone")
-
-    note("  [1/6] lane check")
-    _check_lanes(tree, impl, has_impl)
-
-    note("  [2/6] commit both trees")
-    trees.commit_tree(tree, "test: " + slug)
-    if has_impl:
-        trees.commit_tree(impl, "feat: " + slug)
-
+    text, tree, _, has_impl = steps.prepare(slug, "6")
     with converge.Lock():
         return _converge_and_land(slug, tree, text, has_impl)
 
@@ -429,6 +384,7 @@ def main(argv: list[str]) -> int:
         "open": cmd_open,
         "respec": cmd_respec,
         "red": cmd_red,
+        "check": cmd_check,
         "merge": cmd_merge,
         "abort": cmd_abort,
         "close": cmd_close,

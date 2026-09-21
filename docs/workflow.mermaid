@@ -575,23 +575,33 @@ flowchart TD
 
     %% ---- Stage 5: the merge, and the window it closes. ----
 
-    merge["`pair.sh merge converges the pair in six steps, and the
-    target branch is touched only at the last: the lane check, a commit
-    in each tree, a rebase where the target moved underneath, the combine,
-    the gate, and the land. A lock is held from the rebase on,
-    so two sessions converging at once queue instead of racing the tip.`"]
+    check["`pair.sh check converges the pair in five steps and lands
+    nothing: the lane check, a commit in each tree, a rebase where the
+    target moved underneath, the combine, and the gate. The verdict and
+    the three tips it ran over are written to the next numbered reading,
+    so a reading is kept rather than overwritten by the run that follows.`"]
     gatecmd{"`Does the gate command pass in the combined tree?`"}
     redgate["`Nothing lands. Both trees stand exactly as they are
     and no brief is printed. The block and the code disagree,
     and the way out is the implementation tree or a re-approved block,
     never an edited test.`"]
+    merge["`pair.sh merge runs the same first four steps, reads the newest
+    reading instead of gating, and lands only on a PASS taken over the
+    three tips in front of it. Anything else is UNCHECKED and nothing
+    lands. A lock is held from the rebase on, so two sessions converging
+    at once queue instead of racing the tip.`"]
+    unchecked{"`Does the newest reading say gate: PASS
+    over the tips the merge has in front of it?`"}
+    stale["`UNCHECKED. Nothing lands and both trees stand. The trees moved
+    after the gate ran, or no gate ran at all, so run the check again
+    over the trees as they are now.`"]
     landed["`The land is a fast-forward and nothing else.
     Both trees and both branches are removed.`"]
 
     route5{"`What does the structure line say?`"}
     lanecheck{"`Does each tree hold only its own lane,
     and does each branch rebase onto the target?`"}
-    lanestop["`The merge stops before the gate ever runs, and the files
+    lanestop["`The check stops before the gate ever runs, and the files
     the check names are the repair. Nothing lands and both trees stand.`"]
     strikediff["`The landed diff is checked against the committed block
     mechanically, by target name and by quoted assertion text.
@@ -622,7 +632,7 @@ flowchart TD
 
     evidence{"`Is the merge output there and not empty?`"}
     noevidence["`NO EVIDENCE. The brief is well formed, so nobody is burned.
-    The repair is the main agent's: run the merge again
+    The repair is the main agent's: run the check and the merge again
     and spawn a fresh reviewer on the new brief.`"]
 
     perline5["`One verdict per behavior line: PIN where the test still
@@ -663,14 +673,18 @@ flowchart TD
     The change is on the target branch, and every test on it
     pins a line an adversarial reviewer passed blind.`"]
 
-    stage5 --> merge
-    merge --> lanecheck
+    stage5 --> check
+    check --> lanecheck
     lanecheck -- no --> lanestop
     lanestop --> tworoutes
     lanecheck -- yes --> gatecmd
     gatecmd -- no --> redgate
     redgate --> tworoutes
-    gatecmd -- yes --> landed
+    gatecmd -- yes --> merge
+    merge --> unchecked
+    unchecked -- no --> stale
+    stale --> check
+    unchecked -- yes --> landed
     landed --> route5
     route5 -- "motion: strike, amend, rehome" --> strikediff
     strikediff --> done
@@ -685,7 +699,7 @@ flowchart TD
     freshbail --> bailiff
     lead5 -- "clean" --> evidence
     evidence -- no --> noevidence
-    noevidence --> merge
+    noevidence --> check
     evidence -- yes --> perline5
     perline5 --> rows5
     rows5 --> rules5
