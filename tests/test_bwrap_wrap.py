@@ -40,12 +40,18 @@ TREE_BRAVO = "bravo-spec"
 
 
 def _repo(tmp_path, trees=()):
-    """A fixture checkout with the lane directories and `trees` under worktrees."""
+    """A fixture checkout with the lane directories and `trees` under worktrees.
+
+    The three kit directory names are on disk here as a consumer project's own
+    source, which is what makes a write under them an observable outcome.
+    """
     repo = tmp_path / "repo"
     (repo / "gauntlet" / "specs" / "approved").mkdir(parents=True)
     (repo / "gauntlet" / "reviews").mkdir(parents=True)
     (repo / ".claude" / "worktrees").mkdir(parents=True)
     (repo / "scripts").mkdir()
+    (repo / "hooks").mkdir()
+    (repo / "agents").mkdir()
     (repo / "tests").mkdir()
     #: a project declares itself, and an absent declaration is a fault the hook
     #: denies on rather than a fall back to these same defaults
@@ -78,16 +84,21 @@ def _tree_path(repo, name):
     return repo / ".claude" / "worktrees" / name
 
 
-def _run_hook(repo, agent_type, command):
+def _run_hook(repo, agent_type, command, at=None):
     """Feed one PreToolUse Bash payload to the hook; give its decoded answer.
+
+    `at` is the directory the caller's shell stands in, which defaults to the
+    checkout root and is a worktree inside it where a case names one; the
+    project directory stays the checkout either way.
 
     Returns the parsed stdout object, or an empty mapping where the hook wrote
     nothing parseable.
     """
+    standing = at or repo
     payload = {
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",
-        "cwd": str(repo),
+        "cwd": str(standing),
         "tool_input": {"command": command},
     }
     #: `agent_type` is present only on subagent calls (docs/approved-specs.md
@@ -102,7 +113,7 @@ def _run_hook(repo, agent_type, command):
     done = subprocess.run(
         [sys.executable, str(HOOK)],
         input=json.dumps(payload),
-        cwd=repo,
+        cwd=standing,
         env=env,
         capture_output=True,
         text=True,
@@ -198,22 +209,26 @@ def _bwrap_usable():
     return done.returncode == 0
 
 
-def _write_outcome(repo, agent_type, relative_path):
+def _write_outcome(repo, agent_type, relative_path, at=None):
     """Run the replacement for a write at `relative_path`; say what it achieved.
+
+    `relative_path` is read against `at`, the directory the caller's shell stands
+    in, which defaults to the checkout root.
 
     Gives "written" where the invocation exits clean and the file is on disk
     afterwards, "refused" where it is not, and "unwrapped" where the hook
     returned no replacement to run at all.
     """
-    target = repo / relative_path
+    standing = at or repo
+    target = standing / relative_path
     if target.exists():
         target.unlink()
     command = "printf x > " + relative_path
-    wrapped = _updated_command(_run_hook(repo, agent_type, command))
+    wrapped = _updated_command(_run_hook(repo, agent_type, command, at=at))
     if wrapped is None:
         return "unwrapped"
     done = subprocess.run(
-        ["/bin/sh", "-c", wrapped], cwd=repo, capture_output=True, text=True, check=False
+        ["/bin/sh", "-c", wrapped], cwd=standing, capture_output=True, text=True, check=False
     )
     return "written" if done.returncode == 0 and target.is_file() else "refused"
 
@@ -222,6 +237,14 @@ def _write_outcome(repo, agent_type, relative_path):
 #: whole command text run through whatever replacement the hook gives back
 WRITE = "write"
 RUN = "run"
+
+#: one probe per directory the cases below write into. The names are this file's
+#: own choice; `probe.txt` is not a name anything in the checkout knows.
+KIT_SCRIPTS_PROBE = "scripts/probe.txt"
+KIT_HOOKS_PROBE = "hooks/probe.txt"
+KIT_AGENTS_PROBE = "agents/probe.txt"
+SPEC_LANE_PROBE = "gauntlet/specs/approved/probe.txt"
+CLAUDE_DIR_PROBE = ".claude/probe.txt"
 
 ROUND_SLUG = "roundprobe"
 SEEDED_ROUNDS = 2
@@ -321,10 +344,15 @@ def _case_outcome(repo, agent_type, action, subject):
     ("agent_type", "action", "subject", "expected"),
     [
         (PROSECUTOR, WRITE, "probe.txt", "written"),
-        (PROSECUTOR, WRITE, "gauntlet/specs/approved/probe.txt", "refused"),
+        (PROSECUTOR, WRITE, SPEC_LANE_PROBE, "refused"),
         (ARBITER, WRITE, "probe.txt", "refused"),
         (ARBITER, RUN, REVIEW_COMMAND, REVIEWERS_ROUND),
         (MAIN_AGENT, RUN, REVIEW_COMMAND, AUTHORS_ROUND),
+        (PROSECUTOR, WRITE, KIT_SCRIPTS_PROBE, "written"),
+        (PROSECUTOR, WRITE, KIT_HOOKS_PROBE, "written"),
+        (PROSECUTOR, WRITE, KIT_AGENTS_PROBE, "written"),
+        (PROSECUTOR, WRITE, CLAUDE_DIR_PROBE, "refused"),
+        (ARBITER, WRITE, KIT_SCRIPTS_PROBE, "refused"),
     ],
     ids=[
         "author-at-the-root",
@@ -332,6 +360,11 @@ def _case_outcome(repo, agent_type, action, subject):
         "reviewer-at-the-root",
         "reviewer-counting-the-rounds-in-the-reviewers-lane",
         "main-agent-counting-the-rounds-in-the-reviewers-lane",
+        "author-into-the-scripts-directory",
+        "author-into-the-hooks-directory",
+        "author-into-the-agents-directory",
+        "author-into-the-claude-directory",
+        "reviewer-into-the-scripts-directory",
     ],
 )
 def test_a_write_under_the_replacement_lands_by_path_and_by_caller(
@@ -342,6 +375,25 @@ def test_a_write_under_the_replacement_lands_by_path_and_by_caller(
     base = in_tree_base if action == RUN else tmp_path
     repo = _prepared(_repo(base, trees=(TREE_ALPHA,)), action)
     assert _case_outcome(repo, agent_type, action, subject) == expected
+
+
+def _kit_shaped(tree):
+    """Put a kit directory and a spec lane on disk inside `tree`; give `tree`."""
+    (tree / "scripts").mkdir(exist_ok=True)
+    (tree / "gauntlet" / "specs" / "approved").mkdir(parents=True, exist_ok=True)
+    return tree
+
+
+def test_a_write_inside_a_worktree_lands_by_path_as_it_does_in_the_checkout(tmp_path):
+    if not _bwrap_usable():
+        pytest.skip("bwrap is not runnable on this host")
+    repo = _repo(tmp_path, trees=(TREE_ALPHA,))
+    tree = _kit_shaped(_tree_path(repo, TREE_ALPHA))
+    probes = (KIT_SCRIPTS_PROBE, SPEC_LANE_PROBE)
+    on_disk = {
+        probe for probe in probes if _write_outcome(repo, PROSECUTOR, probe, at=tree) == "written"
+    }
+    assert on_disk == {KIT_SCRIPTS_PROBE}
 
 
 def _carve_out(repo, command):
