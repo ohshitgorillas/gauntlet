@@ -1,0 +1,55 @@
+slug: blind-format
+kind: new
+brief:
+> On agent hygiene: I see a lot of re-requests going out to the Scrivener to have it fix, e.g., ruff, lint, etc. errors.
+> In other words, the Scrivener has no personal hygiene.
+> Is it possible to make the Scrivener clean up after itself on its own, or would that cross the line into letting it have tools that would give it implementation access?
+> Agreed on (2) scoped.
+> Take it to stage 1.
+
+1. `hooks/blind-bash.py` answers `scripts/blind.sh format <path>` from the `scrivener` against the lane the repo declared: where `tests_dir` is declared `spec`, `scripts/blind.sh format spec/t.py` comes back as an `updatedInput` rewrite and `scripts/blind.sh format tests/t.py` comes back DENY; where the declaration names no `tests_dir`, those two swap. A second command before it, two path arguments, and a path that opens under the lane and walks out of it are DENY at either declaration.
+   kills: the shape matched against a literal `tests/` prefix, so a repo whose lane is `spec` admits the writing verb at a directory no hook is guarding.
+   bite: DENY at HEAD at every one of those inputs, under either declaration, reason "A blind agent's shell is one command: `scripts/blind.sh test <path>` ..." -- `printf '{"tool_name":"Bash","tool_input":{"command":"scripts/blind.sh format spec/t.py"},"agent_type":"scrivener"}' | CLAUDE_PROJECT_DIR=<a repo declaring spec> python3 hooks/blind-bash.py`, and the same payload with `tests/t.py` against this checkout.
+   existing: tests/test_tests_config.py::TestsDirMovesTheWritersLane::test_the_blind_runner_reads_the_named_lane_and_not_the_default
+
+2. For the command text `scripts/blind.sh format tests/t.py`, `hooks/blind-bash.py` lets the `scrivener` through and answers the `bailiff` DENY, where for `cat hooks/shell_shapes.py` it answers both DENY.
+   kills: the writing verb admitted for every caller in the hook's blind tuple alike, which hands the bailiff a write into the tests dir that every other route denies it.
+   bite: DENY at HEAD for both callers at `scripts/blind.sh format tests/t.py` -- `printf '{"tool_name":"Bash","tool_input":{"command":"scripts/blind.sh format tests/t.py"},"agent_type":"scrivener"}' | python3 hooks/blind-bash.py`, and the same payload with `"agent_type":"bailiff"`.
+   existing: tests/test_hook_wire.py::TheCallerGate::test_the_two_shell_locked_agents_are_locked_and_no_other_caller_is
+
+3. A lane file whose bytes are `import os\n\nx = [1,2]\n` holds the bytes `x = [1, 2]\n` after `scripts/blind.sh format <that file>`, and holds `import os\n\nx = [1,2]\n` after `scripts/blind.sh test <that file>`.
+   kills: a `format` verb that runs the same gates in check mode and prints their failure, leaving the bytes as they were.
+   bite: HEAD prints `usage: blind.sh test <path> | status <slug> | show <commit> <slug>`, exits 2, and leaves the bytes `import os\n\nx = [1,2]\n` -- `scripts/blind.sh format tests/test_hook_wire.py; echo rc=$?`. The post-format value is measured at those bytes with `.venv/bin/ruff check --fix a.py; .venv/bin/black -q a.py; cat a.py` -> `x = [1, 2]`.
+   existing: none, `grep -rn "blind\.sh" tests/*.py tests/support/*.py` -> ten rows over four files (`tests/test_gates_wired.py:105`, `tests/test_pair_sh_merge.py:555`, `tests/test_tests_config.py:7`, `:29`, `:228`, `:237`, `:238`, `:248`, `:250`, `:520`); none of them runs a `blind.sh` subcommand as a subprocess, and none observes the script's exit status or a file's bytes after it.
+
+4. `scripts/blind.sh format <file>` exits non-zero over a lane file whose bytes are `import os\n\nx = [1,2]\ny = undefined_name\n`, and exits 0 over a lane file whose bytes are `import os\n\nx = [1,2]\n`.
+   kills: an exit status taken from the last write rather than from the gates, so a run that leaves `y = undefined_name` in the file reports the same clean status as one that leaves nothing.
+   bite: HEAD exits 2 at both inputs, printing the usage line -- `scripts/blind.sh format tests/test_hook_wire.py; echo rc=$?`. At those two byte strings `.venv/bin/ruff check --fix b.py` exits 1 with `Found 2 errors (1 fixed, 1 remaining).` and `.venv/bin/ruff check --fix a.py` exits 0 with `Found 1 error (1 fixed, 0 remaining).`
+   existing: none, same grep as line 3.
+
+--- reviewer ---
+READY
+discriminates: differential on `hooks/blind-bash.py`'s admit/deny decision under the declared lane (line 1: one command text, opposite verdicts under two declarations) and on the lane file's bytes across the two verbs (line 3), with line 4's exit status as a two-value sweep on one surface.
+
+Findings answered, all three with repairs in the named lines' text:
+P1 -- line 1 now reads "where the declaration names no `tests_dir`", which is `cls.bare = copy_hook_dir(cls.tmp.name, "BARE", {})` at `tests/test_tests_config.py:194`. That fixture resolves to the default lane, and `test_default_lane_is_tests_when_no_declaration_names_one` pins the swap the line now states. The absent-declaration reading, which `ADeclarationThatIsAFault` answers with DENY at every path, is out of the line. Withdrawn.
+P2 -- the node id collects: the class at `tests/test_tests_config.py:188` is `TestsDirMovesTheWritersLane`. Withdrawn.
+P3 -- the quoted grep is now the output I get from the same command: ten rows over four files, with the `none` conclusion carrying its reason. Withdrawn.
+
+1  AMENDED tests/test_tests_config.py:227: the `format` verb's rows join the `observed` dict of `TestsDirMovesTheWritersLane::test_the_blind_runner_reads_the_named_lane_and_not_the_default`, beside the `test` rows already there -- admitted at the declared lane, DENY at the other name, under both the `spec` declaration and the empty one, with the second-command, two-argument and walk-out rows DENY at either; no new test.
+2  AMENDED tests/test_hook_wire.py:519 (carried, text unchanged): `scripts/blind.sh format tests/t.py` joins `TheCallerGate.COMMAND` as a second command in the caller dict of `test_the_two_shell_locked_agents_are_locked_and_no_other_caller_is`, where `scrivener` reads admitted and `bailiff` DENY while the read command stays DENY for both; no new test.
+3  ADMITTED  a lane file whose bytes are `import os\n\nx = [1,2]\n` -> `x = [1, 2]\n` after `scripts/blind.sh format <that file>` and the original bytes after `scripts/blind.sh test <that file>`; a `format` verb that runs the same gates in check mode and prints their failure fails it at that file, since the bytes stay as they were; bite: HEAD prints the usage line, exits 2 and leaves the bytes, measured.
+4  ADMITTED  `import os\n\nx = [1,2]\ny = undefined_name\n` -> non-zero and `import os\n\nx = [1,2]\n` -> 0; an exit status taken from the last write rather than from the gates fails it at the two-error file, which it reports 0; bite: HEAD exits 2 at both, measured, with the two `ruff check --fix` runs quoted.
+
+null stub: `format` is not a verb -- `scripts/blind.sh` prints its usage and exits 2 writing nothing, and `hooks/blind-bash.py` is unchanged, so every `format` command is DENY for every caller under every declaration.
+  satisfies: none   fails: 1, 2, 3, 4 (line 4 on the fixable-only file, which must exit 0)
+hard-coded stub: `blind-bash.py` carries a table keyed on (caller, command text); `blind.sh format` copies two stored byte strings over the file it is given and returns two stored exit codes.
+  satisfies: none   fails: 1, 2, 3, 4
+  per line: 1 -- the table cannot hold it, since `scripts/blind.sh format tests/t.py` must come back DENY under one declaration and as an `updatedInput` rewrite under the other, which is the declaration read. 2 -- a four-row table satisfies the two commands and two callers in isolation, but the line is a delta into a dict already spanning eight callers, so the surviving comparison is the caller classification rather than four stored rows. 3 -- the stored-bytes reading is the degenerate one that defeats every anchor line the repair list sanctions; the line relates two observations of one surface (the same file's bytes under the two verbs) and its expected value is ruff's and black's output, an upstream fact rather than a value this repo chose (rule 11, "External/upstream wire facts may be pinned"). 4 -- two distinct expected values at two inputs on one surface, one invariant (the gate result) rather than two design literals.
+survives: 2
+
+Four lines at the cap, two of them deltas into existing tests: the block lands as two new tests and two amended ones.
+
+NOTES FOR THE OWNER, neither a finding nor a condition on this verdict:
+- A shell redirect into a lane directory reports success and lands nothing. Both earlier rounds were written with a heredoc through `Bash`, both printed their success line, and `ls gauntlet/reviews/blind-format*` afterwards showed neither file. `docs/approved-specs.md` gives the mechanism: `bwrap-wrap.py` wraps every `Bash` call and binds every lane directory read-only, so the write goes into the sandbox and dies with it, silently. This round and the approved file were written with the `Write` tool instead, which is what the lane hook adjudicates. Rounds 1 and 2 of this review are therefore lost from disk; their text went to the main agent whole.
+- `scripts/blind.sh` and `hooks/blind-bash.py` are barred to me. Nothing in this verdict rests on either.
