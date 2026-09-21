@@ -9,6 +9,7 @@ The merge and impl verbs are measured in tests/test_pair_sh_merge.py.
 import itertools
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -27,9 +28,11 @@ from tests.support.pair_fixture import (
     REVIEWER,
     SLUG,
     SPEC_PATH,
+    TEST_A_OTHER,
     _block,
     _git,
     _pair,
+    _pair_status,
     _python_listing,
     _repo,
     _show,
@@ -411,3 +414,91 @@ def test_list_reports_the_open_pair_before_abort_and_none_after(tmp_path):
         ("PAIR demo",),
         ("NO PAIRS",),
     )
+
+
+def _worktree_paths(repo):
+    """The resolved paths `git worktree list --porcelain` reports in `repo`.
+
+    The porcelain form carries one `worktree <path>` line per checkout, the
+    primary one included, and the paths it prints are absolute.
+    """
+    listed = subprocess.run(
+        ["git", "worktree", "list", "--porcelain"],
+        cwd=repo,
+        env=dict(ENV),
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    return {
+        Path(line.split(" ", 1)[1]).resolve()
+        for line in listed.splitlines()
+        if line.startswith("worktree ")
+    }
+
+
+def _closed_over_spec_tree(tmp_path, dirty):
+    """Open the demo pair, dirty its spec tree where asked, then close it.
+
+    `dirty` overwrites a tracked file of the spec worktree and commits it
+    nowhere. Returns the worktree paths git reports before the close, the ones
+    it reports after it, and the resolved path of the spec worktree itself.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    _pair(repo, "open", SLUG)
+    spec_tree = _worktree(repo)
+    if dirty:
+        (spec_tree / "tests" / "test_a.py").write_text(TEST_A_OTHER)
+    before = _worktree_paths(repo)
+    _pair(repo, "close", SLUG)
+    return before, _worktree_paths(repo), spec_tree.resolve()
+
+
+@pytest.mark.parametrize(
+    ("dirty", "removed"),
+    [(False, True), (True, False)],
+    ids=["spec-tree-clean", "spec-tree-holds-an-uncommitted-change"],
+)
+def test_close_takes_out_a_clean_spec_tree_and_leaves_a_dirty_one_standing(
+    tmp_path, dirty, removed
+):
+    before, after, spec_tree = _closed_over_spec_tree(tmp_path, dirty)
+    assert (spec_tree in before, after) == (True, before - ({spec_tree} if removed else set()))
+
+
+def _impl_tree(repo):
+    """Cut the pair's implementation worktree and return the path it names.
+
+    The path is the second whitespace field of the one line `impl checkout`
+    prints, read relative to the repository root. Returns None where stdout is
+    not one line of at least two fields.
+    """
+    lines = _pair(repo, "impl", "checkout", SLUG)
+    fields = lines[0].split() if len(lines) == 1 else []
+    return repo / fields[1] if len(fields) > 1 else None
+
+
+def _close_status(tmp_path, dirty_tree):
+    """Open a pair with both trees cut, dirty one of them, then close it.
+
+    `dirty_tree` of "impl" overwrites a tracked file of the implementation
+    worktree and commits it nowhere, leaving the spec worktree clean; None
+    leaves both trees clean. Returns the exit status of `pair.sh close <slug>`.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    _pair(repo, "open", SLUG)
+    impl_tree = _impl_tree(repo)
+    if dirty_tree == "impl":
+        (impl_tree / "tests" / "test_a.py").write_text(TEST_A_OTHER)
+    return _pair_status(repo, "close", SLUG)[1]
+
+
+@pytest.mark.parametrize(
+    ("dirty_tree", "expected"),
+    [(None, 0), ("impl", 1)],
+    ids=["both-trees-clean", "impl-tree-holds-an-uncommitted-change"],
+)
+def test_close_exits_zero_only_where_every_tree_of_the_pair_was_clean(
+    tmp_path, dirty_tree, expected
+):
+    assert _close_status(tmp_path, dirty_tree) == expected
