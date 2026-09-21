@@ -26,7 +26,9 @@ from tests.support.pair_fixture import (
     TEST_A_OTHER,
     TEST_B,
     _git,
+    _newest_merge_artifact,
     _pair,
+    _pair_status,
     _repo,
     _show,
     _venv_shim,
@@ -37,10 +39,17 @@ TEST_A_BASE = "def test_x():\n    " + ASSERTION_X + "\n"
 TEST_B_TWO = "def test_b_two():\n    assert 7 + 7 == 14\n"
 TEST_B_GREW = TEST_B + "\n\n" + TEST_B_TWO
 
-MERGE_ARTIFACT = "gauntlet/merge/" + SLUG + ".txt"
+MERGE_ARTIFACT_ONE = "gauntlet/merge/" + SLUG + ".1.txt"
+MERGE_ARTIFACT_TWO = "gauntlet/merge/" + SLUG + ".2.txt"
 MERGE_HEADINGS = ("test files:", "diff:", "red output:")
 
-BRIEF_NEW = ("TEST CHECK demo", "merge output: " + MERGE_ARTIFACT, "END TEST CHECK", 5)
+BRIEF_NEW = ("TEST CHECK demo", "merge output: " + MERGE_ARTIFACT_ONE, "END TEST CHECK", 5)
+BRIEF_NEW_RECHECKED = (
+    "TEST CHECK demo",
+    "merge output: " + MERGE_ARTIFACT_TWO,
+    "END TEST CHECK",
+    5,
+)
 BRIEF_STRIKE = (
     "OK tests/test_a.py::test_x",
     None,
@@ -101,15 +110,18 @@ def _red_section_marks(text):
     return tuple(sorted(token for token in MERGE_RED_TOKENS if token in body))
 
 
-def _merge(tmp_path, changes, base=None, suite=None, block=BLOCK_NEW):
-    """Drive open, an optional red run, a test commit and merge for the demo slug.
+def _merge(tmp_path, changes, base=None, suite=None, block=BLOCK_NEW, checks=1):
+    """Drive open, an optional red run, a test commit, a check and merge.
 
     `base` maps a name under tests/ to its text in the repository before the
     worktree is cut; `changes` maps a name under tests/ to its text in the spec
     worktree, and those are the files the merge sees change. `suite` is the text
     of an extra tests/test_suite.py, whose red run is saved to gauntlet/red, or
-    None to leave no saved red log. Returns the stdout lines of `pair.sh merge`
-    and the text of gauntlet/merge/<slug>.txt, empty where no such file was written.
+    None to leave no saved red log. `checks` is how many times `pair.sh check`
+    runs before the merge, since the check verb is what writes the numbered
+    artifact and merge refuses a pair no passing check covers. Returns the
+    stdout lines of `pair.sh merge` and the text of the newest numbered
+    gauntlet/merge/<slug>.<N>.txt, empty where no such file was written.
     """
     repo = _repo(tmp_path, block, REVIEWER)
     for name, text in (base or {}).items():
@@ -128,29 +140,37 @@ def _merge(tmp_path, changes, base=None, suite=None, block=BLOCK_NEW):
     if suite is not None:
         _venv_shim(worktree)
         _pair(repo, "red", SLUG)
+    for _ in range(checks):
+        _pair(repo, "check", SLUG)
     lines = _pair(repo, "merge", SLUG)
-    artifact = repo / "gauntlet" / "merge" / (SLUG + ".txt")
-    return lines, artifact.read_text() if artifact.is_file() else ""
+    return lines, _newest_merge_artifact(repo)
 
 
 @pytest.mark.parametrize(
-    ("block", "changes", "suite", "expected"),
+    ("block", "changes", "suite", "checks", "expected"),
     [
-        (BLOCK_SINGLE_TEST, {"test_a.py": TEST_A_OTHER}, None, BRIEF_STRIKE),
-        (BLOCK_NEW, {"test_a.py": TEST_A_OTHER}, None, BRIEF_NEW),
+        (BLOCK_SINGLE_TEST, {"test_a.py": TEST_A_OTHER}, None, 1, BRIEF_STRIKE),
+        (BLOCK_NEW, {"test_a.py": TEST_A_OTHER}, None, 1, BRIEF_NEW),
         (
             BLOCK_NEW,
             {"test_a.py": TEST_A_OTHER, "test_b.py": TEST_B_GREW},
             ALPHA_SUITE,
+            1,
             BRIEF_NEW,
         ),
+        (BLOCK_NEW, {"test_a.py": TEST_A_OTHER}, None, 2, BRIEF_NEW_RECHECKED),
     ],
-    ids=["motion-strike", "kind-new-one-file", "kind-new-two-files-and-a-red-log"],
+    ids=[
+        "motion-strike",
+        "kind-new-one-file",
+        "kind-new-two-files-and-a-red-log",
+        "kind-new-after-a-second-check",
+    ],
 )
 def test_merge_prints_the_five_line_brief_for_kind_new_whatever_it_merged(
-    tmp_path, block, changes, suite, expected
+    tmp_path, block, changes, suite, checks, expected
 ):
-    lines, _ = _merge(tmp_path, changes, suite=suite, block=block)
+    lines, _ = _merge(tmp_path, changes, suite=suite, block=block, checks=checks)
     assert _brief_shape(lines) == expected
 
 
@@ -355,14 +375,11 @@ MOVED_FILE = "moved.txt"
 MOVED_TEXT = "the target branch moved under the pair\n"
 
 
-def _converge(tmp_path, move=False, gate=GATE):
-    """Open the pair, commit a test in the spec tree, then merge.
+def _open_on_gate(tmp_path, gate):
+    """Open the pair with `gate` as the gate command `blind-reads.json` names.
 
-    `move` commits a file on the target branch after the pair is cut, so the
-    branch has moved under it. `gate` is the command `blind-reads.json` names,
-    so a merge can be driven onto a red gate. Returns the stdout lines, whether
-    the target branch's HEAD moved, whether the spec worktree is gone, and the
-    text of the two files at that HEAD.
+    Commits a test in the spec worktree, which is the change a convergence
+    lands. Returns the repository and the spec worktree.
     """
     repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
     (repo / ".claude" / "blind-reads.json").write_text(
@@ -373,10 +390,24 @@ def _converge(tmp_path, move=False, gate=GATE):
     (worktree / "tests" / "test_a.py").write_text(TEST_A_OTHER)
     _git(worktree, "add", "-A")
     _git(worktree, "commit", "-m", "spec tests")
+    return repo, worktree
+
+
+def _converge(tmp_path, move=False):
+    """Open the pair, commit a test in the spec tree, check it, then merge.
+
+    `move` commits a file on the target branch after the pair is cut, so the
+    branch has moved under it. The check verb runs before the merge, because
+    merge refuses a pair no passing check covers. Returns the stdout lines,
+    whether the target branch's HEAD moved, whether the spec worktree is gone,
+    and the text of the two files at that HEAD.
+    """
+    repo, worktree = _open_on_gate(tmp_path, GATE)
     if move:
         (repo / MOVED_FILE).write_text(MOVED_TEXT)
         _git(repo, "add", "-A")
         _git(repo, "commit", "-m", "the target branch moves")
+    _pair(repo, "check", SLUG)
     before = _git(repo, "rev-parse", "HEAD")
     lines = _pair(repo, "merge", SLUG)
     return (
@@ -402,20 +433,56 @@ def test_merge_lands_the_spec_tree_on_a_target_branch_that_moved_under_it(tmp_pa
     assert (moved, gone, landed, carried, _brief_shape(lines)[0]) == (*expected, heading)
 
 
+FOLLOW_UP_FILE = "tests/test_d.py"
+FOLLOW_UP_TEXT = "def test_d():\n    assert 4 + 4 == 8\n"
+
+
+def _merge_after_check(tmp_path, gate, follow_up):
+    """Open a pair, run `pair.sh check` unless `gate` is None, then merge.
+
+    `gate` is the gate command `blind-reads.json` names, so "false" drives a
+    check whose gate reads red; None runs no check at all. `follow_up` commits
+    a further test in the spec worktree after the check and before the merge,
+    so the trees moved under the reading the check recorded. Returns the
+    merge's first stdout line ("" where it printed none), its exit status, and
+    whether the target branch's HEAD moved across it.
+    """
+    repo, worktree = _open_on_gate(tmp_path, GATE if gate is None else gate)
+    if gate is not None:
+        _pair(repo, "check", SLUG)
+    if follow_up:
+        (worktree / FOLLOW_UP_FILE).write_text(FOLLOW_UP_TEXT)
+        _git(worktree, "add", "-A")
+        _git(worktree, "commit", "-m", "a further test lands in the spec tree")
+    before = _git(repo, "rev-parse", "HEAD")
+    lines, status = _pair_status(repo, "merge", SLUG)
+    return (
+        lines[0] if lines else "",
+        status,
+        _git(repo, "rev-parse", "HEAD") != before,
+    )
+
+
 @pytest.mark.parametrize(
-    ("gate", "expected"),
+    ("gate", "follow_up", "expected"),
     [
-        (GATE, (5, True, True, TEST_A_OTHER)),
-        # nothing landed, so the target branch still carries the fixture's file
-        ("false", (0, False, False, TEST_A)),
+        (None, False, ("UNCHECKED " + SLUG, 1, False)),
+        ("false", False, ("UNCHECKED " + SLUG, 1, False)),
+        # a passing reading covers the tips it recorded and no later ones
+        (GATE, True, ("UNCHECKED " + SLUG, 1, False)),
+        (GATE, False, ("TEST CHECK " + SLUG, 0, True)),
     ],
-    ids=["gate-passes", "gate-fails-and-nothing-lands"],
+    ids=[
+        "no-check-has-run",
+        "the-newest-check-read-red",
+        "a-commit-followed-the-passing-check",
+        "the-newest-check-read-green",
+    ],
 )
 def test_a_red_gate_leaves_the_target_branch_and_both_trees_exactly_as_they_were(
-    tmp_path, gate, expected
+    tmp_path, gate, follow_up, expected
 ):
-    lines, moved, gone, landed, _ = _converge(tmp_path, gate=gate)
-    assert (len(lines), moved, gone, landed) == expected
+    assert _merge_after_check(tmp_path, gate, follow_up) == expected
 
 
 def _merge_stderr(tmp_path, tracked):
@@ -482,6 +549,8 @@ def test_the_brief_names_a_revision_that_resolves_the_block_as_git_show_spells_i
     (worktree / "tests" / "test_a.py").write_text(TEST_A_OTHER)
     _git(worktree, "add", "-A")
     _git(worktree, "commit", "-m", "spec tests")
+    #: merge refuses a pair no passing check covers, so the check runs first
+    _pair(repo, "check", SLUG)
     revision = _spec_commit_field(_pair(repo, "merge", SLUG))
     #: the `bailiff`'s one shell is `blind.sh show <rev> <slug>`, which spells
     #: `git show <rev>:<path>`; an object name resolves no tree there
@@ -512,6 +581,8 @@ def _pair_with_untracked(tmp_path, on_disk):
     (worktree / SHADOW_FILE).write_text(SHADOW_LANDING)
     _git(worktree, "add", "-A")
     _git(worktree, "commit", "-m", "spec tests")
+    #: merge refuses a pair no passing check covers, so the check runs first
+    _pair(repo, "check", SLUG)
     if on_disk is not None:
         (repo / SHADOW_FILE).write_text(on_disk)
     return repo, _pair(repo, "merge", SLUG)

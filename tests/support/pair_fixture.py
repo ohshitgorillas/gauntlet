@@ -159,6 +159,72 @@ def _pair(repo, *args):
     return done.stdout.splitlines()
 
 
+def _pair_status(repo, *args):
+    """Run pair.sh and return both its stdout lines and its exit status."""
+    env = dict(ENV)
+    env["HOME"] = str(repo)
+    done = subprocess.run(
+        [str(repo / "scripts" / "pair.sh"), *args],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    sys.stderr.write(done.stderr)
+    return done.stdout.splitlines(), done.returncode
+
+
+def _merge_dir(repo):
+    return repo / "gauntlet" / "merge"
+
+
+def _merge_artifacts(repo):
+    """The names of the files under gauntlet/merge/ in `repo`, sorted.
+
+    Returns [] where the repository carries no such directory at all.
+    """
+    directory = _merge_dir(repo)
+    if not directory.is_dir():
+        return []
+    return sorted(entry.name for entry in directory.iterdir())
+
+
+def _artifact_ordinal(name):
+    """The N of a `<slug>.<N>.txt` artifact name, or None where it carries none."""
+    parts = name.split(".")
+    if len(parts) != 3 or not parts[1].isdigit():
+        return None
+    return int(parts[1])
+
+
+def _newest_merge_artifact(repo):
+    """The text of the highest-numbered gauntlet/merge/<slug>.<N>.txt file.
+
+    Returns "" where the directory holds no numbered file at all, so that a
+    caller reading a section out of it reads an absence rather than raising.
+    """
+    directory = _merge_dir(repo)
+    if not directory.is_dir():
+        return ""
+    numbered = [
+        (_artifact_ordinal(entry.name), entry)
+        for entry in directory.iterdir()
+        if _artifact_ordinal(entry.name) is not None
+    ]
+    if not numbered:
+        return ""
+    return max(numbered, key=lambda pair: pair[0])[1].read_text()
+
+
+def _gate_line(text):
+    """The `gate:` line a merge artifact carries, stripped, or "" where none."""
+    for line in text.splitlines():
+        if line.strip().startswith("gate:"):
+            return line.strip()
+    return ""
+
+
 def _python_listing(directory):
     return {entry.name for entry in directory.iterdir() if entry.suffix == ".py"}
 
