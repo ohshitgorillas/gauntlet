@@ -6,6 +6,7 @@ The stdout contracts asserted here are documented in docs/agents.md lines
 The merge and impl verbs are measured in tests/test_pair_sh_merge.py.
 """
 
+import itertools
 import shutil
 import subprocess
 
@@ -13,6 +14,7 @@ import pytest
 
 from tests.support.pair_fixture import (
     ALPHA_SUITE,
+    ASSERTION_X,
     BLOCK_NEW,
     BLOCK_SINGLE_TEST,
     BLOCK_V2,
@@ -263,14 +265,39 @@ def _with_round(body, round_text):
     return body + "\n--- reviewer ---\n" + round_text
 
 
-def _respec(tmp_path, round_text, block_text):
+def _collateral_body(breaks):
+    """BODY_NEW with one collateral row whose single `breaks:` field is `breaks`.
+
+    The row is the `collateral:` line at column zero beneath the behavior lines,
+    the row itself, and the row's fields indented two spaces under it. The
+    target and the assertion are the fixture repository's own tests/test_a.py.
+    """
+    return (
+        BODY_NEW
+        + "\ncollateral:\n"
+        + "- tests/test_a.py::test_x\n"
+        + "  breaks: "
+        + breaks
+        + "\n"
+        + "  assertion: "
+        + ASSERTION_X
+        + "\n"
+    )
+
+
+BODY_COLLATERAL = _collateral_body("the keyword the helper passes was renamed")
+BODY_COLLATERAL_V2 = _collateral_body("the helper now passes the row count instead")
+
+
+def _respec(tmp_path, committed, round_text, block_text):
     """Open the demo pair, then re-approve it with `block_text` under `round_text`.
 
-    `round_text` lands as the newest round on disk and `block_text` as the
-    approved block, both after the pair is open. Returns the stdout lines of
-    `pair.sh respec` and the spec worktree it ran against.
+    `committed` is the block the pair is cut from, `round_text` lands as the
+    newest round on disk and `block_text` as the approved block, both after the
+    pair is open. Returns the stdout lines of `pair.sh respec` and the spec
+    worktree it ran against.
     """
-    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    repo = _repo(tmp_path, committed, REVIEWER)
     _pair(repo, "open", SLUG)
     (repo / "gauntlet" / "reviews" / "demo.2.txt").write_text(round_text)
     (repo / SPEC_PATH).write_text(block_text)
@@ -278,31 +305,51 @@ def _respec(tmp_path, round_text, block_text):
 
 
 def _respec_shape(lines, tree):
-    """Project `pair.sh respec` stdout onto its first field and the landed block.
+    """Project `pair.sh respec` stdout onto its marker and the landed block.
 
-    The block is read from the spec branch's HEAD, which is where the writer's
-    delta reads it. Stdout that is not exactly one line collapses the field to
-    the empty string rather than raising.
+    The marker is the run of leading all-capital words, so a one-word marker and
+    a two-word one are told apart; the fields after it name a path and a commit,
+    neither of which is fixed. The block is read from the spec branch's HEAD,
+    which is where the writer's delta reads it. Stdout that is not exactly one
+    line collapses the marker to the empty string rather than raising.
     """
     fields = lines[0].split() if len(lines) == 1 else []
-    return (fields[0] if fields else "", _show(tree, "HEAD:" + SPEC_PATH))
+    marker = itertools.takewhile(lambda field: field.isalpha() and field.isupper(), fields)
+    return (" ".join(marker), _show(tree, "HEAD:" + SPEC_PATH))
 
 
 @pytest.mark.parametrize(
-    ("round_text", "block_text", "expected"),
+    ("committed", "round_text", "block_text", "expected"),
     [
-        (NEW_ROUND, _with_round(BODY_V2, NEW_ROUND), ("RESPEC", _with_round(BODY_V2, NEW_ROUND))),
+        (
+            BLOCK_NEW,
+            NEW_ROUND,
+            _with_round(BODY_V2, NEW_ROUND),
+            ("RESPEC", _with_round(BODY_V2, NEW_ROUND)),
+        ),
+        # the two blocks differ in a collateral row alone, and in nothing else
+        (
+            _block(BODY_COLLATERAL),
+            NEW_ROUND,
+            _with_round(BODY_COLLATERAL_V2, NEW_ROUND),
+            ("RESPEC COLLATERAL", _with_round(BODY_COLLATERAL_V2, NEW_ROUND)),
+        ),
         # the block's reviewer section is not the round file on disk
-        (NEW_ROUND, _with_round(BODY_V2, REVIEWER), ("MISMATCH", BLOCK_NEW)),
+        (BLOCK_NEW, NEW_ROUND, _with_round(BODY_V2, REVIEWER), ("MISMATCH", BLOCK_NEW)),
         # the newest round is the one the spec branch already committed
-        (REVIEWER, _with_round(BODY_V2, REVIEWER), ("", BLOCK_NEW)),
+        (BLOCK_NEW, REVIEWER, _with_round(BODY_V2, REVIEWER), ("", BLOCK_NEW)),
     ],
-    ids=["new-round-lands", "reviewer-section-differs", "round-already-committed"],
+    ids=[
+        "new-round-lands",
+        "collateral-rows-differ-alone",
+        "reviewer-section-differs",
+        "round-already-committed",
+    ],
 )
 def test_respec_lands_the_block_only_under_a_round_newer_than_the_committed_one(
-    tmp_path, round_text, block_text, expected
+    tmp_path, committed, round_text, block_text, expected
 ):
-    lines, tree = _respec(tmp_path, round_text, block_text)
+    lines, tree = _respec(tmp_path, committed, round_text, block_text)
     assert _respec_shape(lines, tree) == expected
 
 
