@@ -56,7 +56,7 @@ ALLOWANCE: dict[str, int] = {
     "scripts/strike-diff.py": 453,
     "scripts/pair/cli.py": 402,
     "hooks/gauntlet-off.py": 423,
-    "hooks/bwrap-wrap.py": 416,
+    "hooks/bwrap-wrap.py": 413,
     "hooks/bwrap_wrap_selftest.py": 401,
     "hooks/blind-bash.py": 448,
 }

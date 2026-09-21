@@ -43,8 +43,8 @@ caller.
     live path the project declares under `extra_binds` that stands over nothing
     the profile protects.
     Read-only again inside the repository: every lane directory in every checkout, `<gauntlet
-    dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `hooks/`, `agents/`, `scripts/`, `.git/hooks`
-    and `.git/config`. `~/.gitconfig` is read-only. `/run/user` is masked with an empty tmpfs,
+    dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `.git/hooks` and `.git/config`.
+    `~/.gitconfig` is read-only. `/run/user` is masked with an empty tmpfs,
     which closes the D-Bus route to `systemd --user` -- a socket rather than a spelling, so no
     string classifier could ever have caught it.
 
@@ -121,9 +121,6 @@ PROTECTED_IN_CHECKOUT = lane_config.LANE_DIRS + (
     lane_config.gauntlet_dir() + "/red",
     lane_config.gauntlet_dir() + "/merge",
     ".claude",
-    "hooks",
-    "agents",
-    "scripts",
     ".git/hooks",
     ".git/config",
 )
