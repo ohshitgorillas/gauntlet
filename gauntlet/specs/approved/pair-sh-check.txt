@@ -1,0 +1,137 @@
+slug: pair-sh-check
+kind: new
+brief:
+> Add a check subcommand to scripts/pair/cli.py, dispatched from main, that runs cmd_merge's current path through converge.rebase_if_moved, converge.combine and converge.gate, never calls converge.land or converge.cleanup, writes a numbered <gauntlet dir>/merge/<slug>.<N>.txt that never overwrites an earlier one and opens with the tips of spec/<slug>, impl/<slug> and target_branch plus gate: PASS or gate: FAIL, and prints CHECK <that path> PASS exit 0 or CHECK <that path> FAIL exit 1.
+> Remove the gate from cmd_merge and make it read the newest <gauntlet dir>/merge/<slug>.<N>.txt, refuse with UNCHECKED <slug> exit 1 unless that file says gate: PASS and its three tips equal the current ones, and otherwise land as today with _brief naming that file.
+> Update the pair.sh rows in docs/agents.md and the merge steps in README.md and docs/agents.md so check is where the gate runs and merge is where a checked pair lands.
+> Done when, on a pair whose gate is red, pair.sh merge prints UNCHECKED, pair.sh check prints FAIL, a code commit on impl/<slug> followed by pair.sh check prints PASS, and pair.sh merge then lands with target_branch unmoved until that point.
+> USE THE MOTHERFUCKING PLAN GATE, DO NOT WORK DIRECTLY.
+
+surface: `scripts/pair.sh`, invoked as `scripts/pair.sh check <slug>` and
+`scripts/pair.sh merge <slug>` over an opened pair on the demo fixture; the
+stdout and exit status of each, the files under `gauntlet/merge/` and their
+`gate:` lines, the worktrees of the pair, and whether the target branch tip
+moves.
+
+1. The (last word of the stdout line, exit status) of `scripts/pair.sh check demo`
+   over a pair whose configured `gate_command` is `test -f impl_work.txt` is
+   (`PASS`, 0) where the implementation tree has committed `impl_work.txt` and
+   the spec tree has not, and (`FAIL`, 1) at a second run after a further commit
+   in the implementation tree removes that file.
+   kills: runs the gate over the spec tree without combining the implementation
+     tree into it, so the first run answers (`FAIL`, 1) too
+   bite: `scripts/pair.sh check demo` at HEAD prints the line
+     `usage: pair.sh open|respec|red|merge|abort|close <slug> | list | review [plan] <slug> | restore <slug> <rev> | impl checkout|merge <slug>`
+     and exits 2 at both tree states (command: `./scripts/pair.sh check demo; echo $?`)
+   existing: none, `grep -rn '"check"' tests/*.py tests/support/*.py` -> no match
+
+2. The (sorted names under `gauntlet/merge/`, the `gate:` line each of those files
+   carries) after the two runs of line 1 is
+   (`["demo.1.txt", "demo.2.txt"]`, `["gate: PASS", "gate: FAIL"]`).
+   kills: writes one path per slug, so the pair is left with `["demo.txt"]`
+     carrying `["gate: FAIL"]` and the first reading gone
+   bite: no name at all sits under `gauntlet/merge/` at HEAD after either run,
+     where the verb exits 2 (command: `./scripts/pair.sh check demo; echo $?`)
+   existing: none, `grep -rn 'merge/' tests/*.py tests/support/*.py` ->
+     tests/test_hook_wire.py:176, tests/test_pair_sh_merge.py:40, :68, :112, none
+     of them a check
+
+3. The (first stdout line, exit status, whether the target branch tip moved) of
+   `scripts/pair.sh merge demo` is (`UNCHECKED demo`, 1, no) where no
+   `scripts/pair.sh check demo` has run, (`UNCHECKED demo`, 1, no) where the
+   newest check printed `FAIL`, (`UNCHECKED demo`, 1, no) where the newest check
+   printed `PASS` and a commit landed in the spec worktree after it, and
+   (`TEST CHECK demo`, 0, yes) where the newest check printed `PASS` and no commit
+   followed it.
+   kills: lands on the recorded gate reading alone, so a pair whose trees moved
+     after a passing check lands on work the gate never ran over
+   bite: at HEAD, with no check run at all, `scripts/pair.sh merge demo` prints
+     `TEST CHECK demo` first, exits 0, and the target branch tip moves (command:
+     `.venv/bin/pytest tests/test_pair_sh_merge.py::test_merge_lands_the_spec_tree_on_a_target_branch_that_moved_under_it -q`
+     -> `5 passed`, whose assertion is `(moved, gone, landed, carried, _brief_shape(lines)[0]) == (True, True, TEST_A_OTHER, "", "TEST CHECK demo")` with no check in the run)
+   existing: tests/test_pair_sh_merge.py::test_a_red_gate_leaves_the_target_branch_and_both_trees_exactly_as_they_were
+
+4. The fourth stdout line of `scripts/pair.sh merge demo` is
+   `merge output: gauntlet/merge/demo.1.txt` where the newest passing check wrote
+   `gauntlet/merge/demo.1.txt`, and `merge output: gauntlet/merge/demo.2.txt`
+   where a second check ran and wrote `gauntlet/merge/demo.2.txt`.
+   kills: writes a fresh artifact of its own at merge time, so the `bailiff` is
+     sent to a file that records no gate run
+   bite: at HEAD that line reads `merge output: gauntlet/merge/demo.txt`, with no
+     number in it (command:
+     `.venv/bin/pytest tests/test_pair_sh_merge.py::test_merge_prints_the_five_line_brief_for_kind_new_whatever_it_merged -q`
+     -> `5 passed`, whose expected value `BRIEF_NEW` carries
+     `merge output: gauntlet/merge/demo.txt` as the fourth line)
+   existing: tests/test_pair_sh_merge.py::test_merge_prints_the_five_line_brief_for_kind_new_whatever_it_merged
+
+5. The (whether the target branch tip moved, spec worktree present,
+   implementation worktree present, the `gate:` line of the newest file under
+   `gauntlet/merge/`) after `scripts/pair.sh check demo` over a pair whose
+   configured `gate_command` is `test -f impl_work.txt` is
+   (no, yes, yes, `gate: FAIL`) where no tree carries that file, and
+   (no, yes, yes, `gate: PASS`) at a second run after a commit in the
+   implementation tree adds it.
+   kills: lands the pair and removes both worktrees where the gate passes, so the
+     second run answers (yes, no, no, `gate: PASS`)
+   bite: at HEAD the first three components are (no, yes, yes) after either run
+     and no file sits under `gauntlet/merge/` to carry a fourth, where the verb
+     exits 2 (command: `./scripts/pair.sh check demo; echo $?`)
+   existing: none, `grep -rn '"check"' tests/*.py tests/support/*.py` -> no match
+
+collateral:
+- tests/test_pair_sh_merge.py::test_merge_artifact_diff_section_carries_the_lines_that_merge_added
+  breaks: the merge artifact is numbered and written by `scripts/pair.sh check`
+    rather than by `merge`, so the `_merge` helper must run the check verb and
+    read `gauntlet/merge/<slug>.<N>.txt`
+  assertion: assert {token for token in DIFF_TOKENS if token in body} == expected
+- tests/test_pair_sh_merge.py::test_merge_artifact_test_files_section_names_the_files_the_merge_changed
+  breaks: the merge artifact is numbered and written by `scripts/pair.sh check`
+    rather than by `merge`, so the `_merge` helper must run the check verb and
+    read `gauntlet/merge/<slug>.<N>.txt`
+  assertion: assert {name for name in NAME_TOKENS if name in body} == expected
+- tests/test_pair_sh_merge.py::test_merge_artifact_red_output_section_carries_the_red_run_on_disk
+  breaks: the merge artifact is numbered and written by `scripts/pair.sh check`
+    rather than by `merge`, so the `_merge` helper must run the check verb and
+    read `gauntlet/merge/<slug>.<N>.txt`
+  assertion: assert _red_section_marks(artifact) == expected
+- tests/test_pair_sh_merge.py::test_merge_lands_the_spec_tree_on_a_target_branch_that_moved_under_it
+  breaks: `merge` refuses a pair no check passed over, so the `_converge` helper
+    must run `scripts/pair.sh check demo` before the merge it measures
+  assertion: assert (moved, gone, landed, carried, _brief_shape(lines)[0]) == (*expected, heading)
+- tests/test_pair_sh_merge.py::test_the_brief_names_a_revision_that_resolves_the_block_as_git_show_spells_it
+  breaks: `merge` refuses a pair no check passed over, so the body must run
+    `scripts/pair.sh check demo` before the merge whose brief it reads
+  assertion: assert _show(repo, revision + ":" + SPEC_PATH) == BLOCK_NEW
+- tests/test_pair_sh_merge.py::test_a_pair_whose_block_is_untracked_in_the_checkout_lands_on_the_target_branch
+  breaks: `merge` refuses a pair no check passed over, so the
+    `_pair_with_untracked` helper must run `scripts/pair.sh check demo` first
+  assertion: assert (len(lines), landed) == (5, (BLOCK_NEW, SHADOW_LANDING))
+- tests/test_pair_sh_merge.py::test_only_an_untracked_file_identical_to_what_lands_gives_way_to_it
+  breaks: `merge` refuses a pair no check passed over, so the
+    `_pair_with_untracked` helper must run `scripts/pair.sh check demo` first
+  assertion: assert ((landed, not _worktree(repo).is_dir()), (repo / SHADOW_FILE).read_text()) == (
+        expected,
+        on_disk,
+    )
+- tests/test_pair_sh_merge.py::test_a_refused_land_leaves_every_untracked_file_it_moved_aside_where_it_was
+  breaks: `merge` refuses a pair no check passed over, so the
+    `_pair_with_untracked` helper must run `scripts/pair.sh check demo` first
+  assertion: assert (repo / SPEC_PATH).read_text() == BLOCK_NEW
+
+--- reviewer ---
+READY
+discriminates: sweep on the `pair.sh check` verdict (stdout last word plus exit status, and the newest file's `gate:` line) - one fixed `gate_command: test -f impl_work.txt`, two tree states, two distinct expected values, and lines 1 and 5 order those values opposite ways under the same command
+
+1  ADMITTED  `scripts/pair.sh check demo` with `gate_command: test -f impl_work.txt`, the file committed in the implementation tree only -> (`PASS`, 0), and a second run after a commit removes it -> (`FAIL`, 1); "runs the gate over the spec tree without combining the implementation tree in" fails it at the first run, where it answers (`FAIL`, 1); bite: null stub fails at both runs, the verb exiting 2 with the usage line at HEAD.
+2  ADMITTED  the two runs of line 1 -> (`["demo.1.txt", "demo.2.txt"]`, `["gate: PASS", "gate: FAIL"]`); "writes one path per slug" fails it at the second run, leaving `["demo.txt"]` carrying `["gate: FAIL"]`; bite: null stub fails at both runs, nothing under `gauntlet/merge/` at HEAD.
+3  AMENDED tests/test_pair_sh_merge.py:414 (carried): test_a_red_gate_leaves_the_target_branch_and_both_trees_exactly_as_they_were loses its gate-command parametrize, whose red case merge no longer decides, and gains a check-state parametrize over a tuple that adds the first stdout line and the exit status to `moved`.
+4  AMENDED tests/test_pair_sh_merge.py:150 (carried): `BRIEF_NEW`'s fourth element becomes `merge output: gauntlet/merge/demo.1.txt`, and a second case is added in which a second check ran and the fourth line reads `gauntlet/merge/demo.2.txt`.
+5  ADMITTED  `scripts/pair.sh check demo` with the same gate command, no tree carrying the file -> (no, yes, yes, `gate: FAIL`), and a second run after an implementation-tree commit adds it -> (no, yes, yes, `gate: PASS`); "lands the pair and removes both worktrees where the gate passes" fails it at the second run, answering (yes, no, no, `gate: PASS`); bite: null stub fails at both runs, the first three components being (no, yes, yes) with no file to carry a fourth.
+collateral rows 1-8  ADMITTED: every target names a test under `tests/`, every quoted `assertion:` sits byte-identical in that test's own body at HEAD (tests/test_pair_sh_merge.py:165-201, :399, :478, :520, :535, :546), and every `breaks:` names a fact outside `tests/` - the artifact moving to `check` and gaining a number, or `merge` refusing a pair no check passed over. No row's target is named by an `existing:` clause.
+
+null stub: `check` is not a verb - `scripts/pair.sh check demo` exits 2 with the usage line and writes nothing under `gauntlet/merge/`; `merge` gates and lands as it does at HEAD.
+  satisfies: none   fails: 1, 2, 3, 4, 5
+hard-coded stub: `check` writes `gauntlet/merge/<slug>.<next N>.txt` per invocation and decides `gate: PASS`/`gate: FAIL` from the primary checkout's own tree without rebasing or combining, `merge` unchanged from HEAD. The table keyed on invocation ordinal that took the previous draft is unavailable here: lines 1 and 5 fix one gate command and demand `PASS` then `FAIL` on one pair of runs and `FAIL` then `PASS` on the other, so no verdict schedule blind to tree content answers both, and the checkout-only stub answers neither - it reads `FAIL` at line 1's first run, where the file is committed in the implementation tree alone, and `FAIL` at line 5's second run for the same reason.
+  satisfies: none   fails: 1, 2, 3, 4, 5
+
+survives: 3
