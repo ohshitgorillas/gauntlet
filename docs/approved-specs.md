@@ -40,7 +40,7 @@ brief:
 --- reviewer ---
 READY
 discriminates: <differential | anchor+edges | sweep> on <surface>
-1  ADMITTED  <input> -> <outcome>; ...
+1  ADMITTED
 ```
 
 `STRICKEN` lines are dropped rather than recorded as cut: the file is the surviving contract, and the writer's one-test-per-line rule counts what is in it. An `AMENDED` line stays, since it names a test that changes.

@@ -50,7 +50,7 @@ Round 1 is the exhaustive round. Checks (e), (f) and (g) list every collision, e
 
 **(a) Meaning change.** Plan alters what existing named thing represents — layer, field, signal, readout, route, rule already in force in plan doc. Resolve name in tree and in plan docs before ruling. Escape: plan quotes owner ruling authorizing change, or states redefinition outright as the change being proposed rather than as means to something else. Meaning change arriving as side effect of fix is the failure this check exists for.
 
-**(b) Discovery.** Every load-bearing claim resolves. Open each citation, compare against what plan says it shows; claim with no citation and no `ASSUMED` tag unresolved on its face. Escape: citation says what plan says, or claim carries `ASSUMED` with reason that is metered action, live experiment, or owner decision. `ASSUMED` on something free read would have settled is `FAIL`, and you name file that would have settled it. Second header line `discovery: detective | inline` is part of this check: count files plan cites outside its own touched list; missing line, or `inline` with that count above zero, is `FAIL`, repair is the line to write and, for `inline`, the detective round the plan owes. Claim about reach — what change fixes, what it leaves alone, what it cannot affect — has no citation that could settle it and is not disposed of here; goes to (h).
+**(b) Discovery.** Every load-bearing claim resolves. Open each citation, compare against what plan says it shows; claim with no citation and no `ASSUMED` tag unresolved on its face. Escape: citation says what plan says, or claim carries `ASSUMED` with reason that is metered action, live experiment, or owner decision. `ASSUMED` on something free read would have settled is `FAIL`, and you name file that would have settled it. Print citation path as names plus count: name each citation that did not resolve, and count the ones that did as `resolved: <N>` on the check's own line; where none failed, whole line is `b  PASS  resolved: <N>`. You still open every citation; only what you print is capped. Second header line `discovery: detective | inline` is part of this check: count files plan cites outside its own touched list; missing line, or `inline` with that count above zero, is `FAIL`, repair is the line to write and, for `inline`, the detective round the plan owes. Claim about reach — what change fixes, what it leaves alone, what it cannot affect — has no citation that could settle it and is not disposed of here; goes to (h).
 
 **(c) Caller-side delta.** Plan that splits, extracts, or moves states how many call sites change and in which files. Count them yourself. Escape: plan's count matches yours. Implausibly small count is tell of split leaving forwarders behind; moved name whose path and spelling both survive means no caller moved. Where delta reach `<tests dir>/`, plan name each broken test as `<file>::<test>`, not the file and not the directory; count them yourself. Those names are what block's `collateral:` rows get held to one stage later, so plan that stop at "they go through the tests lane" leave the count unmade: `FAIL`.
 
@@ -100,8 +100,8 @@ READY | ANOTHER PASS | ESCALATE | ESCALATE: QUESTION
 One line per check, letter order, every letter present:
 
 ```
-a  PASS  <the escape the plan took, and where you resolved it>
-b  FAIL  <the claim, the citation it needed, and what the cited line actually says>
+a  PASS  <the escape taken, one clause>
+b  FAIL  <the claim, the citation it needed, and what the cited line actually says>; resolved: <N>
 c  N/A   <why this plan has no surface for the check>
 e  PASS  carried: <your previous line, verbatim>
 g  ESCALATE  <the question, the recommendation, the alternative, what each costs>

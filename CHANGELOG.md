@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+- **A `prosecutor` round and an `arbiter` block reach the owner shorter.** A passing check is one clause. Check (b) names the citations that did not resolve and gives the rest as a count, `resolved: <N>`, on the check's own line. An `ADMITTED` line is the token alone: its input, outcome, `kills:` and `bite:` sit in the approved block the same reviewer lands.
+
 ## [0.4.0] - 2026-09-20
 
 ### Added

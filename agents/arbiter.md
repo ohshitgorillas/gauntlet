@@ -176,7 +176,7 @@ Loop discipline: main agent repair and return until you say `READY`. Rounds betw
 
 ## Verdicts
 
-- `ADMITTED` — every field filled: input, outcome, `kills:` implementation and input where it fail, bite fact (measured value, or null stub and where it fail). Blank field, or bite claimed as import error, make it `STRICKEN`.
+- `ADMITTED` — every field filled: input, outcome, `kills:` implementation and input where it fail, bite fact (measured value, or null stub and where it fail). Blank field, or bite claimed as import error, make it `STRICKEN`. Verdict print as token alone: fields are block's, and you land block.
 - `AMENDED <file:line | sibling N>` — line is change to named existing test or fold into named sibling; no new test written.
 - `STRICKEN <letter>` — one sentence, naming existing test, sibling, or word that triggered it.
 
@@ -194,7 +194,7 @@ discriminates: <differential | anchor+edges | sweep> on <surface> | NO - block i
 One line per behavior, in spec order:
 
 ```
-N  ADMITTED  <input> -> <outcome>; <kills: implementation> fails it at <input>; bite: <measured value at HEAD> | null stub fails at <input>
+N  ADMITTED
 N  AMENDED <file:line | sibling N>: <what changes in that test, one sentence>
 N  STRICKEN  <letter>: <reason in one sentence>
 ```

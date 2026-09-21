@@ -1,0 +1,111 @@
+slug: reviewer-output-bulk
+discovery: detective
+
+brief:
+> Reviewer output bulk. Biggest sink. Sample plan round gauntlet/reviews/triviajudge-extract.plan.1.txt: 15.7KB total, verdict lines under 1KB. Rest is recital. Check (b) prints every citation it resolved, one file:line after another, even on strong grounding. PASS lines carry "the escape the plan took, and where you resolved it" in full paragraphs. Each round costs four times: emitted in Write, emitted again in return, re-supplied by main agent in next round's brief as "previous findings", appended to plans/approved/<slug>.txt on disk. Fix in agents/prosecutor.md output format: (b) lists only citations that fail plus one count line for those that resolve; PASS rationale capped at one clause. FAIL and repair text stay full. Same rule for arbiter ADMITTED lines, which restate input, outcome, kills: and bite: back from the block. Quality unchanged: findings that drive repair untouched.
+>
+> ┌────────────────┬───────┐
+> │  plan rounds   │ count │
+> ├────────────────┼───────┤
+> │ plans reviewed │ 23    │
+> ├────────────────┼───────┤
+> │ mean rounds    │ ~4.4  │
+> ├────────────────┼───────┤
+> │ max rounds     │ 11    │
+> └────────────────┴───────┘
+>
+> Take through stage 1. Present plan when READY.
+
+delivered: "Reviewer output bulk." — What is wrong, first paragraph.
+delivered: "Biggest sink." — What is wrong, the 853,223-byte figure.
+delivered: "Sample plan round gauntlet/reviews/triviajudge-extract.plan.1.txt: 15.7KB total, verdict lines under 1KB." — What it costs, the byte split of that file.
+delivered: "Rest is recital." — What is wrong, the two recital shapes.
+delivered: "Check (b) prints every citation it resolved, one file:line after another, even on strong grounding." — What is wrong, the check-(b) paragraph.
+delivered: "PASS lines carry "the escape the plan took, and where you resolved it" in full paragraphs." — What is wrong, the PASS-shape paragraph.
+delivered: "Each round costs four times: emitted in Write, emitted again in return, re-supplied by main agent in next round's brief as "previous findings", appended to plans/approved/<slug>.txt on disk." — What is wrong, last paragraph.
+delivered: "Fix in agents/prosecutor.md output format: (b) lists only citations that fail plus one count line for those that resolve; PASS rationale capped at one clause." — Which files get touched, the `agents/prosecutor.md` edits.
+delivered: "FAIL and repair text stay full." — What it costs, the left-out list.
+delivered: "Same rule for arbiter ADMITTED lines, which restate input, outcome, kills: and bite: back from the block." — Which files get touched, the `agents/arbiter.md` edits.
+delivered: "Quality unchanged: findings that drive repair untouched." — What it costs, the left-out list.
+delivered: plan-round table (23 plans, ~4.4 mean rounds, 11 max) — What is wrong, first paragraph, recounted off disk.
+delivered: "Take through stage 1." — this plan.
+delivered: "Present plan when READY." — this plan.
+
+## What is wrong
+
+Reviewer output is the largest per-round artifact the chain makes. `gauntlet/reviews/` holds 109 plan rounds over 23 slugs, 853,223 bytes, longest run 11 rounds on one slug — 7.8KB mean per round, this plan's own rounds excluded. Owner's table reads 23 plans and 11 max rounds; mean off disk is 4.7, not 4.4.
+
+Two shapes in `agents/prosecutor.md` make the bulk, and neither carries a finding.
+
+`agents/prosecutor.md:103` — `a  PASS  <the escape the plan took, and where you resolved it>`. No cap, so a PASS pays a paragraph. Four PASS lines in `gauntlet/reviews/triviajudge-extract.plan.1.txt` run 2,308 bytes.
+
+Check (b), `agents/prosecutor.md:53` — "Open each citation, compare against what plan says it shows". Reading instruction, not a printing one; the uncapped shape at `:103` turns it into printing. Sample's `b` line opens with 1,241 bytes reciting citations that resolved — `gauntlet/reviews/triviajudge-extract.plan.1.txt:30`, "I opened every cited line and all 28 symbol citations" — before naming three that do not.
+
+`agents/arbiter.md:197` — `N  ADMITTED  <input> -> <outcome>; <kills: implementation> fails it at <input>; bite: <measured value at HEAD> | null stub fails at <input>`. Every field copied out of the behavior line the arbiter was handed. Arbiter writes that block to `<gauntlet dir>/specs/approved/<slug>.txt` on `READY` (`agents/arbiter.md:57`), so an `ADMITTED` line restates a file the same agent lands.
+
+Each round is paid four times: written to the round file (`agents/prosecutor.md:37`), returned to the main agent, re-supplied next round as carried findings (`:33`, "prints its previous verdict behind the word `carried`"), and copied verbatim under `--- reviewer ---` into the approved plan (`:39`).
+
+## What the owner sees change
+
+Shorter reviewer output at every `READY`, and shorter approved plan files, which carry the reviewer block. Failing checks read as they do now. Passing checks read as one clause. Check (b) names citations that did not resolve and counts the ones that did. Arbiter prints the `ADMITTED` token alone.
+
+Gate tokens, verdicts, repairs and escalations unchanged.
+
+## Which files get touched, and roughly how
+
+`agents/prosecutor.md:103` — PASS shape capped: `a  PASS  <the escape taken, one clause>`. Cap sits in the format block the reviewer prints from, not in prose elsewhere, so it binds where it is read.
+
+`agents/prosecutor.md:104` — placeholder kept whole, count appended: `b  FAIL  <the claim, the citation it needed, and what the cited line actually says>; resolved: <N>`, and `b  PASS  resolved: <N>` where nothing failed. Count rides on the check's own line rather than a line of its own, because `:100` requires one line per check with every letter present and a second `b` line breaks that invariant.
+
+`agents/prosecutor.md:53` — check (b) gains a printing rule on its citation path alone: name each citation that did not resolve, count the ones that did. Its two other failure paths, the `discovery:` header line and a misused `ASSUMED` tag, print as they do now. What the reviewer opens is untouched.
+
+`agents/arbiter.md:197` — line becomes `N  ADMITTED`, no fields. `agents/arbiter.md:179` gains one clause saying the verdict prints as the token alone, the fields being the block's. `AMENDED` (`:198`) and `STRICKEN` (`:199`) stay: each carries a sentence that exists in no other artifact.
+
+`docs/approved-specs.md:43` — `1  ADMITTED  <input> -> <outcome>; ...`, inside the example approved file, becomes `1  ADMITTED`.
+
+`CHANGELOG.md:5` — one `### Changed` entry under `[Unreleased]`. The two agent definitions are kit a consumer installs, so what those reviewers print is consumer-visible.
+
+## Caller-side delta
+
+One site outside the two agent definitions: `docs/approved-specs.md:43`, above.
+
+Nothing mechanical reads either shape. `ADMITTED`, `ANOTHER PASS`, `ESCALATE`, `STRICKEN` and `AMENDED` appear nowhere in `hooks/` or `scripts/`. `docs/workflow.mermaid` carries `STRICKEN` and `ANOTHER PASS` as gate tokens and no `ADMITTED` at all, so the diagram stays true. In `tests/`, `tests/test_hook_wire.py:493` holds `ADMITTED = "admitted"`, a wiring constant unrelated to the verdict token, and the `prosecutor`/`arbiter` hits key lanes by agent name (`tests/test_tests_config.py:300-303`). No test changes, so the block carries no `collateral:` rows and nothing enters the tests lane.
+
+`docs/plans.md:78` and `docs/agents.md:113` describe the gate token and a finding per check; both stay true.
+
+## What it costs
+
+`gauntlet/reviews/triviajudge-extract.plan.1.txt` is 15,764 bytes carrying five `FAIL`s; the two byte figures under **What is wrong** are about 22% of it, the chain's least favourable round shape. A round that mostly passes cuts more, since PASS prose is the whole of it.
+
+The recital was the visible evidence of which lines the reviewer opened. `resolved: <N>` replaces an unverifiable list with an unverifiable number. The exposure is not new — no reader ever re-resolved the list — but it is cheaper to fake.
+
+Rounds already on disk keep the old shape. No migration and no rewrite of `gauntlet/reviews/` or `gauntlet/plans/approved/`.
+
+Out of scope: the notes at `agents/prosecutor.md:111`, the rejection format at `:113`, the arbiter's `AMENDED` and `STRICKEN` lines at `agents/arbiter.md:198-199`, its stub summary and `survives:` line at `:202-211`, and its contempt format at `:213`. Check (b)'s FAIL text keeps every part it has — see **Which files get touched**.
+
+Owner's words draw that line: "FAIL and repair text stay full", and "Quality unchanged: findings that drive repair untouched".
+
+## Open questions
+
+None.
+
+--- reviewer ---
+READY
+
+a  PASS  carried: states the redefinition outright as the change proposed — `agents/arbiter.md:197` "line becomes `N  ADMITTED`, no fields" and `:179` gaining a clause that the fields are the block's; the admission criterion at `:179` ("every field filled") is unchanged, and the owner's "Same rule for arbiter ADMITTED lines" is quoted in `brief:`.
+b  PASS  the corpus figures now carry the commands that produce them and the arithmetic holds: `853223 / 109 = 7827`, the 7.8KB mean; `109 / 23 = 4.74`, the 4.7 against the owner's ~4.4; `1241 + 2308 = 3549`, 22.5% of `15764`. The `11` the max-rounds command returns stands whether or not this plan's own rounds are excluded, which is what the new clause "this plan's own rounds excluded" turns on. The two rewritten sentences quote their lines byte for byte — `agents/prosecutor.md:104` is `b  FAIL  <the claim, the citation it needed, and what the cited line actually says>` and `:53` carries both non-citation failure paths. `python3 scripts/cite.py --check gauntlet/plans/drafts/reviewer-output-bulk.txt` exits 0 with no row but `INHERITED-FROM`.
+c  PASS  carried: count matches: one site outside the two agent definitions, `docs/approved-specs.md:43`; `grep -rn ADMITTED` over the tree returns only that, the unrelated constant at `tests/test_hook_wire.py:493` and a released `CHANGELOG.md:100` entry, and the prosecutor check-line shapes at `agents/prosecutor.md:103-104` are copied nowhere in `docs/`, `agents/`, `hooks/` or `scripts/`. No test asserts either shape, so no `<file>::<test>` is owed.
+d  PASS  carried: cause named upstream of appearance: the uncapped placeholder at `agents/prosecutor.md:103` and the absence of any printing rule in check (b) at `:53` ("Reading instruction, not a printing one"), from which the paragraph-length PASS lines and the citation recital follow.
+e  PASS  the collision is gone rather than declared: `agents/prosecutor.md:104` keeps its placeholder whole and takes only `; resolved: <N>`, and the `:53` sentence names both non-citation failure paths and leaves them printing as they do now. The rules named in round 1 and kept stand unchanged — `:100` one line per check, `docs/agents.md:113` a finding per check, `docs/plans.md:78` the gate tokens, `agents/arbiter.md:179` every field filled, `:211` `survives:`, `docs/approved-specs.md:43`, and the `CHANGELOG` rule for consumer-visible kit.
+f  PASS  carried: both states of the new `b` line are given — with failures and with none ("`b  PASS  resolved: <N>` where none failed"), `resolved: 0` following from the same shape — and the round-shape extremes are read at both ends: the least favourable round at 22% and "A round that mostly passes cuts more". The arbiter's narrow case, a block whose fields are blank, still takes `STRICKEN` at `agents/arbiter.md:179`, untouched.
+g  PASS  carried: **Open questions** is `None`, and no question in the plan text is one docs or a standing ruling would have to answer; the one live judgement, the count's placement, is decided in the plan against `agents/prosecutor.md:100` rather than passed along.
+h  PASS  carried: I ran the trace: nothing mechanical reads either shape. `ADMITTED`, `AMENDED`, `STRICKEN`, `ANOTHER PASS` and `ESCALATE` appear in no source file under `hooks/` or `scripts/`; `scripts/strike-diff.py:105`, `:130`, `:157` partition every artifact at `--- reviewer ---` and read only the contract above it; `scripts/pair/cli.py:111` compares `committed_section` against `reviewer_section` byte for byte, so both sides shrink together; `scripts/pair/selftest.py:27` fixtures a `KEEP` line, not an `ADMITTED` one; `docs/workflow.mermaid` carries no `ADMITTED`.
+i  PASS  the ordinals are gone and each subject name resolves to one paragraph of **What is wrong**: "the check-(b) paragraph" to the one opening "Check (b), `agents/prosecutor.md:53`", "the PASS-shape paragraph" to the one opening "`agents/prosecutor.md:103`". Every brief sentence still has exactly one line, and the left-out list still carries the element "FAIL and repair text stay full" names.
+j  N/A   carried: this repo names no composition root in any architecture doc; the change touches two agent definitions, a doc and `CHANGELOG.md`.
+k  PASS  "FAIL and repair text stay full." reads as its element now reads: the `:104` placeholder keeps every part it had, the out-of-scope list no longer claims `:104`, and "Check (b)'s FAIL text keeps every part it has" sits where the owner's scope words sit. The other `delivered:` elements are unchanged and read as their sentences read.
+l  PASS  both byte figures are gone from **What it costs**, which now names **What is wrong** as the section carrying them, the form `docs/plans.md:48` prescribes. The one sentence added to the out-of-scope list takes the same form and is what `docs/plans.md:41` puts in that section — the cut an owner's scope instruction produced, with the owner's words beneath it.
+
+notes:
+- Note 1 of round 1 is withdrawn: the commands behind `853,223`, `109`, `23`, `11`, `15,764`, `1,241`, `2,308` and the four PASS lines are on the record with their output, and the arithmetic drawn from them checks under (b). I did not re-run them — `agents/prosecutor.md:37` bars me from that directory — so they rest on commands a reader with access reproduces, not on my own reading.
+- `resolved: <N>` is self-reported and nothing re-checks it; the plan says so under **What it costs** ("cheaper to fake"). Whether that exposure is acceptable is the owner's call, not a check I hold.
+- Hook misfire, disclosed and not worked around: `ls *.plan.*.txt` run from `gauntlet/reviews/` returned filenames to me and exited 0. `agents/prosecutor.md:37` says that read is denied, and the denial is what keeps a reviewer from picking its own `<N>`. I went no further into that directory and took the round path from the brief. Nothing here is outstanding against the plan.
