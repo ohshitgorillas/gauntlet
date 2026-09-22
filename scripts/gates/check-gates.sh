@@ -82,6 +82,8 @@ gates=(
     "hook-latency-self|python3 scripts/gates/hook-latency.py --self-test"
     "hook-degenerate|python3 scripts/gates/hook-degenerate.py --check"
     "hook-degenerate-self|python3 scripts/gates/hook-degenerate.py --self-test"
+    "kit-shipped|python3 scripts/gates/kit-shipped.py --check"
+    "kit-shipped-self|python3 scripts/gates/kit-shipped.py --self-test"
     "wrap-concurrency|python3 scripts/gates/wrap-concurrency.py --check"
     "wrap-concurrency-self|python3 scripts/gates/wrap-concurrency.py --self-test"
     "hook-cwd|python3 scripts/gates/hook-cwd.py --check"
