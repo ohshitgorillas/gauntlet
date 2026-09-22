@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+- **Every reviewer refuses in the same two tokens.** `CONTEMPT: LEADING` for a brief that leads the reviewer, `OBJECTION: EVASION` for a return that evades its findings, from `prosecutor`, `arbiter` and `bailiff` alike.
+
 ## [0.4.2] - 2026-09-21
 
 ### Fixed

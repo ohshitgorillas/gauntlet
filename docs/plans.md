@@ -39,7 +39,7 @@ brief:
 - **Which files get touched, and roughly how** names files and the shape of the change in each. It is not a diff, and it is not a promise of line counts.
 - **Caller-side delta** applies where anything outside the changed files has to change with them — an interface, a path, an agent's own instructions. `none` where nothing does.
 - **What it costs** names the work the change forces, the tests it breaks, and what was deliberately left out, with the owner's own words where a scope instruction produced the cut.
-- **Open questions** is `None` or a numbered list. A question here reaches the owner; a question addressed to the reviewer is a steering tell and burns the round.
+- **Open questions** is `None` or a numbered list. A question here reaches the owner; a question addressed to the reviewer is a leading tell and burns the round.
 
 ## Register, and where a fact lives
 

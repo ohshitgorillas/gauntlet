@@ -192,7 +192,7 @@ _REVIEWER_LANE = (
 _REVIEWER_READ = (
     f"Reviewer: {REVIEWS}/ is not yours to read. A prior round reaches "
     "you as the carried verdicts in the main agent's return, never as a file: the round "
-    "that rejected a brief printed the steering back verbatim, and it is written "
+    "that refused a brief printed the leading back verbatim, and it is written "
     "nowhere for you to find. The path you write is not yours to count either: "
     "your brief carries it, from `scripts/pair.sh review <slug>`. "
     "(hooks/lanes.py)"

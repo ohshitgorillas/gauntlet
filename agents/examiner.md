@@ -1,6 +1,6 @@
 ---
 name: examiner
-description: Measures what HEAD does at the inputs a draft spec block names, where the measurement needs a throwaway script or a rendered state space; a one-command measurement is the main agent's own. Brief is the slug, the numbered behavior lines with their inputs, and the surface under test, nothing else; an expected value, a `kills:` reading or a diff in the brief is refused as steering. Runs offline against the checkout it is pointed at and returns one line per behavior.
+description: Measures what HEAD does at the inputs a draft spec block names, where the measurement needs a throwaway script or a rendered state space; a one-command measurement is the main agent's own. Brief is the slug, the numbered behavior lines with their inputs, and the surface under test, nothing else; an expected value, a `kills:` reading or a diff in the brief is refused as leading. Runs offline against the checkout it is pointed at and returns one line per behavior.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---
