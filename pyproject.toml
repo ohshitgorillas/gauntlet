@@ -83,8 +83,10 @@ parallel = true
 # The tracer follows a subprocess now, so the figure counts the gates and hooks
 # the suite drives rather than only the wrappers around them. What it still
 # understates is anything the suite runs under a bare `python3` rather than the
-# venv's, which has no tracer to start.
-fail_under = 42
+# venv's, which has no tracer to start -- every gate script and every hook whose
+# bar is its own `--self-test` is measured at zero here for that reason, and
+# each one that lands moves the figure down while adding a bar.
+fail_under = 41
 skip_covered = false
 
 [tool.coverage.json]
