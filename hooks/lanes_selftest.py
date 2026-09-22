@@ -9,7 +9,6 @@ table, and `python3 hooks/lanes.py --self-test` runs it.
 from __future__ import annotations
 
 import contextlib
-import importlib
 import io
 import sys
 import tempfile
@@ -24,6 +23,7 @@ import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
 import lane_paths  # noqa: E402
 import lanes  # noqa: E402
+import shell_binds  # noqa: E402
 from lanes import (  # noqa: E402
     _MISSING,
     GUARDS,
@@ -375,11 +375,14 @@ def self_test() -> int:  # noqa: PLR0915
         #: write tools hold and `bwrap` leaves writable is a lane a shell walks
         #: into; a lane bound read-only and held by no row is a directory
         #: nothing explains. Both are edits to one of the two that missed the
-        #: other, and both fail here rather than in a session.
+        #: other, and both fail here rather than in a session. The tests lane is
+        #: the one row bound file by file instead of whole, for the reason
+        #: `shell_binds.py` carries, so it is named on both sides of the split.
         "one writable set: these rows are the lanes bwrap binds read-only": (
             {row.lane for row in LANES} == set(lane_config.LANE_DIRS)
-            and set(lane_config.LANE_DIRS)
-            <= set(importlib.import_module("bwrap-wrap").PROTECTED_IN_CHECKOUT)
+            and set(lane_config.LANE_DIRS) - {lane_config.tests_dir()}
+            == set(shell_binds.PROTECTED_DIRS) & set(lane_config.LANE_DIRS)
+            and lane_config.tests_dir() not in shell_binds.PROTECTED_DIRS
         ),
         #: a hook decides a tool call, so its own crash is a denial -- and a
         #: payload it cannot read is a call it cannot decide, which is a refusal.

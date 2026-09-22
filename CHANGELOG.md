@@ -7,6 +7,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 ### Changed
 - **Every reviewer refuses in the same two tokens.** `CONTEMPT: LEADING` for a brief that leads the reviewer, `OBJECTION: EVASION` for a return that evades its findings, from `prosecutor`, `arbiter` and `bailiff` alike.
 
+### Fixed
+- **A wrapped shell writes scratch inside the lane its runner owns.** The files a runner collects stay read-only in every wrapped profile; the directory around them does not, so a run that has to build a tree inside the checkout no longer takes `EROFS` on its first `mkdir`.
+
 ## [0.4.2] - 2026-09-21
 
 ### Fixed

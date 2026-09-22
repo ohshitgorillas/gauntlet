@@ -264,7 +264,7 @@ def _self_test_in(tmp: str) -> int:
             extras([outside]).index(f"--bind-try {outside} {outside}")
             > max(
                 extras([outside]).index(f"--ro-bind-try {root}/{lane} {root}/{lane}")
-                for lane in lane_config.LANE_DIRS
+                for lane in PROTECTED_IN_CHECKOUT
             )
         ),
         "the caller's text survives the wrap byte for byte, whatever it is": (
@@ -276,7 +276,7 @@ def _self_test_in(tmp: str) -> int:
         "the default profile makes the repository writable": (f"--bind {root} {root}" in default),
         "the lane directories are bound back read-only under it": all(
             f"--ro-bind-try {root}/{lane} {root}/{lane}" in default
-            for lane in lane_config.LANE_DIRS
+            for lane in PROTECTED_IN_CHECKOUT
         ),
         "the reviewer profile binds no writable repository": (
             f"--bind {root} {root}" not in reviewer and f"--tmpfs {root}/{REVIEWS_DIR}" in reviewer

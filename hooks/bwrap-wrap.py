@@ -104,6 +104,7 @@ import hook_payload  # noqa: E402
 import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
 import lane_paths  # noqa: E402
+import shell_binds  # noqa: E402
 from bwrap_probe import bwrap_fault  # noqa: E402
 
 pair_passthrough = importlib.import_module("pair-passthrough")
@@ -115,15 +116,10 @@ PASSTHROUGH_AGENTS = ("scrivener", "bailiff")
 #: the blind reviewers: read-only everywhere, with a tmpfs over their own lane
 REVIEWER_AGENTS = ("arbiter", "juror")
 
-#: read-only again inside every checkout, on top of a writable repository. The
-#: lane directories come from the one place they are defined.
-PROTECTED_IN_CHECKOUT = lane_config.LANE_DIRS + (
-    lane_config.gauntlet_dir() + "/red",
-    lane_config.gauntlet_dir() + "/merge",
-    ".claude",
-    ".git/hooks",
-    ".git/config",
-)
+#: read-only again inside every checkout, on top of a writable repository.
+#: `shell_binds.py` projects the lane table onto the mount table and owns the
+#: one lane that is bound file by file rather than whole.
+PROTECTED_IN_CHECKOUT = shell_binds.PROTECTED_DIRS
 
 #: the reviewers' own lane, which their profile answers with a tmpfs
 REVIEWS_DIR = lane_config.reviews_lane()
@@ -252,8 +248,8 @@ def _checkout_readonly(checkout: str) -> list[str]:
     checkout and which the main checkout's own profile has already bound.
     """
     args: list[str] = []
-    for relative in PROTECTED_IN_CHECKOUT:
-        args += _bind("--ro-bind-try", str(Path(checkout) / relative))
+    for path in shell_binds.readonly_paths(checkout):
+        args += _bind("--ro-bind-try", path)
     return args
 
 
