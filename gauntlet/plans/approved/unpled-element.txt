@@ -1,0 +1,94 @@
+slug: unpled-element
+discovery: detective
+
+brief:
+> How can we prevent scope creep by agents?
+> I think that maybe prosecutors should be able to give OBJECTION: IRRELEVANT or similar upon agents adding something to the brief unapproved by me?
+> if the agent feels the expansion is necessary, such approval should come from me
+> ok, agree that `OBJECTION` isn't right, but neither is `QUESTION`.
+> `ESCALATE: ` hmm.... something to do with like, evidence that is admitted last minute maybe?
+> ESCALATE: LEAVE
+> We have to be careful to strike a balance here between what gets escalated and what gets solved by the agents.
+> I don't want to get bothered with "hey we also need to touch `x.py` as well" I do not give a fuck, what I care about is agents piling features onto a feature request so that it balloons in complexity beyond what I approved
+> hmm... we also have to be careful on how we instruct the main agent.
+> its default behavior should be to drop LEAVE, not to actually escalate it.
+> the agent should only bring it to me if it feels it's truly necessary to the plan and why it can't be its own slug
+> this sounds good to me, take it through stage 1 and present the plan on READY
+
+delivered: check (m), under Which files get touched
+delivered: check (m)'s default verdict `FAIL`, under Which files get touched
+delivered: the leave request, under Which files get touched
+delivered: gate token `ESCALATE: LEAVE`, under What the owner sees change
+delivered: gate token `ESCALATE: LEAVE`, under What the owner sees change
+delivered: gate token `ESCALATE: LEAVE`, under What the owner sees change
+delivered: check (m)'s closed unit list, under Which files get touched
+delivered: check (m)'s closed unit list, under Which files get touched
+delivered: the main agent's default under `## The gate`, under Which files get touched
+delivered: the main agent's default under `## The gate`, under Which files get touched
+delivered: the leave request, under Which files get touched
+dropped: orders the gate run and delivers no element of the body; under Open questions
+
+Two reversals, both followed as the later sentence has them. Brief sentence 3 put the owner's approval on any expansion; sentences 10 and 11 reverse it to deletion by default, and the plan is written to 10 and 11. Sentence 2 proposed `OBJECTION: IRRELEVANT`; sentences 4 through 6 reverse it to `ESCALATE: LEAVE`, and the plan is written to 6.
+
+## What is wrong
+
+Check (i) at `agents/prosecutor.md:67` reads one direction. Per brief sentence, a `delivered:` or a `dropped:` line. Nothing walks plan element back to brief sentence. Owner-visible delta no brief sentence asked for takes no letter: (b) resolves its citations, (h) bounds its reach, (l) cuts it only where it says something twice.
+
+Amendment round compounds it. `docs/plans.md:90` demands the measured value and the command that produced it. `docs/plans.md:96` runs checks on the amended lines and their citations alone. No rule confines the amended lines to what the measurement settles, so an amendment carrying a number is a second entry point for deltas the owner never approved — "beyond what I approved", brief sentence 8.
+
+## What the owner sees change
+
+Fifth gate token, `ESCALATE: LEAVE`. Carries at most four lines per element: element quoted, mechanism, why not its own slug, cost. Never the plan body.
+
+Plan reaching the owner on `READY` carries one line under **What it costs** per element check (m) cut. Owner reads every cut in the plan approved, with no gate stopping and no question addressed.
+
+Owner ruling on `ESCALATE: LEAVE` opens a round. Approval words at `docs/plans.md:82` unchanged.
+
+## Which files get touched, and roughly how
+
+`agents/prosecutor.md`. New check (m), **Unpled element**, after (l) at `agents/prosecutor.md:73`. Default `FAIL`, repair is deletion, never rewrite — same shape (l) carries. Unit is an owner-visible delta: rows under **What the owner sees change**, plus a closed list read wherever the plan files it — new config key, new flag or CLI option, new hook entry, new tracked artifact or directory, changed default value, new gate token. Files, functions, imports, internal refactors and test edits are outside it, so **Which files get touched** and **Caller-side delta** never fire the letter. Escape: every unit traces to a `delivered:` line under (i), or is mechanism inside an element one names. No forced-work escape: forced work rides under the `delivered:` line of the sentence that forces it, and work that rides under none is new. Plan whose (i) is `N/A` for want of a brief takes `N/A` here too: with no `delivered:` line in the plan, the escape is unreachable and every unit would fail on the reviewer's own reading rather than the plan's.
+
+Same file, re-review paragraph at `agents/prosecutor.md:31`. Carve-out for (m) alone: the return may be the named repair, a citation, or a leave request. Leave request has three parts — element quoted, why the briefed change does not work without it by mechanism, why it cannot be its own slug. Anything else against an (m) finding stays evasion under the paragraph as written.
+
+Same file, check (m) second clause. `prosecutor` judges the leave request, default `FAIL` like every letter. Part three is the load-bearer: request that cannot say why the element fails as a separate slug takes deletion, and the same element gets no second request. Well-formed request prints `ESCALATE: LEAVE`. Owner refusing leave is the same disposal: element deleted, its line added under **What it costs**, no second request for it.
+
+Same file, gate-verdict bullets at `agents/prosecutor.md:79-84` gain a fifth. Under `ESCALATE: LEAVE` the main agent stops drafting, discovery and spending on the elements the request names and continues on the rest; the plan reaches the owner for approval only after the ruling lands, since a plan approved with a leave outstanding is a plan approved twice. The round counts toward the round leash, unlike `ESCALATE: QUESTION` at `agents/prosecutor.md:84`: the owner's ruling there is input the main agent cannot supply, and a leave request is the main agent's own doing, so it is priced.
+
+Same file, precedence paragraph at `agents/prosecutor.md:86` gains the rank: bare `ESCALATE` above `ESCALATE: LEAVE` above `ESCALATE: QUESTION`, every `FAIL`'s named repair still printing beneath whichever token takes the first line. Output-format block at `agents/prosecutor.md:100-109` gains an `m` line.
+
+`docs/plans.md`. `## The gate` at `docs/plans.md:76-80` names five tokens and states the main agent's default: a (m) finding is answered by deleting the element; a leave request is what is written where deletion breaks the brief, and it costs the owner a turn and the main agent a counted round. `docs/plans.md:41` **What it costs** gains the (m)-cut line as a thing deliberately left out. `docs/plans.md:82` gains the leave ruling. New paragraph after `docs/plans.md:96` carries the confinement rule: an amended owner-visible delta the returned measurement does not bear on is unpled under (m).
+
+`README.md:27` names the token in the `prosecutor` step. `CHANGELOG.md:5`, one `[Unreleased]` entry: `prosecutor` is shipped kit and a consumer running it gets a different verdict.
+
+## Caller-side delta
+
+none. No gate-token set is enumerated in code: `READY` appears at `tests/support/pair_fixture.py:38`, `tests/test_pair_sh.py:261` and `scripts/pair/selftest.py:27` as reviewer-section fixture text, which a fifth plan-gate token does not change. `hooks/lanes.py:99` binds the lane by agent name. `docs/agents.md:113` names no token to enumerate.
+
+## What it costs
+
+Every plan round pays one more check line, letter `m`.
+
+Plan proposing an owner-visible delta the brief did not ask for pays one extra `prosecutor` round: the cut, then the redraft.
+
+Deliberately left out: the `arbiter` never reads the approved plan, so a behavior line the plan never authorized is admitted with no gate seeing it. `agents/arbiter.md` names no plan. Fixing it costs the `arbiter` its blindness, which `README.md:16` makes the property the spec gate rests on, and no brief sentence asks for it.
+
+Tests for check (m) are not in this plan.
+
+## Open questions
+
+1. Brief sentence 12, "this sounds good to me, take it through stage 1 and present the plan on READY", is `dropped:`. It orders this gate run and names no element of the plan body, so no element delivers it and none is proposed.
+
+--- reviewer ---
+READY
+a  PASS  carried: "a  PASS  redefinition still stated outright as the change proposed, and the new gate-verdict sentences add a token rather than re-cut an existing one — the round leash at `agents/prosecutor.md:84` is named and left standing, not quietly widened"
+b  PASS  carried: "b  PASS  `docs/plans.md:96` reads "Checks run on the amended lines and the citations they carry, and on nothing else", as the plan now has it; `agents/prosecutor.md:84` carries the eight-round exemption the plan contrasts against; `docs/agents.md:113` enumerates no token, as the plan now says; `discovery: detective` stands and the files cited outside the touched list are consistent with it; resolved: 13"
+c  N/A   carried: "c  N/A   plan splits, extracts and moves nothing; it adds a check letter, a gate token and prose, and the `none` it states I resolved under (b3)"
+d  PASS  carried: "d  PASS  cause named upstream of the symptom: (i) walks brief sentence to plan element and nothing walks plan element back, so an unasked delta is grounded and cited and passes every existing letter"
+e  PASS  carried: "e  PASS  rules touched named with the overturn stated, and one that is now named and *not* overturned: the round leash at `agents/prosecutor.md:84` keeps its reading and the leave round is priced under it; `docs/plans.md:78` and `agents/prosecutor.md:79` overturned to five tokens, `agents/prosecutor.md:31` carved out for (m) alone, `docs/plans.md:41`, `:82` and a new paragraph after `:96`. `agents/prosecutor.md:39` needs no entry: it already names "`ANOTHER PASS`, `ESCALATE` and either refusal" without naming `ESCALATE: QUESTION`, so the family reading is in force there"
+f  PASS  carried: "f  PASS  all four boundaries now read: briefless plan takes `N/A` on (m) as it does on (i); the leave round always counts toward the leash, so no overlap with a `FAIL`-carrying round is owed; work stops on the named elements and continues on the rest; a refused leave disposes of the element exactly as an (m) cut does"
+g  PASS  the one entry under **Open questions** is the `dropped:` re-listing `agents/prosecutor.md:67` requires of every dropped brief sentence, not a question: it asks no ruling, and proceeding either way makes no different work, so it neither takes (g)'s escape nor rides to the owner as one
+h  PASS  carried: "h  PASS  the reach claim now reads as the tree does: `READY` at `tests/support/pair_fixture.py:38`, `tests/test_pair_sh.py:261` and `scripts/pair/selftest.py:27` is reviewer-section fixture text, no gate-token set is enumerated in code, and `hooks/lanes.py:99` binds by agent name"
+i  PASS  twelve `> ` lines, twelve coverage lines, one per sentence and one line each; every `delivered:` resolves to a named element of the body, and the one `dropped:` reappears under **Open questions** as the escape requires
+j  N/A   carried: "j  N/A   this repo's docs name no composition-root file, and the check template at `agents/prosecutor.md:69` is unfilled"
+k  PASS  the twelfth sentence's element is now the leave request, whose part two carries "truly necessary to the plan" and part three "why it can't be its own slug", so the element reads as the sentence reads; the other ten `delivered:` elements stand as round 2 read them
+l  PASS  the duplicate price sentence is gone and nothing replaced it; the `## The gate` clause is the one statement of it, and the **Open questions** entry repeats the `dropped:` reason because `agents/prosecutor.md:67` requires the re-listing
