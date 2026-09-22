@@ -120,7 +120,7 @@ def manifest_paths(root: Path = ROOT) -> list[str]:
 def prose_paths(root: Path = ROOT) -> dict[str, set[str]]:
     """Every kit path the tracked prose names, document to the paths in it."""
     out: dict[str, set[str]] = {}
-    for name in sorted(p for p in tracked(root) if p.endswith(".md")):
+    for name in sorted(p for p in tracked(root) if p.endswith(".md") and p != CHANGELOG):
         try:
             text = (root / name).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
