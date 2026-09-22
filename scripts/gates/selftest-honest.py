@@ -148,6 +148,15 @@ def rules(tree: ast.AST) -> list[Rule]:
     return _returned(tree) + _assigned(tree) + _spoken(tree)
 
 
+def _names(target: ast.expr) -> list[str]:
+    """Every name one assignment target binds, a tuple or list unpack included."""
+    if isinstance(target, ast.Name):
+        return [target.id]
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return [one.id for one in target.elts if isinstance(one, ast.Name)]
+    return []
+
+
 def bound(tree: ast.AST) -> dict[str, ast.expr]:
     """What each name in a body was last assigned, for following a rule back."""
     out: dict[str, ast.expr] = {}
@@ -155,12 +164,8 @@ def bound(tree: ast.AST) -> dict[str, ast.expr]:
         if not isinstance(node, ast.Assign):
             continue
         for target in node.targets:
-            if isinstance(target, ast.Name):
-                out[target.id] = node.value
-            elif isinstance(target, (ast.Tuple, ast.List)):
-                for element in target.elts:
-                    if isinstance(element, ast.Name):
-                        out[element.id] = node.value
+            for name in _names(target):
+                out[name] = node.value
     return out
 
 
