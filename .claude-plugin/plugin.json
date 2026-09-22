@@ -1,7 +1,7 @@
 {
   "name": "gauntlet",
   "description": "Adversarial review chain. Blind subagents surround the main agent: a plan prosecutor, a spec arbiter, a test scrivener, a juror for the red run and a bailiff at the merge. Lane hooks hold each gate at the tool call.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "author": {
     "name": "oh shit, gorillas!",
     "url": "https://github.com/ohshitgorillas"

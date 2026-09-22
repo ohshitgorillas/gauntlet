@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-21
+
 ### Added
 - **A kit missing a wired hook announces it at SessionStart.** `kit-probe.py` reads the manifest and names every wired hook file the installed kit does not hold, so a lane nothing is enforcing is visible in the session. A whole kit says nothing.
 
