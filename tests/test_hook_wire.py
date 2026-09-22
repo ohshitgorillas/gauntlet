@@ -607,7 +607,7 @@ class TheCallerGate(unittest.TestCase):
             "absent from the kit": [s for s in scripts if not (HOOK_DIR / s).is_file()],
         }
         assert actual == {
-            "count": 9,
+            "count": 10,
             "off the plugin root": [],
             "on the project dir": [],
             "absent from the kit": [],

@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **A kit missing a wired hook announces it at SessionStart.** `kit-probe.py` reads the manifest and names every wired hook file the installed kit does not hold, so a lane nothing is enforcing is visible in the session. A whole kit says nothing.
+
 ### Fixed
 - **A wrapped shell's `/tmp` is one scratch directory per checkout, shared by every wrap of it.** A nested wrap resolves the same directory at the same path, so a tree one wrapped command builds there is still there for the wrapped command that runs against it.
 - **A wrapped `Bash` call works in a checkout of any size.** Every lane is bound whole, one mount rather than one per file inside it, so the mount table is the same size in every checkout and stays well inside the kernel's limit on a single argument.
