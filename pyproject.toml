@@ -46,6 +46,15 @@ max-complexity = 10
 [tool.black]
 line-length = 100
 
+[tool.vulture]
+# Dead code in a lane hook is worse than dead code elsewhere: a helper nobody
+# calls reads as a guard that is in force. The scope is `hooks` and `scripts`,
+# the same two directories `mypy` holds, because `tests/` names its own copies
+# of kit constants and a pytest class looks unreferenced from the outside.
+paths = ["hooks", "scripts"]
+exclude = [".claude/worktrees", ".venv", "state"]
+min_confidence = 60
+
 [tool.mypy]
 strict = true
 # The hooks import `shell_shapes` from beside them, and they travel as a unit

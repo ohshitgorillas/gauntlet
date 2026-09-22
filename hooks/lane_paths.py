@@ -58,14 +58,6 @@ TESTPATH = path_shape(tests_dir())
 _TESTPATH_WHOLE = re.compile(TESTPATH + r"\Z")
 
 
-#: a write stage whose targets this parser cannot name. `STAGE` is an
-#: interpreter handed a script: the paths are computed inside the script, so
-#: there is no target to test and the stage is denied. `STDIN` is `xargs`: the
-#: paths were produced upstream, so the evidence is the whole command and not
-#: this stage.
-STAGE, STDIN = "stage", "stdin"
-
-
 def checkout_root(path: str) -> str | None:
     """The checkout (main or worktree) containing `path`, by walking up to a `.git`."""
     while True:

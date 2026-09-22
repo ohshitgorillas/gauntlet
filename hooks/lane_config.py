@@ -18,12 +18,6 @@ from typing import Any
 
 from lane_declaration import _declared, _under
 
-#: the lane directories this kit's hooks guard are not literals: four of them
-#: are the fixed suffixes below, under whatever `gauntlet_dir` resolves to, and
-#: the fifth is `tests_dir`, which is the project's own. `lane_dirs()` is the
-#: whole table, derived beside the rest of the config further down this file.
-LANE_SUFFIXES = ("plans/approved", "specs/approved", "verdicts", "reviews")
-
 # --- the three directories a project names, and what they are when it does not
 
 

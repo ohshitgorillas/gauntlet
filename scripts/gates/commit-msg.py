@@ -25,7 +25,6 @@ carries no commit to diff.
 
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
 
@@ -35,8 +34,6 @@ PREFIXES = ("spec:", "test:", "feat:", "fix:", "docs:", "merge:")
 NO_APPROVED_DIFF = ("feat:", "docs:")
 
 APPROVED_PATH = "specs/approved/"
-
-SUBJECT_PATTERN = re.compile(r"^(?:" + "|".join(re.escape(p) for p in PREFIXES) + r")\s")
 
 REDIRECT = (
     "A commit's subject starts with one of spec:, test:, feat:, fix:, docs:,\n"

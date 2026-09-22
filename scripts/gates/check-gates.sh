@@ -14,8 +14,9 @@
 # runs with PYTHONPATH set to the tree the script sits in, and a tree without
 # its own .venv uses the main checkout's.
 #
-# The lint gates are ruff, black, mypy, shellcheck and coverage, run after
-# pytest and before the self-tests.
+# The lint gates are ruff, black, mypy, vulture, shellcheck and coverage, run
+# after pytest and before the self-tests. vulture reads its paths and its
+# confidence floor from pyproject.toml, so it takes no argument here.
 #
 # The suite drives most of this kit as a subprocess, so the pytest gate puts
 # scripts/coverage_subprocess on PYTHONPATH and names COVERAGE_PROCESS_START:
@@ -47,6 +48,7 @@ gates=(
     "ruff|$venv/bin/ruff check ."
     "black|$venv/bin/black --check ."
     "mypy|$venv/bin/mypy hooks scripts"
+    "vulture|$venv/bin/vulture"
     "shellcheck|shellcheck -S style scripts/pair.sh scripts/blind.sh scripts/gates/check-gates.sh"
     "coverage-combine|$venv/bin/coverage combine"
     "coverage|$venv/bin/coverage report"

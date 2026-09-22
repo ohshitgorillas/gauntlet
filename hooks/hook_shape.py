@@ -30,7 +30,7 @@ from hook_payload import (
 )
 from lane_config import DEFAULT_DIRS, dirs
 from lane_declaration import config_fault
-from lane_paths import bypassed, path_in_lane
+from lane_paths import bypassed
 
 #: tools that write a file. `NotebookEdit` names its target `notebook_path`.
 WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
@@ -72,46 +72,6 @@ def dispatch(
     if on_bash is not None and name == "Bash":
         return on_bash(command_of(tool_input), agent)
     return None
-
-
-def lane_denial(lane: str, noun: str, lane_msg: str, *, restore: bool = True) -> str:
-    """The refusal a shell write into `lane` gets.
-
-    `restore` is false for a lane with no restore escape, where the sentence
-    ends at the reason.
-    """
-    denial = f"A shell write naming a {lane}/ path is denied: " + lane_msg
-    if not restore:
-        return denial
-    return (
-        denial + f" Restoring {noun} from a git object is the one shell shape "
-        f"that passes: `git restore --source <rev> -- {lane}/<file>`."
-    )
-
-
-def sole_writer_lane(lane: str, writer: str, lane_msg: str) -> Verdict:
-    """The verdict function of a lane one named agent writes and nobody else.
-
-    Returns a `_verdict(name, tool_input, payload)`. A write whose target is in
-    the lane passes for `writer` and is refused with `lane_msg` for every other
-    hand, the main agent included; everything else passes.
-
-    `Bash` is not this function's business and no lane hook is wired on it any
-    more. A shell that writes into the lane is stopped by the mount table --
-    the lane directories are bound read-only inside every wrapped profile --
-    rather than by reading the command, which is the question no string
-    answers.
-    """
-
-    def on_write(target: str, cwd: str, agent: str) -> str | None:
-        if not path_in_lane(target, cwd, lane):
-            return None
-        return None if agent == writer else lane_msg
-
-    def verdict(name: str, tool_input: dict[str, Any], payload: Payload) -> str | None:
-        return dispatch(name, tool_input, payload, on_write=on_write)
-
-    return verdict
 
 
 def read_payload(guards: tuple[str, ...]) -> tuple[Payload | None, str | None]:
