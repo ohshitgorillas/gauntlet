@@ -82,6 +82,8 @@ gates=(
     "hook-latency-self|python3 scripts/gates/hook-latency.py --self-test"
     "hook-degenerate|python3 scripts/gates/hook-degenerate.py --check"
     "hook-degenerate-self|python3 scripts/gates/hook-degenerate.py --self-test"
+    "hook-cwd|python3 scripts/gates/hook-cwd.py --check"
+    "hook-cwd-self|python3 scripts/gates/hook-cwd.py --self-test"
     "md-softwrap|python3 scripts/gates/md-softwrap.py --check"
     "md-softwrap-self|python3 scripts/gates/md-softwrap.py --self-test"
     "nesting|python3 scripts/gates/nesting.py"
