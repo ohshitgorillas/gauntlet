@@ -54,9 +54,9 @@ DENY = "deny"
 # A path with no `.git` at or above it, used by the approved-spec cases.
 NOGIT_CWD = "/nogit"
 
-#: `no-impl-reads.py` and `blind-bash.py` are wired session-wide and gated on
-#: `agent_type`, so a payload naming no caller is the main agent and passes
-#: both unjudged. Every case about what a blind agent may read or run names one.
+#: `no-impl-reads.py` is wired session-wide and gated on `agent_type`, so a
+#: payload naming no caller is the main agent and passes it unjudged. Every case
+#: about what a blind agent may read names one.
 #: The read guard is held under every spelling a blind sweeper arrives as, so
 #: the allowlist is one table for the tuple rather than one per name.
 BLIND_READERS = ("scrivener", "auditor", "gauntlet:auditor")
@@ -438,59 +438,20 @@ def lane_sweep(commands, cwd, agent_type=None):
 PASSES = ()
 
 
-class TheBlindWritersShell(unittest.TestCase):
-    """`blind-bash.py` over the writer's shell: one entry point, nothing else.
-
-    No lane hook answers a `Bash` call any more, so this hook is the whole of
-    what holds that shell shut on the path side; the mount table is what holds
-    it on the filesystem side.
-    """
-
-    maxDiff = None
-
-    def test_the_blind_writer_shell_is_one_command(self):
-        # `blind-bash.py` answers on the caller and the entry point rather
-        # than on any path, so an ordinary read is denied the writer exactly
-        # as a write is.
-        commands = (
-            'find tests -name "*.py"',
-            "cat tests/test_x.py",
-            "scripts/gates/check-gates.sh",
-            ".venv/bin/ruff check tests",
-        )
-        expected = {command: DENY for command in commands}
-        actual = sweep(
-            "blind-bash.py",
-            expected,
-            lambda command: bash_payload(command, REPO_CWD, "scrivener"),
-        )
-        assert actual == expected
-
-
 class TheCallerGate(unittest.TestCase):
-    """The two caller-gated hooks, over the callers session wiring hands them.
+    """The caller-gated read guard, over the callers session wiring hands it.
 
     Frontmatter wiring is gone: a plugin-shipped agent definition runs none, so
-    `no-impl-reads.py` and `blind-bash.py` are wired session-wide and every
-    caller's tool call reaches them. What keeps them off the main agent is the
+    `no-impl-reads.py` is wired session-wide and every caller's tool call
+    reaches it. What keeps it off the main agent is the
     `agent_type` key, and these cases are both directions of that one rule.
     """
 
     maxDiff = None
 
     #: two implementation paths on no allowlist, sharing no directory, one of
-    #: them under a name the allowlist admits only at the root; and a shell
-    #: command that is not the blind agents' one entry point
+    #: them under a name the allowlist admits only at the root
     SOURCES = ("hooks/shell_shapes.py", "src/docs/impl.py")
-    COMMAND = "cat hooks/shell_shapes.py"
-
-    #: the writing verb of the one entry point, which is the writer's own and
-    #: nobody else's: the reviewing agents run the suite, they do not rewrite it
-    FORMAT = "scripts/blind.sh format tests/t.py"
-
-    #: an admitted Bash call comes back as an `updatedInput` rewrite carrying
-    #: the command, rather than as the silence an unjudged caller gets
-    ADMITTED = "admitted"
 
     def test_the_blind_agents_are_read_blocked_and_the_main_agent_is_not(self):
         # An absent `agent_type` is the main agent, which has to read the
@@ -524,54 +485,17 @@ class TheCallerGate(unittest.TestCase):
         }
         assert actual == expected
 
-    def test_the_two_shell_locked_agents_are_locked_and_no_other_caller_is(self):
-        # `blind-bash.py` is an allowlist of one entry point, so a caller it
-        # judges loses every other command. Wired session-wide without the
-        # gate it would take the main agent's shell outright.
-        # The allowlist is read per caller and not per command: the writer is
-        # the one caller that may rewrite the lane, so the writing verb is the
-        # one command the two judged callers are answered differently at, and
-        # a hook admitting it for its whole blind tuple hands the reviewing
-        # agent a write into the tests dir every other route denies it.
-        judged = {
-            "scrivener": DENY,
-            "bailiff": DENY,
-            None: SILENT,
-            "": SILENT,
-            "arbiter": SILENT,
-            "juror": SILENT,
-            "prosecutor": SILENT,
-            "general-purpose": SILENT,
-        }
-        expected = {
-            **{(agent, self.COMMAND): verdict for agent, verdict in judged.items()},
-            **{(agent, self.FORMAT): verdict for agent, verdict in judged.items()},
-            ("scrivener", self.FORMAT): self.ADMITTED,
-        }
-
-        def classify(command, answer):
-            return self.ADMITTED if command in answer else answer
-
-        actual = {
-            (agent, command): classify(
-                command,
-                hook_decision("blind-bash.py", bash_payload(command, REPO_CWD, agent)),
-            )
-            for agent, command in expected
-        }
-        assert actual == expected
-
-    def test_both_hooks_are_wired_session_wide_rather_than_from_frontmatter(self):
+    def test_the_read_guard_is_wired_session_wide_rather_than_from_frontmatter(self):
         # The gate is only half the change: it is safe because the hook now
         # runs for everyone, and it is load-bearing because nothing else wires
-        # these two any more. A frontmatter block left in an agent definition
+        # it any more. A frontmatter block left in an agent definition
         # reads as enforcement a plugin runtime never executes.
         wired = {
             hook["command"].rsplit("/", 1)[-1]
             for entry in MANIFEST["hooks"]["PreToolUse"]
             for hook in entry["hooks"]
         }
-        blind_guards = ("no-impl-reads.py", "blind-bash.py")
+        blind_guards = ("no-impl-reads.py",)
         assert {guard: guard in wired for guard in blind_guards} == dict.fromkeys(
             blind_guards, True
         )
@@ -607,7 +531,7 @@ class TheCallerGate(unittest.TestCase):
             "absent from the kit": [s for s in scripts if not (HOOK_DIR / s).is_file()],
         }
         assert actual == {
-            "count": 10,
+            "count": 8,
             "off the plugin root": [],
             "on the project dir": [],
             "absent from the kit": [],

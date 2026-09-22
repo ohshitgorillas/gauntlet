@@ -84,9 +84,8 @@ that could grow to reach the implementation.
 
 No shell command is judged here. This hook read one once -- stages, `cd`
 targets, runner invocations, git forms -- and that reading is gone with every
-other command parse in the kit. A blind agent's shell is `blind-bash.py`'s one
-entry point, `scripts/blind.sh`, which admits four invocations by name; every
-other caller's shell runs inside the wrap `bwrap-wrap.py` builds. What is left
+other command parse in the kit, and no hook reads a shell command. Every
+caller's shell runs inside the wrap `bwrap-wrap.py` builds. What is left
 here is the three tools that reach a file without a shell.
 
 Blocked for those agents:

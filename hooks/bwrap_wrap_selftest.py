@@ -27,8 +27,6 @@ import lane_config  # noqa: E402
 #: this is the same module object and not a second copy of it.
 _bw = importlib.import_module("bwrap-wrap")
 
-pair_passthrough = _bw.pair_passthrough
-PASSTHROUGH_AGENTS = _bw.PASSTHROUGH_AGENTS
 PROTECTED_IN_CHECKOUT = _bw.PROTECTED_IN_CHECKOUT
 REVIEWS_DIR = _bw.REVIEWS_DIR
 WORKTREES = _bw.WORKTREES
@@ -164,11 +162,6 @@ def _self_test_in(tmp: str) -> int:
     semicolon = "echo hi; cat /etc/hostname"
     heredoc = "echo $(cat /etc/hostname) <<'X'"
 
-    def command_of_answer(answer: dict[str, Any] | None) -> str | None:
-        """The command an answer carries, or None where it carries none."""
-        out = (answer or {}).get("hookSpecificOutput") or {}
-        return (out.get("updatedInput") or {}).get("command")
-
     def answer_for(agent: str, command: str = semicolon) -> dict[str, Any] | None:
         """`_answer` for one Bash command, run as `agent`."""
         call: dict[str, Any] = {"tool_name": "Bash", "cwd": root, "agent_type": agent}
@@ -284,52 +277,12 @@ def _self_test_in(tmp: str) -> int:
         "/run/user is masked and the pid namespace is unshared": (
             "--tmpfs /run/user" in default and "--unshare-pid" in default
         ),
-        "a blind agent with its own bwrap is left alone": all(
-            answer_for(agent, "scripts/blind.sh status demo") is None
-            for agent in PASSTHROUGH_AGENTS
-        ),
-        #: the escape is the whole call, and a bare head leaves here spelled at
-        #: the kit's own copy: the spelling an agent types names a path a
-        #: project that dropped its local copy does not hold. What does not
-        #: match is wrapped exactly as before, `bwrap` in front of it.
-        "a whole pair.sh subcommand call escapes the wrap, resolved, and nothing else does": (
-            command_of_answer(
-                _answer(
-                    {
-                        "tool_name": "Bash",
-                        "cwd": root,
-                        "agent_type": "prosecutor",
-                        "tool_input": {"command": "scripts/pair.sh red demo"},
-                    }
-                )
-            )
-            == f"{pair_passthrough.kit_entry()} red demo"
-            and (
-                command_of_answer(
-                    _answer(
-                        {
-                            "tool_name": "Bash",
-                            "cwd": root,
-                            "agent_type": "prosecutor",
-                            "tool_input": {"command": "scripts/pair.sh red demo; rm -rf state"},
-                        }
-                    )
-                )
-                or ""
-            ).startswith("bwrap")
-        ),
-        #: a head that already names a script is what it will run, so it
-        #: escapes with nothing rewritten and the hook answers nothing at all
-        "an absolute pair.sh head escapes untouched": (
-            _answer(
-                {
-                    "tool_name": "Bash",
-                    "cwd": root,
-                    "agent_type": "prosecutor",
-                    "tool_input": {"command": f"{pair_passthrough.kit_entry()} red demo"},
-                }
-            )
-            is None
+        #: the two blind agents that keep a shell run it under the same wrap
+        #: as everyone else: no caller is exempt
+        "a blind agent's shell takes the default profile": all(
+            answer_for(agent, "scripts/blind.sh status demo")
+            == answer_for("prosecutor", "scripts/blind.sh status demo")
+            for agent in ("scrivener", "bailiff")
         ),
         #: installed as a plugin the harness spells the name with its plugin in
         #: front of it, and that is the same agent, profile for profile
@@ -337,8 +290,8 @@ def _self_test_in(tmp: str) -> int:
             answer_for("prosecutor") is not None
             and answer_for("gauntlet:prosecutor") == answer_for("prosecutor")
             and answer_for("gauntlet:arbiter") == answer_for("arbiter")
-            #: a namespaced passthrough agent keeps its passthrough
-            and answer_for("gauntlet:scrivener") is None
+            #: a namespaced blind agent takes the default profile
+            and answer_for("gauntlet:scrivener") == answer_for("prosecutor")
         ),
         #: the exemption this closes: the main agent is the caller with the
         #: widest reach, so a roster that let it past left the sandbox with a

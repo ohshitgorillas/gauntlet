@@ -1,6 +1,6 @@
 """Finding a project's declaration, and reading it.
 
-`blind-reads.json` carries nine keys, and they are the whole of what varies
+`blind-reads.json` carries eight keys, and they are the whole of what varies
 between the projects this kit is copied into. It is read from
 `$CLAUDE_PROJECT_DIR/.claude/blind-reads.json`, and from beside this file when
 the project names none: the config belongs to the project, not to wherever the

@@ -38,11 +38,6 @@ DEFAULT_SCALARS = {
     "gate_command": "make check",
 }
 
-#: the commands a project declares run outside the sandbox, and the paths each
-#: of them reads. The key is the command text exactly as it is typed, and the
-#: default is the empty mapping: a project that declares none unwraps none.
-DEFAULT_UNWRAPPED: dict[str, list[str]] = {}
-
 #: the paths a project declares writable inside a wrapped shell on top of the
 #: checkout itself, and the empty list a project that declares none takes. Every
 #: path outside the checkout is already readable, so the key is writable-only.
@@ -118,39 +113,6 @@ def runners_from(conf: dict[str, Any]) -> dict[str, list[str]]:
     return resolved
 
 
-def unwrapped_from(conf: dict[str, Any]) -> dict[str, list[str]]:
-    """The commands this config declares unwrapped, and the paths each reads.
-
-    All or nothing, like the directories. A key that is not a command text, a
-    value that is not an object, a `reads` that is not a list of paths: any one
-    of them voids the whole mapping. Per-entry fallback would leave a project
-    unwrapping the neighbours of the entry it got wrong, which is the one place
-    in this design where a command runs outside the sandbox.
-
-    The paths are carried as the project spelled them. Whether one resolves is a
-    question about a checkout rather than about the declaration, and it is asked
-    where the checkout is known.
-    """
-    if "unwrapped_commands" not in conf:
-        return {}
-    declared = conf.get("unwrapped_commands")
-    if not isinstance(declared, dict):
-        return {}
-    resolved: dict[str, list[str]] = {}
-    for command, value in declared.items():
-        if not isinstance(command, str) or not command.strip():
-            return {}
-        if not isinstance(value, dict):
-            return {}
-        reads = value.get("reads", [])
-        if not isinstance(reads, list):
-            return {}
-        if any(not isinstance(one, str) or not one for one in reads):
-            return {}
-        resolved[command] = list(reads)
-    return resolved
-
-
 def _expand_home(path: str) -> str:
     """`~` and `~/...` against `HOME`, and the path unchanged where there is none.
 
@@ -169,7 +131,7 @@ def _expand_home(path: str) -> str:
 def extra_binds_from(conf: dict[str, Any]) -> list[str]:
     """The extra writable paths this config declares, `~` expanded.
 
-    All or nothing, like the unwrapped commands: a value that is not a list, an
+    All or nothing: a value that is not a list, an
     entry that is not a string, and an empty entry each void the whole key. Half
     of a mistyped list taking effect would open a path the project never named.
 
@@ -249,20 +211,9 @@ def runners() -> dict[str, list[str]]:
 
 
 @functools.lru_cache(maxsize=1)
-def unwrapped_commands() -> dict[str, list[str]]:
-    """The declared unwrapped commands, read once per process."""
-    return unwrapped_from(_declared()[0])
-
-
-@functools.lru_cache(maxsize=1)
 def extra_binds() -> list[str]:
     """The declared extra writable paths, read once per process."""
     return extra_binds_from(_declared()[0])
-
-
-def unwrapped_command_texts() -> list[str]:
-    """One declared command per line, in the order the declaration gives them."""
-    return list(unwrapped_commands())
 
 
 def pytest_command() -> list[str]:
@@ -353,7 +304,7 @@ def lane_dirs() -> dict[str, str]:
 LANE_DIRS = tuple(lane_dirs().values())
 
 
-#: what `--config <key>` answers: the nine keys the file carries, and the four
+#: what `--config <key>` answers: the eight keys the file carries, and the four
 #: derived lanes, so a shell script asks for a lane rather than rebuilding one
 #: out of the base and a suffix it would have to hardcode. A runner answers one
 #: word per line; every other key answers one line.
@@ -365,7 +316,6 @@ CONFIG_READERS: dict[str, Callable[[], str | list[str]]] = {
     "gate_command": gate_command,
     "pytest_command": pytest_command,
     "node_command": node_command,
-    "unwrapped_commands": unwrapped_command_texts,
     "extra_binds": extra_binds,
     "plans_lane": plans_lane,
     "specs_lane": specs_lane,

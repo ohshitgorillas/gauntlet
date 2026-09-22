@@ -19,7 +19,7 @@ replace by accident. `--print` writes nothing and prints what would be written.
 
 The values it writes are the kit's defaults, read out of `lane_config` rather
 than retyped here, so a project starts from the shipped layout and edits the
-file by hand from there. All nine keys are written out, present and explicit,
+file by hand from there. All eight keys are written out, present and explicit,
 because a key a project can see is a key it can change.
 
 It also creates the skeleton under `gauntlet_dir`: the four lanes the agents
@@ -72,7 +72,7 @@ SKELETON = (
 
 
 def declaration() -> dict[str, Any]:
-    """The nine keys and the kit's default for each, in a stable order.
+    """The eight keys and the kit's default for each, in a stable order.
 
     The defaults are `lane_config`'s own tables, not a copy: a second copy of
     `target_branch` here is a second answer the day the first one changes.
@@ -81,7 +81,6 @@ def declaration() -> dict[str, Any]:
     written.update(lane_config.DEFAULT_DIRS)
     written.update(lane_config.DEFAULT_SCALARS)
     written.update(lane_config.DEFAULT_RUNNERS)
-    written["unwrapped_commands"] = dict(lane_config.DEFAULT_UNWRAPPED)
     written["extra_binds"] = list(lane_config.DEFAULT_EXTRA_BINDS)
     return written
 
@@ -179,10 +178,10 @@ def self_test() -> int:
             set(lane_config.DEFAULT_DIRS)
             | set(lane_config.DEFAULT_SCALARS)
             | set(lane_config.DEFAULT_RUNNERS)
-            | {"unwrapped_commands", "extra_binds"}
+            | {"extra_binds"}
         )
-        rules["2 it carries all nine keys, explicitly"] = (
-            set(loaded) == expected and len(expected) == 9
+        rules["2 it carries all eight keys, explicitly"] = (
+            set(loaded) == expected and len(expected) == 8
         )
 
         rules["3 every value is the kit's default, not a second copy"] = loaded == declaration()

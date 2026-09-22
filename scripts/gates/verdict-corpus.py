@@ -42,7 +42,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "scripts" / "gates" / "verdict-corpus.json"
 
 #: the hooks that answer a call with a verdict rather than with a rewrite
-DECIDING = ("lanes.py", "no-impl-reads.py", "blind-bash.py")
+DECIDING = ("lanes.py", "no-impl-reads.py")
 
 #: who the call is replayed as. The main agent is the empty name, and the two
 #: blind agents are the ones with a lane and without one: a corpus replayed as

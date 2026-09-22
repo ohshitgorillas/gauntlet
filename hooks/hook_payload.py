@@ -24,7 +24,7 @@ from typing import Any
 #: `payload_fault` rather than trusted by its static shape
 Payload = dict[str, Any]
 #: the `tool_input` of one payload, on the same terms: a hook reads the keys it
-#: needs through `command_of` and `write_target`, which answer for a missing key
+#: needs through `write_target`, which answers for a missing key
 ToolInput = dict[str, Any]
 #: the three arguments every lane verdict takes, and the refusal or None it gives
 Verdict = Callable[[str, ToolInput, Payload], str | None]
@@ -43,25 +43,11 @@ def deny(reason: str) -> str:
     )
 
 
-def command_of(tool_input: dict[str, Any] | None) -> str:
-    """The `command` field of a tool input, as a string, whatever it holds.
-
-    A hook reads this field and hands it to a classifier that splits it. The
-    field is whatever the payload carried, so a number or a list there reaches
-    the classifier as one and raises -- and a hook that raises exits non-zero,
-    which is read as a denial of the call it was deciding. Anything that is not
-    a string is no command, and an empty string is the shape the classifier
-    already answers for.
-    """
-    command = (tool_input or {}).get("command")
-    return command if isinstance(command, str) else ""
-
-
 def cwd_of(payload: Payload | None) -> str:
     """The `cwd` a payload names, as a path, or this process's own.
 
-    Same boundary as `command_of`: the field is whatever the payload carried,
-    and a hook that hands a number to `os.path` raises, which denies the call.
+    The field is whatever the payload carried, and a hook that hands a number
+    to `os.path` raises, which denies the call.
     """
     cwd = (payload or {}).get("cwd")
     return cwd if isinstance(cwd, str) and cwd else str(Path.cwd())

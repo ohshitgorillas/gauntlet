@@ -21,7 +21,6 @@ from hook_payload import (
     Payload,
     Verdict,
     agent_of,
-    command_of,
     cwd_of,
     deny,
     misconfigured,
@@ -49,7 +48,6 @@ def dispatch(
     payload: Payload,
     *,
     on_write: Callable[[str, str, str], str | None],
-    on_bash: Callable[[str, str], str | None] | None = None,
     on_read: Callable[[dict[str, Any], str, str], str | None] | None = None,
     read_tools: tuple[str, ...] = (),
 ) -> str | None:
@@ -58,9 +56,8 @@ def dispatch(
     `on_write(target, cwd, agent)` is called only for a write that names a
     target, since a write with no path denies nothing. `on_read(tool_input,
     cwd, agent)` sees the whole input, because a read names its target under
-    three different keys. `on_bash(command, agent)` is optional and no lane
-    passes one: a lane's shell half is held by the mount table now, not by a
-    reading of the command text.
+    three different keys. A `Bash` call has no handler: no hook reads a shell
+    command, and a lane's shell half is held by the mount table.
     """
     cwd = cwd_of(payload)
     agent = agent_of(payload)
@@ -69,8 +66,6 @@ def dispatch(
         return on_write(target, cwd, agent) if target else None
     if on_read is not None and name in read_tools:
         return on_read(tool_input, cwd, agent)
-    if on_bash is not None and name == "Bash":
-        return on_bash(command_of(tool_input), agent)
     return None
 
 

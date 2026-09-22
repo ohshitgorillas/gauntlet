@@ -7,12 +7,6 @@
 #   blind.sh status <slug>           is that block's approved spec committed
 #   blind.sh show <commit> <slug>    print that block's approved spec
 #
-# `hooks/blind-bash.py` denies the scrivener and the
-# bailiff every command but these, matching the whole command text
-# against one anchored pattern per subcommand. This script is the other half:
-# the hook decides nothing about what a subcommand does, and this file offers
-# no way to say anything the hook did not already admit.
-#
 # Every subcommand runs under `bwrap` with the whole filesystem read-only, and
 # one of them writes. The exception the mount table makes is the agent's own
 # lane: a run binds the tree's `tests/` back writable, which is the directory

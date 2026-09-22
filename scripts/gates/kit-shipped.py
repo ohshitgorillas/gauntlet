@@ -20,10 +20,9 @@ drift from it on its own:
     whose name and stem part is an agent nothing can reach.
   * **The roster is the agent set.** A row for a file that is not there, and a
     file no row names, are the same defect from two ends.
-  * **The blind tables agree with the roster.** `no-impl-reads.py` and
-    `blind-bash.py` each carry a `BLIND` tuple, and the roster's Hooks column
-    says which agents those hooks hold. Either side moving alone leaves an
-    agent the prose calls blind and the hook lets through.
+  * **The blind tables agree with the roster.** `no-impl-reads.py` carries a `BLIND`
+    tuple, and the roster's Hooks column says which agents that hook holds.
+    Either side moving alone leaves an agent the prose calls blind and the hook lets through.
   * **The version agrees with the changelog.** A manifest naming a version the
     changelog has no head for is a release nobody wrote down.
 
@@ -261,7 +260,7 @@ def audit(root: Path = ROOT) -> list[str]:
         if f"{AGENTS}/{path.name}" in carried
     }
     listed = roster(root)
-    blind = {name: tuple(_load(name).BLIND) for name in ("no-impl-reads", "blind-bash")}
+    blind = {name: tuple(_load(name).BLIND) for name in ("no-impl-reads",)}
     named, head = version(root)
     return (
         judge_paths(manifest_paths(root), prose_paths(root), carried)

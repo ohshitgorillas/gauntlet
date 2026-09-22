@@ -18,7 +18,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import hook_payload  # noqa: E402
 import hook_shape  # noqa: E402
 
 _off = importlib.import_module("gauntlet-off")
@@ -28,13 +27,10 @@ NOTICE = _off.NOTICE
 OFF = _off.OFF
 SILENCED = _off.SILENCED
 VAR = _off.VAR
-_WHY_ASSIGN = _off._WHY_ASSIGN
-_WHY_NESTED = _off._WHY_NESTED
 _count_path = _off._count_path
 _key = _off._key
 _session = _off._session
 _speaks = _off._speaks
-_verdict = _off._verdict
 off = _off.off
 prompt = _off.prompt
 
@@ -80,7 +76,7 @@ def _spoken(*, value: str | None) -> str:
 
 
 def self_test() -> int:
-    """Pin the switch's grammar, the two voices, the cadence, and the two denials."""
+    """Pin the switch's grammar, the two voices, and the cadence."""
     lines = {
         "off() is the exact value `off`, after strip and lowercase": (
             off("off")
@@ -91,44 +87,6 @@ def self_test() -> int:
             and not off("offf")
             and not off("0")
             and not off("false")
-        ),
-        "a GAUNTLET= assignment is denied, in every spelling": all(
-            _verdict("Bash", {"command": c}) == _WHY_ASSIGN
-            for c in (
-                "GAUNTLET=off claude",
-                "GAUNTLET=off echo hi",
-                "export GAUNTLET=off",
-                "env GAUNTLET=off claude -p x",
-                "echo hi; export GAUNTLET=off",
-                "set GAUNTLET=off",
-            )
-        ),
-        "a claude head word is denied, past wrappers and assignments": all(
-            _verdict("Bash", {"command": c}) == _WHY_NESTED
-            for c in (
-                "claude",
-                "claude -p 'do a thing'",
-                "nohup claude &",
-                "timeout 60 claude -p x",
-                "FOO=1 claude",
-                "ls; claude -p x",
-                "/usr/local/bin/claude -p x",
-            )
-        ),
-        "a .claude/ path is not a claude invocation": all(
-            _verdict("Bash", {"command": c}) is None
-            for c in (
-                "python3 hooks/lanes.py --self-test",
-                "python3 hooks/gauntlet-off.py --self-test",
-                "cat .claude/settings.json",
-                "ls .claude/worktrees",
-                "grep -rn claude docs/",
-                "scripts/gates/check-gates.sh",
-            )
-        ),
-        "a tool that is not Bash is not this hook's business": (
-            _verdict("Write", {"command": "claude"}) is None
-            and _verdict("Read", {"file_path": "GAUNTLET=off"}) is None
         ),
         "the two voices differ, and each says what it is for": (
             VAR + "=" + OFF in BANNER
@@ -165,12 +123,6 @@ def self_test() -> int:
         ),
         "the self-test asserts nothing on the ambient variable": (
             off("off") is True and off(os.environ.get("NONEXISTENT-BY-CONSTRUCTION")) is False
-        ),
-        #: a hook decides a tool call, so its own crash is a denial -- and a
-        #: payload it cannot read is a call it cannot decide, which is a refusal.
-        #: `--bash` is the entry point that decides one; the other two only speak.
-        "every payload shape is answered, and an unreadable one is refused": (
-            hook_payload.survives_hostile_payloads(str(_off.__file__), "--bash", guards=("Bash",))
         ),
     }
     return hook_shape.report(lines)

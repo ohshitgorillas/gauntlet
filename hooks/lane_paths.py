@@ -12,9 +12,8 @@ table `bwrap-wrap.py` builds, which binds every lane directory read-only
 inside every wrapped profile. A command that names a lane is not parsed for
 the name any more; it fails in the kernel or it does not touch the lane.
 
-What is left of the shell side is `TESTPATH`, the shape of the one argument
-`blind-bash.py` admits after `scripts/blind.sh test`. It is a path shape, not
-a command shape: the test directory as configured, optionally under one spec
+What is left of the shell side is `TESTPATH`, the shape of a test path. It is
+a path shape, not a command shape: the test directory as configured, optionally under one spec
 worktree, matched whole and matched again after `os.path.normpath`, so an
 argument that opens under the lane and walks out of it is not that shape.
 
@@ -50,8 +49,7 @@ def path_shape(prefix: str) -> str:
     return rf"(?:{TREE})?{re.escape(prefix)}/[A-Za-z0-9_][A-Za-z0-9._/-]*"
 
 
-#: the shape the blind runner's one argument takes, exported so that
-#: `blind-bash.py` reads the same regular expression the classifier does
+#: the shape a test path takes under the configured test directory
 TESTPATH = path_shape(tests_dir())
 
 

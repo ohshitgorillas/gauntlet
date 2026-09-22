@@ -34,7 +34,11 @@ Inside a `.claude/worktrees/*` tree, run that tree's own `scripts/gates/check-ga
 
 **The lane hooks stay on and unweakened.** They are the product, so disabling one to land a change ships the defect rather than hiding it. No matcher narrowed, no entry commented out, no `--self-test` left failing. A hook that fires where it should not is a bug to fix in the hook, reported as one.
 
-`GAUNTLET=off` does not touch that rule, and the distinction is the whole of it. The switch is the owner's, thrown on the shell that launches the session, good for that session and recorded nowhere on disk. Weakening a hook in the tree is still forbidden, a `--self-test` left failing is still a defect, and neither becomes legal because an off switch exists. An agent may not propose the switch, set it, or suggest the owner set it — that rule has no exception, and `gauntlet-off.py --bash` denies a `GAUNTLET=` assignment and a nested `claude` invocation to keep the switch out of reach of the session it governs.
+`GAUNTLET=off` does not touch that rule, and the distinction is the whole of it. The switch is the owner's, thrown on the shell that launches the session, good for that session and recorded nowhere on disk. Weakening a hook in the tree is still forbidden, a `--self-test` left failing is still a defect, and neither becomes legal because an off switch exists. An agent may not propose the switch, set it, or suggest the owner set it — that rule has no exception. No hook reads a shell command, so nothing holds the switch inside the session but this rule.
+
+## No hook reads a shell command
+
+No hook decides a `Bash` call by parsing its text. A reading of a command string is undecidable — an env prefix, a here-document, a command substitution, a function, an `xargs` — and a list of spellings leaves the next spelling open. `bwrap-wrap.py` carries the text into the wrap byte for byte and reads nothing in it; what holds a shell is the mount table it sees, chosen by the caller's `agent_type`. An agent whose shell would need a reading to hold holds no `Bash`. A carve-out from the wrap by command text is a reading, and there is none.
 
 ## Markdown
 

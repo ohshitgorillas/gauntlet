@@ -21,19 +21,14 @@ survives `shlex.quote` only by being rewritten. A here-document carries any byte
 sequence unaltered, so the caller's text appears in the replacement exactly as
 typed, whatever it is.
 
-Three profiles, chosen by `agent_type`, the same payload field the lane hooks
-read. No caller is exempt. An absent `agent_type` is the main agent and takes
-the default profile like anyone else, so `sudo` stops working in a shell and no
-sudoers file changes: `bwrap` sets NO_NEW_PRIVS, so `sudo` inside the wrap fails
-with "The \"no new privileges\" flag is set", and so does every script that
-calls `sudo` internally. A project that needs one such command declares that
-command by its exact text under `unwrapped_commands`; a project that declares
-nothing has no privileged shell at all. A carve-out is a command, never a
-caller.
+Two profiles, chosen by `agent_type`, the same payload field the lane hooks
+read. No caller is exempt and no command is: every `Bash` call is wrapped,
+because exempting one would mean reading its text. An absent `agent_type` is
+the main agent and takes the default profile like anyone else, so `sudo` stops
+working in a shell and no sudoers file changes: `bwrap` sets NO_NEW_PRIVS, so
+`sudo` inside the wrap fails with "The \"no new privileges\" flag is set", and
+so does every script that calls `sudo` internally.
 
-  * **passthrough** for the two blind agents that keep a shell. `blind.sh` runs
-    its own `bwrap`, and wrapping a wrapper gains nothing while costing a nested
-    mount setup on the one command those agents have.
   * **reviewer** for the blind reviewers: the whole filesystem read-only, plus a
     tmpfs over the reviewers' own lane. A reviewer's shell cannot change the
     checkout it was spawned to judge.
@@ -83,11 +78,6 @@ invocation, every `Bash` call in the session dies with `bwrap`'s own one-line
 complaint and no statement of what refused it. So the binary is run once, on a
 trivial profile, before anything is rewritten, and a host where it does not run
 gets a named denial instead of a session of broken commands.
-
-One shape escapes the wrap: `scripts/pair.sh`, which writes lane files by
-design. `pair_passthrough.is_pair_command` holds that decision, in its own file,
-because a wrapper that decided for itself which commands to skip would be a
-classifier again.
 """
 
 from __future__ import annotations
@@ -107,12 +97,6 @@ import shell_binds  # noqa: E402
 import wrap_extras  # noqa: E402
 import wrap_scratch  # noqa: E402
 from bwrap_probe import bwrap_fault  # noqa: E402
-
-pair_passthrough = importlib.import_module("pair-passthrough")
-
-#: the two blind agents that keep a shell. `scripts/blind.sh` is their one
-#: command and it runs its own `bwrap`, so this hook leaves them alone.
-PASSTHROUGH_AGENTS = ("scrivener", "bailiff")
 
 #: the blind reviewers: read-only everywhere, with a tmpfs over their own lane
 REVIEWER_AGENTS = ("arbiter", "juror")
@@ -138,35 +122,9 @@ def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
 
     # `agent_type` picks a profile; it never admits a caller. An absent one is
     # the main agent and takes the default profile, so `sudo` in a shell dies
-    # at NO_NEW_PRIVS for the main agent exactly as for anyone else. The only
-    # way out is a command the project declared, never a name.
+    # at NO_NEW_PRIVS for the main agent exactly as for anyone else.
     agent = hook_payload.agent_of(payload)
-    if agent in PASSTHROUGH_AGENTS:
-        return None
-    # `pair.sh` runs unwrapped. A bare head is resolved to the kit's own copy on
-    # the way out, because the spelling an agent types names a path a project
-    # that dropped its local copy does not hold: admitting that spelling and
-    # then running it as typed would answer the sandbox question and leave the
-    # command with nothing to execute.
-    if pair_passthrough.is_pair_command(command):
-        resolved = pair_passthrough.resolved_pair_command(command)
-        if resolved is None:
-            return None
-        return {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "updatedInput": {"command": resolved},
-            }
-        }
-
     root = hook_payload.cwd_of(payload)
-    # the project's own word, not this hook's: a command it declared under
-    # `unwrapped_commands` runs outside the sandbox, and the paths that command
-    # reads are bound read-only inside every wrapped profile. A declaration
-    # naming a path this checkout does not hold is not live here and the
-    # command is wrapped like any other.
-    if pair_passthrough.is_declared_command(command, root):
-        return None
 
     fault = bwrap_fault()
     if fault is not None:
@@ -317,15 +275,8 @@ def _profile(root: str, agent: str) -> list[str]:
             args += _checkout_readonly(tree)
 
         # the project's own writable paths: after the lanes, so a declaration
-        # cannot walk one back; before the declared reads, which stay last
+        # cannot walk one back
         args += _extra_binds(root)
-
-        # last, so they stand over the writable binds above: a path a declared
-        # command reads is read-only to every wrapped shell. The one command
-        # that runs outside the sandbox would otherwise run whatever a shell
-        # inside it wrote into that file.
-        for path in pair_passthrough.read_only_paths(root):
-            args += _bind("--ro-bind", path)
 
     return args + ["--", "bash", "-s"]
 
