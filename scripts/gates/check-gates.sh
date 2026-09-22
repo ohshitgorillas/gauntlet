@@ -14,6 +14,12 @@
 # runs with PYTHONPATH set to the tree the script sits in, and a tree without
 # its own .venv uses the main checkout's.
 #
+# coverage-hooks is a floor of its own for hooks/, under the whole-repo one.
+# The kit's own bar is each hook's --self-test, which runs outside coverage, so
+# the suite measures the hooks lower than it measures the scripts; a single
+# figure over both lets hook coverage fall while the total holds. The number is
+# a ratchet like file-length's allowances: it goes up and never down.
+#
 # The lint gates are ruff, black, mypy, vulture, shellcheck and coverage, run
 # after pytest and before the self-tests. vulture reads its paths and its
 # confidence floor from pyproject.toml, so it takes no argument here.
@@ -52,6 +58,7 @@ gates=(
     "shellcheck|shellcheck -S style scripts/pair.sh scripts/blind.sh scripts/gates/check-gates.sh"
     "coverage-combine|$venv/bin/coverage combine"
     "coverage|$venv/bin/coverage report"
+    "coverage-hooks|$venv/bin/coverage report --include=hooks/* --fail-under=27"
     "lanes|python3 hooks/lanes.py --self-test"
     "no-impl-reads|python3 hooks/no-impl-reads.py --self-test"
     "blind-bash|python3 hooks/blind-bash.py --self-test"
@@ -82,6 +89,8 @@ gates=(
     "hook-latency-self|python3 scripts/gates/hook-latency.py --self-test"
     "hook-degenerate|python3 scripts/gates/hook-degenerate.py --check"
     "hook-degenerate-self|python3 scripts/gates/hook-degenerate.py --self-test"
+    "selftest-honest|python3 scripts/gates/selftest-honest.py --check"
+    "selftest-honest-self|python3 scripts/gates/selftest-honest.py --self-test"
     "consumer-smoke|python3 scripts/gates/consumer-smoke.py --check"
     "consumer-smoke-self|python3 scripts/gates/consumer-smoke.py --self-test"
     "verdict-corpus|python3 scripts/gates/verdict-corpus.py --check"

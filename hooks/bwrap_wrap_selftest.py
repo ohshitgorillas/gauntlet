@@ -396,6 +396,6 @@ def _self_test_in(tmp: str) -> int:
         _live_runs(lines, default=default, reviewer=reviewer, semicolon=semicolon)
         _vanishing_run(lines, root=root, tree=tree)
     else:
-        lines["bwrap is absent, so the profiles could not be run"] = True
+        lines["bwrap is absent, so the profiles could not be run"] = not have_bwrap
 
     return hook_shape.report(lines)
