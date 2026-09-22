@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **The `Stop` gate names a file the runner collects that no commit carries.** The mount table cannot stop a shell from creating one, so the turn is held open until that file goes through the chain or off disk. A path under a dot-prefixed directory is scratch and is never named.
+
 ### Changed
 - **Every reviewer refuses in the same two tokens.** `CONTEMPT: LEADING` for a brief that leads the reviewer, `OBJECTION: EVASION` for a return that evades its findings, from `prosecutor`, `arbiter` and `bailiff` alike.
 

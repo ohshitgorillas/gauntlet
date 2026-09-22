@@ -93,6 +93,7 @@ import hook_payload  # noqa: E402
 import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
 import lane_paths  # noqa: E402
+import shell_binds  # noqa: E402
 
 SPEC_REVIEWER = "arbiter"
 PLAN_REVIEWER = "prosecutor"
@@ -321,11 +322,11 @@ _STALE += "a fresh juror on the run now on disk."
 
 
 def _complaints(root: Path) -> list[str]:
-    """One line per red run this root cannot show a live verdict for."""
+    """Each red run with no live verdict, and each test no commit carries."""
+    out = shell_binds.untracked_tests(root)
     red_dir = root / RED_DIR
     if not red_dir.is_dir():
-        return []  # no red run here; a consumer project that never runs pair.sh
-    out = []
+        return out  # no red run here; a consumer project that never runs pair.sh
     for red in sorted(red_dir.glob("*.txt")):
         slug = red.stem
         try:
