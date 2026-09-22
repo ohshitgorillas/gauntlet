@@ -82,6 +82,8 @@ gates=(
     "hook-latency-self|python3 scripts/gates/hook-latency.py --self-test"
     "hook-degenerate|python3 scripts/gates/hook-degenerate.py --check"
     "hook-degenerate-self|python3 scripts/gates/hook-degenerate.py --self-test"
+    "consumer-smoke|python3 scripts/gates/consumer-smoke.py --check"
+    "consumer-smoke-self|python3 scripts/gates/consumer-smoke.py --self-test"
     "verdict-corpus|python3 scripts/gates/verdict-corpus.py --check"
     "verdict-corpus-self|python3 scripts/gates/verdict-corpus.py --self-test"
     "kit-shipped|python3 scripts/gates/kit-shipped.py --check"
