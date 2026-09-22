@@ -38,7 +38,7 @@ brief:
 - **What the owner sees change** is the delta as the owner experiences it, not as the diff expresses it.
 - **Which files get touched, and roughly how** names files and the shape of the change in each. It is not a diff, and it is not a promise of line counts.
 - **Caller-side delta** applies where anything outside the changed files has to change with them — an interface, a path, an agent's own instructions. `none` where nothing does.
-- **What it costs** names the work the change forces, the tests it breaks, and what was deliberately left out, with the owner's own words where a scope instruction produced the cut.
+- **What it costs** names the work the change forces, the tests it breaks, and what was deliberately left out, with the owner's own words where a scope instruction produced the cut. An element check (m) cut, and one the owner refused leave for, is one line here each: the owner reads every cut in the plan they approve.
 - **Open questions** is `None` or a numbered list. A question here reaches the owner; a question addressed to the reviewer is a leading tell and burns the round.
 
 ## Register, and where a fact lives
@@ -75,11 +75,15 @@ The pointers a plan cites come from one `detective` round: every question in one
 
 ## The gate
 
-`prosecutor` reads the plan prose and resolves its citations. Its gate token is one of `READY`, `ANOTHER PASS`, `ESCALATE` or `ESCALATE: QUESTION`, and the default on every check is the failing one. `PASS` and `FAIL` are per-check tokens beneath the gate line, never the gate itself.
+`prosecutor` reads the plan prose and resolves its citations. Its gate token is one of `READY`, `ANOTHER PASS`, `ESCALATE`, `ESCALATE: LEAVE` or `ESCALATE: QUESTION`, and the default on every check is the failing one. `PASS` and `FAIL` are per-check tokens beneath the gate line, never the gate itself.
+
+The main agent's default against an unpled element is deletion, not escalation. A finding under check (m) is answered by cutting the element and naming the cut under **What it costs**; a leave request is what the main agent writes where deletion breaks the brief, and it costs the owner a turn and the main agent a counted round. An element that could be its own slug is its own slug.
 
 The owner reads the plan only on `READY`. Rounds before that are between the main agent and the reviewer, and they are cheap; a plan passed carelessly costs the owner directly.
 
 On `READY` the plan waits for the owner. Approval is a message whose first line is exactly `approved`, or exactly `approved with revision` with the amendments below it. Anything else holds.
+
+On `ESCALATE: LEAVE` the owner rules on the leave request instead, and the ruling opens a round rather than a gate: leave granted keeps the element, leave refused deletes it and puts its line under **What it costs**. The plan reaches the owner for approval afterwards, and it reaches them on `READY` like any other.
 
 ## Amending an approved plan
 
@@ -94,6 +98,8 @@ The main agent takes the measurement, and the command is what makes that safe. T
 The reviewer may be a fresh one. The approved file carries every previous verdict beneath its `--- reviewer ---` divider, and an approved plan is something a `prosecutor` may read, so a reviewer holding none of the original round still reads what that round carried — from the plan file, never from `<gauntlet dir>/reviews/`, which it cannot read at all.
 
 Checks run on the amended lines and the citations they carry, and on nothing else. Every other check prints `carried` with its verdict from the most recent `--- reviewer ---` block. A new finding on unchanged text stays legal and costs one scoped round.
+
+The amendment is confined to what the measurement settles. An owner-visible delta an amended line proposes, which the returned measurement does not bear on, is unpled under check (m) and is cut there: a scoped round is a narrow entry point, and a number carried into it is not a licence for the deltas around it.
 
 On `READY` the reviewer rewrites `<gauntlet dir>/plans/approved/<slug>.txt`: the amended plan body, then every reviewer block in order, oldest first, each under its own divider. A slug amended twice carries three blocks, and the carried verdicts are read from the last. Any other verdict writes nothing, and the file on disk is the one that stands.
 

@@ -4,7 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-21
+
 ### Added
+- **A plan carries the changes the brief asked for and no others.** `prosecutor` cuts an owner-visible delta — a config key, flag, hook entry, tracked artifact, changed default or gate token — that no brief sentence reaches, and the cut has a line under **What it costs**. An element the main agent says the briefed change cannot work without reaches the owner as `ESCALATE: LEAVE`, quoted with its cost and why it is not its own slug.
 - **The `Stop` gate names a file the runner collects that no commit carries.** The mount table cannot stop a shell from creating one, so the turn is held open until that file goes through the chain or off disk. A path under a dot-prefixed directory is scratch and is never named.
 
 ### Changed
