@@ -11,6 +11,7 @@ reading path raises reports nothing at all.
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 import tempfile
@@ -53,9 +54,29 @@ def _untracked_prose() -> dict[str, set[str]]:
     return found
 
 
+def _untracked_server() -> list[str]:
+    """The paths the gate reads out of a manifest whose one MCP server is untracked."""
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / ".claude-plugin").mkdir()
+        manifest = {
+            "mcpServers": {
+                "one": {
+                    "command": "python3",
+                    "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp/gone_server.py"],
+                }
+            }
+        }
+        (Path(tmp) / ".claude-plugin/plugin.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+        found: list[str] = GATE.manifest_paths(Path(tmp))
+    return found
+
+
 def _rules() -> dict[str, bool]:
     """One entry per rule the gate exists to hold, name to whether it held."""
     untracked = GATE.judge_paths(["hooks/gone.py"], {}, CARRIED)
+    server_untracked = GATE.judge_paths(["scripts/mcp/gone_server.py"], {}, CARRIED)
     in_prose = GATE.judge_paths([], {"docs/agents.md": {"hooks/gone.py"}}, CARRIED)
     renamed = GATE.judge_agents(
         {"juror": DEFINITION.replace("name: juror", "name: bailiff")}, {"juror": set()}
@@ -69,6 +90,9 @@ def _rules() -> dict[str, bool]:
     return {
         "a manifest path no commit carries fails": (
             len(untracked) == 1 and "hooks/gone.py" in untracked[0]
+        ),
+        "a manifest server path no commit carries fails": (
+            len(server_untracked) == 1 and "scripts/mcp/gone_server.py" in server_untracked[0]
         ),
         "a path the prose names and no commit carries fails": (
             len(in_prose) == 1 and "docs/agents.md" in in_prose[0]
@@ -108,6 +132,9 @@ def _rules() -> dict[str, bool]:
         ),
         "an untracked document is read for the paths it names": (
             _untracked_prose() == {"docs/new.md": {"hooks/gone.py"}}
+        ),
+        "an untracked MCP server is read for the path it names": (
+            _untracked_server() == ["scripts/mcp/gone_server.py"]
         ),
         "the index is read as git answers it": (
             GATE.MANIFEST in GATE.tracked() and "hooks/lanes.py" in GATE.tracked()

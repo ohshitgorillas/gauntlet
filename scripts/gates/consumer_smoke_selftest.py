@@ -63,6 +63,12 @@ SOUND = [
 REFUSED = [done(0, DENY)]
 
 
+def _listing(names: list[str]) -> str:
+    """A `tools/list` reply naming these tools, as a server's stdout carries one."""
+    tools = [{"name": name, "description": "", "inputSchema": {}} for name in names]
+    return json.dumps({"jsonrpc": "2.0", "id": 2, "result": {"tools": tools}}) + "\n"
+
+
 def _installed() -> bool:
     """The kit copies into a directory of its own, carrying its manifest and hooks."""
     with tempfile.TemporaryDirectory(prefix="consumer-self-") as base:
@@ -91,6 +97,18 @@ def _rules() -> dict[str, bool]:
     noise = GATE.judge([("PreToolUse", "hooks/lanes.py", done(0, "about to deny\n"))], REFUSED)
     held = GATE.judge([("Stop", "hooks/lanes.py --stop", done(2, "", "no verdict"))], REFUSED)
     allowed = GATE.judge(SOUND, [done(0)])
+    server_fell = done(1, "", GATE.CRASH + "\nKeyError: x\n")
+    server_crash = GATE.judge_servers([("blind", ["x"], server_fell)], {"blind": {"status"}})
+    server_silent = GATE.judge_servers([("blind", ["x"], done(0, ""))], {"blind": {"status"}})
+    server_empty = GATE.judge_servers(
+        [("blind", ["x"], done(0, _listing([])))], {"blind": {"status"}}
+    )
+    server_absent = GATE.judge_servers(
+        [("blind", ["x"], done(0, _listing(["ping"])))], {"blind": {"status"}}
+    )
+    server_sound = GATE.judge_servers(
+        [("blind", ["x"], done(0, _listing(["status"])))], {"blind": {"status"}}
+    )
     return {
         "a session in which every hook behaved passes": GATE.judge(SOUND, REFUSED) == [],
         "a hook that crashed fails, quoting its last line": (
@@ -112,6 +130,29 @@ def _rules() -> dict[str, bool]:
         ),
         "the kit installs into a project holding none of this one's history": _installed(),
         "the session is driven through the installed kit, not assumed": _drives(),
+        "a server that crashed fails, quoting its last line": (
+            len(server_crash) == 1 and "KeyError: x" in server_crash[0]
+        ),
+        "a server giving no answer to tools/list fails": (
+            len(server_silent) == 1 and "tools/list" in server_silent[0]
+        ),
+        "a server whose tools/list answers with no tools fails": (
+            len(server_empty) == 1 and "no tools" in server_empty[0]
+        ),
+        "a server whose tools/list omits a granted tool fails, naming it": (
+            len(server_absent) == 1 and "status" in server_absent[0]
+        ),
+        "a server whose tools/list covers every granted tool passes": server_sound == [],
+        "a wildcard grant names no one tool": (
+            "*" not in {tool for tools in GATE.granted(GATE.ROOT).values() for tool in tools}
+        ),
+        "the live agents grant tools this kit's own MCP servers actually serve": bool(
+            GATE.granted(GATE.ROOT)
+        ),
+        "the live manifest's MCP servers each build a runnable argv": (
+            len(GATE.served(GATE.ROOT)) >= 1
+            and all(argv for argv in GATE.served(GATE.ROOT).values())
+        ),
     }
 
 

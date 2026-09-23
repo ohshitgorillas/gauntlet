@@ -56,6 +56,18 @@ ANNOUNCE = (
 #: a script path a server entry spells under the plugin root, after the variable
 SERVER_PATH_RE = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}\"?/([^\s\"']+)")
 
+#: what every MCP server needs besides its own entry script: the loop the three
+#: servers share, and the shell entry points that run one of them for a caller
+#: with no shell of its own. None of these is named in the manifest's own
+#: `command`/`args`, so `SERVER_PATH_RE` never finds them there.
+SERVER_DEPS = (
+    "scripts/mcp/rpc.py",
+    "scripts/mcp/blind_server.py",
+    "scripts/mcp/spawn.py",
+    "scripts/blind.sh",
+    "scripts/pair.sh",
+)
+
 ANNOUNCE_SERVERS = (
     "gauntlet: {count} wired MCP server(s) absent from this kit: {names}. "
     "The tools they serve are missing for this session. Reinstall the plugin, or "
@@ -128,6 +140,7 @@ def servers(root: str) -> tuple[list[str], list[str]]:
                 for path in SERVER_PATH_RE.findall(word)
                 if not (Path(root) / path).is_file()
             )
+        gone.extend(f"{name} ({dep})" for dep in SERVER_DEPS if not (Path(root) / dep).is_file())
     return gone, malformed
 
 

@@ -16,6 +16,13 @@ HOOK = REPO / "hooks" / "kit-probe.py"
 MANIFEST = ".claude-plugin/plugin.json"
 HOOK_PATH = "hooks/one.py"
 SERVER_PATH = "scripts/mcp/one_server.py"
+SERVER_DEPS = (
+    "scripts/mcp/rpc.py",
+    "scripts/mcp/blind_server.py",
+    "scripts/mcp/spawn.py",
+    "scripts/blind.sh",
+    "scripts/pair.sh",
+)
 
 
 def _server(path):
@@ -70,19 +77,46 @@ def test_a_missing_server_file_is_named_with_its_manifest_path(tmp_path):
 
 
 def test_a_kit_whose_servers_are_all_there_prints_nothing(tmp_path):
-    said, _ = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[SERVER_PATH])
+    said, _ = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[SERVER_PATH, *SERVER_DEPS])
     assert said == ""
+
+
+def test_a_server_missing_its_shared_rpc_loop_is_named(tmp_path):
+    said, _ = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[SERVER_PATH])
+    assert "scripts/mcp/rpc.py" in said
+
+
+def test_a_server_missing_its_shell_entry_point_is_named(tmp_path):
+    present = [SERVER_PATH, "scripts/mcp/rpc.py", "scripts/mcp/blind_server.py"]
+    said, _ = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=present)
+    assert "scripts/pair.sh" in said
+
+
+def test_a_server_missing_its_split_out_spawn_module_is_named(tmp_path):
+    """`spawn.py` is probed whether or not it exists in the tree being checked yet."""
+    present = [p for p in SERVER_DEPS if p != "scripts/mcp/spawn.py"]
+    said, _ = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[SERVER_PATH, *present])
+    assert "scripts/mcp/spawn.py" in said
+
+
+def test_a_server_missing_a_dependency_does_not_crash_the_probe(tmp_path):
+    _, err = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[SERVER_PATH])
+    assert err == ""
 
 
 def test_a_malformed_server_entry_is_named_by_its_key(tmp_path):
     said, _ = _said(
-        tmp_path, {"crooked": "not an object", "one": _server(SERVER_PATH)}, present=[SERVER_PATH]
+        tmp_path,
+        {"crooked": "not an object", "one": _server(SERVER_PATH)},
+        present=[SERVER_PATH, *SERVER_DEPS],
     )
     assert "crooked" in said
 
 
 def test_a_malformed_server_entry_does_not_crash_the_probe(tmp_path):
     _, err = _said(
-        tmp_path, {"crooked": "not an object", "one": _server(SERVER_PATH)}, present=[SERVER_PATH]
+        tmp_path,
+        {"crooked": "not an object", "one": _server(SERVER_PATH)},
+        present=[SERVER_PATH, *SERVER_DEPS],
     )
     assert err == ""

@@ -116,22 +116,34 @@ def documents(root: Path = ROOT) -> list[str]:
 
 
 def manifest_paths(root: Path = ROOT) -> list[str]:
-    """Every kit path the manifest's wired commands name, once each."""
+    """Every kit path the manifest's wired commands and MCP servers name, once each."""
     try:
         data = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError):
         return []
-    hooks = data.get("hooks") if isinstance(data, dict) else None
-    if not isinstance(hooks, dict):
+    if not isinstance(data, dict):
         return []
+    hooks = data.get("hooks")
     found = [
         match
-        for listed in hooks.values()
+        for listed in (hooks.values() if isinstance(hooks, dict) else [])
         for group in listed
         for entry in group.get("hooks", [])
         if isinstance(entry, dict) and isinstance(entry.get("command"), str)
         for match in KIT_PATH.findall(entry["command"])
     ]
+    servers = data.get("mcpServers")
+    if isinstance(servers, dict):
+        for entry in servers.values():
+            if not isinstance(entry, dict):
+                continue
+            words = [entry.get("command", "")]
+            args = entry.get("args", [])
+            if isinstance(args, list):
+                words += [arg for arg in args if isinstance(arg, str)]
+            found += [
+                match for word in words if isinstance(word, str) for match in KIT_PATH.findall(word)
+            ]
     return list(dict.fromkeys(found))
 
 

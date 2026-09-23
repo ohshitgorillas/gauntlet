@@ -89,8 +89,10 @@ def _rules() -> dict[str, bool]:
     both = _said(["hooks/one.py", "hooks/two.py"], [])
     broken = _said([], [], text="{not json")
     server = "scripts/mcp/one_server.py"
+    whole = [server, *PROBE.SERVER_DEPS]
     absent = _served({"one": _server(server)}, [])
-    crooked = _served({"crooked": "not an object", "one": _server(server)}, [server])
+    missing_dep = _served({"one": _server(server)}, [server])
+    crooked = _served({"crooked": "not an object", "one": _server(server)}, whole)
     return {
         "a whole kit says nothing at all": _said(["hooks/one.py"], ["hooks/one.py"]) == "",
         "a kit missing one hook names it, and not the hook that is there": (
@@ -111,8 +113,11 @@ def _rules() -> dict[str, bool]:
         "a kit missing an MCP server's script names the server and its path": (
             f"one ({server})" in absent and "MCP server" in absent
         ),
+        "a kit missing a server's shared dependency names it, its script present": (
+            "scripts/mcp/rpc.py" in missing_dep and "MCP server" in missing_dep
+        ),
         "a kit whose MCP servers are all there says nothing at all": (
-            _served({"one": _server(server)}, [server]) == ""
+            _served({"one": _server(server)}, whole) == ""
         ),
         "a malformed MCP server entry is named by its key, without a crash": (
             "crooked" in crooked and "one (" not in crooked

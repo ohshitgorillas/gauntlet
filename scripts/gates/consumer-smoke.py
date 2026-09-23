@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -72,6 +73,16 @@ STEPS: tuple[tuple[str, dict[str, Any]], ...] = (
     ("PostToolUse", {"tool_name": "Write", "tool_input": WRITTEN}),
     ("Stop", {"stop_hook_active": False}),
 )
+
+#: the opening exchange a session has with one MCP server, one message per line
+SERVER_STEPS: tuple[dict[str, Any], ...] = (
+    {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+    {"jsonrpc": "2.0", "method": "notifications/initialized"},
+    {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+)
+
+#: a grant an agent definition names, qualified by the plugin and server it reaches
+GRANT_RE = re.compile(r"mcp__plugin_[\w-]+__[\w*-]+")
 
 
 def lane_step(root: str) -> tuple[str, dict[str, Any]]:
@@ -163,6 +174,81 @@ def answer(
         )
 
 
+def served(kit: Path) -> dict[str, list[str]]:
+    """Every MCP server the installed manifest names, its key to its argv."""
+    try:
+        data = json.loads((kit / MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return {}
+    listed = data.get("mcpServers") if isinstance(data, dict) else None
+    if not isinstance(listed, dict):
+        return {}
+    found: dict[str, list[str]] = {}
+    for name, entry in listed.items():
+        if not isinstance(entry, dict):
+            continue
+        command = entry.get("command")
+        args = entry.get("args")
+        if not isinstance(command, str) or not isinstance(args, list):
+            continue
+        words = [command, *(arg for arg in args if isinstance(arg, str))]
+        found[name] = _argv(" ".join(words), kit, kit)
+    return found
+
+
+def granted(kit: Path) -> dict[str, set[str]]:
+    """Every tool name a copied agent definition grants, keyed by the server it reaches.
+
+    A wildcard grant (`__*`) names no one tool and is skipped, so the expected
+    set comes from what an agent definition actually asks for, never from the
+    server's own table -- the no-copy-assertions gate objects to that shape.
+    """
+    try:
+        data = json.loads((kit / MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return {}
+    plugin = data.get("name") if isinstance(data, dict) else None
+    if not isinstance(plugin, str):
+        return {}
+    prefix = f"mcp__plugin_{plugin}_"
+    found: dict[str, set[str]] = {}
+    for path in sorted((kit / "agents").glob("*.md")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for token in GRANT_RE.findall(text):
+            if not token.startswith(prefix):
+                continue
+            server, sep, tool = token[len(prefix) :].partition("__")
+            if sep and tool != "*":
+                found.setdefault(server, set()).add(tool)
+    return found
+
+
+def speak(argv: list[str], kit: Path, root: Path) -> subprocess.CompletedProcess[str]:
+    """Drive one installed MCP server through `initialize`, its ack, and `tools/list`."""
+    stdin = "".join(json.dumps(step) + "\n" for step in SERVER_STEPS)
+    environment = dict(os.environ)
+    environment.pop("GAUNTLET", None)
+    environment["CLAUDE_PLUGIN_ROOT"] = str(kit)
+    environment["CLAUDE_PROJECT_DIR"] = str(root)
+    try:
+        return subprocess.run(
+            argv,
+            input=stdin,
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            check=False,
+            env=environment,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=argv, returncode=1, stdout="", stderr=f"did not answer in {TIMEOUT}s"
+        )
+
+
 def denied(done: subprocess.CompletedProcess[str]) -> bool:
     """Did this hook refuse the call it was given?"""
     try:
@@ -208,6 +294,43 @@ def judge(
     return problems
 
 
+def judge_servers(
+    said: list[tuple[str, list[str], subprocess.CompletedProcess[str]]],
+    expected: dict[str, set[str]],
+) -> list[str]:
+    """Why an installed MCP server cannot answer a session's opening calls, if it cannot."""
+    problems = []
+    for name, _argv, done in said:
+        if CRASH in done.stdout or CRASH in done.stderr or "did not answer" in done.stderr:
+            tail = (done.stderr or done.stdout).strip().splitlines()
+            problems.append(f"{name}: crashed, {(tail[-1] if tail else 'no output')!r}")
+            continue
+        listing = None
+        for line in done.stdout.splitlines():
+            if not line.strip():
+                continue
+            try:
+                message = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(message, dict) and message.get("id") == 2:
+                listing = message
+        if listing is None:
+            problems.append(f"{name}: gave no answer to tools/list")
+            continue
+        result = listing.get("result") if isinstance(listing, dict) else None
+        tools = result.get("tools") if isinstance(result, dict) else None
+        if not isinstance(tools, list) or not tools:
+            problems.append(f"{name}: tools/list answered with no tools")
+            continue
+        names = {tool.get("name") for tool in tools if isinstance(tool, dict)}
+        problems += [
+            f"{name}: {tool} is granted and tools/list does not list it"
+            for tool in sorted(expected.get(name, set()) - names)
+        ]
+    return problems
+
+
 def readings(base: Path) -> list[str]:
     """Install the kit, drive one session through it, and score every answer."""
     kit = install(base)
@@ -223,17 +346,22 @@ def readings(base: Path) -> list[str]:
         (event, command, answer(command, event, payload, kit, root))
         for command in commands.get(event, [])
     ]
-    return judge(said + lane, [done for _, _, done in lane])
+    server_said = [(name, argv, speak(argv, kit, root)) for name, argv in served(kit).items()]
+    return judge(said + lane, [done for _, _, done in lane]) + judge_servers(
+        server_said, granted(kit)
+    )
 
 
 def check() -> int:
     """Copy the kit into a scratch project and run a session through it."""
     with tempfile.TemporaryDirectory(prefix="consumer-smoke-") as base:
         problems = readings(Path(base))
+    with tempfile.TemporaryDirectory(prefix="consumer-smoke-count-") as base:
+        server_count = len(served(install(Path(base))))
 
     for problem in problems:
         print(problem)
-    print(f"{len(STEPS) + 1} step(s) through an installed kit")
+    print(f"{len(STEPS) + 1 + server_count * len(SERVER_STEPS)} step(s) through an installed kit")
     if problems:
         print(f"\n{len(problems)} problem(s). A consumer's project has none of this one's history.")
         return 1

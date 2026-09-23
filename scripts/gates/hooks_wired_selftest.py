@@ -65,6 +65,18 @@ def _manifest(event: str, entries: list[dict[str, Any]], matcher: str | None = N
     return json.dumps({"hooks": {event: [group]}}, indent=2)
 
 
+def _servers_manifest(paths: list[str]) -> str:
+    """Render a plugin manifest wiring one MCP server per path, under the plugin root."""
+    servers = {
+        f"server{index}": {
+            "command": "python3",
+            "args": [f"${{CLAUDE_PLUGIN_ROOT}}/{path}"],
+        }
+        for index, path in enumerate(paths)
+    }
+    return json.dumps({"mcpServers": servers}, indent=2)
+
+
 def _entry(path: str) -> dict[str, Any]:
     """One `type: command` entry naming a script the way the manifest spells one."""
     return {"type": "command", "command": f'python3 "${{CLAUDE_PLUGIN_ROOT}}"/{path}'}
@@ -118,6 +130,12 @@ def _rules() -> dict[str, bool]:
     foreign = _run(
         _manifest("Stop", [{"type": "command", "command": "python3 /opt/x/hook.py"}]), {}
     )
+    missing_server = _run(_servers_manifest(["scripts/mcp/gone.py"]), {})
+    broken_server = _run(_servers_manifest(["scripts/mcp/two.py"]), {"scripts/mcp/two.py": BROKEN})
+    silent_server = _run(
+        _servers_manifest(["scripts/mcp/two.py"]), {"scripts/mcp/two.py": NO_SELF_TEST}
+    )
+    sound_server = _run(_servers_manifest(["scripts/mcp/one.py"]), {"scripts/mcp/one.py": GOOD})
     return {
         "a wiring whose every entry can fire passes": good == (0, ""),
         "a command naming no file fails, and the path is named": (
@@ -142,6 +160,18 @@ def _rules() -> dict[str, bool]:
         "a wiring that is not JSON fails": unparsed[0] == 1 and "not JSON" in unparsed[1],
         "a wiring with no entries passes": absent == (0, ""),
         "a command naming no repository path is left alone": foreign == (0, ""),
+        "a wired MCP server naming no file fails, and the path is named": (
+            missing_server[0] == 1
+            and "scripts/mcp/gone.py" in missing_server[1]
+            and "is not a file" in missing_server[1]
+        ),
+        "a wired MCP server that does not compile fails": (
+            broken_server[0] == 1 and "does not compile" in broken_server[1]
+        ),
+        "a wired MCP server offering no --self-test fails": (
+            silent_server[0] == 1 and "offers no --self-test" in silent_server[1]
+        ),
+        "a wired MCP server that can fire passes": sound_server == (0, ""),
         "the wiring this repository ships and keeps is clean": _live(),
     }
 

@@ -189,6 +189,30 @@ def file_problems(name: str, path: str) -> list[str]:
     return problems
 
 
+def servers(data: dict[str, Any]) -> list[tuple[str, str]]:
+    """Every MCP server the wiring names, its key to its command line as spelled.
+
+    A server that is not an object contributes an empty command line: it names
+    no path, so `script_problems` finds nothing to check and the host's own
+    complaint about the manifest is left to it.
+    """
+    listed = data.get("mcpServers")
+    if not isinstance(listed, dict):
+        return []
+    found: list[tuple[str, str]] = []
+    for name, entry in listed.items():
+        if not isinstance(entry, dict):
+            found.append((name, ""))
+            continue
+        command = entry.get("command")
+        args = entry.get("args")
+        words = [command] if isinstance(command, str) else []
+        if isinstance(args, list):
+            words += [arg for arg in args if isinstance(arg, str)]
+        found.append((name, " ".join(words)))
+    return found
+
+
 def audit(wirings: tuple[str, ...] = WIRINGS) -> list[str]:
     """Every reason a wired hook cannot fire, in the order the wirings list them."""
     problems: list[str] = []
@@ -203,6 +227,8 @@ def audit(wirings: tuple[str, ...] = WIRINGS) -> list[str]:
             problems += wrong
             for command in found:
                 problems += script_problems(name, command)
+        for _, command in servers(data):
+            problems += script_problems(name, command)
     return problems
 
 
