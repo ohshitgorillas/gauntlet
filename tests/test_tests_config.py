@@ -314,13 +314,22 @@ class DocsDirMovesTheBlindReadAllowance(unittest.TestCase):
         # An entry is the repository's own file of that name, never any
         # directory so named: a `src/prose/testing.md` read as documentation
         # hands the blind agent the implementation under a directory it chose.
-        # And the allowance is that one policy file, not the prose around it:
-        # a design note there quotes the code it describes.
+        # The allowance is the prose directory whole, and gate output under
+        # `state/` stays denied.
         observed = {
             "a directory of that name": _read(self.moved, "src/prose/testing.md"),
             "prose beside the file": _read(self.moved, "prose/sub/deep.md"),
+            "the default prose, unmoved": _read(self.bare, "docs/plans.md"),
+            "the default prose, moved": _read(self.moved, "docs/plans.md"),
+            "gate output": _read(self.moved, "state/gates/pytest.txt"),
         }
-        assert observed == {"a directory of that name": DENY, "prose beside the file": DENY}
+        assert observed == {
+            "a directory of that name": DENY,
+            "prose beside the file": SILENT,
+            "the default prose, unmoved": SILENT,
+            "the default prose, moved": DENY,
+            "gate output": DENY,
+        }
 
 
 class AnOverlappingSetMovesNothing(unittest.TestCase):

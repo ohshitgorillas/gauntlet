@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - **A plan header reading `grounding:` is read as `discovery:`.** An approved plan written under the header's former name no longer reads as a missing line.
 
 ### Fixed
+- **A blind agent may read the whole prose directory.** `no-impl-reads.py` allows `docs/` entire, not one policy file in it, so the `arbiter` and `scrivener` reach the protocol and vendor docs their definitions cite, and a Grep rooted at `docs/` is no longer suggested and then denied. `state/` and the gauntlet base outside its three leaves stay denied. The hook's docstring and denial message match the code.
 - **`cite.py` counts only the files git shows when it resolves a basename.** An ignored tool cache carrying its own `.gitignore`, such as `.mypy_cache/`, no longer makes a `.gitignore:<N>` citation `AMBIGUOUS`.
 
 ## [0.9.0] - 2026-09-23

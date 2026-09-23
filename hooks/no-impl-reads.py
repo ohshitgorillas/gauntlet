@@ -33,14 +33,13 @@ blocklist has to know what this repo calls its source directory, and gets it
 wrong the first time someone adds one — and it fails closed: an unlisted path
 is denied, and the denial names the file to widen.
 
-Allowed by default: the blind writer's own lane, `docs/testing.md`, the three
+Allowed by default: the blind writer's own lane, the prose directory, the three
 re-allowed leaves under the gauntlet base, the declaration itself, and
 documentation files at the repo root (`*.md`, `*.txt`, `*.pdf`). Every entry is
-either a directory only a protected writer fills or the one policy file these
-agents are held to. The prose directory as a whole is not one: a project keeps
-design notes there, and a design note quotes the code it describes. Neither is
-`state/`, which holds gate output, and gate output is the implementation's own
-tracebacks under another name.
+either a directory whose content is behavior contract and policy rather than
+code, or the one file that says where those directories are. `state/` is not
+on the list, and nothing on the list contains it: it holds gate output, and gate
+output is the implementation's own tracebacks under another name.
 
 The kit's own `docs/` is on the list too, at `${CLAUDE_PLUGIN_ROOT}/docs/`, and
 it is the one allowed path that sits outside the checkout. The kit cites its own
@@ -61,14 +60,15 @@ four kinds quote implementation citations: an approved plan resolves
 quotes the plan back. So the base is denied entire, with three leaves re-allowed
 inside it: `gauntlet/specs/approved/`, the approved spec block a blind agent
 works from; `gauntlet/red/`, the red run a blind writer must certify; and
-`gauntlet/merge/`, the evidence the bailiff is spawned to read. Denying those
-two moved the certification to the main agent, which is the inversion this hook
-exists to prevent. No denied subtree nests inside an allowed one: `docs/`,
-`tests/` and `state/` are allowed the whole way down, and the three re-allowed
-leaves sit inside the denied base, which is the harmless direction. Both tests
-run before the allow list below, so a fifth artifact
-directory added later is blind-safe until someone deliberately opens it, and no
-`blind-reads.json` entry can re-open the plans, the drafts or the rounds.
+`gauntlet/merge/`, the evidence the bailiff is spawned to read. Denying the red
+run or the merge evidence would move the certification to the main agent, which
+is the inversion this hook exists to prevent. No denied subtree nests inside an
+allowed one: `docs/` and `tests/` are allowed the whole way down, `state/` sits
+outside both and is denied entire, and the three re-allowed leaves sit inside
+the denied base, which is the harmless direction. Both base tests run before the
+allow list below, so a fifth artifact directory added later is blind-safe until
+someone deliberately opens it, and no `blind-reads.json` entry can re-open the
+plans, the drafts or the rounds.
 
 The list is not configurable. What `blind-reads.json` moves is
 where the entries point, never which entries there are: `tests_dir` is the
@@ -160,14 +160,14 @@ GAUNTLET_MERGE = GAUNTLET_BASE + "/merge"
 #: every leaf re-allowed inside the denied base, and the whole of what is
 #: readable under it
 GAUNTLET_LEAVES = (GAUNTLET_SPECS, GAUNTLET_RED, GAUNTLET_MERGE)
-#: repo-relative paths a blind agent may read; a trailing `/` means the subtree.
-#: Each one is a directory only a protected writer fills, or a named file: the
-#: test lane the blind writer owns, the test policy it is held to, the two run
-#: artifacts it certifies, the approved block it works from, and the declaration
-#: that says where those are. A directory anyone may write is not on it, which
-#: is why the prose directory is here as one file rather than as a subtree.
+#: repo-relative paths a blind agent may read; a trailing `/` means the subtree,
+#: and an entry without one is that one file. Each one is a directory whose
+#: content is contract rather than code, or a named file: the prose directory,
+#: the test lane the blind writer owns, the approved block it works from, the
+#: two run artifacts it certifies, and the declaration that says where those
+#: are. `state/` is not on it, because gate output quotes the implementation.
 DEFAULT_ALLOW = (
-    DOCS + "/testing.md",
+    DOCS + "/",
     TESTS + "/",
     GAUNTLET_SPECS + "/",
     GAUNTLET_RED + "/",
@@ -179,13 +179,15 @@ DEFAULT_ROOT_FILES = (".md", ".txt", ".pdf")
 
 _WHY = (
     "Blind agent: the implementation is out of bounds. Work from the approved spec "
-    f"block at {GAUNTLET_SPECS}/, {DOCS}/testing.md, {TESTS}/, and the kit's own prose "
-    f"at ${{{PLUGIN_VAR}}}/docs/. If the spec does "
+    f"block at {GAUNTLET_SPECS}/, {DOCS}/, {TESTS}/, the red run and merge evidence at "
+    f"{GAUNTLET_RED}/ and {GAUNTLET_MERGE}/, and the kit's own prose at "
+    f"${{{PLUGIN_VAR}}}/docs/. If the spec does "
     "not say what the behavior is, report that gap instead of reading the code to "
     f"find out. If this path is genuinely a spec source, it belongs in "
-    f"{GAUNTLET_SPECS}/, which is the only part of {GAUNTLET_BASE}/ that is yours: the "
-    "plans, the drafts and the reviewer rounds quote implementation citations, and "
-    "no list reaches them. (hooks/no-impl-reads.py)"
+    f"{GAUNTLET_SPECS}/ or {DOCS}/. Of {GAUNTLET_BASE}/, only {GAUNTLET_SPECS}/, "
+    f"{GAUNTLET_RED}/ and {GAUNTLET_MERGE}/ are yours: the plans, the drafts and the "
+    "reviewer rounds quote implementation citations, and no list reaches them. "
+    "(hooks/no-impl-reads.py)"
 )
 _UNROOTED = (
     f"Give Grep/Glob an explicit path ({TESTS}/, {DOCS}/, {GAUNTLET_SPECS}/): an "

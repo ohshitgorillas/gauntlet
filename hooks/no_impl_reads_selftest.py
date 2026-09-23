@@ -334,21 +334,23 @@ def self_test() -> int:
         ),
         "13 no denied subtree nests inside an allowed one": _no_denied_nesting(),
         "14 this repo's own blind-reads.json parses, if it is there": _config_parses(),
-        "15 the prose directory is one file, and gate output is not readable": all(
+        "15 the prose directory is a subtree, and gate output is not readable": all(
             (
-                #: the one policy file these agents are held to, and not the
-                #: directory around it: a design note there quotes the code it
-                #: describes
+                #: the prose directory whole, and the bare directory a sweep is
+                #: rooted at
                 allowed(read(f"{root}/docs/testing.md")),
-                denied(read(f"{root}/docs/plans.md")),
-                denied(call("Grep", {"pattern": "x", "path": f"{root}/docs"})),
-                #: the entry is that file, not a prefix of its name
-                denied(read(f"{root}/docs/testing.md.bak")),
+                allowed(read(f"{root}/docs/plans.md")),
+                allowed(read(f"{root}/docs/sub/deep.md")),
+                allowed(call("Grep", {"pattern": "x", "path": f"{root}/docs"})),
+                #: anchored at the repo root, not at any directory so named
+                denied(read(f"{root}/src/docs/testing.md")),
+                #: a path boundary, not a string prefix
+                denied(read(f"{root}/docs-old/testing.md")),
                 #: gate output is the implementation's own tracebacks under
                 #: another name
                 denied(read(f"{root}/state/gates/pytest.txt")),
                 denied(call("Grep", {"pattern": "x", "path": f"{root}/state"})),
-                #: what stays on the list beside that file: the lane the blind
+                #: what stays on the list beside the prose: the lane the blind
                 #: writer owns and the two run artifacts it certifies
                 allowed(read(f"{root}/tests/test_lane.py")),
                 allowed(read(f"{root}/gauntlet/red/demo.txt")),
