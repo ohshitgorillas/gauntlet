@@ -4,6 +4,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **The blind agents reach `scripts/blind.sh` through the `blind` MCP server.** `scripts/mcp/blind_server.py` serves three tools, one per `blind.sh` verb, checks each argument against its type and runs the script as an argv list with no shell between them. A run returns one `PASSED`, `FAILED` or `ERROR` line per id, a parametrized id cut to its bracket index and a node name to its run position. No source line, exception message or lint output reaches the caller. The `scrivener` and the `bailiff` admit `mcp__plugin_gauntlet_blind__*`.
+- **The `scrivener` formats the file it writes through the `blind-write` MCP server.** `scripts/mcp/blind_write_server.py` serves one tool, `format`, which runs `blind.sh format` over one path and returns `clean` or `not clean`, never the fix tools' output. `hooks/blind-write.py`, wired at `PreToolUse` on `mcp__plugin_gauntlet_blind-write__.*`, denies every caller but the `scrivener`, the main agent included.
+- **The main agent runs `scripts/pair.sh` through the `pair` MCP server.** `scripts/mcp/pair_server.py` serves one tool per verb — `open`, `respec`, `red`, `check`, `merge`, `abort`, `close`, `list`, `review`, `review_plan`, `restore`, `impl_checkout` and `impl_merge` — checks a slug and a rev before anything runs, and returns the script's exit, stdout and stderr verbatim. The agent definitions and `docs/agents.md` name `mcp__plugin_gauntlet_pair__<verb>` wherever they named a `pair.sh` command.
+
+### Changed
+- **Every `Bash` call runs inside `bwrap`, with no carve-out.** `bwrap-wrap.py` carries the command into the wrap byte for byte and reads nothing in it, so `pair.sh` and a project-declared command are wrapped like any other. No hook decides a `Bash` call by its text.
+- **The `scrivener` and the `bailiff` hold no `Bash`.** A blind agent's shell would need a reading of its command to hold, so each reaches `blind.sh` through the `blind` tools instead.
+
+### Removed
+- **`hooks/blind-bash.py` and `hooks/pair-passthrough.py`.** The one-command lock on the blind agents' shell and the two carve-outs from the wrap are gone with the shell they judged.
+- **`gauntlet-off.py --bash`.** A `GAUNTLET=` assignment or a nested `claude` invocation inside a session is no longer denied by a hook; the rule that an agent may not throw the switch holds without one. `GAUNTLET=off claude` silences `lanes.py`, `no-impl-reads.py` and the `Stop` gate.
+- **The `unwrapped_commands` key of `.claude/blind-reads.json`.** No command leaves the sandbox, so the file carries eight keys and `shell_shapes.py --config` answers no ninth. A project that set it has its declared commands wrapped like any other.
+
 ## [0.6.0] - 2026-09-21
 
 ### Added

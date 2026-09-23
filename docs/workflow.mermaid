@@ -252,7 +252,8 @@ flowchart TD
     the reviewer cannot read is READY, with the note for you.`"]
 
     gate2{"`The reviewer's verdict`"}
-    roundfile["`The round is written to the reviews path the brief named.
+    roundfile["`The round is written to the reviews path the brief named,
+    which the main agent took from the pair server's review tool.
     A contempt, objection or second-evasion round writes nothing.`"]
 
     another2["`**Another pass**
@@ -342,7 +343,8 @@ flowchart TD
 
     %% ---- Stage 3: the blind writer and the red run. Ends where implementation begins. ----
 
-    pairopen["`The main agent cuts the pair with pair.sh open.
+    pairopen["`The main agent cuts the pair through the pair server's
+    open tool, which runs pair.sh open.
     The approved block's reviewer section is compared
     against the newest round file on disk.`"]
     opencheck{"`Are those two texts byte-identical?`"}
@@ -376,8 +378,9 @@ flowchart TD
     motionwork["`**The tests-only lane**
     The writer removes each single-test target and writes the
     replacement its as: field names, carrying a rehome's quoted
-    assertion byte-identical. A whole-file target is the script's,
-    since the lane hook denies every agent that shell.
+    assertion byte-identical. A whole-file target is pair.sh's,
+    reached through the pair tools, since the lane hook denies
+    every agent that removal.
     No red run: the tree already satisfies these.`"]
 
     writable{"`Can every line be written as a test?`"}
@@ -387,7 +390,9 @@ flowchart TD
     and nobody sees it.`"]
     written["`The tests are written, one per line, plus any fixture
     or fake capability the lines need. A helper is amended on one
-    ground only: it disagrees with a wire fact the writer can cite.`"]
+    ground only: it disagrees with a wire fact the writer can cite.
+    The writer holds no shell: it runs its file through the blind
+    server's test tool and formats it through blind-write's format tool.`"]
     hasrows{"`Does the block carry collateral: rows?`"}
     rowrepair{"`Can the row be repaired
     with its assertion untouched?`"}
@@ -399,8 +404,8 @@ flowchart TD
     whose repair would move or rename the test, are reported and stopped on.
     Both belong to another block, not to a delta.`"]
 
-    redrun["`The main agent commits the tests and runs pair.sh red,
-    which saves the run's output to a file and prints its path
+    redrun["`The main agent commits the tests and calls the pair
+    server's red tool, which runs pair.sh red, saves the run's output to a file and prints its path
     and nothing else.`"]
     juror[["`**Juror**
     spawned fresh for this one run, blind. Its brief is the slug,
@@ -453,7 +458,7 @@ flowchart TD
 
     stage4["`**Stage 4**`"]
 
-    stage3 --> pairopen
+    stage3 -- "pair tool: open" --> pairopen
     pairopen --> opencheck
     opencheck -- no --> mismatch
     mismatch --> stage2
@@ -468,13 +473,13 @@ flowchart TD
     writable -- no --> untestable
     untestable --> stage2
     writable -- yes --> written
-    written --> hasrows
-    hasrows -- no --> redrun
+    written -- "blind tools: test, format" --> hasrows
+    hasrows -- "no; pair tool: red" --> redrun
     hasrows -- yes --> rowrepair
     rowrepair -- no --> collatstop
     collatstop --> stage2
     rowrepair -- yes --> collatwork
-    collatwork --> redrun
+    collatwork -- "pair tool: red" --> redrun
     redrun --> juror
     juror --> tamper
     tamper -- "caught" --> tampered
@@ -486,7 +491,7 @@ flowchart TD
     verdict3 --> greenv
     verdict3 --> invalidv
     invalidv --> writerfix
-    writerfix --> redrun
+    writerfix -- "pair tool: red" --> redrun
     greenv -- "kind: new" --> stage2
     greenv -- "characterization, refactor" --> verdictfile
     redv --> verdictfile
@@ -503,7 +508,8 @@ flowchart TD
 
     %% ---- Stage 4: implementation, against tests nobody may edit. ----
 
-    impltree["`pair.sh impl checkout cuts the implementation tree
+    impltree["`The pair server's impl_checkout tool runs
+    pair.sh impl checkout, which cuts the implementation tree
     on its own branch. The two trees advance side by side:
     the tests in one, the code in the other.`"]
     implwork["`The main agent writes the implementation against the tests.
@@ -515,7 +521,8 @@ flowchart TD
     respec["`Send a revised block back to an **Arbiter**.
     The reviewer that returns READY rewrites the approved file,
     which is a new artifact and takes its own word from you.`"]
-    respeccommit["`pair.sh respec lands the re-approved block
+    respeccommit["`The pair server's respec tool runs pair.sh respec,
+    which lands the re-approved block
     as a spec commit on the spec branch. The delta brief names
     that commit, and the writer reads the changed line from it.`"]
     assumed{"`Did implementation settle a value
@@ -550,7 +557,7 @@ flowchart TD
 
     stage5["`**Stage 5**`"]
 
-    stage4 --> impltree
+    stage4 -- "pair tool: impl_checkout" --> impltree
     impltree --> implwork
     implwork --> assumed
     assumed -- no --> suite
@@ -566,9 +573,9 @@ flowchart TD
     tworoutes --> respec
     respec --> stage2
     respec --> respecword
-    respecword -- "no, a behavior line changed" --> respeccommit
+    respecword -- "no, a behavior line changed; pair tool: respec" --> respeccommit
     respecword -- yes --> respeccollat
-    respeccollat --> respeccommit
+    respeccollat -- "pair tool: respec" --> respeccommit
     respeccommit --> scriv2
     scriv2 --> suite
     suite -- yes --> stage5
@@ -576,7 +583,8 @@ flowchart TD
 
     %% ---- Stage 5: the merge, and the window it closes. ----
 
-    check["`pair.sh check converges the pair in five steps and lands
+    check["`The pair server's check tool runs pair.sh check,
+    which converges the pair in five steps and lands
     nothing: the lane check, a commit in each tree, a rebase where the
     target moved underneath, the combine, and the gate. The verdict and
     the three tips it ran over are written to the next numbered reading,
@@ -586,7 +594,8 @@ flowchart TD
     and no brief is printed. The block and the code disagree,
     and the way out is the implementation tree or a re-approved block,
     never an edited test.`"]
-    merge["`pair.sh merge runs the same first four steps, reads the newest
+    merge["`The pair server's merge tool runs pair.sh merge,
+    which takes the same first four steps, reads the newest
     reading instead of gating, and lands only on a PASS taken over the
     three tips in front of it. Anything else is UNCHECKED and nothing
     lands. A lock is held from the rebase on, so two sessions converging
@@ -616,11 +625,12 @@ flowchart TD
     rowstop["`The assertion a row promised did not survive.
     Nothing lands: restore it in the implementation tree,
     or take the change as a tests-only block of its own.`"]
-    testcheck["`The script prints the TEST CHECK brief:
+    testcheck["`The merge tool returns the TEST CHECK brief:
     the two commits, and the merge output the evidence sits in.`"]
     bailiff[["`**Bailiff**
     spawned fresh, blind, one per merged block. It holds nothing
-    from the spec gate, reads the committed block and the tests
+    from the spec gate and holds no shell. It reads the committed block
+    through the blind server's show tool, reads the tests
     that landed, and watches one window: the implementation phase,
     where a test can be softened after it was approved.`"]]
 
@@ -674,17 +684,17 @@ flowchart TD
     The change is on the target branch, and every test on it
     pins a line an adversarial reviewer passed blind.`"]
 
-    stage5 --> check
+    stage5 -- "pair tool: check" --> check
     check --> lanecheck
     lanecheck -- no --> lanestop
     lanestop --> tworoutes
     lanecheck -- yes --> gatecmd
     gatecmd -- no --> redgate
     redgate --> tworoutes
-    gatecmd -- yes --> merge
+    gatecmd -- "yes; pair tool: merge" --> merge
     merge --> unchecked
     unchecked -- no --> stale
-    stale --> check
+    stale -- "pair tool: check" --> check
     unchecked -- yes --> landed
     landed --> route5
     route5 -- "motion: strike, amend, rehome" --> strikediff
@@ -693,14 +703,14 @@ flowchart TD
     rowsatmerge -- "a row not OK" --> rowstop
     rowstop --> tworoutes
     rowsatmerge -- "every row OK, or no rows" --> testcheck
-    testcheck --> bailiff
+    testcheck -- "blind tool: show" --> bailiff
     bailiff --> lead5
     lead5 -- "caught" --> contempt5
     contempt5 --> freshbail
-    freshbail --> bailiff
+    freshbail -- "blind tool: show" --> bailiff
     lead5 -- "clean" --> evidence
     evidence -- no --> noevidence
-    noevidence --> check
+    noevidence -- "pair tool: check" --> check
     evidence -- yes --> perline5
     perline5 --> rows5
     rows5 --> rules5
