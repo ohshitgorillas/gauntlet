@@ -26,14 +26,16 @@ every directory the kit names. Neither is a literal here.
 from __future__ import annotations
 
 import fcntl
+import os
 import shlex
 import subprocess
+from collections import deque
 from pathlib import Path
 from typing import TextIO
 
 import blocks
 import trees
-from trees import GATE, TARGET, die, exists, git, git_ok, note, path
+from trees import GATE, GAUNTLET, TARGET, die, exists, git, git_ok, note, path
 
 
 def report_red(tree: str, text: str, base: str, head: str, mechanical: bool, saved: str) -> None:
@@ -53,6 +55,7 @@ def report_red(tree: str, text: str, base: str, head: str, mechanical: bool, sav
     note("A failing test here means the block and the code disagree. The code is")
     note("wrong and the fix lands in the implementation tree, or the block is wrong")
     note("and it goes back for re-approval. Tests are not edited to pass.")
+    note("  gate log: " + gate_log(saved))
     if mechanical:
         for line in blocks.strike_report(text, base, head, tree):
             note("  " + line)
@@ -179,17 +182,52 @@ def combine(slug: str) -> None:
     note("  " + spec + " now holds the tests and the implementation")
 
 
+#: how many of the gate log's last lines reach stderr
+TAIL = 40
+
+
+def gate_log(saved: str) -> str:
+    """The gate log beside a gate reading: the same slug and the same `<N>`."""
+    return GAUNTLET + "/gate/" + Path(saved).name
+
+
 def gate(slug: str) -> bool:
-    """Run the configured gate command in the combined tree.
+    """Run the configured gate command in the combined tree, logging its output.
 
     `shlex.split`, not a shell: the command is configuration, and a shell would
     make a second command smuggled into that value run here.
+
+    The output goes to `<gauntlet dir>/gate/<slug>.<N>.txt`, `<N>` being the
+    reading `check` writes next under the same lock, and stderr carries the
+    log's path and its last `TAIL` lines: a gate that prints without bound
+    would otherwise fill the caller's context with it.
     """
     argv = shlex.split(GATE)
     if not argv:
         die("pair: gate_command in .claude/blind-reads.json is empty")
     note("  gate: " + GATE)
-    return trees.in_tree(trees.spec_tree(slug), argv) == 0
+    saved = gate_log(blocks.merge_path(slug, blocks.highest_merge(slug) + 1))
+    where = Path(path(saved))
+    where.parent.mkdir(parents=True, exist_ok=True)
+    tree = path(trees.spec_tree(slug))
+    environment = dict(os.environ)
+    #: the tree ahead of any installed copy, as `trees.in_tree` sets it
+    environment["PYTHONPATH"] = tree
+    with where.open("wb") as handle:
+        done = subprocess.run(
+            argv,
+            cwd=tree,
+            env=environment,
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            check=False,
+            timeout=600,
+        )
+    note("gate log: " + saved)
+    with where.open(encoding="utf-8", errors="replace") as handle:
+        for line in deque(handle, maxlen=TAIL):
+            note(line.rstrip("\n"))
+    return done.returncode == 0
 
 
 def shadowing(branch: str) -> list[str]:

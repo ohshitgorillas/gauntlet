@@ -6,9 +6,11 @@ literals are reachable without reading the implementation.
 """
 
 import json
+import subprocess
 
 from tests.support.pair_fixture import (
     BLOCK_NEW,
+    ENV,
     REVIEWER,
     SLUG,
     TARGET,
@@ -143,3 +145,49 @@ def test_check_lands_nothing_and_removes_no_worktree_whichever_way_the_gate_goes
         (False, True, True, "gate: FAIL"),
         (False, True, True, "gate: PASS"),
     )
+
+
+LOUD_GATE = "seq 10000"
+LOUD_LINES = [str(number) for number in range(1, 10001)]
+GATE_LOG = "gauntlet/gate/" + ARTIFACT_ONE
+
+
+def _check_on_a_loud_gate(tmp_path):
+    """Open a pair whose gate prints 10,000 lines, run `pair.sh check` once.
+
+    Returns the repository and the check's stderr.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    (repo / ".claude" / "blind-reads.json").write_text(
+        json.dumps({"target_branch": TARGET, "gate_command": LOUD_GATE})
+    )
+    _pair(repo, "open", SLUG)
+    worktree = _worktree(repo)
+    (worktree / "tests" / "test_a.py").write_text(TEST_A_OTHER)
+    _git(worktree, "add", "-A")
+    _git(worktree, "commit", "-m", "spec tests")
+    env = dict(ENV)
+    env["HOME"] = str(repo)
+    done = subprocess.run(
+        [str(repo / "scripts" / "pair.sh"), "check", SLUG],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return repo, done.stderr
+
+
+def test_the_gate_log_numbered_as_the_reading_holds_the_gate_s_whole_output(tmp_path):
+    repo, _ = _check_on_a_loud_gate(tmp_path)
+    log = repo / GATE_LOG
+    assert (log.read_text().splitlines() if log.is_file() else None) == LOUD_LINES
+
+
+def test_stderr_names_the_gate_log_and_carries_only_its_last_forty_lines(tmp_path):
+    _, stderr = _check_on_a_loud_gate(tmp_path)
+    lines = stderr.splitlines()
+    named = [line for line in lines if line.endswith(GATE_LOG)]
+    printed = [line for line in lines if line.strip().isdigit()]
+    assert (len(named), printed) == (1, LOUD_LINES[-40:])
