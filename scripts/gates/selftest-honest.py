@@ -43,7 +43,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 #: where the self-test bodies live
-BODIES = ("hooks", "scripts", "scripts/gates")
+BODIES = ("hooks", "scripts", "scripts/gates", "scripts/mcp")
 
 #: how a self-test body is named
 SUFFIX = "_selftest.py"

@@ -69,6 +69,7 @@ gates=(
     "pair|python3 scripts/pair/cli.py --self-test"
     "cite|python3 scripts/cite.py --self-test"
     "init|python3 scripts/init.py --self-test"
+    "blind-server|python3 scripts/mcp/blind_server.py --self-test"
     "symbol-closure|python3 scripts/gates/symbol-closure.py --self-test"
     "file-length|python3 scripts/gates/file-length.py --check"
     "file-length-self|python3 scripts/gates/file-length.py --self-test"

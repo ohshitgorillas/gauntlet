@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-# The whole shell of a blind agent, in four subcommands.
+# What a blind agent runs, in four subcommands. The agent holds no shell:
+# `scripts/mcp/blind_server.py` execs `test`, `status` and `show` from typed
+# tool arguments, and narrows what `test` prints before the agent sees it.
 #
 #   blind.sh test <path>             run the suite and the mechanical gates
 #   blind.sh format <path>           rewrite that file with the fix tools
@@ -174,11 +176,13 @@ cmd_test() {
 	#: the runner for this file's extension, then the lint gates. The runner is
 	#: `pytest_command` or `node_command` from `blind-reads.json`, so a project
 	#: that deselects a marker or imports a loader names it there rather than
-	#: here; the path and the flags below it are this script's own.
+	#: here; the path and the flags below it are this script's own. `-rfEp`
+	#: puts one summary line per passed, failed and errored id, which is the
+	#: line `scripts/mcp/blind_server.py` narrows the run to.
 	local -a runner
 	if [ "${REL##*.}" = py ]; then
 		read_runner runner pytest_command
-		run_gate pytest "${runner[@]}" "$REL" -q -p no:cacheprovider
+		run_gate pytest "${runner[@]}" "$REL" -q -rfEp -p no:cacheprovider
 		run_gate ruff "$ROOT/.venv/bin/ruff" check "$TESTS"
 		run_gate black "$ROOT/.venv/bin/black" --check "$TESTS"
 	else
