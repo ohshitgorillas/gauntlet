@@ -277,8 +277,8 @@ def _self_test_in(tmp: str) -> int:
         "/run/user is masked and the pid namespace is unshared": (
             "--tmpfs /run/user" in default and "--unshare-pid" in default
         ),
-        #: the two blind agents that keep a shell run it under the same wrap
-        #: as everyone else: no caller is exempt
+        #: no blind agent holds a shell; one that did would run it under the same
+        #: wrap as everyone else, since no caller is exempt
         "a blind agent's shell takes the default profile": all(
             answer_for(agent, "scripts/blind.sh status demo")
             == answer_for("prosecutor", "scripts/blind.sh status demo")
