@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-23
+
 ### Added
 - **A kit missing an MCP server announces it at SessionStart.** `kit-probe.py` reads the manifest's `mcpServers` beside its `hooks` and names every server whose script under `${CLAUDE_PLUGIN_ROOT}` the installed kit does not hold, with the path the manifest gives, so a tool the host dropped is visible in the session. A malformed server entry is named by its key. A whole kit says nothing.
 
