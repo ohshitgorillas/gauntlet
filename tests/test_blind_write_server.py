@@ -83,11 +83,10 @@ def _opened(fixture_root, text):
     return repo, target
 
 
-def _replies(repo, messages):
-    """Every reply the server writes for `messages`, by id."""
-    env = dict(ENV)
-    env["HOME"] = str(repo)
-    env["CLAUDE_PROJECT_DIR"] = str(repo)
+def _replies(repo, messages, env=None):
+    """Every reply the server writes for `messages`, by id, under `env` if one is given."""
+    if env is None:
+        env = dict(ENV, HOME=str(repo), CLAUDE_PROJECT_DIR=str(repo))
     done = subprocess.run(
         [sys.executable, str(repo / "scripts" / "mcp" / "blind_write_server.py")],
         cwd=repo,
@@ -171,3 +170,48 @@ def test_tools_list_names_format_alone(fixture_root):
     repo, _target = _opened(fixture_root, FIXABLE)
     listed = _replies(repo, [{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}])[1]
     assert [tool["name"] for tool in listed["result"]["tools"]] == ["format"]
+
+
+#: a stand-in blind.sh that refuses with its own line carrying a byte that is not UTF-8
+RAW_BLIND = "#!/bin/sh\nprintf 'blind.sh: b\\377\\n' >&2\nexit 2\n"
+#: that line as the caller reads it
+RAW_TEXT = "blind.sh: b\udcff"
+
+FORMAT_CALL = {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {"name": "format", "arguments": {"path": TARGET_ARG}},
+}
+
+
+def _format_then_ping(repo):
+    """The replies to a `format` call from a missing checkout and a `ping` after it."""
+    return _replies(
+        repo,
+        [FORMAT_CALL, {"jsonrpc": "2.0", "id": 3, "method": "ping"}],
+        dict(ENV, HOME=str(repo), CLAUDE_PROJECT_DIR="/nonexistent"),
+    )
+
+
+def test_a_call_from_a_missing_checkout_leaves_the_server_answering(fixture_root):
+    repo, _target = _opened(fixture_root, FIXABLE)
+    assert _format_then_ping(repo)[3]["result"] == {}
+
+
+def test_a_call_from_a_missing_checkout_is_a_tool_error(fixture_root):
+    repo, _target = _opened(fixture_root, FIXABLE)
+    assert _format_then_ping(repo)[2]["result"]["isError"] is True
+
+
+def test_a_refusal_line_that_is_not_utf8_comes_back_byte_faithful(fixture_root):
+    repo, _target = _opened(fixture_root, FIXABLE)
+    blind = repo / "scripts" / "blind.sh"
+    blind.write_text(RAW_BLIND)
+    assert _call(repo, {"path": TARGET_ARG})["result"]["content"][0]["text"] == RAW_TEXT
+
+
+def test_a_host_that_names_no_project_dir_is_served_from_the_checkout(fixture_root):
+    repo, target = _opened(fixture_root, FIXABLE)
+    _replies(repo, [FORMAT_CALL], dict(ENV, HOME=str(repo)))
+    assert target.read_text() == FORMATTED

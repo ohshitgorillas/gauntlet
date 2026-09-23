@@ -7,15 +7,18 @@
 No hook reads a shell command, so a call that moves a block between the
 reviewer, the writer and the tree is better made as a typed tool than as a
 string a shell parses. Each tool here takes typed fields and nothing else: a
-`slug` by `blind_server.SLUG_RE`, a `rev` by `blind_server.COMMIT_RE`, the two
-shapes the blind server already holds, so the two servers cannot part on what a
-slug or a revision is. Every field is checked before anything runs, and a call
-that passes runs `scripts/pair.sh` as an argv list, with no shell between them.
+`slug` by `lane_paths.SLUG`, the shape `pair.sh` itself checks, and a `rev` by
+`blind_server.COMMIT_RE`, so the server cannot admit a slug the driver refuses
+or refuse one it admits. `review` refuses the slug `plan`, which `pair.sh
+review plan` would read as the plan round rather than as a slug. Every field is
+checked before anything runs, and a call that passes runs `scripts/pair.sh` as
+an argv list, with no shell between them.
 
 What comes back is the run itself: a JSON object carrying `exit`, `stdout` and
-`stderr`, the two streams verbatim. The stdout of each verb is the contract
-`docs/agents.md` tables, so nothing here narrows or rewords it. A non-zero exit
-marks the result as an error, and the object is the same either way.
+`stderr`, the two streams verbatim, as `spawn.run` keeps them. The stdout of
+each verb is the contract `docs/agents.md` tables, so nothing here narrows or
+rewords it. A non-zero exit marks the result as an error, and the object is the
+same either way.
 
 `pair.sh` is found beside this directory, as `blind.sh` is, because the kit
 travels as one directory. It runs from the project the session stands in, which
@@ -26,6 +29,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -34,9 +38,15 @@ from typing import Any
 
 import blind_server
 import rpc
+import spawn
 
 KIT = Path(__file__).resolve().parents[2]
 PAIR = KIT / "scripts" / "pair.sh"
+
+#: `lane_paths` is found in `hooks/` beside `scripts/`, as `pair.sh` finds it
+sys.path.insert(0, str(KIT / "hooks"))
+
+import lane_paths  # noqa: E402
 
 #: `red`, `check` and `merge` run the suite or the project's gate; the rest are git steps
 GATE_TIMEOUT = 3600
@@ -46,11 +56,17 @@ GATED = frozenset({"red", "check", "merge"})
 NAME = "pair"
 VERSION = "1"
 
-#: each field's shape, from the blind server, which holds them first
-SHAPES = {"slug": blind_server.SLUG_RE, "rev": blind_server.COMMIT_RE}
+#: each field's shape: a slug as `pair.sh` checks it, a revision as the blind server does
+SHAPES = {"slug": re.compile(lane_paths.SLUG), "rev": blind_server.COMMIT_RE}
+
+#: the one slug `review` cannot take, because `pair.sh review plan` names the plan round
+PLAN = "plan"
 
 FIELD_SCHEMA = {
-    "slug": {"type": "string", "description": "The pair's slug: lowercase letters, digits, dash."},
+    "slug": {
+        "type": "string",
+        "description": "The pair's slug: letters, digits, dot, dash and underscore.",
+    },
     "rev": {"type": "string", "description": "A commit: a hash, HEAD or HEAD~N."},
 }
 
@@ -160,20 +176,14 @@ def check(name: str, arguments: dict[str, Any]) -> list[str]:
         if not SHAPES[field].fullmatch(value):
             raise Refused(f"{field} is not a {field}: {value!r}")
         words.append(value)
+    if name == "review" and words[-1] == PLAN:
+        raise Refused(f"review cannot take the slug {PLAN!r}: use review_plan")
     return words
 
 
 def run(words: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
-    """`pair.sh` with `words` as its argv, from `cwd`, no shell."""
-    return subprocess.run(
-        [str(PAIR), *words],
-        cwd=cwd,
-        env={**os.environ, "CLAUDE_PROJECT_DIR": str(cwd)},
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=timeout,
-    )
+    """`pair.sh` with `words` as its argv, from `cwd`, no shell; both streams byte-faithful."""
+    return spawn.run([str(PAIR), *words], cwd, timeout)
 
 
 def reply(done: subprocess.CompletedProcess[str]) -> rpc.Reply:

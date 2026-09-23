@@ -221,3 +221,83 @@ def test_server_answers_initialize_with_the_tools_capability(fixture_root):
         timeout=60,
     )
     assert json.loads(done.stdout)["result"]["capabilities"] == {"tools": {}}
+
+
+#: a stand-in blind.sh that prints a CRLF and a byte that is not UTF-8, and passes
+RAW_BLIND = "#!/bin/sh\nprintf 'a\\r\\nb\\377'\n"
+#: what the stand-in printed, as the caller reads it
+RAW_TEXT = "a\r\nb\udcff"
+#: two node tests under one name, the first passing and the second failing
+TWIN_TEST = (
+    'const test = require("node:test");\n\n'
+    'test("same", () => {});\n'
+    'test("same", () => { throw new Error("no"); });\n'
+)
+
+
+def _session(repo, messages, env):
+    """Every reply the server writes for `messages` under `env`, by id."""
+    done = subprocess.run(
+        [sys.executable, str(repo / "scripts" / "mcp" / "blind_server.py")],
+        cwd=repo,
+        env=env,
+        input="".join(json.dumps(message) + "\n" for message in messages),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    sys.stderr.write(done.stderr)
+    return {reply["id"]: reply for reply in map(json.loads, done.stdout.splitlines())}
+
+
+def _status_then_ping(repo):
+    """The replies to `initialize`, a `status` call from a missing checkout, and a `ping`."""
+    return _session(
+        repo,
+        [
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "status", "arguments": {"slug": SLUG}},
+            },
+            {"jsonrpc": "2.0", "id": 3, "method": "ping"},
+        ],
+        dict(ENV, HOME=str(repo), CLAUDE_PROJECT_DIR="/nonexistent"),
+    )
+
+
+def test_a_call_from_a_missing_checkout_leaves_the_server_answering(fixture_root):
+    repo, _tree = _opened(fixture_root)
+    assert _status_then_ping(repo)[3]["result"] == {}
+
+
+def test_a_call_from_a_missing_checkout_is_a_tool_error(fixture_root):
+    repo, _tree = _opened(fixture_root)
+    assert _status_then_ping(repo)[2]["result"]["isError"] is True
+
+
+def test_blind_sh_output_comes_back_byte_faithful(fixture_root):
+    repo, _tree = _opened(fixture_root)
+    _executable(repo / "scripts" / "blind.sh", RAW_BLIND)
+    assert _call(repo, "status", {"slug": SLUG})["content"][0]["text"] == RAW_TEXT
+
+
+def test_a_host_that_names_no_project_dir_is_served_from_the_checkout(fixture_root):
+    repo, _tree = _opened(fixture_root)
+    call = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "show", "arguments": {"commit": "HEAD", "slug": SLUG}},
+    }
+    replies = _session(repo, [call], dict(ENV, HOME=str(repo)))
+    assert replies[1]["result"]["content"][0]["text"] == BLOCK_NEW
+
+
+def test_two_node_tests_sharing_a_name_are_two_verdicts(fixture_root):
+    assert _node_report(fixture_root, TWIN_TEST) == (
+        "PASSED " + NODE_ARG + "::1\nFAILED " + NODE_ARG + "::2\n"
+    )

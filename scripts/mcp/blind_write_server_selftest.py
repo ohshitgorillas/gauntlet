@@ -21,6 +21,9 @@ import rpc
 TESTS = "tests"
 TREE_PATH = ".claude/worktrees/demo-spec/tests/test_x.py"
 
+#: a checkout no call can stand in, so every script the server starts fails to start
+NOWHERE = Path("/nonexistent-by-construction")
+
 
 def _refused(arguments: dict[str, object]) -> bool:
     """Whether `check` refuses these arguments."""
@@ -61,6 +64,15 @@ def _handled(
     return reply, seen
 
 
+def _unstarted() -> bool:
+    """Whether a call from a missing checkout answers an error rather than raising."""
+    try:
+        reply = server.handle("format", {"path": TREE_PATH}, NOWHERE)
+    except Exception:  # noqa: BLE001 -- a raise is the failure this rule reports
+        return False
+    return reply.error
+
+
 def _rules() -> dict[str, bool]:
     listed = _answer({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}) or {}
     reading = _answer(
@@ -90,6 +102,7 @@ def _rules() -> dict[str, bool]:
         ]
         == ["format"],
         "a reading tool is not served here": bool(reading) and "error" in (reading or {}),
+        "a call from a checkout that does not exist answers an error": _unstarted(),
     }
 
 
