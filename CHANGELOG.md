@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+- **An `arbiter` brief carries the draft block inline, never its path.** `no-impl-reads.py` denies the `arbiter` every read of `<gauntlet dir>/specs/drafts/`, so a brief pointing at the draft file left it no behavior lines and drew a contempt round that closed the agent. `docs/approved-specs.md` gains "The brief to the reviewer", `docs/agents.md` and the `mcp__plugin_gauntlet_pair__review` tool description state the inline rule, and the `arbiter` answers a draft path with a one-line `shape:` round that writes nothing and leaves it open for the block.
+
 ## [0.10.0] - 2026-09-23
 
 ### Changed

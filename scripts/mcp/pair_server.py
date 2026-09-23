@@ -111,7 +111,9 @@ VERBS: dict[str, tuple[tuple[str, ...], tuple[str, ...], str]] = {
     "review": (
         ("review",),
         ("slug",),
-        "The path the next spec round is written to (pair.sh review <slug>).",
+        "The path the next spec round is written to (pair.sh review <slug>). "
+        "Brief the arbiter with this line and the block inline: it cannot read "
+        "the drafts.",
     ),
     "review_plan": (
         ("review", "plan"),

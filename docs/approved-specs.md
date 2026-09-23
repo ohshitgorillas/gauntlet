@@ -10,7 +10,7 @@ One directory, one writer.
 - **A file appears there only when that reviewer's gate verdict is `READY`.** The reviewer writes the block it just passed, verbatim, with its own per-line verdicts beneath it. An `ANOTHER PASS` or `ESCALATE` round writes nothing.
 - **The `scrivener` reads from there and refuses a spec path anywhere else.** The path being under `<gauntlet dir>/specs/approved/` is the writer's proof that the behavior it is about to pin survived review; a draft handed to it directly is a spec that skipped the gate.
 - **Reads are open.** Any agent, and the shell, may read the folder. The lane governs writing.
-- **Drafts sit under the stage, not in the lane.** `<gauntlet dir>/specs/` is the stage; the lane is `<gauntlet dir>/specs/approved/` inside it, and `<gauntlet dir>/specs/drafts/<slug>.txt` is the main agent's own, gitignored, and open to every hand. Nothing about drafting is restricted; the lane governs only the folder a block reaches after review.
+- **Drafts sit under the stage, not in the lane.** `<gauntlet dir>/specs/` is the stage; the lane is `<gauntlet dir>/specs/approved/` inside it, and `<gauntlet dir>/specs/drafts/<slug>.txt` is the main agent's own, gitignored, and open to every hand that writes. Nothing about drafting is restricted; the lane governs only the folder a block reaches after review. The blind agents cannot read the drafts, because `no-impl-reads.py` closes every part of `<gauntlet dir>/` but its three leaves, so a draft reaches the `arbiter` only as text in its brief.
 
 ## Why one writer
 
@@ -44,6 +44,12 @@ discriminates: <differential | anchor+edges | sweep> on <surface>
 ```
 
 `STRICKEN` lines are dropped rather than recorded as cut: the file is the surviving contract, and the writer's one-test-per-line rule counts what is in it. An `AMENDED` line stays, since it names a test that changes.
+
+## The brief to the reviewer
+
+Before every round that will carry verdicts, the main agent calls `mcp__plugin_gauntlet_pair__review` with the block's slug. The call returns one line, `REVIEW <gauntlet dir>/reviews/<slug>.<N>.txt`, and the brief carries that line word for word.
+
+On the first round, the brief carries the whole block inline beneath that line, from the `slug:` line to the last behavior line. A path to the draft is not a block: `no-impl-reads.py` denies the `arbiter` every read of `<gauntlet dir>/specs/drafts/`, so a brief that names the draft file instead of carrying it gets a round that runs no check, writes nothing and names the path it could not read. The `arbiter` stays open after such a round, and the main agent resends the block inline to it. Re-review rounds take the shape `agents/arbiter.md` states, and go to the same `arbiter` by `SendMessage`.
 
 ## Changing an approved spec
 
