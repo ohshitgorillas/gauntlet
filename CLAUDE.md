@@ -24,7 +24,7 @@ Green means every gate passes, not just the first. One command runs them:
 scripts/gates/check-gates.sh
 ```
 
-It runs `pytest` on `tests/` under `coverage`, the `--self-test` of every hook and script that offers one, the `--check` of every gate under `scripts/gates/`, and the lint gates `ruff check`, `black --check`, `mypy hooks scripts`, `vulture` and `shellcheck` over the shell scripts, one after another under `nice -n 19 ionice -c3`. `scripts/gates/gates-wired.py` fails when a gate script exists that the array does not name, so the array is the list. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
+It runs `pytest` on `tests/` under `coverage`, the `--self-test` of every hook and script that offers one, the `--check` of every gate under `scripts/gates/`, and the lint gates `ruff check`, `black --check`, `mypy hooks scripts`, `vulture` and `shellcheck` over the shell scripts, one after another under `nice -n 19 ionice -c3`. `scripts/gates/wiring/gates-wired.py` fails when a gate script exists that the array does not name, so the array is the list. It prints one `PASS` or `FAIL` line per gate with its wall time, saves each gate's output to `state/gates/<gate>.txt`, and exits 1 if any gate failed. Read a failing gate's output from that file rather than running the gate again.
 
 Each `--self-test` prints one `PASS` or `FAIL` per rule that script exists to hold, and they cover cases the suite does not. A hook change that passes `pytest` and fails its own `--self-test` is exactly what this bar catches.
 
@@ -44,7 +44,7 @@ No hook decides a `Bash` call by parsing its text. A reading of a command string
 
 Two gates hold every `.md` file in the repo, one this repository's own and one installed:
 
-- **Soft-wrapped.** One paragraph, list item or blockquote per logical line; wrapping is the reader's job. `scripts/gates/md-softwrap.py` blocks a hard-wrapped write, `--check FILE...` reports, `--fix FILE...` reflows. It is wired from `.claude/settings.local.json`.
+- **Soft-wrapped.** One paragraph, list item or blockquote per logical line; wrapping is the reader's job. `scripts/gates/code/md-softwrap.py` blocks a hard-wrapped write, `--check FILE...` reports, `--fix FILE...` reflows. It is wired from `.claude/settings.local.json`.
 - **No trivia.** Markdown states what holds now, not what happened: no dated approvals, no round or phase numbers used as positions in history, no corrections that narrate the mistake they fix, no prose whose only content is that something did not change. The `triviajudge` plugin judges the lines a change adds at the end of a turn, and shipped prose is not re-litigated on every touch. This repository carries no trivia gate of its own; install the plugin from `~/dev/triviajudge` with `/plugin`.
 
 Standing reasons are not trivia and are not cut. "Why one writer" in `docs/approved-specs.md` says in present tense why a rule is the rule, and an agent that does not hold that reason weakens the rule the first time it is inconvenient.

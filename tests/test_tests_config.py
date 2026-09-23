@@ -134,7 +134,7 @@ def decision(hook_dir, hook_name, payload):
 def _config_run(hook_dir, key):
     """The reader as a shell sees it: status, stdout lines, stderr."""
     completed = subprocess.run(
-        [sys.executable, str(hook_dir / "shell_shapes.py"), "--config", key],
+        [sys.executable, str(hook_dir / "lib" / "shell_shapes.py"), "--config", key],
         capture_output=True,
         text=True,
         check=False,
@@ -463,7 +463,7 @@ class BlindAgentReadsTheConfig(unittest.TestCase):
     def test_blind_reads_json_is_readable_and_its_siblings_are_not(self):
         expected = {
             ".claude/blind-reads.json": SILENT,
-            "hooks/shell_shapes.py": DENY,
+            "hooks/lib/shell_shapes.py": DENY,
             ".claude/settings.json": DENY,
         }
         observed = {path: _read(self.bare, path) for path in expected}

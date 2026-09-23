@@ -1,4 +1,4 @@
-"""Behavior tests for `scripts/gates/commit-msg.py`'s stdin surface.
+"""Behavior tests for `scripts/gates/repo/commit-msg.py`'s stdin surface.
 
 The gate reads a commit message from stdin under `-` and checks the subject
 prefix against `CLAUDE.md`'s Commits list: `spec:`, `test:`, `feat:`, `fix:`,
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "commit-msg.py"
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "repo" / "commit-msg.py"
 
 
 def _run(message: str) -> subprocess.CompletedProcess:

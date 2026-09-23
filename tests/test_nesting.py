@@ -1,6 +1,6 @@
 """Behavior tests for the nesting-depth gate's argv surface.
 
-``scripts/gates/nesting.py`` takes Python file paths on argv and refuses a
+``scripts/gates/code/nesting.py`` takes Python file paths on argv and refuses a
 tree where any function nests blocks deeper than ``MAX_DEPTH``. Each case
 writes real source into ``tmp_path``, changes into it so the paths handed to
 the gate are repo-relative the way a real invocation passes them, and calls
@@ -15,7 +15,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-GATE_PATH = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "nesting.py"
+GATE_PATH = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "code" / "nesting.py"
 
 
 def _load_gate() -> ModuleType:

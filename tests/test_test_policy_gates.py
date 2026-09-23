@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-GATES = Path(__file__).resolve().parent.parent / "scripts" / "gates"
+GATES = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "testpolicy"
 
 
 def _load(stem: str) -> ModuleType:

@@ -41,7 +41,7 @@ import spawn
 
 KIT = Path(__file__).resolve().parents[2]
 BLIND = KIT / "scripts" / "blind.sh"
-READER = KIT / "hooks" / "shell_shapes.py"
+READER = KIT / "hooks" / "lib" / "shell_shapes.py"
 
 #: a test run is the suite and the lint gates under `bwrap`; a status or a show is one git read
 TEST_TIMEOUT = 900

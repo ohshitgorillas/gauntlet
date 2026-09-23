@@ -97,7 +97,7 @@ sandbox() {
 #: `scripts/` and `hooks/` travel together as the plugin and `$ROOT` is the
 #: checkout being worked on, which holds neither once the kit is installed
 #: rather than copied. The declaration it reads is still the project's.
-READER=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/hooks/shell_shapes.py
+READER=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/hooks/lib/shell_shapes.py
 cfg() {
 	[ -f "$READER" ] || die "no $READER: scripts/ ships with hooks/, copy both"
 	python3 "$READER" --config "$1"

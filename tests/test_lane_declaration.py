@@ -14,7 +14,7 @@ import unittest
 from pathlib import Path
 
 WORKTREE_ROOT = Path(__file__).resolve().parents[1]
-HOOK_DIR = WORKTREE_ROOT / "hooks"
+HOOK_DIR = WORKTREE_ROOT / "hooks" / "lib"
 
 
 def _git(cwd, *args):

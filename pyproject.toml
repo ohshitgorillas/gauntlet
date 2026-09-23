@@ -57,9 +57,10 @@ min_confidence = 60
 
 [tool.mypy]
 strict = true
-# The hooks import `shell_shapes` from beside them, and they travel as a unit
-# with no package around them, so the directory itself is the import path.
-mypy_path = "hooks"
+# The hooks and scripts import their shared modules from `hooks/lib`, and those
+# travel as a unit with no package around them, so the directory itself is the
+# import path.
+mypy_path = "hooks/lib"
 exclude = ['^\.claude/worktrees/', '^\.venv/']
 
 [tool.pytest.ini_options]

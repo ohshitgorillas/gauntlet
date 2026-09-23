@@ -11,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "gates-wired.py"
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "wiring" / "gates-wired.py"
 WIRING = "scripts/gates/check-gates.sh"
 
 ENTRY = (

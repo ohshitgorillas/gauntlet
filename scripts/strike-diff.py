@@ -60,7 +60,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_HOOKS = str(Path(__file__).resolve().parent / ".." / "hooks")
+_HOOKS = str(Path(__file__).resolve().parent / ".." / "hooks" / "lib")
 sys.path.insert(0, _HOOKS)
 
 try:

@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "changelog.py"
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "repo" / "changelog.py"
 
 CLEAN = "# Changelog\n\n## [Unreleased]\n\n### Fixed\n- **A clean fix lands.** It closes the gap.\n"
 

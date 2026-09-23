@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SCRIPT = REPO / "scripts" / "gates" / "no-barrels.py"
+SCRIPT = REPO / "scripts" / "gates" / "code" / "no-barrels.py"
 
 REEXPORT = "import os\nimport sys\n"
 DEFINES_FUNCTION = 'import os\n\n\ndef f():\n    return os.sep + "x"\n'

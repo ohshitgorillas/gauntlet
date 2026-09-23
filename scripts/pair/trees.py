@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-_HOOKS = str(Path(__file__).resolve().parents[2] / "hooks")
+_HOOKS = str(Path(__file__).resolve().parents[2] / "hooks" / "lib")
 sys.path.insert(0, _HOOKS)
 
 try:

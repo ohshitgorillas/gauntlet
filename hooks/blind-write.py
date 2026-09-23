@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
 import hook_payload  # noqa: E402
 import hook_shape  # noqa: E402

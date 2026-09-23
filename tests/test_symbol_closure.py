@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "symbol-closure.py"
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gates" / "code" / "symbol-closure.py"
 
 IMPORTS_AND_CALLS_ALPHA = "from pkg import alpha\n\n\ndef test_it():\n    alpha()\n"
 

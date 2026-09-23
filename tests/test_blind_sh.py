@@ -215,7 +215,9 @@ def _installed_kit(fixture_root):
     script = _install_blind(kit)
     (kit / "hooks").mkdir(parents=True, exist_ok=True)
     for module in HOOK_MODULES:
-        shutil.copy2(module, kit / "hooks" / module.name)
+        landed = kit / "hooks" / module.relative_to(REPO / "hooks")
+        landed.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(module, landed)
     return script
 
 

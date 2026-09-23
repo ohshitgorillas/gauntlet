@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/scripts/gates/md-softwrap.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}\"/scripts/gates/code/md-softwrap.py"
           }
         ]
       }

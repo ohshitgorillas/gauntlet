@@ -451,7 +451,7 @@ class TheCallerGate(unittest.TestCase):
 
     #: two implementation paths on no allowlist, sharing no directory, one of
     #: them under a name the allowlist admits only at the root
-    SOURCES = ("hooks/shell_shapes.py", "src/docs/impl.py")
+    SOURCES = ("hooks/lib/shell_shapes.py", "src/docs/impl.py")
 
     def test_the_blind_agents_are_read_blocked_and_the_main_agent_is_not(self):
         # An absent `agent_type` is the main agent, which has to read the

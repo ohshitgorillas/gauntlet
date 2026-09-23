@@ -44,7 +44,7 @@ KIT = Path(__file__).resolve().parents[2]
 PAIR = KIT / "scripts" / "pair.sh"
 
 #: `lane_paths` is found in `hooks/` beside `scripts/`, as `pair.sh` finds it
-sys.path.insert(0, str(KIT / "hooks"))
+sys.path.insert(0, str(KIT / "hooks" / "lib"))
 
 import lane_paths  # noqa: E402
 

@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parent.parent.parent
 PAIR = REPO / "scripts" / "pair.sh"
 PAIR_PACKAGE = REPO / "scripts" / "pair"
 STRIKE_DIFF = REPO / "scripts" / "strike-diff.py"
-HOOK_MODULES = sorted((REPO / "hooks").glob("*.py"))
+HOOK_MODULES = sorted((REPO / "hooks").rglob("*.py"))
 
 SLUG = "demo"
 TARGET = "main"
@@ -118,7 +118,9 @@ def _repo(tmp_path, spec_text, review_text):
     #: so the fixture ships every one of them beside the scripts
     (repo / "hooks").mkdir(parents=True)
     for module in HOOK_MODULES:
-        shutil.copy2(module, repo / "hooks" / module.name)
+        landed = repo / "hooks" / module.relative_to(REPO / "hooks")
+        landed.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(module, landed)
     #: the declaration is the project's and sits under `.claude/`, which the
     #: fixture's `.gitignore` keeps untracked exactly as a real checkout does
     (repo / ".claude").mkdir(parents=True, exist_ok=True)

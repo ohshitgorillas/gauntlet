@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
 lanes = importlib.import_module("lanes")
 import hook_payload  # noqa: E402
@@ -84,7 +85,7 @@ def divergence(payload: hook_payload.Payload) -> str | None:
         f"  the table's refusal for that file: {refusal}\n"
         "  The gate admitted this call and the table refuses the file it changed, so the "
         "two disagree about one path. That is a path-identity defect in "
-        "hooks/lane_paths.py -- not a policy call and not something to write around. "
+        "hooks/lib/lane_paths.py -- not a policy call and not something to write around. "
         "(hooks/lane-audit.py)"
     )
 

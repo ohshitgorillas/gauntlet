@@ -43,7 +43,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-_HOOKS = str(Path(__file__).resolve().parent / ".." / "hooks")
+_HOOKS = str(Path(__file__).resolve().parent / ".." / "hooks" / "lib")
 sys.path.insert(0, _HOOKS)
 
 try:

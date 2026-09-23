@@ -146,7 +146,7 @@ def combine(slug: str) -> None:
     stopping here would strand the pair with no verb that lands it.
 
     The merge carries `merge: <slug>` as its subject. This commit is the
-    combined tree's `HEAD` when the gate runs, and `scripts/gates/commit-msg.py`
+    combined tree's `HEAD` when the gate runs, and `scripts/gates/repo/commit-msg.py`
     reads that `HEAD`, so the subject git would write for itself fails the gate
     that every landing change has to pass.
     """
