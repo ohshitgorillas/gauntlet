@@ -110,6 +110,15 @@ not ok 2 - subtracts
 """
 
 
+#: a node test whose name was built from an implementation value
+NAMED = """--- node
+✔ plain (0.1ms)
+✖ names NAME_SOURCE = compute() (0.2ms)
+✖ failing tests:
+✖ names NAME_SOURCE = compute() (0.2ms)
+"""
+
+
 def _refused(name: str, arguments: dict[str, object]) -> bool:
     """Whether `check` refuses these arguments for that tool."""
     try:
@@ -145,8 +154,14 @@ def _rules() -> dict[str, bool]:
             QUOTED, TESTS, "tests/test_quoted.py"
         )
         == QUOTED_WANT,
-        "node verdicts are read per test name": server.narrow(TAP, TESTS, "tests/a.js")
-        == ["PASSED tests/a.js::adds", "FAILED tests/a.js::subtracts"],
+        "node verdicts are read per test, by position in run order": server.narrow(
+            TAP, TESTS, "tests/a.js"
+        )
+        == ["PASSED tests/a.js::1", "FAILED tests/a.js::2"],
+        "a node test name keeps its file and position, no source text": server.narrow(
+            NAMED, TESTS, "tests/b.js"
+        )
+        == ["PASSED tests/b.js::1", "FAILED tests/b.js::2"],
         "a worktree test path is admitted": not _refused(
             "test", {"path": ".claude/worktrees/demo-spec/tests/test_x.py"}
         ),

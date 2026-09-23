@@ -16,7 +16,8 @@ passes runs `scripts/blind.sh` as an argv list, with no shell between them:
     line, an exception's message, an assertion's introspection and the lint
     gates' output never reach the caller. A parametrize id is built from
     whatever values the test passes, which can be the implementation's, so a
-    test id keeps its function name and a bracket index in place of it.
+    test id keeps its function name and a bracket index in place of it, and a
+    `node --test` name, built the same way, gives way to its run position.
   * `status slug` runs `blind.sh status`, the porcelain check on that block.
   * `show commit slug` runs `blind.sh show`, the block at that commit.
 
@@ -78,8 +79,8 @@ TOOLS = (
         "test",
         "Run one test file of yours through blind.sh test. Returns one PASSED, FAILED or "
         "ERROR line per test id, a parametrized id cut to its function name and bracket "
-        "index; a collection or import error keeps only its frames under the tests "
-        "directory and its exception class.",
+        "index, a node test named by its 1-based position in run order; a collection or "
+        "import error keeps only its tests-directory frames and its exception class.",
         {
             "type": "object",
             "properties": {
@@ -268,8 +269,8 @@ def _order(lines: list[str]) -> dict[str, int]:
 def _function(ident: str) -> tuple[str, bool]:
     """The id up to its parameter bracket, and whether it had one.
 
-    The bracket is looked for after the path, since no function or class name
-    holds one and a parameter value may hold anything, `::` included.
+    The bracket is looked for after the path: no function or class name holds
+    one, and a parameter value may hold anything, `::` included.
     """
     path, colons, rest = ident.partition("::")
     if not colons:
@@ -320,7 +321,7 @@ def narrow_pytest(lines: list[str], tests: str) -> list[str]:
 
 
 def narrow_node(lines: list[str], path: str) -> list[str]:
-    """`node --test` output cut to one verdict per test name, in either reporter."""
+    """`node --test` output cut to one verdict per test, named by its 1-based run position."""
     verdicts: dict[str, str] = {}
     for line in lines:
         if line.strip() == SPEC_FAILURES:
@@ -331,7 +332,7 @@ def narrow_node(lines: list[str], path: str) -> list[str]:
             verdicts.setdefault(tap.group(2), "FAILED" if tap.group(1) == "not ok" else "PASSED")
         elif spec:
             verdicts.setdefault(spec.group(2), "FAILED" if spec.group(1) == "✖" else "PASSED")
-    return [f"{verdict} {path}::{name}" for name, verdict in verdicts.items()]
+    return [f"{verdict} {path}::{n}" for n, verdict in enumerate(verdicts.values(), 1)]
 
 
 def narrow(stdout: str, tests: str, path: str) -> list[str]:

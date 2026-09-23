@@ -54,6 +54,16 @@ EXCEPTION_MARKER = "IMPLEMENTATION_EXCEPTION_MARKER"
 EXCEPTION_MODULE = (
     'raise RuntimeError("quoted ' + EXCEPTION_MARKER + "\\n" + EXCEPTION_MARKER + '")\n'
 )
+#: a node test name built from an implementation value, which no report may carry
+NAME_MARKER = "IMPLEMENTATION_NAME_MARKER"
+NODE_MODULE = 'module.exports = { LEAKED: "' + NAME_MARKER + '" };\n'
+NODE_NAME = "test_target.cjs"
+NODE_ARG = ".claude/worktrees/" + SLUG + "-spec/tests/" + NODE_NAME
+NODE_TEST = (
+    'const test = require("node:test");\n'
+    'const { LEAKED } = require("../lib/secret.cjs");\n\n'
+    "test(`names ${LEAKED}`, () => {});\n"
+)
 MIXED_TEST = "def test_one():\n    assert 1 == 1\n\n\ndef test_two():\n    assert 1 == 2\n"
 #: pytest's summary order, failures before passes, one id per line
 MIXED_VERDICTS = (
@@ -96,9 +106,11 @@ def _opened(fixture_root):
     return repo, _worktree(repo)
 
 
-def _call(repo, name, arguments):
+def _call(repo, name, arguments, shims=None):
     """The `tools/call` result the server answers for one call, after `initialize`."""
     env = dict(ENV)
+    if shims is not None:
+        env["PATH"] = str(shims) + ":" + env["PATH"]
     env["HOME"] = str(repo)
     env["CLAUDE_PROJECT_DIR"] = str(repo)
     messages = [
@@ -135,6 +147,19 @@ def _test_report(fixture_root, test_text, module_text=SECRET_MODULE):
     return _call(repo, "test", {"path": TARGET_ARG})["content"][0]["text"]
 
 
+def _node_report(fixture_root, test_text):
+    """The text `test` returns for the worktree's node target written `test_text`.
+
+    `npx` is a shim that always passes, so the eslint gate reaches no network.
+    """
+    repo, tree = _opened(fixture_root)
+    (tree / "lib").mkdir()
+    (tree / "lib" / "secret.cjs").write_text(NODE_MODULE)
+    (tree / "tests" / NODE_NAME).write_text(test_text)
+    _executable(repo / "shims" / "npx", "#!/bin/sh\nexit 0\n")
+    return _call(repo, "test", {"path": NODE_ARG}, repo / "shims")["content"][0]["text"]
+
+
 def test_test_report_is_one_verdict_line_per_test_id(fixture_root):
     assert _test_report(fixture_root, MIXED_TEST) == MIXED_VERDICTS
 
@@ -153,6 +178,10 @@ def test_test_report_carries_no_source_text_in_a_parametrize_id(fixture_root):
 
 def test_test_report_carries_no_source_text_in_a_collection_exception_line(fixture_root):
     assert EXCEPTION_MARKER not in _test_report(fixture_root, IMPORTING_TEST, EXCEPTION_MODULE)
+
+
+def test_test_report_carries_no_source_text_in_a_node_test_name(fixture_root):
+    assert NAME_MARKER not in _node_report(fixture_root, NODE_TEST)
 
 
 @pytest.mark.parametrize(
