@@ -86,6 +86,8 @@ def handle(name: str, arguments: dict[str, Any], cwd: Path | None = None) -> rpc
         done = blind_server.run([name, path], where, FORMAT_TIMEOUT)
     except subprocess.TimeoutExpired:
         return rpc.Reply(f"blind.sh {name} ran past {FORMAT_TIMEOUT}s", error=True)
+    except OSError as failure:
+        return rpc.Reply(f"blind.sh did not start: {failure}", error=True)
     if done.returncode == 0:
         return rpc.Reply(CLEAN)
     if done.returncode == 1:

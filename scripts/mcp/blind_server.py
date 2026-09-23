@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 import rpc
+import spawn
 
 KIT = Path(__file__).resolve().parents[2]
 BLIND = KIT / "scripts" / "blind.sh"
@@ -168,15 +169,10 @@ def project() -> Path:
 
 def tests_dir(cwd: Path) -> str:
     """The project's declared tests directory, through the reader `blind.sh` uses."""
-    done = subprocess.run(
-        [sys.executable, str(READER), "--config", "tests_dir"],
-        cwd=cwd,
-        env={**os.environ, "CLAUDE_PROJECT_DIR": str(cwd)},
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=READ_TIMEOUT,
-    )
+    try:
+        done = spawn.run([sys.executable, str(READER), "--config", "tests_dir"], cwd, READ_TIMEOUT)
+    except (OSError, subprocess.SubprocessError) as failure:
+        raise Refused(f"cannot read tests_dir: {failure}") from failure
     lines = done.stdout.splitlines()
     if done.returncode != 0 or len(lines) != 1:
         raise Refused(f"cannot read tests_dir: {done.stderr.strip()}")
@@ -321,18 +317,22 @@ def narrow_pytest(lines: list[str], tests: str) -> list[str]:
 
 
 def narrow_node(lines: list[str], path: str) -> list[str]:
-    """`node --test` output cut to one verdict per test, named by its 1-based run position."""
-    verdicts: dict[str, str] = {}
+    """`node --test` output cut to one verdict per test, named by its 1-based run position.
+
+    Each verdict line is its own position, so two tests that share a name are
+    two verdicts rather than one.
+    """
+    verdicts: list[str] = []
     for line in lines:
         if line.strip() == SPEC_FAILURES:
             break
         tap = TAP_RE.fullmatch(line)
         spec = SPEC_RE.fullmatch(line)
         if tap:
-            verdicts.setdefault(tap.group(2), "FAILED" if tap.group(1) == "not ok" else "PASSED")
+            verdicts.append("FAILED" if tap.group(1) == "not ok" else "PASSED")
         elif spec:
-            verdicts.setdefault(spec.group(2), "FAILED" if spec.group(1) == "✖" else "PASSED")
-    return [f"{verdict} {path}::{n}" for n, verdict in enumerate(verdicts.values(), 1)]
+            verdicts.append("FAILED" if spec.group(1) == "✖" else "PASSED")
+    return [f"{verdict} {path}::{n}" for n, verdict in enumerate(verdicts, 1)]
 
 
 def narrow(stdout: str, tests: str, path: str) -> list[str]:
@@ -346,16 +346,8 @@ def narrow(stdout: str, tests: str, path: str) -> list[str]:
 
 
 def run(words: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
-    """`blind.sh` with `words` as its argv, from `cwd`, no shell."""
-    return subprocess.run(
-        [str(BLIND), *words],
-        cwd=cwd,
-        env={**os.environ, "CLAUDE_PROJECT_DIR": str(cwd)},
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=timeout,
-    )
+    """`blind.sh` with `words` as its argv, from `cwd`, no shell, byte-faithful."""
+    return spawn.run([str(BLIND), *words], cwd, timeout)
 
 
 def fault(done: subprocess.CompletedProcess[str]) -> rpc.Reply:
@@ -377,6 +369,8 @@ def handle(name: str, arguments: dict[str, Any], cwd: Path | None = None) -> rpc
         done = run([name, *words], where, timeout)
     except subprocess.TimeoutExpired:
         return rpc.Reply(f"blind.sh {name} ran past {timeout}s", error=True)
+    except OSError as failure:
+        return rpc.Reply(f"blind.sh did not start: {failure}", error=True)
     if done.returncode == 2:
         return fault(done)
     if name != "test":

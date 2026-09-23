@@ -7,8 +7,10 @@ checkout exactly as a session's call would, and what it returns is compared with
 pair.sh run directly on the same checkout.
 """
 
+import importlib.util
 import json
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +31,25 @@ MCP = REPO / "scripts" / "mcp"
 
 #: a commit no fixture checkout holds, in the shape the server admits
 ABSENT_REV = "0" * 40
+
+#: a stand-in pair.sh that prints a CRLF and a byte that is not UTF-8 on both streams
+RAW_PAIR = "#!/bin/sh\nprintf 'a\\r\\nb\\377'\nprintf 'a\\r\\nb\\377' >&2\n"
+#: what the stand-in printed, as the caller reads it
+RAW_TEXT = "a\r\nb\udcff"
+#: a slug `pair.sh` admits that a lowercase-only shape would refuse
+WIDE_SLUG = "Demo_1.x"
+
+
+def _rpc():
+    """The server's JSON-RPC module, loaded from its file, as the servers load it."""
+    spec = importlib.util.spec_from_file_location("mcp_rpc", MCP / "rpc.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+rpc = _rpc()
 
 
 @pytest.fixture
@@ -80,15 +101,68 @@ def _direct(repo, *words):
         cwd=repo,
         env=_env(repo),
         capture_output=True,
-        text=True,
         check=False,
         timeout=300,
     )
-    return {"exit": done.returncode, "stdout": done.stdout, "stderr": done.stderr}
+    return {
+        "exit": done.returncode,
+        "stdout": rpc.text(done.stdout),
+        "stderr": rpc.text(done.stderr),
+    }
 
 
 def _run(result):
     return json.loads(result["content"][0]["text"])
+
+
+def _session(repo, messages, env):
+    """Every reply the server writes for `messages` under `env`, by id."""
+    done = subprocess.run(
+        [sys.executable, str(repo / "scripts" / "mcp" / "pair_server.py")],
+        cwd=repo,
+        env=env,
+        input="".join(json.dumps(message) + "\n" for message in messages),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    sys.stderr.write(done.stderr)
+    return {reply["id"]: reply for reply in map(json.loads, done.stdout.splitlines())}
+
+
+LIST_CALL = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "list"}}
+
+
+def _list_then_ping(repo):
+    """The replies to a `list` call from a missing checkout and a `ping` after it."""
+    return _session(
+        repo,
+        [LIST_CALL, {"jsonrpc": "2.0", "id": 3, "method": "ping"}],
+        dict(_env(repo), CLAUDE_PROJECT_DIR="/nonexistent"),
+    )
+
+
+def test_a_call_from_a_missing_checkout_leaves_the_server_answering(repo):
+    assert _list_then_ping(repo)[3]["result"] == {}
+
+
+def test_a_call_from_a_missing_checkout_is_a_tool_error(repo):
+    assert _list_then_ping(repo)[2]["result"]["isError"] is True
+
+
+def test_pair_sh_streams_come_back_byte_faithful(repo):
+    pair = repo / "scripts" / "pair.sh"
+    pair.write_text(RAW_PAIR)
+    pair.chmod(pair.stat().st_mode | stat.S_IXUSR)
+    assert _run(_call(repo, "list", {})) == {"exit": 0, "stdout": RAW_TEXT, "stderr": RAW_TEXT}
+
+
+def test_a_host_that_names_no_project_dir_is_served_from_the_checkout(repo):
+    env = _env(repo)
+    del env["CLAUDE_PROJECT_DIR"]
+    replies = _session(repo, [LIST_CALL], env)
+    assert _run(replies[2]["result"]) == _direct(repo, "list")
 
 
 @pytest.mark.parametrize(
@@ -96,10 +170,11 @@ def _run(result):
     [
         ("list", {}, ("list",)),
         ("review", {"slug": SLUG}, ("review", SLUG)),
+        ("review", {"slug": WIDE_SLUG}, ("review", WIDE_SLUG)),
         ("review_plan", {"slug": SLUG}, ("review", "plan", SLUG)),
         ("restore", {"slug": SLUG, "rev": ABSENT_REV}, ("restore", SLUG, ABSENT_REV)),
     ],
-    ids=["list", "review", "review-plan", "restore-absent-rev"],
+    ids=["list", "review", "review-wide-slug", "review-plan", "restore-absent-rev"],
 )
 def test_a_tool_returns_what_pair_sh_prints_for_its_verb(repo, name, arguments, words):
     assert _run(_call(repo, name, arguments)) == _direct(repo, *words)
@@ -128,8 +203,16 @@ def test_open_returns_the_open_contract_line(repo):
         ("open", {"slug": SLUG, "rev": "HEAD"}),
         ("restore", {"slug": SLUG, "rev": "HEAD:lib/secret.py"}),
         ("restore", {"slug": SLUG}),
+        ("review", {"slug": "plan"}),
     ],
-    ids=["slug-with-path", "slug-as-option", "undeclared-arg", "rev-with-path", "missing-rev"],
+    ids=[
+        "slug-with-path",
+        "slug-as-option",
+        "undeclared-arg",
+        "rev-with-path",
+        "missing-rev",
+        "review-slug-plan",
+    ],
 )
 def test_an_argument_failing_its_type_is_refused_as_a_tool_error(repo, name, arguments):
     assert _call(repo, name, arguments)["isError"] is True

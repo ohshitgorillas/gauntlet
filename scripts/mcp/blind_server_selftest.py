@@ -9,12 +9,16 @@ runs `bwrap` and nothing reads the checkout.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import blind_server as server
 import rpc
 
 TESTS = "tests"
+
+#: a checkout no call can stand in, so every script the server starts fails to start
+NOWHERE = Path("/nonexistent-by-construction")
 
 #: one `blind.sh test` run: a collection error reaching into the implementation,
 #: a pass, a fail whose traceback quotes the implementation, and the lint gates
@@ -118,6 +122,12 @@ NAMED = """--- node
 ✖ names NAME_SOURCE = compute() (0.2ms)
 """
 
+#: two node tests under one name, one passing and one failing
+TWINS = """--- node
+ok 1 - same
+not ok 2 - same
+"""
+
 
 def _refused(name: str, arguments: dict[str, object]) -> bool:
     """Whether `check` refuses these arguments for that tool."""
@@ -130,6 +140,15 @@ def _refused(name: str, arguments: dict[str, object]) -> bool:
 
 def _answer(line: dict[str, Any]) -> dict[str, Any] | None:
     return rpc.answer(server.SERVER, json.dumps(line))
+
+
+def _unstarted() -> bool:
+    """Whether a call from a missing checkout answers an error rather than raising."""
+    try:
+        reply = server.handle("status", {"slug": "demo"}, NOWHERE)
+    except Exception:  # noqa: BLE001 -- a raise is the failure this rule reports
+        return False
+    return reply.error
 
 
 def _rules() -> dict[str, bool]:
@@ -162,6 +181,9 @@ def _rules() -> dict[str, bool]:
             NAMED, TESTS, "tests/b.js"
         )
         == ["PASSED tests/b.js::1", "FAILED tests/b.js::2"],
+        "two node tests sharing a name are two verdicts": server.narrow(TWINS, TESTS, "tests/c.js")
+        == ["PASSED tests/c.js::1", "FAILED tests/c.js::2"],
+        "a call from a checkout that does not exist answers an error": _unstarted(),
         "a worktree test path is admitted": not _refused(
             "test", {"path": ".claude/worktrees/demo-spec/tests/test_x.py"}
         ),
