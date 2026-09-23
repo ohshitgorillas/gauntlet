@@ -37,13 +37,31 @@ def _load_probe() -> ModuleType:
 PROBE = _load_probe()
 
 
-def _manifest(paths: list[str]) -> str:
-    """Render a manifest wiring one command per path, under one event."""
+def _manifest(paths: list[str], servers: dict[str, Any] | None = None) -> str:
+    """Render a manifest wiring one command per path under one event, and `servers`."""
     entries: list[dict[str, Any]] = [
         {"type": "command", "command": f'python3 "${{CLAUDE_PLUGIN_ROOT}}"/{path}'}
         for path in paths
     ]
-    return json.dumps({"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": entries}]}}, indent=2)
+    data: dict[str, Any] = {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": entries}]}}
+    if servers is not None:
+        data["mcpServers"] = servers
+    return json.dumps(data, indent=2)
+
+
+def _server(path: str) -> dict[str, Any]:
+    """One stdio server entry running a script under the plugin root."""
+    return {"command": "python3", "args": [f"${{CLAUDE_PLUGIN_ROOT}}/{path}"]}
+
+
+def _served(servers: dict[str, Any], present: list[str]) -> str:
+    """What the probe announces about a kit whose hook is whole, for these servers."""
+    with tempfile.TemporaryDirectory() as name:
+        root = Path(name)
+        _kit(
+            root, ["hooks/one.py"], ["hooks/one.py", *present], _manifest(["hooks/one.py"], servers)
+        )
+        return str(PROBE.announce(PROBE.missing(str(root)), *PROBE.servers(str(root))))
 
 
 def _kit(root: Path, wired: list[str], present: list[str], text: str | None = None) -> None:
@@ -70,6 +88,9 @@ def _rules() -> dict[str, bool]:
     gone = _said(["hooks/one.py", "hooks/two.py"], ["hooks/one.py"])
     both = _said(["hooks/one.py", "hooks/two.py"], [])
     broken = _said([], [], text="{not json")
+    server = "scripts/mcp/one_server.py"
+    absent = _served({"one": _server(server)}, [])
+    crooked = _served({"crooked": "not an object", "one": _server(server)}, [server])
     return {
         "a whole kit says nothing at all": _said(["hooks/one.py"], ["hooks/one.py"]) == "",
         "a kit missing one hook names it, and not the hook that is there": (
@@ -87,6 +108,15 @@ def _rules() -> dict[str, bool]:
             Path(PROBE.kit_root()).is_dir()
         ),
         "the kit this hook ships in is whole": PROBE.missing(PROBE.kit_root()) == [],
+        "a kit missing an MCP server's script names the server and its path": (
+            f"one ({server})" in absent and "MCP server" in absent
+        ),
+        "a kit whose MCP servers are all there says nothing at all": (
+            _served({"one": _server(server)}, [server]) == ""
+        ),
+        "a malformed MCP server entry is named by its key, without a crash": (
+            "crooked" in crooked and "one (" not in crooked
+        ),
     }
 
 

@@ -10,7 +10,9 @@ there denies nothing, and nothing in a session says so: Claude Code prints
 session continues with that lane open. A session running that way looks exactly
 like a session where the gate is passing.
 
-So the kit reads itself at SessionStart and announces what is not there. The
+So the kit reads itself at SessionStart and announces what is not there: a
+wired hook file, or an MCP server's script under the plugin root, the tools of
+which the host drops without a word in the session. The
 paths come from the manifest rather than from a list kept here, because a list
 kept here is the thing that goes stale.
 
@@ -31,6 +33,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +53,21 @@ ANNOUNCE = (
     "check {manifest} against the tree."
 )
 
+#: a script path a server entry spells under the plugin root, after the variable
+SERVER_PATH_RE = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}\"?/([^\s\"']+)")
+
+ANNOUNCE_SERVERS = (
+    "gauntlet: {count} wired MCP server(s) absent from this kit: {names}. "
+    "The tools they serve are missing for this session. Reinstall the plugin, or "
+    "check {manifest} against the tree."
+)
+
+ANNOUNCE_MALFORMED = (
+    "gauntlet: {count} MCP server entr(ies) malformed in this kit: {names}. "
+    "The tools they serve are missing for this session. Reinstall the plugin, or "
+    "check {manifest} against the tree."
+)
+
 
 def kit_root() -> str:
     """The kit this hook is part of: what the host says, else where the file sits."""
@@ -65,6 +83,54 @@ def _groups(data: dict[str, Any]) -> list[Any]:
     return [group for listed in hooks.values() if isinstance(listed, list) for group in listed]
 
 
+def _manifest(root: str) -> dict[str, Any]:
+    """The manifest as a mapping; an empty one when it is unreadable or not an object."""
+    try:
+        data = json.loads((Path(root) / MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _well_formed(entry: Any) -> bool:
+    """A server entry is an object whose `command` is a string and `args` a list of strings."""
+    if not isinstance(entry, dict):
+        return False
+    command, args = entry.get("command", ""), entry.get("args", [])
+    return (
+        isinstance(command, str)
+        and isinstance(args, list)
+        and all(isinstance(arg, str) for arg in args)
+    )
+
+
+def servers(root: str) -> tuple[list[str], list[str]]:
+    """Every server named with a script path the kit does not hold, and every malformed key.
+
+    Each absent server reads `name (path)`, the path as the manifest spells it
+    under the plugin root. A server with no path under the root -- one the host
+    fetches, or one on the host's own PATH -- is not this kit's to hold. An
+    `mcpServers` that is not an object is the host's complaint, as a malformed
+    manifest is, and names nothing here.
+    """
+    listed = _manifest(root).get("mcpServers")
+    if not isinstance(listed, dict):
+        return [], []
+    gone: list[str] = []
+    malformed: list[str] = []
+    for name, entry in listed.items():
+        if not _well_formed(entry):
+            malformed.append(name)
+            continue
+        for word in [entry.get("command", ""), *entry.get("args", [])]:
+            gone.extend(
+                f"{name} ({path})"
+                for path in SERVER_PATH_RE.findall(word)
+                if not (Path(root) / path).is_file()
+            )
+    return gone, malformed
+
+
 def wired(root: str) -> list[str]:
     """Every repository-relative script path the manifest wires, sorted, once each.
 
@@ -72,14 +138,8 @@ def wired(root: str) -> list[str]:
     complaint for that case, and a probe that guessed at a broken manifest would
     announce paths no dispatcher was ever going to run.
     """
-    try:
-        data = json.loads((Path(root) / MANIFEST).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return []
-    if not isinstance(data, dict):
-        return []
     found: set[str] = set()
-    for group in _groups(data):
+    for group in _groups(_manifest(root)):
         for entry in group.get("hooks", []) if isinstance(group, dict) else []:
             command = entry.get("command") if isinstance(entry, dict) else None
             if isinstance(command, str):
@@ -92,18 +152,31 @@ def missing(root: str) -> list[str]:
     return [path for path in wired(root) if not (Path(root) / path).is_file()]
 
 
-def announce(gone: list[str]) -> str:
-    """What a session is told about an incomplete kit; the empty string for a whole one."""
-    if not gone:
-        return ""
-    return ANNOUNCE.format(count=len(gone), names=", ".join(gone), manifest=MANIFEST)
+def announce(
+    gone: Sequence[str], servers_gone: Sequence[str] = (), malformed: Sequence[str] = ()
+) -> str:
+    """What a session is told about an incomplete kit, one line per kind of gap.
+
+    The empty string for a whole kit.
+    """
+    lines = [
+        template.format(count=len(names), names=", ".join(names), manifest=MANIFEST)
+        for template, names in (
+            (ANNOUNCE, gone),
+            (ANNOUNCE_SERVERS, servers_gone),
+            (ANNOUNCE_MALFORMED, malformed),
+        )
+        if names
+    ]
+    return "\n".join(lines)
 
 
 def main() -> None:
     """Announce an incomplete kit into the session, and exit 0 whatever it found."""
     if bypassed():
         return  # GAUNTLET=off: the owner's switch, read at the entry point only
-    said = announce(missing(kit_root()))
+    root = kit_root()
+    said = announce(missing(root), *servers(root))
     if said:
         print(said)
 

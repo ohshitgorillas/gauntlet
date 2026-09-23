@@ -46,9 +46,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 MANIFEST = ".claude-plugin/plugin.json"
 
-#: what an install carries, and nothing else: the tests, the gates and the
-#: documents of this repository are not part of what a consumer gets
-INSTALLED = ("hooks", "agents", ".claude-plugin")
+#: what an install carries, and nothing else: the tests and the documents of
+#: this repository are not part of what a consumer gets. `scripts` is, because
+#: the manifest's MCP servers and the lane hooks run the scripts under it.
+INSTALLED = ("hooks", "agents", "scripts", ".claude-plugin")
 
 #: a hook that has not answered by now is stuck
 TIMEOUT = 30
