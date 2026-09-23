@@ -12,7 +12,7 @@ Break rule = review say no. Even if test green.
 
 2. **One assertion per test.** Many case = framework parametrize, never assert in loop. Boolean AND = one assertion each side. `x is not None and x["k"] == v` trick fix: empty value of same type instead of null check (`(x or {})["k"] == v`), so missing key fail alone. `scripts/gates/testpolicy/test-assertions.py`.
 
-3. **Public API only.** No private attribute, no monkeypatch inside.
+3. **Public API only.** No private attribute, no monkeypatch inside. Patch import path or module table to load unit under test = allowed harness plumbing. Patch attribute of project code = not, same ban as monkeypatch inside.
 
 4. **Fakes speak wire protocol; never mock our own code.** Fake server, real protocol, real transport, quirk included.
 

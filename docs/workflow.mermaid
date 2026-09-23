@@ -636,7 +636,9 @@ flowchart TD
     byte-identical in that test's own body, ALTERED where it does not.
     An ALTERED row forces another pass, exactly as a SOFT line does.`"]
     rules5["`Plus one row per test-policy violation the block could not see,
-    because a block carries no test code: a fake speaking over our own
+    because a block carries no test code: a private attribute read or a
+    monkeypatch of project code rather than allowed import-path or
+    module-table plumbing, a fake speaking over our own
     code rather than the wire, a test name that states no behavior,
     a fake deriving its reply by the algorithm the code uses,
     an assert outside a test function.`"]

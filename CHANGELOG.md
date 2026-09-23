@@ -20,6 +20,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - **`check` logs the gate's output instead of streaming it.** The output goes to `<gauntlet dir>/gate/<slug>.<N>.txt`, numbered as the reading it belongs to and bound read-only in every wrapped shell like the red and merge logs, and stderr carries a `gate log: <path>` line and the last 40 lines, so a gate printing without bound costs the caller forty lines. A red gate's guidance names the log.
 - **Citations into the numbered binding-policy document, in `agents/arbiter.md`, `agents/bailiff.md` and `hooks/gauntlet-off.py`, name a rule number, not a line number.** A rule's number never changes, so a citation survives a rewrite of the document it points at; each is wrapped in backticks matching that document's own citation style.
 - **An ambiguous input shape or entry-point signature is `UNTESTABLE`, not a picked reading.** The `scrivener` reports it as `UNTESTABLE N: ambiguous — <readings>` and writes nothing for either; the "ambiguous, with the reading taken" report item now covers only an ambiguity that leaves the interface fixed. `docs/workflow.mermaid` states the same route.
+- **Patching the import path or the module table to load the unit under check is allowed plumbing; patching an attribute of project code is not.** The `bailiff`'s post-merge rule rows widen from 4, 6, 13 and 14 to 3, 4, 6, 13 and 14 in `agents/bailiff.md`, `docs/agents.md` and `docs/workflow.mermaid`.
 
 ## [0.9.0] - 2026-09-23
 
