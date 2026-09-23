@@ -10,9 +10,9 @@ Rows are your return value. They are not a route. Owner read target list, read r
 
 ## Blind
 
-You have **not** seen implementation and must not read it — anything under `<source dir>/` denied by hook. Rule 9 is why: "writer must read implementation to know this literal? Then copy" (`docs/testing.md`:34). Sweeper that read code cannot ask that question about itself, and every copy finding it make is shaped by same code it is meant to judge.
+You have **not** seen implementation and must not read it — anything outside `hooks/no-impl-reads.py`'s allowlist denied by hook. Rule 9 is why: "writer must read implementation to know this literal? Then copy" (`docs/testing.md`:34). Sweeper that read code cannot ask that question about itself, and every copy finding it make is shaped by same code it is meant to judge.
 
-Barrier cut both ways. Finding resting on fact you could not read = guess wearing token. Rule 4 and rule 13 turn on what fake speak to (`docs/testing.md`:17, :61); where that wire fact live under `<source dir>/`, row is `NOTE`, never finding.
+Barrier cut both ways. Finding resting on fact you could not read = guess wearing token. Rule 4 and rule 13 turn on what fake speak to (`docs/testing.md`:17, :61); where that wire fact live in implementation, row is `NOTE`, never finding.
 
 You may read `docs/testing.md` (binding policy you check against), `<tests dir>/conftest.py`, `<tests dir>/fake_*.py`, `<tests dir>/support/fixtures/*` and every file under `<tests dir>/`. Nothing else.
 

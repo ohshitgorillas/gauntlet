@@ -24,7 +24,7 @@ That proof is a proof about sessions run under the chain. `GAUNTLET=off` silence
 
 ## What the reviewer writes
 
-The approved file carries the block as approved and the verdicts that approved it:
+The approved file carries the block as approved and the verdicts that approved it. Its `brief:` section copies the approved plan's `brief:` verbatim, word for word — it is not redrafted, summarized or reworded at this stage.
 
 ```
 slug: <slug>

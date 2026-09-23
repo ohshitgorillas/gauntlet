@@ -9,6 +9,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - **A plan header reading `grounding:` is read as `discovery:`.** An approved plan written under the header's former name no longer reads as a missing line.
 
 ### Fixed
+- **A spec block's `brief:` copies the approved plan's `brief:` verbatim.** The `arbiter` cannot read the approved plan, so a `brief:` holding a path, pointer or summary left its brief-fulfilment check (m) nothing to check. Check (m) now answers such a `brief:` with a block-level `ANOTHER PASS`, and `docs/approved-specs.md` and `docs/agents.md` state the copy.
+- **An `examiner` measurement can be rerun.** A throwaway script runs from a stdin heredoc and its full text is the returned command, where it used to be deleted in the same command. The `arbiter`'s check (k) treats a `bite:` whose command is prose, or names a script absent from the checkout, as unfilled.
+- **The blind agent definitions carry no placeholder the plugin cannot fill.** `<source dir>` and the external-docs placeholder are gone from the `arbiter`, `auditor`, `bailiff` and `scrivener`, whose read lists now match `no-impl-reads.py`, and the `arbiter` no longer cites a section of the chain that does not exist.
 - **A blind agent may read the whole prose directory.** `no-impl-reads.py` allows `docs/` entire, not one policy file in it, so the `arbiter` and `scrivener` reach the protocol and vendor docs their definitions cite, and a Grep rooted at `docs/` is no longer suggested and then denied. `state/` and the gauntlet base outside its three leaves stay denied. The hook's docstring and denial message match the code.
 - **`cite.py` counts only the files git shows when it resolves a basename.** An ignored tool cache carrying its own `.gitignore`, such as `.mypy_cache/`, no longer makes a `.gitignore:<N>` citation `AMBIGUOUS`.
 

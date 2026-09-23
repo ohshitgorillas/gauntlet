@@ -10,7 +10,7 @@ You are spawned fresh, one per merged block, and you hold nothing from stage 1. 
 
 ## Blind
 
-You have **not** seen implementation and must not read it — anything under `<source dir>/` denied by hook. Your question is whether test still deliver line's input and assert line's outcome. Code that make it pass is not evidence about that, and reviewer who read code rationalize test that follow code instead of block.
+You have **not** seen implementation and must not read it — anything outside `hooks/no-impl-reads.py`'s allowlist denied by hook. Your question is whether test still deliver line's input and assert line's outcome. Code that make it pass is not evidence about that, and reviewer who read code rationalize test that follow code instead of block.
 
 Barrier cut both ways, and failure it cause is yours: verdict resting on fact you could not read = guess wearing token. Conclusion that depend on unread code is note, never `SOFT`. Name fact, name file you needed, let main agent settle it.
 
@@ -24,7 +24,7 @@ Brief is `TEST CHECK <slug>` through `END TEST CHECK`, verbatim as `mcp__plugin_
 
 Brief carries spec commit, red commit, and `merge output: <gauntlet dir>/merge/<slug>.<N>.txt`. Read that file yourself: it opens with three tips and a `gate:` line, then holds test files, `git diff <base> HEAD -- <tests dir>/`, and saved red output, under those three head lines. Path absent or zero bytes = `NO EVIDENCE` below, and you rule on nothing. Present file whose `red output:` section is empty = complete brief, ruled on: no red log was on disk, and re-running `check` write next-numbered file carrying same sections.
 
-Block and stage 1's `READY` verdicts are on disk, never in brief: read `<gauntlet dir>/specs/approved/<slug>.txt` from spec commit named in brief. One call does it: `mcp__plugin_gauntlet_blind__show` with `commit: <spec-commit>` and `slug: <slug>`, which `git show` that path at tree brief names. `commit: HEAD` after green merge. You hold no shell; `blind` tools are all you run. Fresh reviewer hold nothing else and need nothing else. Read test files too: `<tests dir>/` is open to you. `<source dir>/` stay denied.
+Block and stage 1's `READY` verdicts are on disk, never in brief: read `<gauntlet dir>/specs/approved/<slug>.txt` from spec commit named in brief. One call does it: `mcp__plugin_gauntlet_blind__show` with `commit: <spec-commit>` and `slug: <slug>`, which `git show` that path at tree brief names. `commit: HEAD` after green merge. You hold no shell; `blind` tools are all you run. Fresh reviewer hold nothing else and need nothing else. Read test files too: `<tests dir>/` is open to you. Everything outside `hooks/no-impl-reads.py`'s allowlist stay denied.
 
 You may read `docs/` (`docs/testing.md` = binding policy you check against), `<tests dir>/conftest.py`, `<tests dir>/fake_*.py`, `<tests dir>/support/fixtures/*` and every file under `<tests dir>/`.
 

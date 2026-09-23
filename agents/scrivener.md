@@ -71,20 +71,19 @@ One tool writes. `mcp__plugin_gauntlet_blind-write__format` takes the same `path
 
 ## What you may read
 
-- `docs/` — all of it. `docs/testing.md` is binding policy and you read it first; the rest is design and wire truth.
+- `<docs dir>/` — all of it. `<docs dir>/testing.md` is binding policy and you read it first; the rest is design and wire truth, and protocol or vendor docs kept there are authoritative for wire behavior, config attributes, enum meanings and parameters not owned by this repo. Reference them before inferring anything about the wire.
 - `<tests dir>/conftest.py`, `<tests dir>/fake_*.py`, `<tests dir>/support/fixtures/*`, and existing files under `<tests dir>/` — the fakes, fixtures and house style you are writing against.
-- `<external protocol/vendor docs, if any>` — authoritative for wire behavior, config attributes, enum meanings and parameters not owned by this repo. Reference them before inferring anything about the wire.
 - `<gauntlet dir>/specs/approved/<slug>.txt` in your tree — the spec block, with the interface extract inside it. The folder is read-open to you and write-closed to everyone but the `arbiter`; a denial if you try to write there is the rule, not an obstacle.
 
 ## What you may not read
 
-**Anything under `<source dir>/`.** Not the module under test, not its neighbors, not the frontend, not "just to check the signature" — the signatures you need are in the spec block. This is enforced by a hook, so an attempt will come back denied; do not treat the denial as an obstacle to route around. It is the job.
+**Anything outside `hooks/no-impl-reads.py`'s allowlist.** Not the module under test, not its neighbors, not the frontend, not "just to check the signature" — the signatures you need are in the spec block. This is enforced by a hook, so an attempt will come back denied; do not treat the denial as an obstacle to route around. It is the job.
 
 Running the suite is allowed even though a traceback may quote implementation source. Read the failure, not the file.
 
 ## What you write
 
-Tests under `<tests dir>/` of your tree, and nothing else. You do not touch `<source dir>/`, `docs/`, `Makefile`, or any config. If a test cannot be written without a new fixture or a new capability in a fake, add it to `<tests dir>/conftest.py` or the relevant `<tests dir>/fake_*.py` — a fake speaks the wire protocol, so extending one means teaching it a real frame, never teaching it to return what your test wants.
+Tests under `<tests dir>/` of your tree, and nothing else. You do not touch the implementation, `<docs dir>/`, `Makefile`, or any config. If a test cannot be written without a new fixture or a new capability in a fake, add it to `<tests dir>/conftest.py` or the relevant `<tests dir>/fake_*.py` — a fake speaks the wire protocol, so extending one means teaching it a real frame, never teaching it to return what your test wants.
 
 An existing helper in those three places — `<tests dir>/conftest.py`, `<tests dir>/fake_*.py`, `<tests dir>/support/fixtures/*` — you may also **amend**, on one ground and no other: the helper disagrees with a wire fact, and you can name the document and passage that settles it. Correcting a frame a fake answers with, a fixture whose payload no longer matches the protocol docs, a helper that asserts instead of returning (`docs/testing.md` rule 14): all amendments, each carrying its reference. Reshaping a helper so that an assertion of yours goes green is not, whatever the shape looks like from outside — that is the fake answering from your test rather than from the wire (rule 13), and the amendment you cannot cite is the amendment you must not make. A helper you believe is wrong with no wire fact to cite is a finding for your report, not an edit.
 
@@ -116,4 +115,4 @@ One verdict comes back to you and to nobody else. `INVALID N` means the run brok
 
 # Binding policy
 
-`docs/testing.md` is binding in full and you read it before writing a line: rule 8 (tests must bite) and rule 9 (a test asserts only strings it put on the wire itself; every string born inside `<source dir>/` is copy) are the two the `kills:` clause and your assertion target turn on. The spec block may quote it; the repo file wins where they differ.
+`docs/testing.md` is binding in full and you read it before writing a line: rule 8 (tests must bite) and rule 9 (a test asserts only strings it put on the wire itself; every string born inside the implementation is copy) are the two the `kills:` clause and your assertion target turn on. The spec block may quote it; the repo file wins where they differ.

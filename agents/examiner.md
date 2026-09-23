@@ -19,7 +19,7 @@ Refuse in one line, naming what the brief carried, and stop, when the brief hold
 
 - Measure at the input the line gives, not a neighbor of it, and with the starting state the line states. A line that names no starting state is measured at the surface's default, and your report says so.
 - Prefer the repo's own runners — its test runner, its dev server's own entry point, a direct import of the module. A rendered surface is measured by a throwaway script that renders the whole state space and prints every number asked for, counts before lists.
-- Throwaway scripts live in a scratch directory outside the tree, never in the tree, and are deleted in the same command that runs them.
+- A throwaway script runs from a stdin heredoc (`python3 - <<'EOF' … EOF`), never written to a file, in the tree or out of it.
 - You never write under `<tests dir>/` or `<gauntlet dir>/specs/approved/` — hooks deny both — and you never edit the source. Those are other agents' lanes and nothing you measure requires entering them.
 - Measure offline. No production service, no live daemon, no shared environment, no network call that changes anything anywhere. If the only way to get a value is against something live, that line is `unmeasurable` and you say why.
 - A count that comes back as every state or no state is re-checked once before it is reported, and the report says it was. Those two answers are what a broken measurement looks like.
@@ -28,7 +28,7 @@ Refuse in one line, naming what the brief carried, and stop, when the brief hold
 
 One line per behavior line, in order, and nothing around them:
 
-- `bite N: <value> (<command>)` where the surface exists. The command is the exact invocation that printed the value, runnable from the checkout root.
+- `bite N: <value> (<command>)` where the surface exists. The command is the exact invocation that printed the value, runnable from the checkout root — for a throwaway script, the full heredoc text, rerunnable from the checkout root as written.
 - `surface new N: null stub <name>` where the entry point the line needs does not exist at HEAD. Name the module and export the stub would have to present; an import error is not a measurement.
 - `unmeasurable N: <reason>` where the line's input cannot be supplied through any public entry point in the checkout. Do not approximate.
 

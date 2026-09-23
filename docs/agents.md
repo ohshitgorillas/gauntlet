@@ -36,7 +36,7 @@ Blindness costs something, so it is paid for. The `examiner` measures the values
 
 1. The main agent drafts a plan and sends its discovery questions, all of them, to one `detective`.
 2. The `prosecutor` resolves the plan's citations and returns a pass or fail per check and, on `READY` and only then, writes `<gauntlet dir>/plans/approved/<slug>.txt`. The owner reads it only on a pass. Rules in `plans.md`.
-3. The main agent drafts a spec block. Where a `bite:` value needs a script or a rendered state space, the `examiner` measures it.
+3. The main agent drafts a spec block. Its `brief:` section copies the approved plan's `brief:` verbatim, word for word. Where a `bite:` value needs a script or a rendered state space, the `examiner` measures it.
 4. The `arbiter` runs its checks blind and, on `READY` and only then, writes `<gauntlet dir>/specs/approved/<slug>.txt`.
 5. The `scrivener` reads that file — refusing any spec path outside the folder — and writes the tests, blind.
 6. The tests run red under the `pair` tool `mcp__plugin_gauntlet_pair__red`, and a `juror` reads that saved output against the approved block and returns one verdict per line, blind.
