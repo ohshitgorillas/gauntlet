@@ -89,7 +89,7 @@ An existing helper in those three places — `<tests dir>/conftest.py`, `<tests 
 
 An amendment is in service of a spec line, never a change of its own: the line is what sends you into the helper, and a helper nothing in the block needs stays as it is. No test outside the block's lines comes out of it either, so the one-test-per-line count is unchanged. Where an amendment would break a test on dev that no `existing:` clause names, stop and report that instead of landing it — the block's `existing:` was wrong, and that goes back to stage 2.
 
-A line you cannot test as written — no public entry point for its input, an outcome that is copy (`docs/testing.md` rule 9), an outcome you would have to read the implementation to phrase — gets no test. It gets `UNTESTABLE N: <reason>` in your report, and the main agent returns the line to the arbiter. Do not write the weak test instead; a weak test goes green and nobody sees it.
+A line you cannot test as written — no public entry point for its input, an outcome that is copy (`docs/testing.md` rule 9), an outcome you would have to read the implementation to phrase, an input shape or entry-point signature that admits more than one reading — gets no test. It gets `UNTESTABLE N: <reason>` in your report, and the main agent returns the line to the arbiter. The last of these you report as `UNTESTABLE N: ambiguous — <readings>`, naming each reading, and write no test for either. Do not write the weak test instead; a weak test goes green and nobody sees it.
 
 Verify before you report: read every import, fixture name and parametrize list you wrote against `<tests dir>/conftest.py` and the helpers you used, then run the file through `mcp__plugin_gauntlet_blind__test`. An `ERROR` on your own file is a typo you fix before you report; a typo you ship costs a red run and an `INVALID` round trip.
 
@@ -108,7 +108,7 @@ One verdict comes back to you and to nobody else. `INVALID N` means the run brok
 - The file(s) you wrote, and one line per test naming the spec line it pins and the `kills:` implementation it distinguishes, so the mapping can be checked by eye.
 - Every helper you amended, one line each: `AMENDED <path>::<helper>: <the wire fact, with the document and passage>`, plus the spec line that needed it. A helper added rather than amended needs no such line; a helper changed without one is an unreported edit to a file the whole suite shares.
 - Which spec behaviors you could **not** cover, as `UNTESTABLE N: <reason>`.
-- Any place the spec was ambiguous, with the reading you took.
+- Any place the spec was ambiguous and the interface stayed fixed either way, with the reading you took. An ambiguity that splits the input shape or entry-point signature itself is not this — it is `UNTESTABLE N: ambiguous — <readings>` above, not a reading you picked.
 - The pass/fail result of the run, quoted, including tests that fail. **A failing test is a legitimate outcome and you must report it as one.** You do not know whether the code or the spec is wrong — you have not seen the code. Never edit a test to make it pass. Never soften an assertion. Hand the failure up; the main agent adjudicates.
 
 ---

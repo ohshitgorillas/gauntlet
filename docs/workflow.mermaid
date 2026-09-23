@@ -382,7 +382,10 @@ flowchart TD
 
     writable{"`Can every line be written as a test?`"}
     untestable["`UNTESTABLE, or CONTRADICTS where a line contradicts
-    a sentence of the owner's brief. The line goes back to the spec gate.
+    a sentence of the owner's brief. UNTESTABLE covers a line whose
+    input shape or entry-point signature admits more than one reading,
+    reported ambiguous — the readings named, with no test written for
+    either. The line goes back to the spec gate.
     The weak test is not written instead: a weak test goes green
     and nobody sees it.`"]
     written["`The tests are written, one per line, plus any fixture
