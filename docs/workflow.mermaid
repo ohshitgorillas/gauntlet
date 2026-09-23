@@ -452,6 +452,7 @@ flowchart TD
     mismatch --> stage2
     opencheck -- yes --> spectree
     spectree --> writerbrief
+    spectree -- "pair tool: impl_checkout" --> impltree
     writerbrief --> scriv
     scriv --> steer3
     steer3 -- "caught" --> refused3
@@ -538,7 +539,6 @@ flowchart TD
 
     stage5["`**Stage 5**`"]
 
-    stage4 -- "pair tool: impl_checkout" --> impltree
     impltree --> implwork
     implwork --> assumed
     assumed -- no --> suite
@@ -667,6 +667,7 @@ flowchart TD
     pins a line an adversarial reviewer passed blind.`"]
 
     stage5 -- "pair tool: check" --> check
+    stage4 -- "check and merge wait on this verdict file; the red run stays clean, the spec tree it ran in never receives the implementation" --> check
     check --> lanecheck
     lanecheck -- no --> lanestop
     lanestop --> tworoutes

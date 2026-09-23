@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - **Citations into the numbered binding-policy document, in `agents/arbiter.md`, `agents/bailiff.md` and `hooks/gauntlet-off.py`, name a rule number, not a line number.** A rule's number never changes, so a citation survives a rewrite of the document it points at; each is wrapped in backticks matching that document's own citation style.
 - **An ambiguous input shape or entry-point signature is `UNTESTABLE`, not a picked reading.** The `scrivener` reports it as `UNTESTABLE N: ambiguous — <readings>` and writes nothing for either; the "ambiguous, with the reading taken" report item now covers only an ambiguity that leaves the interface fixed. `docs/workflow.mermaid` states the same route.
 - **Patching the import path or the module table to load the unit under check is allowed plumbing; patching an attribute of project code is not.** The `bailiff`'s post-merge rule rows widen from 4, 6, 13 and 14 to 3, 4, 6, 13 and 14 in `agents/bailiff.md`, `docs/agents.md` and `docs/workflow.mermaid`.
+- **The implementation tree is cut as soon as the spec tree is cut, not after the run goes red.** `mcp__plugin_gauntlet_pair__impl_checkout` runs alongside the `scrivener`, the red run and the `juror` rather than behind them, stated in `docs/workflow.mermaid`, `docs/agents.md` and `README.md`. `check` and `merge` wait on the `juror`'s verdict file, and the red run stays clean because the spec tree that ran it never receives the implementation.
 
 ## [0.9.0] - 2026-09-23
 
