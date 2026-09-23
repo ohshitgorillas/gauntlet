@@ -26,7 +26,6 @@ every directory the kit names. Neither is a literal here.
 from __future__ import annotations
 
 import fcntl
-import os
 import shlex
 import subprocess
 from collections import deque
@@ -210,14 +209,11 @@ def gate(slug: str) -> bool:
     where = Path(path(saved))
     where.parent.mkdir(parents=True, exist_ok=True)
     tree = path(trees.spec_tree(slug))
-    environment = dict(os.environ)
-    #: the tree ahead of any installed copy, as `trees.in_tree` sets it
-    environment["PYTHONPATH"] = tree
     with where.open("wb") as handle:
         done = subprocess.run(
             argv,
             cwd=tree,
-            env=environment,
+            env=trees.tree_env(tree),
             stdout=handle,
             stderr=subprocess.STDOUT,
             check=False,

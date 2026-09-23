@@ -38,7 +38,8 @@ so does every script that calls `sudo` internally.
     live path the project declares under `extra_binds` that stands over nothing
     the profile protects.
     Read-only again inside the repository: every lane directory in every checkout, `<gauntlet
-    dir>/red`, `<gauntlet dir>/merge`, `.claude/`, `.git/hooks` and `.git/config`.
+    dir>/red`, `<gauntlet dir>/merge`, `<gauntlet dir>/gate`, `.claude/`, `.git/hooks` and
+    `.git/config`.
     `~/.gitconfig` is read-only. `/run/user` is masked with an empty tmpfs,
     which closes the D-Bus route to `systemd --user` -- a socket rather than a spelling, so no
     string classifier could ever have caught it.

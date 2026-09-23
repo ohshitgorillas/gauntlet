@@ -227,6 +227,11 @@ def unlink_tooling(tree: str) -> None:
             target.unlink()
 
 
+def tree_env(where: str) -> dict[str, str]:
+    """This process's environment, with `where` alone on `PYTHONPATH`."""
+    return {**os.environ, "PYTHONPATH": where}
+
+
 def in_tree(tree: str, argv: list[str]) -> int:
     """Run a command inside a tree, with that tree ahead of any installed copy.
 
@@ -234,8 +239,6 @@ def in_tree(tree: str, argv: list[str]) -> int:
     a worktree's suite silently tests the wrong code.
     """
     where = path(tree)
-    environment = dict(os.environ)
-    environment["PYTHONPATH"] = where
     #: the child's own stdout goes to stderr with everything else here. A gate
     #: prints its report, and a report printed on stdout would land in the
     #: middle of a contract line the reviewer's brief is read from.
@@ -243,7 +246,7 @@ def in_tree(tree: str, argv: list[str]) -> int:
     done = subprocess.run(
         argv,
         cwd=where,
-        env=environment,
+        env=tree_env(where),
         stdout=sys.stderr,
         stderr=sys.stderr,
         check=False,
@@ -255,12 +258,10 @@ def in_tree(tree: str, argv: list[str]) -> int:
 def capture_in_tree(tree: str, argv: list[str]) -> str:
     """The same run, with its output captured rather than inherited."""
     where = path(tree)
-    environment = dict(os.environ)
-    environment["PYTHONPATH"] = where
     done = subprocess.run(
         argv,
         cwd=where,
-        env=environment,
+        env=tree_env(where),
         capture_output=True,
         text=True,
         check=False,

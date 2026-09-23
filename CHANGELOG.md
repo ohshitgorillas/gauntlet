@@ -16,7 +16,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - **`cite.py` counts only the files git shows when it resolves a basename.** An ignored tool cache carrying its own `.gitignore`, such as `.mypy_cache/`, no longer makes a `.gitignore:<N>` citation `AMBIGUOUS`.
 - **`red` commits what it runs, and the brief names that commit.** `pair.sh red` commits the spec tree's lane directory before the run, keeping HEAD where nothing is staged, and the saved log opens with `red commit: <sha>`. The bailiff's brief reads its `red commit:` from that line, or says `unknown`, rather than naming the spec branch tip, which is the combine by then.
 - **A refused land prints no brief and names what blocks it.** `pair.sh merge` prints the bailiff's brief only once the target branch has fast-forwarded, and a refused fast-forward quotes git's own lines, the blocking files among them.
-- **`check` logs the gate's output instead of streaming it.** The output goes to `<gauntlet dir>/gate/<slug>.<N>.txt`, numbered as the reading it belongs to, and stderr carries a `gate log: <path>` line and the last 40 lines, so a gate printing without bound costs the caller forty lines. A red gate's guidance names the log.
+- **`check` logs the gate's output instead of streaming it.** The output goes to `<gauntlet dir>/gate/<slug>.<N>.txt`, numbered as the reading it belongs to and bound read-only in every wrapped shell like the red and merge logs, and stderr carries a `gate log: <path>` line and the last 40 lines, so a gate printing without bound costs the caller forty lines. A red gate's guidance names the log.
 
 ## [0.9.0] - 2026-09-23
 

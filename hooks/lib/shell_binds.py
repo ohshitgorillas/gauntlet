@@ -39,6 +39,7 @@ import lane_config  # noqa: E402
 PROTECTED_DIRS = tuple(lane_config.LANE_DIRS) + (
     lane_config.gauntlet_dir() + "/red",
     lane_config.gauntlet_dir() + "/merge",
+    lane_config.gauntlet_dir() + "/gate",
     ".claude",
     ".git/hooks",
     ".git/config",

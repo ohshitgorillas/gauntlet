@@ -57,7 +57,7 @@ DECLARATION = Path(".claude") / "blind-reads.json"
 
 #: the skeleton under `gauntlet_dir`. The four lanes are the ones the hooks
 #: guard; `plans/drafts` and `specs/drafts` are where a block is written before
-#: it is approved into a lane; `red` and `merge` are `scripts/pair.sh`'s
+#: it is approved into a lane; `red`, `merge` and `gate` are `scripts/pair.sh`'s
 #: evidence. The shape does not vary between projects -- only the base does.
 SKELETON = (
     "plans/drafts",
@@ -68,6 +68,7 @@ SKELETON = (
     "reviews",
     "verdicts",
     "merge",
+    "gate",
 )
 
 
@@ -106,7 +107,7 @@ def default_project() -> Path:
 
 
 def skeleton_dirs(project: Path, base: str) -> list[Path]:
-    """The eight directories the skeleton is, under `base` in `project`."""
+    """The nine directories the skeleton is, under `base` in `project`."""
     return [project / base / suffix for suffix in SKELETON]
 
 
