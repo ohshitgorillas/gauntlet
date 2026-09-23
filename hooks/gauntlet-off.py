@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The owner's off switch, in its two voices.
 
-`GAUNTLET=off claude` starts a session with the lane hook, the blind-agent
-hook and the `Stop` gate silent. The switch itself is `bypassed()` in `lane_paths.py`, read
+`GAUNTLET=off claude` starts a session with every hook in `SILENCED` and the
+`Stop` gate silent: the lanes, the blind reads, the shell wrap, the blind-write
+guard, the lane audit and the kit probe. The switch itself is `bypassed()` in `lane_paths.py`, read
 at the top of each hook's `main()`; this file is what the switch says out loud.
 
 One file rather than two, because both behaviours are the same one-line
@@ -10,7 +11,7 @@ question asked of the same variable, and splitting them would put two copies
 of that question in the tree.
 
   * `--session-start`  silent when the gauntlet is on; a banner when it is off,
-    naming the two hooks, the `Stop` gate, and the plain statement that
+    naming the silenced hooks, the `Stop` gate, and the plain statement that
     nothing in `gauntlet/` is protected from any hand.
   * `--prompt`         silent when the gauntlet is on. When it is off, the
     standing notice that the chain is not running, on the session's first turn
@@ -66,10 +67,15 @@ EVERY = 10
 #: arrives in a payload, so it is spelled into a flat name before it is a path.
 _TAME = re.compile(r"[^A-Za-z0-9_-]")
 
-#: the two hooks the switch silences, by the name a reader sees in the tree
+#: every hook the switch silences, by the name a reader sees in the tree: each
+#: one reads `bypassed()` at its entry point and says nothing when it is set
 SILENCED = (
     "lanes.py",
     "no-impl-reads.py",
+    "bwrap-wrap.py",
+    "blind-write.py",
+    "lane-audit.py",
+    "kit-probe.py",
 )
 
 BANNER = (
@@ -87,8 +93,8 @@ BANNER = (
 )
 
 NOTICE = (
-    "GAUNTLET=off is in force: the two hooks and the `Stop` gate are "
-    "silent this session -- the chain is not running. Any write into `gauntlet/` "
+    "GAUNTLET=off is in force: " + ", ".join(SILENCED) + " and the `Stop` gate "
+    "are silent this session -- the chain is not running. Any write into `gauntlet/` "
     "will be allowed whoever "
     "makes it, and no blind agent is blind. Artifacts produced here are not "
     "evidence of anything."
