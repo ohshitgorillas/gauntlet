@@ -11,10 +11,12 @@ passes runs `scripts/blind.sh` as an argv list, with no shell between them:
 
   * `test path` runs `blind.sh test` and returns the narrowed report, one
     `PASSED`, `FAILED` or `ERROR` line per test id. A collection or import
-    error keeps its frames under `<tests dir>/` and its exception line, and
+    error keeps its frames under `<tests dir>/` and its exception class, and
     nothing else: a frame inside the implementation, a traceback's source
-    line, an assertion's introspection and the lint gates' output never reach
-    the caller.
+    line, an exception's message, an assertion's introspection and the lint
+    gates' output never reach the caller. A parametrize id is built from
+    whatever values the test passes, which can be the implementation's, so a
+    test id keeps its function name and a bracket index in place of it.
   * `status slug` runs `blind.sh status`, the porcelain check on that block.
   * `show commit slug` runs `blind.sh show`, the block at that commit.
 
@@ -25,11 +27,11 @@ project the session stands in, which the host names in `CLAUDE_PROJECT_DIR`.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -56,7 +58,12 @@ SUMMARY_RE = re.compile(r"(PASSED|FAILED|ERROR) (.+?)(?: - .*)?")
 COLLECTING_RE = re.compile(r"_+ ERROR collecting (.+?) _+")
 SECTION_RE = re.compile(r"(?:_+ .* _+|=+ .* =+|=+)")
 FRAME_RE = re.compile(r"(\S.*?):(\d+): in .*")
-EXCEPTION_RE = re.compile(r"E   [A-Za-z_][\w.]*: .*")
+#: pytest marks every line of a raised exception with `E`; the class opens its first run
+RAISED_PREFIX = "E "
+EXCEPTION_RE = re.compile(r"E   ([A-Za-z_][\w.]*)(?::.*)?")
+#: `-v` prints one line per test id in collection order, above the summary
+VERBOSE_RE = re.compile(r"(\S.*?) (?:PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)(?: +\[ *\d+%\])?")
+SUMMARY_SEP = " - "
 
 #: `node --test`, in the TAP reporter and in the spec reporter
 TAP_RE = re.compile(r"\s*(not ok|ok) \d+ - (.+?)(?: # .*)?")
@@ -70,8 +77,9 @@ TOOLS = (
     rpc.Tool(
         "test",
         "Run one test file of yours through blind.sh test. Returns one PASSED, FAILED or "
-        "ERROR line per test id; a collection or import error keeps only its frames under "
-        "the tests directory and its exception line.",
+        "ERROR line per test id, a parametrized id cut to its function name and bracket "
+        "index; a collection or import error keeps only its frames under the tests "
+        "directory and its exception class.",
         {
             "type": "object",
             "properties": {
@@ -116,12 +124,40 @@ class Refused(Exception):
     """An argument that fails its type, named for the caller."""
 
 
-@dataclass
+@dataclasses.dataclass
 class Collected:
-    """One `ERROR collecting` section: its target and the lines kept from it."""
+    """One `ERROR collecting` section: its target and the lines kept from it.
+
+    `in_tests` is whether the frame being read lies under the tests directory,
+    `in_raised` whether the line before was an `E` line. Only the first `E`
+    line of a run that reads as a class is kept, and only its class: the lines
+    after it are the message, and a message can quote any line it likes.
+    """
 
     target: str
-    kept: list[str]
+    kept: list[str] = dataclasses.field(default_factory=list)
+    in_tests: bool = False
+    in_raised: bool = False
+
+    def take(self, line: str, tests: str) -> None:
+        """Keep `line`, or the part of it that belongs, if any does."""
+        raised = line.startswith(RAISED_PREFIX)
+        frame = FRAME_RE.fullmatch(line)
+        exception = EXCEPTION_RE.fullmatch(line)
+        if raised:
+            if exception and not self.in_raised:
+                self.kept.append(f"E   {exception.group(1)}")
+                self.in_raised = True
+            return
+        self.in_raised = False
+        if frame:
+            self.in_tests = frame.group(1).startswith(f"{tests}/")
+            if self.in_tests:
+                self.kept.append(line)
+        elif self.in_tests and line.startswith("    "):
+            self.kept.append(line)
+        else:
+            self.in_tests = False
 
 
 def project() -> Path:
@@ -199,35 +235,64 @@ def gate_sections(stdout: str) -> dict[str, list[str]]:
 
 
 def _collected(lines: list[str], tests: str) -> list[Collected]:
-    """Each collection error, cut to its frames under `tests` and its exception lines."""
+    """Each collection error, cut to its frames under `tests` and its exception class."""
     found: list[Collected] = []
     current: Collected | None = None
-    in_tests = False
     for line in lines:
         head = COLLECTING_RE.fullmatch(line)
         if head:
-            current = Collected(head.group(1), [])
+            current = Collected(head.group(1))
             found.append(current)
-            in_tests = False
         elif SECTION_RE.fullmatch(line):
             current = None
         elif current is not None:
-            in_tests = _keep(line, tests, in_tests, current.kept)
+            current.take(line, tests)
     return found
 
 
-def _keep(line: str, tests: str, in_tests: bool, kept: list[str]) -> bool:
-    """Keep `line` if it belongs; return whether the frame it sits in is a tests frame."""
-    frame = FRAME_RE.fullmatch(line)
-    if frame:
-        in_tests = frame.group(1).startswith(f"{tests}/")
-        if in_tests:
-            kept.append(line)
-    elif EXCEPTION_RE.fullmatch(line) or (in_tests and line.startswith("    ")):
-        kept.append(line)
-    else:
-        in_tests = False
-    return in_tests
+def _order(lines: list[str]) -> dict[str, int]:
+    """Each parametrized id `-v` printed, numbered in collection order within its function."""
+    order: dict[str, int] = {}
+    counts: dict[str, int] = {}
+    for line in lines:
+        verbose = VERBOSE_RE.fullmatch(line)
+        if not verbose or verbose.group(1) in order:
+            continue
+        function, bracket = _function(verbose.group(1))
+        if bracket:
+            order[verbose.group(1)] = counts.get(function, 0)
+            counts[function] = order[verbose.group(1)] + 1
+    return order
+
+
+def _function(ident: str) -> tuple[str, bool]:
+    """The id up to its parameter bracket, and whether it had one.
+
+    The bracket is looked for after the path, since no function or class name
+    holds one and a parameter value may hold anything, `::` included.
+    """
+    path, colons, rest = ident.partition("::")
+    if not colons:
+        return ident, False
+    function, bracket, _params = rest.partition("[")
+    return f"{path}::{function}", bool(bracket)
+
+
+def reduced(ident: str, order: dict[str, int]) -> str:
+    """`ident` with its parameter bracket replaced by the case's index, `?` when unknown."""
+    function, bracket = _function(ident)
+    if not bracket:
+        return ident
+    return f"{function}[{order.get(ident, '?')}]"
+
+
+def _ident(rest: str, known: set[str]) -> str:
+    """The id a summary line opens with: the longest known one, else up to its first ` - `."""
+    cuts = [n for n in range(len(rest)) if rest.startswith(SUMMARY_SEP, n)]
+    for cut in [len(rest), *reversed(cuts)]:
+        if rest[:cut] in known:
+            return rest[:cut]
+    return rest[: cuts[0]] if cuts else rest
 
 
 def narrow_pytest(lines: list[str], tests: str) -> list[str]:
@@ -240,13 +305,16 @@ def narrow_pytest(lines: list[str], tests: str) -> list[str]:
     if start is None:
         return []
     collected = {error.target: error.kept for error in _collected(lines[:start], tests)}
+    order = _order(lines[:start])
+    known = set(order) | set(collected)
     report: list[str] = []
     for line in lines[start + 1 :]:
         summary = SUMMARY_RE.fullmatch(line)
         if not summary:
             continue
-        verdict, ident = summary.groups()
-        report.append(f"{verdict} {ident}")
+        verdict = summary.group(1)
+        ident = _ident(line[len(verdict) + 1 :], known)
+        report.append(f"{verdict} {reduced(ident, order)}")
         report.extend(f"  {kept}" for kept in collected.pop(ident, []))
     return report
 

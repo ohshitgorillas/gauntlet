@@ -41,6 +41,19 @@ SECRET_LINE = 'SECRET_SOURCE_LINE = "the implementation"'
 SECRET_MODULE = SECRET_LINE + '\nraise RuntimeError("module import failed")\n'
 IMPORT_LINE = "from lib import secret"
 IMPORTING_TEST = IMPORT_LINE + "\n\n\ndef test_target():\n    assert secret\n"
+#: a parametrize id built from an implementation value, which no report may carry
+ID_MARKER = "IMPLEMENTATION_ID_MARKER"
+ID_MODULE = 'LEAKED = "' + ID_MARKER + '"\n'
+PARAMETRIZED_TEST = (
+    "import pytest\n\nfrom lib.secret import LEAKED\n\n\n"
+    '@pytest.mark.parametrize("value", [LEAKED])\n'
+    "def test_target(value):\n    assert value\n"
+)
+#: a collection-time exception whose message quotes the implementation, on two lines
+EXCEPTION_MARKER = "IMPLEMENTATION_EXCEPTION_MARKER"
+EXCEPTION_MODULE = (
+    'raise RuntimeError("quoted ' + EXCEPTION_MARKER + "\\n" + EXCEPTION_MARKER + '")\n'
+)
 MIXED_TEST = "def test_one():\n    assert 1 == 1\n\n\ndef test_two():\n    assert 1 == 2\n"
 #: pytest's summary order, failures before passes, one id per line
 MIXED_VERDICTS = (
@@ -113,11 +126,11 @@ def _call(repo, name, arguments):
     return replies[2]["result"]
 
 
-def _test_report(fixture_root, test_text):
+def _test_report(fixture_root, test_text, module_text=SECRET_MODULE):
     """The text `test` returns for the worktree's target file written `test_text`."""
     repo, tree = _opened(fixture_root)
     (tree / "lib").mkdir()
-    (tree / "lib" / "secret.py").write_text(SECRET_MODULE)
+    (tree / "lib" / "secret.py").write_text(module_text)
     (tree / "tests" / TARGET_NAME).write_text(test_text)
     return _call(repo, "test", {"path": TARGET_ARG})["content"][0]["text"]
 
@@ -132,6 +145,14 @@ def test_test_report_of_a_collection_error_carries_no_implementation_line(fixtur
 
 def test_test_report_of_a_collection_error_keeps_the_tests_frame(fixture_root):
     assert "    " + IMPORT_LINE in _test_report(fixture_root, IMPORTING_TEST)
+
+
+def test_test_report_carries_no_source_text_in_a_parametrize_id(fixture_root):
+    assert ID_MARKER not in _test_report(fixture_root, PARAMETRIZED_TEST, ID_MODULE)
+
+
+def test_test_report_carries_no_source_text_in_a_collection_exception_line(fixture_root):
+    assert EXCEPTION_MARKER not in _test_report(fixture_root, IMPORTING_TEST, EXCEPTION_MODULE)
 
 
 @pytest.mark.parametrize(

@@ -180,11 +180,13 @@ cmd_test() {
 	#: that deselects a marker or imports a loader names it there rather than
 	#: here; the path and the flags below it are this script's own. `-rfEp`
 	#: puts one summary line per passed, failed and errored id, which is the
-	#: line `scripts/mcp/blind_server.py` narrows the run to.
+	#: line `scripts/mcp/blind_server.py` narrows the run to. `-v` puts one line
+	#: per id in collection order above it, which is where the server reads the
+	#: bracket index it puts in place of a parametrize id.
 	local -a runner
 	if [ "${REL##*.}" = py ]; then
 		read_runner runner pytest_command
-		run_gate pytest "${runner[@]}" "$REL" -q -rfEp -p no:cacheprovider
+		run_gate pytest "${runner[@]}" "$REL" -v -rfEp -p no:cacheprovider
 		run_gate ruff "$ROOT/.venv/bin/ruff" check "$TESTS"
 		run_gate black "$ROOT/.venv/bin/black" --check "$TESTS"
 	else

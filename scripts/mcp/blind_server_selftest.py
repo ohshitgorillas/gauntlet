@@ -56,7 +56,46 @@ WANT = [
     "ERROR tests/test_broken.py",
     "  tests/test_broken.py:3: in <module>",
     "      from hooks.secret import helper",
-    "  E   RuntimeError: boom",
+    "  E   RuntimeError",
+]
+
+#: a parametrize id built from an implementation value, in `-v` and in the summary
+IDS = """--- pytest
+tests/test_p.py::test_p[ID_SOURCE - text] PASSED                      [ 33%]
+tests/test_p.py::test_p[b::ID_SOURCE] FAILED                         [ 66%]
+tests/test_p.py::TestC::test_q[ID_SOURCE] PASSED                     [100%]
+=========================== short test summary info ============================
+FAILED tests/test_p.py::test_p[b::ID_SOURCE] - assert 'ID_SOURCE' == 'b'
+PASSED tests/test_p.py::test_p[ID_SOURCE - text]
+PASSED tests/test_p.py::TestC::test_q[ID_SOURCE]
+PASSED tests/test_p.py::test_p[ID_SOURCE unlisted]
+"""
+
+IDS_WANT = [
+    "FAILED tests/test_p.py::test_p[1]",
+    "PASSED tests/test_p.py::test_p[0]",
+    "PASSED tests/test_p.py::TestC::test_q[0]",
+    "PASSED tests/test_p.py::test_p[?]",
+]
+
+#: a collection error whose message quotes the implementation, over two lines
+QUOTED = """--- pytest
+____________________ ERROR collecting tests/test_quoted.py _____________________
+tests/test_quoted.py:1: in <module>
+    from hooks import secret
+hooks/secret.py:2: in <module>
+    raise RuntimeError(LINE)
+E   RuntimeError: EXC_SOURCE = compute()
+E   EXC_SOURCE
+=========================== short test summary info ============================
+ERROR tests/test_quoted.py - RuntimeError: EXC_SOURCE = compute()
+"""
+
+QUOTED_WANT = [
+    "ERROR tests/test_quoted.py",
+    "  tests/test_quoted.py:1: in <module>",
+    "      from hooks import secret",
+    "  E   RuntimeError",
 ]
 
 TAP = """--- node
@@ -98,6 +137,14 @@ def _rules() -> dict[str, bool]:
         "lint output and lines above the summary never reach the report": not any(
             "F401" in line or "reformat" in line or "spoofed" in line for line in report
         ),
+        "a parametrize id keeps its function name and bracket index, no source text": server.narrow(
+            IDS, TESTS, "tests/test_p.py"
+        )
+        == IDS_WANT,
+        "a collection exception line keeps its class and no message": server.narrow(
+            QUOTED, TESTS, "tests/test_quoted.py"
+        )
+        == QUOTED_WANT,
         "node verdicts are read per test name": server.narrow(TAP, TESTS, "tests/a.js")
         == ["PASSED tests/a.js::adds", "FAILED tests/a.js::subtracts"],
         "a worktree test path is admitted": not _refused(
