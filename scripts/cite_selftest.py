@@ -171,6 +171,9 @@ def self_test() -> int:
         rules["20 --check-all with no document checks every tracked .md, and no untracked one"] = (
             _tracked_default_rule()
         )
+        rules["21 in a git checkout an ignored file is no second path for a basename"] = (
+            _ignored_basename_rule()
+        )
     CITE.ROOT, CITE.PLUGIN_ROOT = keep, keep_plugin
 
     for label, ok in rules.items():
@@ -203,6 +206,32 @@ def _tracked_default_rule() -> bool:
             os.chdir(here)
         out = buf.getvalue()
     return code == 1 and "tracked.md: RANGE" in out and "untracked.md" not in out
+
+
+def _ignored_basename_rule() -> bool:
+    """Rule 21, on its own throwaway git repo.
+
+    A tracked `.gitignore` at the root and a tool cache that ignores itself
+    with a `.gitignore` of its own: the basename resolves to the tracked one.
+    A second copy nobody ignores still makes it ambiguous.
+    """
+    keep = CITE.ROOT
+    with tempfile.TemporaryDirectory() as repo_dir:
+        repo = Path(repo_dir)
+        _git(repo, "init", "-q")
+        (repo / ".gitignore").write_text("state/\n", encoding="utf-8")
+        _git(repo, "add", ".gitignore")
+        (repo / ".cache").mkdir()
+        (repo / ".cache" / ".gitignore").write_text("*\n", encoding="utf-8")
+        CITE.ROOT = repo
+        try:
+            ignored = [row.split()[0] for row in CITE.report("`.gitignore:1`")]
+            (repo / "sub").mkdir()
+            (repo / "sub" / ".gitignore").write_text("x\n", encoding="utf-8")
+            seen = [row.split()[0] for row in CITE.report("`.gitignore:1`")]
+        finally:
+            CITE.ROOT = keep
+    return ignored == [] and seen == ["AMBIGUOUS"]
 
 
 if __name__ == "__main__":

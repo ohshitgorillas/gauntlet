@@ -24,7 +24,7 @@ prose without backticks is not a citation and is never resolved.
                         unique in the file, refusing on zero matches or several
 
 The failing rows are `MISSING` (no such path), `RANGE` (a number or span past
-the end of the file), `AMBIGUOUS` (a basename more than one path carries),
+the end of the file), `AMBIGUOUS` (a basename more than one unignored path carries),
 `ORPHAN` (a bare number with no full citation before it) and `QUOTE` (a number
 pointing at a line that does not contain the text quoted beside it).
 
@@ -228,12 +228,19 @@ def parse(text: str) -> list[Citation]:
     return found
 
 
+def _ls(at: Path | str, *args: str) -> subprocess.CompletedProcess[str]:
+    """`git ls-files -z` run at `at`; a failure is its return code, never a raise."""
+    cmd = ["git", "-C", str(at), "ls-files", "-z", *args]
+    return subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=60)
+
+
 def candidates(name: str) -> list[Path]:
-    """Every path in the checkout carrying that basename."""
+    """Every path carrying that basename: what git shows, ignored files out, or a walk."""
+    git = _ls(ROOT, "--cached", "--others", "--exclude-standard")
+    shown = (ROOT / n for n in git.stdout.split("\0") if n and Path(n).name == name)
     hits = []
-    for path in ROOT.rglob(name):
-        #: relative to ROOT, so a directory name above the checkout decides
-        #: nothing: a root that is itself a worktree searches its own tree
+    for path in ROOT.rglob(name) if git.returncode else shown:
+        #: relative to ROOT: a root that is itself a worktree searches its own tree
         parts = path.relative_to(ROOT).parts
         if any(part in SKIP for part in parts):
             continue
@@ -385,19 +392,10 @@ def apply_fixes(text: str) -> tuple[str, list[str]]:
 
 
 def tracked_markdown() -> list[str]:
-    """Every tracked `*.md` of the checkout this run sits in, repo-relative.
-
-    `git ls-files` rather than a walk, so a draft nobody has added and a file
-    an ignore rule covers are not checked, and the set is the same one a
-    reviewer sees in the diff.
-    """
-    listed = subprocess.run(
-        ["git", "ls-files", "-z", "*.md"],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=60,
-    )
+    """Every tracked `*.md` of the checkout this run sits in, repo-relative: not a
+    walk, so an unadded draft and an ignored file are not checked, and the set is
+    the one a reviewer sees in the diff."""
+    listed = _ls(".", "*.md")
     if listed.returncode != 0:
         raise SystemExit("--check-all with no document needs a checkout: git ls-files failed here")
     return [name for name in listed.stdout.split("\0") if name and Path(name).is_file()]
