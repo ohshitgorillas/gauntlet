@@ -14,6 +14,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - **The blind agent definitions carry no placeholder the plugin cannot fill.** `<source dir>` and the external-docs placeholder are gone from the `arbiter`, `auditor`, `bailiff` and `scrivener`, whose read lists now match `no-impl-reads.py`, and the `arbiter` no longer cites a section of the chain that does not exist.
 - **A blind agent may read the whole prose directory.** `no-impl-reads.py` allows `docs/` entire, not one policy file in it, so the `arbiter` and `scrivener` reach the protocol and vendor docs their definitions cite, and a Grep rooted at `docs/` is no longer suggested and then denied. `state/` and the gauntlet base outside its three leaves stay denied. The hook's docstring and denial message match the code.
 - **`cite.py` counts only the files git shows when it resolves a basename.** An ignored tool cache carrying its own `.gitignore`, such as `.mypy_cache/`, no longer makes a `.gitignore:<N>` citation `AMBIGUOUS`.
+- **`red` commits what it runs, and the brief names that commit.** `pair.sh red` commits the spec tree's lane directory before the run, keeping HEAD where nothing is staged, and the saved log opens with `red commit: <sha>`. The bailiff's brief reads its `red commit:` from that line, or says `unknown`, rather than naming the spec branch tip, which is the combine by then.
+- **A refused land prints no brief and names what blocks it.** `pair.sh merge` prints the bailiff's brief only once the target branch has fast-forwarded, and a refused fast-forward quotes git's own lines, the blocking files among them.
 
 ## [0.9.0] - 2026-09-23
 

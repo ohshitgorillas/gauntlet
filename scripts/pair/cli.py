@@ -153,7 +153,7 @@ def _brief(slug: str, tree: str, saved: str) -> list[str]:
     return [
         "TEST CHECK " + slug,
         "spec commit: " + blocks.spec_commit(tree, slug),
-        "red commit: " + git("rev-parse", trees.spec_branch(slug)),
+        "red commit: " + (blocks.red_commit(slug) or "unknown"),
         "merge output: " + saved,
         "END TEST CHECK",
     ]
@@ -219,18 +219,18 @@ def _converge_and_land(slug: str, tree: str, text: str, has_impl: bool) -> int:
     else:
         #: a block's `collateral:` rows, where it carries any. The reviewer round
         #: below rules on the behavior lines; these name tests no line pins, so
-        #: the mechanical check is what holds them, and it runs before the brief
-        #: because a brief on stdout is the brief of a block that landed.
+        #: the mechanical check is what holds them, and it runs before the land.
         rows = blocks.collateral_report(text, base, head, tree)
         for line in rows:
             out(line)
         if not all(line.startswith("OK ") for line in rows):
             die("pair: a collateral row's assertion did not survive the change.")
-        for line in _brief(slug, tree, saved):
-            out(line)
 
     note("  [6/6] land on " + TARGET)
     converge.land(slug)
+    if not mechanical:  # a brief is of a block that landed; the tree stands until cleanup
+        for line in _brief(slug, tree, saved):
+            out(line)
     converge.cleanup(slug, has_impl)
     return 0
 

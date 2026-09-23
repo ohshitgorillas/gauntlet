@@ -162,19 +162,44 @@ def whole_file_targets(text: str) -> list[str]:
     return [target for target in strike_targets(text) if "::" not in target]
 
 
-def red_run(slug: str, tree: str, runner: list[str]) -> str:
-    """Run the suite in the spec tree and save the output. Returns its path.
+RED_COMMIT = "red commit: "
 
-    `runner` is the configured invocation, whole: the caller resolves it, and
-    the only word this function adds to it is its own.
+
+def red_commit(slug: str) -> str | None:
+    """The commit the saved red log's first line names, or None for none.
+
+    The spec branch tip is not it once a combine or a rebase has moved it.
+    """
+    lines = (read(red_path(slug)) or "").splitlines()
+    if not lines or not lines[0].startswith(RED_COMMIT):
+        return None
+    return lines[0][len(RED_COMMIT) :].strip() or None
+
+
+def red_run(slug: str, tree: str, runner: list[str]) -> str:
+    """Commit the tests, run the suite in the spec tree and save the output.
+
+    Returns the saved path. `runner` is the configured invocation, whole: the
+    caller resolves it, and the only word this function adds to it is its own.
+    The tests directory alone is committed as `test: <slug>`, or HEAD kept where
+    nothing is staged, and the log's first line names the commit the run read.
     """
     saved = red_path(slug)
     where = Path(path(saved))
     where.parent.mkdir(parents=True, exist_ok=True)
+    tests = TESTS + "/"
+    #: unchecked: no tests directory is nothing to stage, which `diff` then reads
+    git("add", "-A", "--", tests, tree=tree, check=False)
+    if not trees.git_ok("diff", "--cached", "--quiet", "--", tests, tree=tree):
+        #: the pathspec holds the commit to the tests directory, whatever is staged
+        message = "test: " + slug
+        if trees.in_tree(tree, ["git", "commit", "-q", "-m", message, "--", tests]) != 0:
+            trees.die("pair: the test commit in " + tree + " failed")
+    commit = git("rev-parse", "HEAD", tree=tree)
     #: verbose, so a passing test is named rather than summarized as a dot: the
     #: juror rules on the names this file carries and on nothing else
     output = trees.capture_in_tree(tree, list(runner) + ["-v"])
-    where.write_text(output, encoding="utf-8")
+    where.write_text(RED_COMMIT + commit + "\n" + output, encoding="utf-8")
     return saved
 
 

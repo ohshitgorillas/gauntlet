@@ -53,11 +53,11 @@ The script that moves a block between the reviewer, the writer and the tree. Its
 | --- | --- | --- |
 | `pair.sh open <slug>` | `OPEN .claude/worktrees/<slug>-spec` | the approved spec's reviewer section is byte-identical to the newest `<gauntlet dir>/reviews/<slug>.<N>.txt`, and the block is a `spec: <slug>` commit on `spec/<slug>` |
 | `pair.sh open <slug>` | `MISMATCH <gauntlet dir>/reviews/<slug>.<N>.txt` | those two texts differ, and no worktree is cut |
-| `pair.sh red <slug>` | the saved output's path | after the suite has run in the spec worktree |
+| `pair.sh red <slug>` | the saved output's path | after `<tests dir>/` is committed in the spec worktree as `test: <slug>`, or HEAD is kept where nothing is staged, and the suite has run there; the saved file opens with `red commit: <sha>`, the commit the run read |
 | `pair.sh check <slug>` | `CHECK <gauntlet dir>/merge/<slug>.<N>.txt PASS` | the gate passed in the combined tree, `<N>` is one more than the highest reading already on disk for that slug, and nothing landed |
 | `pair.sh check <slug>` | `CHECK <gauntlet dir>/merge/<slug>.<N>.txt FAIL` | the gate failed there, the reading is written all the same, and the command exits 1 |
 | `pair.sh merge <slug>` | `UNCHECKED <slug>` | no reading is on disk for the slug, the newest says `gate: FAIL`, or its three tips are not the three in front of the verb; nothing lands and the command exits 1 |
-| `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: <gauntlet dir>/merge/<slug>.<N>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor`, and `<N>` is the reading that passed |
+| `pair.sh merge <slug>` | `TEST CHECK <slug>`, the two commits, `merge output: <gauntlet dir>/merge/<slug>.<N>.txt`, `END TEST CHECK` | `kind:` is `new`, `characterization` or `refactor`, `<N>` is the reading that passed, and the target branch has fast-forwarded; `red commit:` is the commit the red log's first line names, or `unknown` where the log or that line is absent |
 | `pair.sh merge <slug>` | the `${CLAUDE_PLUGIN_ROOT}/scripts/strike-diff.py` verdict lines | the structure line is `motion: strike`, `motion: amend` or `motion: rehome`, or a `kind:` block carries `collateral:` rows, whose verdicts print above the `TEST CHECK` brief |
 | `pair.sh review <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.<N>.txt` | `<N>` is one more than the highest already on disk for that slug, 1 where there is none, and `<gauntlet dir>/reviews/` exists |
 | `pair.sh review plan <slug>` | `REVIEW <gauntlet dir>/reviews/<slug>.plan.<N>.txt` | the same count over the plan rounds of that slug |

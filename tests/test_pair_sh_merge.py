@@ -596,6 +596,15 @@ def _pair_with_untracked(tmp_path, on_disk):
     primary checkout holds `on_disk` at that path, untracked, or nothing where
     `on_disk` is None. Returns the repository and the merge's stdout lines.
     """
+    repo = _checked_pair_with_untracked(tmp_path, on_disk)
+    return repo, _pair(repo, "merge", SLUG)
+
+
+def _checked_pair_with_untracked(tmp_path, on_disk):
+    """The setup of `_pair_with_untracked`, stopped short of the merge.
+
+    Returns the repository, checked and holding `on_disk` at `SHADOW_FILE`.
+    """
     repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
     #: the lane directory stays tracked, the block does not: the shape the
     #: chain produces, where the reviewer wrote the block and `open` commits it
@@ -612,7 +621,7 @@ def _pair_with_untracked(tmp_path, on_disk):
     _pair(repo, "check", SLUG)
     if on_disk is not None:
         (repo / SHADOW_FILE).write_text(on_disk)
-    return repo, _pair(repo, "merge", SLUG)
+    return repo
 
 
 def test_a_pair_whose_block_is_untracked_in_the_checkout_lands_on_the_target_branch(tmp_path):
@@ -646,3 +655,68 @@ def test_a_refused_land_leaves_every_untracked_file_it_moved_aside_where_it_was(
     #: the block is the identical copy the land took out of the way, and the
     #: refusal came from the file beside it
     assert (repo / SPEC_PATH).read_text() == BLOCK_NEW
+
+
+def _merge_output(repo):
+    """Run `pair.sh merge <slug>` and return its stdout lines and its stderr."""
+    env = dict(ENV)
+    env["HOME"] = str(repo)
+    done = subprocess.run(
+        [str(repo / "scripts" / "pair.sh"), "merge", SLUG],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return done.stdout.splitlines(), done.stderr
+
+
+def test_a_refused_land_prints_no_test_check_brief(tmp_path):
+    repo = _checked_pair_with_untracked(tmp_path, SHADOW_OTHER)
+    lines, _ = _merge_output(repo)
+    assert [line for line in lines if line.startswith("TEST CHECK")] == []
+
+
+def test_a_refused_land_names_the_file_that_blocks_it(tmp_path):
+    repo = _checked_pair_with_untracked(tmp_path, SHADOW_OTHER)
+    _, stderr = _merge_output(repo)
+    _, refused, after = stderr.partition("will not fast-forward")
+    assert (refused, SHADOW_FILE in after) == ("will not fast-forward", True)
+
+
+RED_COMMIT = "red commit: "
+
+
+def _red_and_brief_commits(tmp_path):
+    """Write a test uncommitted, run red, combine an impl commit, check and merge.
+
+    Returns the commit the red log's first line names, the commit the brief's
+    `red commit:` line names, the subject of the recorded commit, and the
+    target branch's HEAD after the merge. A missing line collapses to "".
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    _pair(repo, "open", SLUG)
+    worktree = _worktree(repo)
+    (worktree / "tests" / "test_a.py").write_text(TEST_A_OTHER)
+    _venv_shim(worktree)
+    _pair(repo, "red", SLUG)
+    log = (repo / "gauntlet" / "red" / (SLUG + ".txt")).read_text().splitlines()
+    recorded = log[0][len(RED_COMMIT) :] if log and log[0].startswith(RED_COMMIT) else ""
+    subject = _git(repo, "log", "-1", "--format=%s", recorded) if recorded else ""
+    tree = _named_dir(_impl_checkout(repo), repo)
+    if tree is not None:
+        (tree / IMPL_FILE).write_text("implementation to be combined\n")
+        _git(tree, "add", "-A")
+        _git(tree, "commit", "-m", "impl work")
+    _pair(repo, "check", SLUG)
+    briefed = ""
+    for line in _pair(repo, "merge", SLUG):
+        if line.startswith(RED_COMMIT):
+            briefed = line[len(RED_COMMIT) :]
+    return recorded, briefed, subject, _git(repo, "rev-parse", "HEAD")
+
+
+def test_the_brief_names_the_commit_red_recorded_rather_than_the_merge(tmp_path):
+    recorded, briefed, subject, landed = _red_and_brief_commits(tmp_path)
+    assert (briefed == recorded, recorded != landed, subject) == (True, True, "test: " + SLUG)

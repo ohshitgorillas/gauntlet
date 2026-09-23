@@ -238,7 +238,8 @@ def land(slug: str) -> str:
     for name in gave_way:
         Path(path(name)).unlink()
         note("  " + name + ": the untracked copy gives way to the commit landing on it")
-    if not git_ok("merge", "--ff-only", branch):
+    landed, refusal = trees.git_err("merge", "--ff-only", branch)
+    if not landed:
         #: the land refused for some other file, so nothing came back to take
         #: the place of the copies taken out of the way: write them back rather
         #: than leave the checkout short a file the refusal did not name
@@ -252,12 +253,16 @@ def land(slug: str) -> str:
                 timeout=60,
             ).stdout
             Path(path(name)).write_bytes(blob)
+        #: git's own lines, quoted: they name the files that block the land,
+        #: which is the one thing the owner needs to clear it
+        quoted = [line.rstrip() for line in refusal.splitlines() if line.strip()]
         die(
             "pair: "
             + TARGET
             + " will not fast-forward to "
             + branch
-            + " -- the primary checkout may carry local changes over the same files."
+            + " -- git refused it:\n"
+            + "\n".join("  " + line for line in quoted)
         )
     return git("rev-parse", "HEAD")
 

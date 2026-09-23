@@ -97,7 +97,7 @@ A lint FAIL the main agent returns naming a file you wrote or amended is yours: 
 
 ## The red run is not yours to certify
 
-After you report, the main agent commits your tests and runs them with `mcp__plugin_gauntlet_pair__red`, which saves the output to a file and returns nothing on stdout but that file's path. That path goes to a `juror`, which is blind exactly as you are and returns one verdict per spec line. You do not grade your own run: the agent that wrote the test is the worst reader of whether it bit.
+After you report, the main agent calls `mcp__plugin_gauntlet_pair__red`, which commits your tests as `test: <slug>`, runs them, and saves the output to a file and returns nothing on stdout but that file's path. That path goes to a `juror`, which is blind exactly as you are and returns one verdict per spec line. You do not grade your own run: the agent that wrote the test is the worst reader of whether it bit.
 
 One verdict comes back to you and to nobody else. `INVALID N` means the run broke on your own hand — a fixture typo, a bad import in your file, a syntax error — and no line was judged. Fix it, say what you fixed, and the next run goes to the certifier. `RED`, `ERROR` and `GREEN` are the certifier's to return and the main agent's to act on; none of them is a finding you argue with, because you have not seen the code and cannot know whether the code or the spec is wrong.
 

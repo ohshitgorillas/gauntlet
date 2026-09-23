@@ -156,6 +156,19 @@ def git_ok(*args: str, tree: str | None = None) -> bool:
     )
 
 
+def git_err(*args: str, tree: str | None = None) -> tuple[bool, str]:
+    """Whether a git command succeeded, and its stderr as git wrote it.
+
+    For a refusal whose reason is the message: git names the files that block
+    it on stderr, and a caller that discards that has only a guess to print.
+    """
+    where = path(tree) if tree else ROOT
+    done = subprocess.run(
+        ("git", "-C", where, *args), capture_output=True, text=True, check=False, timeout=60
+    )
+    return done.returncode == 0, done.stderr
+
+
 def exists(rev: str) -> bool:
     return git_ok("rev-parse", "-q", "--verify", rev)
 
