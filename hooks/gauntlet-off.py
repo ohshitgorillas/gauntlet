@@ -39,7 +39,7 @@ The `--self-test` sets the value it is testing explicitly for each case and
 never reads the ambient variable to decide what to assert, so a developer
 running it under `GAUNTLET=off` gets the same output as one running it with the
 variable unset. That property is itself one of the lines it pins, and it is
-`docs/testing.md:67` rule 16 being obeyed rather than bent.
+`docs/testing.md` rule 16 being obeyed rather than bent.
 """
 
 from __future__ import annotations

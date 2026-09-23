@@ -18,6 +18,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 - **A refused land prints no brief and names what blocks it.** `pair.sh merge` prints the bailiff's brief only once the target branch has fast-forwarded, and a refused fast-forward quotes git's own lines, the blocking files among them.
 - **An owner edit identical to what a pair lands gives way at the land.** A tracked file whose unstaged working copy is the landing blob byte for byte, with its index entry equal to HEAD, is restored to HEAD before the fast-forward and written back if it refuses. A differing edit still refuses the land, stays as it is, and is named.
 - **`check` logs the gate's output instead of streaming it.** The output goes to `<gauntlet dir>/gate/<slug>.<N>.txt`, numbered as the reading it belongs to and bound read-only in every wrapped shell like the red and merge logs, and stderr carries a `gate log: <path>` line and the last 40 lines, so a gate printing without bound costs the caller forty lines. A red gate's guidance names the log.
+- **Citations into the numbered binding-policy document, in `agents/arbiter.md`, `agents/bailiff.md` and `hooks/gauntlet-off.py`, name a rule number, not a line number.** A rule's number never changes, so a citation survives a rewrite of the document it points at; each is wrapped in backticks matching that document's own citation style.
 
 ## [0.9.0] - 2026-09-23
 
