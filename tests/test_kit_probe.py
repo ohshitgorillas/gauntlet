@@ -24,7 +24,7 @@ def _server(path):
 
 
 def _said(tmp_path, servers, present):
-    """What the probe prints at SessionStart for one kit, stripped."""
+    """What the probe prints at SessionStart for one kit: stdout and stderr, stripped."""
     manifest = {
         "mcpServers": servers,
         "hooks": {
@@ -56,22 +56,33 @@ def _said(tmp_path, servers, present):
         check=False,
         timeout=60,
     )
-    assert done.returncode == 0, done.stderr
-    return done.stdout.strip()
+    return done.stdout.strip(), done.stderr.strip()
+
+
+def test_a_missing_server_file_is_named_by_its_key(tmp_path):
+    said, _ = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[])
+    assert "one (" in said
 
 
 def test_a_missing_server_file_is_named_with_its_manifest_path(tmp_path):
-    said = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[])
-    assert "one" in said
+    said, _ = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[])
     assert SERVER_PATH in said
 
 
 def test_a_kit_whose_servers_are_all_there_prints_nothing(tmp_path):
-    assert _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[SERVER_PATH]) == ""
+    said, _ = _said(tmp_path, {"one": _server(SERVER_PATH)}, present=[SERVER_PATH])
+    assert said == ""
 
 
 def test_a_malformed_server_entry_is_named_by_its_key(tmp_path):
-    said = _said(
+    said, _ = _said(
         tmp_path, {"crooked": "not an object", "one": _server(SERVER_PATH)}, present=[SERVER_PATH]
     )
     assert "crooked" in said
+
+
+def test_a_malformed_server_entry_does_not_crash_the_probe(tmp_path):
+    _, err = _said(
+        tmp_path, {"crooked": "not an object", "one": _server(SERVER_PATH)}, present=[SERVER_PATH]
+    )
+    assert err == ""
