@@ -41,6 +41,7 @@ def _repo(tmp_path, trees=()):
     source, which is what makes a write under them an observable outcome.
     """
     repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
     (repo / "gauntlet" / "specs" / "approved").mkdir(parents=True)
     (repo / "gauntlet" / "reviews").mkdir(parents=True)
     (repo / ".claude" / "worktrees").mkdir(parents=True)
@@ -70,8 +71,10 @@ DECLARATION = {
 
 
 def _add_tree(repo, name):
+    """A worktree of `repo` named `name`, whose `.git` points back at `repo`."""
     tree = repo / ".claude" / "worktrees" / name
     (tree / "tests").mkdir(parents=True)
+    (tree / ".git").write_text(f"gitdir: {repo}/.git/worktrees/{name}\n")
     return tree
 
 
@@ -389,3 +392,41 @@ def test_a_write_inside_a_worktree_lands_by_path_as_it_does_in_the_checkout(tmp_
         probe for probe in probes if _write_outcome(repo, PROSECUTOR, probe, at=tree) == "written"
     }
     assert on_disk == {KIT_SCRIPTS_PROBE}
+
+
+#: the caller standing outside every checkout, in the directory above the fixture
+OUTSIDE = "outside"
+
+
+def _outcome_standing_in(repo, standing, relative_path):
+    """ "denied" where the hook refuses a call from `standing`, else the write's outcome."""
+    if _denied(_run_hook(repo, PROSECUTOR, "true", at=standing)):
+        return "denied"
+    return _write_outcome(repo, PROSECUTOR, relative_path, at=standing)
+
+
+@pytest.mark.parametrize(
+    ("at", "subject", "expected"),
+    [
+        ("gauntlet", "specs/approved/probe.txt", "refused"),
+        ("tests", "probe.txt", "refused"),
+        ("scripts", "probe.txt", "written"),
+        (f".claude/worktrees/{TREE_ALPHA}/tests", "probe.txt", "refused"),
+        (OUTSIDE, "probe.txt", "denied"),
+    ],
+    ids=[
+        "standing-in-the-gauntlet-dir",
+        "standing-in-the-tests-lane",
+        "standing-in-the-scripts-directory",
+        "standing-in-a-worktrees-tests-lane",
+        "standing-above-the-checkout",
+    ],
+)
+def test_the_directory_a_caller_stands_in_never_becomes_the_writable_root(
+    tmp_path, at, subject, expected
+):
+    if not _bwrap_usable():
+        pytest.skip("bwrap is not runnable on this host")
+    repo = _repo(tmp_path, trees=(TREE_ALPHA,))
+    standing = tmp_path if at == OUTSIDE else repo / at
+    assert _outcome_standing_in(repo, standing, subject) == expected

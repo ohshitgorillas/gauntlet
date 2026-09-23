@@ -100,6 +100,22 @@ class TheWalkFindsTheProjectFromInsideAWorktree(unittest.TestCase):
         deeper.mkdir(parents=True, exist_ok=True)
         assert self._tests_dir(deeper) == (0, "spec", "")
 
+    def test_checkout_of_names_the_main_checkout_and_the_tree_holding_the_path(self):
+        sys.path.insert(0, str(HOOK_DIR))
+        try:
+            import lane_declaration
+        finally:
+            sys.path.remove(str(HOOK_DIR))
+        project, tree = self.project.resolve(), self.tree.resolve()
+        observed = {
+            "from the worktree": lane_declaration.checkout_of(tree / "spec"),
+            "from the main checkout": lane_declaration.checkout_of(project / "README"),
+        }
+        assert observed == {
+            "from the worktree": (project, tree),
+            "from the main checkout": (project, project),
+        }
+
     def test_outside_any_checkout_there_is_no_project_and_that_is_a_fault(self):
         # No project and no copy beside the kit is no declaration at all.  The
         # reader exits non-zero and names the file, because a `tests_dir` printed

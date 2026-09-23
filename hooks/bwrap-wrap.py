@@ -93,6 +93,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hook_payload  # noqa: E402
 import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
+import lane_declaration  # noqa: E402
 import shell_binds  # noqa: E402
 import wrap_extras  # noqa: E402
 import wrap_scratch  # noqa: E402
@@ -124,23 +125,36 @@ def _answer(payload: dict[str, Any]) -> dict[str, Any] | None:
     # the main agent and takes the default profile, so `sudo` in a shell dies
     # at NO_NEW_PRIVS for the main agent exactly as for anyone else.
     agent = hook_payload.agent_of(payload)
-    root = hook_payload.cwd_of(payload)
+    cwd = str(Path(hook_payload.cwd_of(payload)).resolve())
+
+    # the checkout is the root, never the directory the caller stands in: a
+    # shell standing in a lane that took itself for the root would bind that
+    # lane writable, and one standing above the checkout would bind every lane
+    found = lane_declaration.checkout_of(Path(cwd))
+    if found is None:
+        return _deny(hook_payload.undecidable(f"the cwd {cwd} sits in no git checkout"))
+    root = str(found[0])
 
     fault = bwrap_fault()
     if fault is not None:
-        return {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "deny",
-                "permissionDecisionReason": fault,
-            }
-        }
+        return _deny(fault)
 
-    wrapped = wrap(command, root, agent)
+    wrapped = wrap(command, root, agent, cwd)
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "updatedInput": {"command": wrapped},
+        }
+    }
+
+
+def _deny(reason: str) -> dict[str, Any]:
+    """The answer refusing this call, for `reason`."""
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
         }
     }
 
@@ -159,8 +173,13 @@ def worktrees(root: str) -> list[str]:
     return [str(tree) for tree in trees if tree.is_dir()]
 
 
-def _base(root: str) -> list[str]:
-    """The mounts every profile takes: readable world, live /dev, shared scratch."""
+def _base(root: str, cwd: str | None) -> list[str]:
+    """The mounts every profile takes: readable world, live /dev, shared scratch.
+
+    The shell starts where the caller stands, `cwd`, and in `root` where the
+    caller names nowhere or stands somewhere that is gone.
+    """
+    start = cwd if cwd is not None and _source(cwd) else root
     return (
         [
             "bwrap",
@@ -184,8 +203,8 @@ def _base(root: str) -> list[str]:
         + (
             # a `--chdir` onto a directory that is not there fails the invocation,
             # and a caller's `cwd` can name a tree that has since been cut
-            ["--chdir", root]
-            if _source(root)
+            ["--chdir", start]
+            if _source(start)
             else []
         )
     )
@@ -232,20 +251,25 @@ def _extra_binds(root: str) -> list[str]:
     return args
 
 
-def wrap(command: str, root: str, agent: str) -> str:
+def wrap(command: str, root: str, agent: str, cwd: str | None = None) -> str:
     """The `bwrap` invocation that runs `command`, as one shell command string.
+
+    `root` is the main checkout, and everything the profile binds keys on it;
+    `cwd` is only where the shell starts. A tree that is neither `root` nor
+    under its worktrees is bound by nothing here, so it stays read-only
+    through the root mount.
 
     The caller's text is carried on stdin through a here-document, so it appears
     in the result byte for byte however it is spelled.
     """
-    args = _profile(root, agent)
+    args = _profile(root, agent, cwd)
     return " ".join(_quote(a) for a in args) + " " + _heredoc(command)
 
 
-def _profile(root: str, agent: str) -> list[str]:
+def _profile(root: str, agent: str, cwd: str | None) -> list[str]:
     """The full `bwrap` argument list for one agent in one checkout."""
     home = os.environ.get("HOME") or root
-    args = _base(root)
+    args = _base(root, cwd)
 
     if agent in REVIEWER_AGENTS:
         # nothing writable but the reviewer's own lane, and that only as a

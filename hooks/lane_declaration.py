@@ -33,32 +33,49 @@ def project_checkout(start: Path) -> Path | None:
     rather than a directory, so a walk that stops at the first `.git` stops in
     the worktree. The declaration lives in the main checkout, and a worktree
     that carries no copy of it would otherwise read as a project declaring
-    nothing. The pointer names the main checkout's `.git`, whose parent is the
-    checkout.
+    nothing. `checkout_of` does the walk; this is the main checkout it found.
+    """
+    found = checkout_of(start)
+    return found[0] if found else None
+
+
+def checkout_of(start: Path) -> tuple[Path, Path] | None:
+    """`(main, tree)` for the checkout holding `start`, or None outside any.
+
+    `tree` is the nearest directory at or above `start` carrying a `.git`, and
+    `main` is the main checkout that tree belongs to: the tree itself where its
+    `.git` is a directory, and the parent of `<main>/.git` where it is a
+    worktree's pointer file reading `gitdir: <main>/.git/worktrees/<name>`.
 
     Anything else a pointer file names -- a submodule's `<super>/.git/modules/`,
-    an unreadable file, a spelling this does not know -- is the directory
-    holding it, which is what the walk answered before.
+    an unreadable file, a spelling this does not know, a `.git` that is not
+    there -- answers `tree` for both, which is the safe direction: a
+    checkout read as its own main never reaches a directory it does not hold.
     """
     for candidate in (start, *start.parents):
         dot_git = candidate / ".git"
         if dot_git.is_dir():
-            return candidate
+            return candidate, candidate
         if dot_git.is_file():
-            try:
-                pointer = dot_git.read_text(encoding="utf-8").strip()
-            except OSError:
-                return candidate
-            if not pointer.startswith("gitdir:"):
-                return candidate
-            gitdir = Path(pointer[len("gitdir:") :].strip())
-            if not gitdir.is_absolute():
-                gitdir = (candidate / gitdir).resolve()
-            common = gitdir.parent.parent
-            if gitdir.parent.name == "worktrees" and common.name == ".git":
-                return common.parent
-            return candidate
+            return _main_of(candidate, dot_git), candidate
     return None
+
+
+def _main_of(candidate: Path, dot_git: Path) -> Path:
+    """The main checkout a pointer file at `dot_git` leads to, else `candidate`."""
+    try:
+        pointer = dot_git.read_text(encoding="utf-8").strip()
+    except OSError:
+        return candidate
+    if not pointer.startswith("gitdir:"):
+        return candidate
+    gitdir = Path(pointer[len("gitdir:") :].strip())
+    if not gitdir.is_absolute():
+        gitdir = (candidate / gitdir).resolve()
+    common = gitdir.parent.parent
+    if gitdir.parent.name == "worktrees" and common.name == ".git" and common.is_dir():
+        return common.parent
+    return candidate
 
 
 class ConfigFault(Exception):

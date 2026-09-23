@@ -21,6 +21,7 @@ import bwrap_probe  # noqa: E402
 import hook_payload  # noqa: E402
 import hook_shape  # noqa: E402
 import lane_config  # noqa: E402
+import lane_declaration  # noqa: E402
 
 #: the hook under test, already imported by the time this module is: the
 #: `--self-test` branch registers it under this name before importing here, so
@@ -35,7 +36,7 @@ _answer: Callable[[dict[str, Any]], dict[str, Any] | None] = _bw._answer
 _heredoc = _bw._heredoc
 bwrap_fault = bwrap_probe.bwrap_fault
 worktrees = _bw.worktrees
-wrap: Callable[[str, str, str], str] = _bw.wrap
+wrap: Callable[..., str] = _bw.wrap
 
 #: the hook's own path, not this module's: the hostile-payload check runs the
 #: file it is given.
@@ -47,13 +48,13 @@ def run() -> int:
         return _self_test_in(tmp)
 
 
-def _make_tree(root: str, worktree_git_is_a_file: bool) -> None:
+def _make_tree(root: str, worktree_git_is_a_file: bool, main: str | None = None) -> None:
     """A checkout shaped like this kit's: lanes, scripts, and a `.git`.
 
     `worktree_git_is_a_file` spells the difference between a main checkout and
     a git worktree. In a worktree `.git` is a pointer file, so `.git/hooks`
     resolves `ENOTDIR` rather than simply missing -- the shape that took every
-    `Bash` call in a session down.
+    `Bash` call in a session down. The pointer leads to `main`'s `.git`.
     """
     for relative in PROTECTED_IN_CHECKOUT + (WORKTREES,):
         if relative.startswith(".git/") and worktree_git_is_a_file:
@@ -61,7 +62,8 @@ def _make_tree(root: str, worktree_git_is_a_file: bool) -> None:
         (Path(root) / relative).mkdir(parents=True, exist_ok=True)
     dot_git = Path(root) / ".git"
     if worktree_git_is_a_file:
-        dot_git.write_text("gitdir: /elsewhere/.git/worktrees/tree\n", encoding="utf-8")
+        pointer = f"gitdir: {main}/.git/worktrees/{Path(root).name}\n"
+        dot_git.write_text(pointer, encoding="utf-8")
 
 
 def _runs(wrapped: str) -> tuple[bool, str]:
@@ -150,14 +152,42 @@ def _vanishing_run(lines: dict[str, bool], *, root: str, tree: str) -> None:
     _record_run(
         lines, "a worktree cut after the profile was built does not kill the command", vanishing
     )
-    _make_tree(tree, worktree_git_is_a_file=True)
+    _make_tree(tree, worktree_git_is_a_file=True, main=root)
+
+
+def _standing(root: str, tree: str, tmp: str) -> dict[str, bool]:
+    """Where the caller stands never moves the root off the checkout."""
+
+    def call(cwd: str) -> dict[str, Any] | None:
+        return _answer({"tool_name": "Bash", "cwd": cwd, "tool_input": {"command": "true"}})
+
+    def from_(cwd: str) -> str:
+        answer = (call(cwd) or {}).get("hookSpecificOutput") or {}
+        return str((answer.get("updatedInput") or {}).get("command") or "")
+
+    lane = str(Path(root) / PROTECTED_IN_CHECKOUT[0])
+    in_tree = str(Path(tree) / PROTECTED_IN_CHECKOUT[0])
+    return {
+        "a call standing in a lane binds the checkout, not the lane": (
+            f"--bind {root} {root}" in from_(lane) and f"--bind {lane} {lane}" not in from_(lane)
+        ),
+        "a call standing in a worktree binds the main checkout's lanes read-only": (
+            f"--bind {root} {root}" in from_(in_tree)
+            and f"--ro-bind-try {lane} {lane}" in from_(in_tree)
+        ),
+        "a worktree's pointer file leads to its main checkout": (
+            lane_declaration.checkout_of(Path(tree)) == (Path(root), Path(tree))
+        ),
+        "a call standing in no checkout is denied": _reason(call(tmp)) != "",
+        "`--chdir` is the caller's directory": f"--chdir {in_tree} " in from_(in_tree),
+    }
 
 
 def _self_test_in(tmp: str) -> int:
     root = str(Path(tmp) / "checkout")
     _make_tree(root, worktree_git_is_a_file=False)
     tree = str(Path(root) / WORKTREES / "demo-spec")
-    _make_tree(tree, worktree_git_is_a_file=True)
+    _make_tree(tree, worktree_git_is_a_file=True, main=root)
 
     semicolon = "echo hi; cat /etc/hostname"
     heredoc = "echo $(cat /etc/hostname) <<'X'"
@@ -345,6 +375,7 @@ def _self_test_in(tmp: str) -> int:
         ),
     }
 
+    lines |= _standing(root, tree, tmp)
     if have_bwrap:
         _live_runs(lines, default=default, reviewer=reviewer, semicolon=semicolon)
         _vanishing_run(lines, root=root, tree=tree)

@@ -57,6 +57,7 @@ def _repo(tmp_path, extra_binds):
     (tmp_path / OUTSIDE).mkdir(exist_ok=True)
     (tmp_path / SPARE).mkdir(exist_ok=True)
     repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
     (repo / "gauntlet" / "specs" / "approved").mkdir(parents=True)
     (repo / "gauntlet" / "reviews").mkdir(parents=True)
     (repo / ".claude" / "worktrees" / TREE_ALPHA / "tests").mkdir(parents=True)
