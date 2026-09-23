@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+- **A plan has a seventh section, `## Rules touched`.** It lists each rule in force on the changed surface as `kept` or `overturned`, and the `prosecutor`'s check (e) reads it. `docs/plans.md` also requires a relation's reading at its edges, which check (f) reads, and states that neither is escape prose that check (l) deletes. It also states what each `prosecutor` brief carries.
+- **A plan header reading `grounding:` is read as `discovery:`.** An approved plan written under the header's former name no longer reads as a missing line.
+
+### Fixed
+- **`cite.py` counts only the files git shows when it resolves a basename.** An ignored tool cache carrying its own `.gitignore`, such as `.mypy_cache/`, no longer makes a `.gitignore:<N>` citation `AMBIGUOUS`.
+
 ## [0.9.0] - 2026-09-23
 
 ### Added

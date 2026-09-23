@@ -16,7 +16,7 @@ The approved plan is tracked because a later stage reads it from disk. That is t
 
 ## The shape
 
-The plan opens with two metadata lines and the owner's brief, then six sections. A reviewer reads `slug:` and `discovery:` as metadata, never as framing.
+The plan opens with two metadata lines and the owner's brief, then seven sections. A reviewer reads `slug:` and `discovery:` as metadata, never as framing. A new plan spells the second line `discovery:`, and a reviewer reads `grounding:` in that position as `discovery:`.
 
 ```
 slug: <slug>
@@ -29,6 +29,7 @@ brief:
 ## What the owner sees change
 ## Which files get touched, and roughly how
 ## Caller-side delta
+## Rules touched
 ## What it costs
 ## Open questions
 ```
@@ -38,8 +39,11 @@ brief:
 - **What the owner sees change** is the delta as the owner experiences it, not as the diff expresses it.
 - **Which files get touched, and roughly how** names files and the shape of the change in each. It is not a diff, and it is not a promise of line counts.
 - **Caller-side delta** applies where anything outside the changed files has to change with them — an interface, a path, an agent's own instructions. `none` where nothing does.
+- **Rules touched** lists every rule already in force that governs the changed surface — a numbered rule in `docs/testing.md`, a gate in `docs/`, a rule in an agent definition, a pinned test — one line each, cited, and marked `kept` or `overturned`. `none` where the change touches no rule. `prosecutor`'s check (e) reads this section, and a rule overturned without a line here fails it.
 - **What it costs** names the work the change forces, the tests it breaks, and what was deliberately left out, with the owner's own words where a scope instruction produced the cut. An element check (m) cut, and one the owner refused leave for, is one line here each: the owner reads every cut in the plan they approve.
 - **Open questions** is `None` or a numbered list. A question here reaches the owner; a question addressed to the reviewer is a leading tell and burns the round.
+
+Wherever a section states a relation — a rule and the cases it applies to, a search and what it finds, a limit and what it admits — it gives the relation's reading at the edges of its state space, in the same sentence or the next: the first case the rule catches and the nearest case it misses, the bound on a search or trace and where it stops, and the empty, capped and widest inputs where the surface has them. Where the relation reads the same at every edge, the plan says so in one clause. `prosecutor`'s check (f) reads these readings, and a relation stated only for the typical case fails it.
 
 ## Register, and where a fact lives
 
@@ -47,7 +51,7 @@ A plan body is written in the compressed register the agent definitions under `a
 
 Each fact lands in exactly one section, and a section that needs it again names the section carrying it rather than restating it. The rationale for a design choice belongs under **Which files get touched**; the price of that choice belongs under **What it costs**; a defect in the tree belongs under **What is wrong** and is cited, not re-narrated, where the change to it is described. A plan that states one reading in two sections has said nothing more and has made the reviewer resolve the same citation twice.
 
-Escape prose is owed after a `FAIL`, not before. Every check the plan gate runs is a red flag with one named escape, and a plan that pre-argues a check which has not fired pays that round's words on every plan to save a round on some. Write the plan, let the reviewer name the check it fails, and answer that check then. An escape argued against a check nobody raised is itself a restatement, and `prosecutor`'s check (l) fails it as one.
+Escape prose is owed after a `FAIL`, not before. The **Rules touched** section and the edge readings above are not escape prose: they are content the shape requires, checks (e) and (f) read them as they read a citation, and a plan without them fails in the first round. Every other check the plan gate runs is a red flag with one named escape, and a plan that pre-argues a check which has not fired pays that round's words on every plan to save a round on some. Write the plan, let the reviewer name the check it fails, and answer that check then. An escape argued against a check nobody raised is itself a restatement, and `prosecutor`'s check (l) fails it as one.
 
 ## Citations
 
@@ -72,6 +76,20 @@ A citation stands for its content. The reviewer opens every line a plan cites, s
 ## Discovery
 
 The pointers a plan cites come from one `detective` round: every question in one brief, a `file:line` table back. The main agent does not read half the tree to write a plan, and the reviewer resolves the citations that come back.
+
+## The brief to the reviewer
+
+Before every round that will carry checks, the main agent calls `mcp__plugin_gauntlet_pair__review_plan` with the plan's slug. The call returns one line, `REVIEW <gauntlet dir>/reviews/<slug>.plan.<N>.txt`, and the brief carries that line word for word. The reviewer cannot read `<gauntlet dir>/reviews/` and does not pick a round number of its own, so a brief without the line gets a round that runs no check and writes nothing. `docs/agents.md` states the counting rule.
+
+The brief has one of three shapes, and each carries the `REVIEW` line first:
+
+- **First round.** The whole plan prose, inline, from the `slug:` line to the last section. The reviewer reviews the text in its prompt and does not open the draft file.
+- **Re-review.** Each changed sentence named by its first words, with its new text. Beneath that, for every finding of the previous round, the named repair or the citation that answers it. Beneath that, the previous round's line for every check whose text did not change, verbatim, which the reviewer prints as `carried`. The unchanged plan is not sent again: the reviewer holds it from the round before, in the same session.
+- **Amendment.** The slug, each amended line named by its first words with its new text, and the measured value with its command and output, as the section below states. The plan body is on disk and the reviewer reads it there.
+
+A re-review goes to the reviewer that ran the round before, by `SendMessage`, because only that reviewer holds the plan and the findings the return answers. A plan sent to a fresh reviewer after contempt takes the first-round shape.
+
+Nothing else goes in a brief: no summary of the change, no account of what the previous round got wrong, no recital of the checks. `prosecutor` counts each of these as a framing tell.
 
 ## The gate
 
