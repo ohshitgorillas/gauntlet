@@ -63,5 +63,5 @@ Then run `python3 scripts/init.py` once in the project. It writes `.claude/blind
 - `node_command`: `node --test`
 - `extra_binds`: `[]`
 
-`GAUNTLET=off claude` is the owner's switch. It silences `lanes.py`, `no-impl-reads.py` and the `Stop` gate for one session, and it is thrown on the shell that launches the session and nowhere else.
+`GAUNTLET=off claude` is the owner's switch. It silences `lanes.py`, `no-impl-reads.py`, `bwrap-wrap.py`, `blind-write.py`, `lane-audit.py`, `kit-probe.py` and the `Stop` gate for one session, and it is thrown on the shell that launches the session and nowhere else.
 
