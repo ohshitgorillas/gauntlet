@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-22
+
 ### Added
 - **The blind agents reach `scripts/blind.sh` through the `blind` MCP server.** `scripts/mcp/blind_server.py` serves three tools, one per `blind.sh` verb, checks each argument against its type and runs the script as an argv list with no shell between them. A run returns one `PASSED`, `FAILED` or `ERROR` line per id, a parametrized id cut to its bracket index and a node name to its run position. No source line, exception message or lint output reaches the caller. The `scrivener` and the `bailiff` admit `mcp__plugin_gauntlet_blind__*`.
 - **The `scrivener` formats the file it writes through the `blind-write` MCP server.** `scripts/mcp/blind_write_server.py` serves one tool, `format`, which runs `blind.sh format` over one path and returns `clean` or `not clean`, never the fix tools' output. `hooks/blind-write.py`, wired at `PreToolUse` on `mcp__plugin_gauntlet_blind-write__.*`, denies every caller but the `scrivener`, the main agent included.
