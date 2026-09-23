@@ -12,11 +12,6 @@ table `bwrap-wrap.py` builds, which binds every lane directory read-only
 inside every wrapped profile. A command that names a lane is not parsed for
 the name any more; it fails in the kernel or it does not touch the lane.
 
-What is left of the shell side is `TESTPATH`, the shape of a test path. It is
-a path shape, not a command shape: the test directory as configured, optionally under one spec
-worktree, matched whole and matched again after `os.path.normpath`, so an
-argument that opens under the lane and walks out of it is not that shape.
-
 The owner's off switch lives here too, as `bypassed()`. It reads `os.environ`
 and never a hook payload: the payload is the one input an agent controls, and a
 switch honouring a payload key would be a bypass any subagent could forge in a
@@ -26,34 +21,10 @@ tool call.
 from __future__ import annotations
 
 import os
-import re
 from pathlib import Path
-
-from lane_config import tests_dir
 
 #: a slug names one path segment and carries no traversal
 SLUG = r"[A-Za-z0-9][A-Za-z0-9._-]*"
-#: a spec worktree is the other place a blind agent's tests live, so the blind
-#: runner's argument may carry that one prefix and no other: the writer runs
-#: the suite in the tree it wrote in
-TREE = rf"\.claude/worktrees/{SLUG}-spec/"
-
-
-def path_shape(prefix: str) -> str:
-    """The regex source a path prefix expands into.
-
-    Repo-relative, under `prefix`, optionally inside a spec worktree. The
-    trailing class admits `.` and `/`, so it admits `..` as well: the shape is
-    not the whole key, and `is_blind_run` normalizes what it matches.
-    """
-    return rf"(?:{TREE})?{re.escape(prefix)}/[A-Za-z0-9_][A-Za-z0-9._/-]*"
-
-
-#: the shape a test path takes under the configured test directory
-TESTPATH = path_shape(tests_dir())
-
-
-_TESTPATH_WHOLE = re.compile(TESTPATH + r"\Z")
 
 
 def checkout_root(path: str) -> str | None:

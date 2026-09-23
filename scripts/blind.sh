@@ -18,9 +18,11 @@
 #
 # It does not mask the implementation. A test run needs the code it tests on
 # disk, and a mask turns the suite into a collect error, which separates
-# nothing. The blindness that holds here is the blindness `no-impl-reads.py`
-# holds: the agent cannot read the implementation, and cannot type a command
-# that prints it.
+# nothing. The blindness holds on the two channels the agent has.
+# `no-impl-reads.py` denies it every `Read`, `Grep` and `Glob` of the
+# implementation, and the `test` tool of `scripts/mcp/blind_server.py` returns
+# a narrowed report with no source line in it, so no line of the code reaches
+# the agent through either.
 #
 # A slug names its worktree. `.claude/worktrees/<slug>-spec` is where a block's
 # writer works, so `status` and `show` answer from that tree when it exists and
