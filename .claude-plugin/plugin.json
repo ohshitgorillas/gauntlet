@@ -12,6 +12,10 @@
     "blind": {
       "command": "python3",
       "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp/blind_server.py"]
+    },
+    "blind-write": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp/blind_write_server.py"]
     }
   },
   "hooks": {
@@ -40,6 +44,15 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/bwrap-wrap.py"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__plugin_gauntlet_blind-write__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/blind-write.py"
           }
         ]
       }

@@ -289,7 +289,7 @@ def run(words: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProces
     )
 
 
-def _fault(done: subprocess.CompletedProcess[str]) -> rpc.Reply:
+def fault(done: subprocess.CompletedProcess[str]) -> rpc.Reply:
     """`blind.sh`'s own refusal lines, and nothing any child printed."""
     own = [line for line in done.stderr.splitlines() if line.startswith("blind.sh: ")]
     return rpc.Reply("\n".join(own) or f"blind.sh exited {done.returncode}", error=True)
@@ -309,10 +309,10 @@ def handle(name: str, arguments: dict[str, Any], cwd: Path | None = None) -> rpc
     except subprocess.TimeoutExpired:
         return rpc.Reply(f"blind.sh {name} ran past {timeout}s", error=True)
     if done.returncode == 2:
-        return _fault(done)
+        return fault(done)
     if name != "test":
         if done.returncode != 0:
-            return _fault(done)
+            return fault(done)
         return rpc.Reply(done.stdout or "clean\n")
     report = narrow(done.stdout, tests, words[0])
     if not report:
