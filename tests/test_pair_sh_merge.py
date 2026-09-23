@@ -720,3 +720,50 @@ def _red_and_brief_commits(tmp_path):
 def test_the_brief_names_the_commit_red_recorded_rather_than_the_merge(tmp_path):
     recorded, briefed, subject, landed = _red_and_brief_commits(tmp_path)
     assert (briefed == recorded, recorded != landed, subject) == (True, True, "test: " + SLUG)
+
+
+TRACKED_FILE = "tests/test_a.py"
+TRACKED_OTHER = "def test_a_owner():\n    assert 8 + 8 == 16\n"
+
+
+def _merge_over_a_tracked_edit(tmp_path, on_disk):
+    """Land a pair changing a tracked test over an unstaged edit of it.
+
+    The base commit carries `TRACKED_FILE` as `TEST_A_BASE`, the spec tree
+    commits it as `TEST_A_OTHER`, and after the check the primary checkout's
+    working copy is edited to `on_disk`, unstaged. Returns the file at the
+    target branch's HEAD, the working copy's text, whether the spec worktree
+    is gone, and whether the merge's stderr names the file after its refusal.
+    """
+    repo = _repo(tmp_path, BLOCK_NEW, REVIEWER)
+    (repo / TRACKED_FILE).write_text(TEST_A_BASE)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "base tests")
+    _pair(repo, "open", SLUG)
+    worktree = _worktree(repo)
+    (worktree / TRACKED_FILE).write_text(TEST_A_OTHER)
+    _git(worktree, "add", "-A")
+    _git(worktree, "commit", "-m", "spec tests")
+    _pair(repo, "check", SLUG)
+    (repo / TRACKED_FILE).write_text(on_disk)
+    _, stderr = _merge_output(repo)
+    _, _, after = stderr.partition("will not fast-forward")
+    return (
+        _show(repo, "HEAD:" + TRACKED_FILE),
+        (repo / TRACKED_FILE).read_text(),
+        not worktree.is_dir(),
+        TRACKED_FILE in after,
+    )
+
+
+@pytest.mark.parametrize(
+    ("on_disk", "expected"),
+    [
+        (TEST_A_OTHER, (TEST_A_OTHER, TEST_A_OTHER, True, False)),
+        # a differing tracked edit is the owner's work: it refuses the land
+        (TRACKED_OTHER, (TEST_A_BASE, TRACKED_OTHER, False, True)),
+    ],
+    ids=["tracked-edit-identical-to-what-lands", "tracked-edit-that-differs"],
+)
+def test_only_a_tracked_edit_identical_to_what_lands_gives_way_to_it(tmp_path, on_disk, expected):
+    assert _merge_over_a_tracked_edit(tmp_path, on_disk) == expected

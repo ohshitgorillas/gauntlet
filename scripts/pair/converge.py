@@ -226,32 +226,40 @@ def gate(slug: str) -> bool:
     return done.returncode == 0
 
 
-def shadowing(branch: str) -> list[str]:
-    """Untracked files in the primary checkout the land would write, byte for byte identical.
+def shadowing(branch: str) -> tuple[list[str], list[str]]:
+    """Files in the primary checkout the land would write, byte for byte identical.
 
-    The approved block is such a file. It reaches the lane as a file the
-    reviewer wrote in the primary checkout, untracked there, and `pair.sh open`
-    commits it on the spec branch; the land then brings that commit back. git
-    refuses to fast-forward over an untracked working tree file even where the
-    blob landing on it is that file byte for byte, so the pair died on a copy of
-    the commit it was landing.
+    Two lists: the untracked such files, and the tracked ones. The approved
+    block is an untracked one. It reaches the lane as a file the reviewer wrote
+    in the primary checkout, and `pair.sh open` commits it on the spec branch;
+    the land then brings that commit back. git refuses to fast-forward over an
+    untracked working tree file even where the blob landing on it is that file
+    byte for byte, so the pair died on a copy of the commit it was landing.
 
-    Identical is the whole of the test. A tracked file is an ordinary local
-    change and not this function's business, and an untracked file whose content
-    differs is the owner's work, which the land must keep refusing rather than
-    quietly delete.
+    A tracked file is the same case where the owner edited it in the checkout
+    and the pair carries that edit: git refuses to fast-forward over a local
+    change even where it is the change landing. It counts only unstaged, with
+    its index entry equal to HEAD, so restoring it to HEAD discards nothing git
+    does not also hold in the landing blob.
+
+    Identical is the whole of the test. A file whose content differs, tracked
+    or not, is the owner's work, which the land must keep refusing rather than
+    quietly overwrite.
     """
-    named = []
+    untracked: list[str] = []
+    tracked: list[str] = []
     for name in git("diff", "--name-only", "HEAD", branch).splitlines():
-        if not name or git_ok("ls-files", "--error-unmatch", "--", name):
-            continue
-        local = Path(path(name))
-        if local.is_symlink() or not local.is_file():
+        local = Path(path(name)) if name else None
+        if local is None or local.is_symlink() or not local.is_file():
             continue
         landing = git("rev-parse", branch + ":" + name, check=False)
-        if landing and landing == git("hash-object", "--", name, check=False):
-            named.append(name)
-    return named
+        if not landing or landing != git("hash-object", "--", name, check=False):
+            continue
+        if not git_ok("ls-files", "--error-unmatch", "--", name):
+            untracked.append(name)
+        elif git_ok("diff", "--cached", "--quiet", "HEAD", "--", name):
+            tracked.append(name)
+    return untracked, tracked
 
 
 def land(slug: str) -> str:
@@ -268,16 +276,20 @@ def land(slug: str) -> str:
             + TARGET
             + " and rerun."
         )
-    gave_way = shadowing(branch)
-    for name in gave_way:
+    untracked, tracked = shadowing(branch)
+    for name in untracked:
         Path(path(name)).unlink()
         note("  " + name + ": the untracked copy gives way to the commit landing on it")
+    for name in tracked:
+        git("restore", "--source=HEAD", "--worktree", "--", name)
+        note("  " + name + ": the local edit gives way to the same edit landing on it")
     landed, refusal = trees.git_err("merge", "--ff-only", branch)
     if not landed:
         #: the land refused for some other file, so nothing came back to take
         #: the place of the copies taken out of the way: write them back rather
-        #: than leave the checkout short a file the refusal did not name
-        for name in gave_way:
+        #: than leave the checkout short a file, or an edit, the refusal did not
+        #: name. Each one was the landing blob byte for byte.
+        for name in untracked + tracked:
             #: bytes, and `cat-file blob` rather than `show`: a restored copy
             #: has to be the file that was there, newlines and all
             blob = subprocess.run(
