@@ -4,6 +4,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **A blind agent's tools line carries no shell and no `pair` tool.** `scripts/gates/blind-no-shell.py` holds every agent in the `BLIND` tuple to that, and the gate run fails where one does.
+- **No hook reads a `Bash` call's command.** `scripts/gates/no-command-reads.py` fails the gate run where any hook or server inspects the command text, or where a wired `Bash` hook answers two command texts differently for one caller.
+- **The shipped-kit gates cover the MCP servers.** An untracked or uncompilable server, one that answers no self-check, or one whose `tools/list` omits a tool an agent definition grants fails the gate run. `kit-probe.py` names a missing server dependency at SessionStart.
+
+### Changed
+- **The `arbiter` holds no shell.** Its `tools:` line is `Read, Grep, Glob, Write`, so every blind agent reaches the tree through its typed tools alone.
+- **`GAUNTLET=off` names every hook it silences.** `lanes.py`, `no-impl-reads.py`, `bwrap-wrap.py`, `blind-write.py`, `lane-audit.py`, `kit-probe.py` and the `Stop` gate, from one constant in `gauntlet-off.py`, in `README.md` and in `docs/agents.md`.
+
+### Fixed
+- **The sandbox root is the checkout the cwd sits in.** A wrapped shell binds the main checkout writable and every lane inside it read-only whatever directory the session stands in, a worktree included, and starts in the cwd. A cwd in no checkout is denied.
+- **A failing MCP call answers with an error and the server stays up.** Every handler failure, unreadable line or runner that cannot start comes back as an error reply, and the next call is answered.
+- **`pair` and `blind` tool output is byte-faithful.** `\r\n` and a non-UTF-8 byte reach the caller as they were, and `CLAUDE_PROJECT_DIR` is forwarded only where the host set it.
+- **The `pair` server admits every slug `pair.sh` admits.** `review` refuses the slug `plan`, and `blind`'s node report keeps two entries sharing a name as two lines.
+
 ## [0.8.0] - 2026-09-23
 
 ### Added
