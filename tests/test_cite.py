@@ -111,6 +111,7 @@ def _build_root(root, solo, dup):
     """A root carrying the script, one `solo` file and two copies of `dup`."""
     (root / "scripts").mkdir(parents=True)
     shutil.copy(SCRIPT, root / "scripts" / "cite.py")
+    shutil.copy(SCRIPT.with_name("cite_tree.py"), root / "scripts" / "cite_tree.py")
     (root / "data" / "x").mkdir(parents=True)
     (root / "data" / "y").mkdir(parents=True)
     (root / "data" / solo).write_text("the only copy of this line\n")

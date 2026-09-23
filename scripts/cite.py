@@ -50,9 +50,10 @@ no checkout falls back to this file's own checkout.
 
 import argparse
 import re
-import subprocess
 import sys
 from pathlib import Path
+
+from cite_tree import _ls, candidates
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -74,8 +75,6 @@ def checkout_of(doc: Path, fallback: Path = ROOT) -> Path:
             return ancestor
     return fallback
 
-
-SKIP = {".git", ".venv", ".pytest_cache", "node_modules", "__pycache__"}
 
 _SPAN = re.compile(r"`([^`\n]+)`")
 _CITE = re.compile(r"^(?P<path>[^\s`]*):(?P<start>\d+)(?:-(?P<end>\d+))?$")
@@ -228,29 +227,6 @@ def parse(text: str) -> list[Citation]:
     return found
 
 
-def _ls(at: Path | str, *args: str) -> subprocess.CompletedProcess[str]:
-    """`git ls-files -z` run at `at`; a failure is its return code, never a raise."""
-    cmd = ["git", "-C", str(at), "ls-files", "-z", *args]
-    return subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=60)
-
-
-def candidates(name: str) -> list[Path]:
-    """Every path carrying that basename: what git shows, ignored files out, or a walk."""
-    git = _ls(ROOT, "--cached", "--others", "--exclude-standard")
-    shown = (ROOT / n for n in git.stdout.split("\0") if n and Path(n).name == name)
-    hits = []
-    for path in ROOT.rglob(name) if git.returncode else shown:
-        #: relative to ROOT: a root that is itself a worktree searches its own tree
-        parts = path.relative_to(ROOT).parts
-        if any(part in SKIP for part in parts):
-            continue
-        if "worktrees" in parts:
-            continue  # a worktree carries a second copy of every path in the tree
-        if path.is_file():
-            hits.append(path)
-    return sorted(hits)
-
-
 def _settle(cite: Citation, target: Path) -> None:
     """Resolve to `target` where it is a file, MISSING otherwise."""
     if target.is_file():
@@ -279,7 +255,7 @@ def resolve(cite: Citation) -> None:
     if "/" in named:
         _settle(cite, ROOT / named)
         return
-    hits = candidates(named)
+    hits = candidates(named, ROOT)
     if not hits:
         cite.verdict = "MISSING"
     elif len(hits) > 1:

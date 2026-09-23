@@ -53,7 +53,7 @@ TRACKED = ("*.py", "*.sh")
 #: file shrinks — the gate insists on it. Do not raise one; that is the crawl
 #: this table exists to refuse.
 ALLOWANCE: dict[str, int] = {
-    "scripts/cite.py": 468,
+    "scripts/cite.py": 444,
     "scripts/strike-diff.py": 453,
     "scripts/pair/cli.py": 402,
 }
