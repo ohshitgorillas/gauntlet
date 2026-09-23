@@ -4,9 +4,10 @@
     scripts/gates/no-barrels.py [<path>...]
     scripts/gates/no-barrels.py --self-test
 
-With no paths the gate reads `git ls-files` for `*.py` and keeps what sits under
-`hooks/` and `scripts/`, which is the whole of what this repository ships as
-Python. Paths on argv override that set.
+With no paths the gate reads `git ls-files --cached --others --exclude-standard`
+for `*.py`, tracked and untracked alike less what git ignores, and keeps what sits
+under `hooks/` and `scripts/`, which is the whole of what this repository ships
+as Python. Paths on argv override that set.
 
 Two shapes share this gate. Both make a file shorter without making the tree
 simpler, and both read as a completed split to anything that only counts lines —
@@ -177,9 +178,9 @@ def forwarders(name: str, tree: ast.Module) -> list[str]:
 
 
 def tracked_files() -> list[str]:
-    """Return the tracked Python files of the tree the gate is run in, under the shipped roots."""
+    """Return the Python files under the shipped roots, tracked or untracked."""
     listed = subprocess.run(
-        ["git", "ls-files", "-z", *TRACKED],
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", *TRACKED],
         capture_output=True,
         text=True,
         check=True,
@@ -257,7 +258,7 @@ def check(
 
 
 def main(argv: list[str]) -> int:
-    """Check the paths on argv, or the tracked Python files when argv names none."""
+    """Check the paths on argv, or the listed Python files when argv names none."""
     names = [arg for arg in argv[1:] if not arg.startswith("--")]
     return check(names or tracked_files())
 

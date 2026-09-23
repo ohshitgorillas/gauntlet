@@ -16,6 +16,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import os
+import subprocess
 import sys
 import tempfile
 from contextlib import redirect_stdout
@@ -46,18 +47,26 @@ def _write(root: Path, relpath: str, lines: int) -> str:
     return relpath
 
 
-def _run(files: dict[str, int], names: list[str], allowance: dict[str, int]) -> tuple[int, str]:
-    """Build a tree of `files`, run the gate over `names`, and return its status and stdout."""
+def _run(
+    files: dict[str, int], names: list[str] | None, allowance: dict[str, int]
+) -> tuple[int, str]:
+    """Build a tree of `files`, run the gate over `names`, and return its status and stdout.
+
+    With `names` None the tree is a git checkout the files sit in untracked, and
+    the gate picks its own file set.
+    """
     cwd = Path.cwd()
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         for relpath, lines in files.items():
             _write(root, relpath, lines)
+        if names is None:
+            subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True, timeout=60)
         os.chdir(root)
         out = io.StringIO()
         try:
             with redirect_stdout(out):
-                status = GATE.check(names, allowance)
+                status = GATE.check(GATE.tracked_files() if names is None else names, allowance)
         finally:
             os.chdir(cwd)
     return status, out.getvalue()
@@ -152,6 +161,9 @@ def self_test() -> int:  # noqa: PLR0915
         (True, True),
     )
     check("a compliant file beside an offender is not named", "hooks/one.py" in out, False)
+
+    status, out = _run({long_file: cap + 1}, None, {})
+    check("with no paths an untracked code file is read", (status, long_file in out), (1, True))
 
     check("the shipped tree passes its own gate", GATE.main(["file-length.py"]), 0)
 

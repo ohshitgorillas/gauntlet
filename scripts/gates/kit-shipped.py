@@ -97,6 +97,24 @@ def tracked(root: Path = ROOT) -> set[str]:
     return set(done.stdout.split())
 
 
+def documents(root: Path = ROOT) -> list[str]:
+    """Every Markdown file of the checkout, tracked or untracked, less what git ignores.
+
+    Wider than `tracked` on purpose. What the kit carries is the index, but a
+    document written and not yet added still names paths, and a gate that only
+    reads it once it is committed reads it one commit too late.
+    """
+    done = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "*.md"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    return sorted({name for name in done.stdout.split("\0") if name})
+
+
 def manifest_paths(root: Path = ROOT) -> list[str]:
     """Every kit path the manifest's wired commands name, once each."""
     try:
@@ -118,9 +136,9 @@ def manifest_paths(root: Path = ROOT) -> list[str]:
 
 
 def prose_paths(root: Path = ROOT) -> dict[str, set[str]]:
-    """Every kit path the tracked prose names, document to the paths in it."""
+    """Every kit path the prose names, tracked or not, document to the paths in it."""
     out: dict[str, set[str]] = {}
-    for name in sorted(p for p in tracked(root) if p.endswith(".md") and p != CHANGELOG):
+    for name in (p for p in documents(root) if p != CHANGELOG):
         try:
             text = (root / name).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

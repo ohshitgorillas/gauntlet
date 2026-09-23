@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import os
+import subprocess
 import sys
 import tempfile
 from contextlib import redirect_stdout
@@ -39,19 +40,24 @@ def _load_gate() -> ModuleType:
 GATE = _load_gate()
 
 
-def _run(source: str, exempt: dict[str, str] | None = None, name: str = MODULE) -> tuple[int, str]:
+def _run(
+    source: str, exempt: dict[str, str] | None = None, name: str = MODULE, listed: bool = False
+) -> tuple[int, str]:
     """Write `source` into a throwaway tree, run the gate over it, and return its
-    status and stdout."""
+    status and stdout. With `listed` the tree is a git checkout the module sits in
+    untracked, and the gate picks its own file set."""
     cwd = Path.cwd()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source)
+        if listed:
+            subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True, timeout=60)
         os.chdir(tmp)
         out = io.StringIO()
         try:
             with redirect_stdout(out):
-                status = GATE.check([name], exempt or {})
+                status = GATE.check(GATE.tracked_tests() if listed else [name], exempt or {})
         finally:
             os.chdir(cwd)
     return status, out.getvalue()
@@ -185,6 +191,9 @@ def self_test() -> int:  # noqa: PLR0915
 
     status, out = _run(PRIVATE, name=SUPPORT)
     check("a support fake reaching its own state is not scanned", (status, out), (0, ""))
+
+    status, out = _run(TWO, listed=True)
+    check("with no paths an untracked test module is read", (status, "test_two" in out), (1, True))
 
     check("the shipped suite passes its own gate", GATE.main(["test-assertions.py"]), 0)
 

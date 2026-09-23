@@ -8,7 +8,8 @@ Hard-wrapped prose makes every later edit a reflow and every diff unreadable.
 Three modes:
 
   --check FILE...   exit 1 if any file carries hard-wrapped prose (prints paths)
-                    with no FILE, checks every tracked `*.md` from `git ls-files`
+                    with no FILE, checks every `*.md` from `git ls-files
+                    --cached --others --exclude-standard`, tracked or untracked
   --fix   FILE...   rewrite the files in place, joining continuation lines
   --self-test       one PASS or FAIL line per rule this gate holds
 
@@ -174,14 +175,14 @@ def reflow(source: str) -> str:
 
 
 def tracked_md() -> list[str]:
-    """Return the tracked Markdown files of the tree the gate is run in.
+    """Return the Markdown files of the tree the gate is run in, tracked or untracked.
 
     The no-argument default for `--check`. A gate that has to be handed its
-    paths checks whatever the caller remembered; reading the index instead
-    means a new document is covered the moment it is added.
+    paths checks whatever the caller remembered; asking git instead means a new
+    document is covered the moment it is written, and an ignored one never is.
     """
     listed = subprocess.run(
-        ["git", "ls-files", "-z", "*.md"],
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "*.md"],
         capture_output=True,
         text=True,
         check=True,

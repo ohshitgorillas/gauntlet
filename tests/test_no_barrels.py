@@ -115,13 +115,13 @@ def test_with_no_paths_a_tracked_file_outside_the_shipped_roots_is_left_alone(tm
 
 
 # 9
-def test_with_no_paths_an_untracked_file_under_a_shipped_root_is_left_alone(tmp_path):
+def test_with_no_paths_an_untracked_file_under_a_shipped_root_is_read(tmp_path):
     _repo(tmp_path, {"hooks/good.py": DEFINES_FUNCTION})
     _write(tmp_path, {"hooks/barrel.py": REEXPORT})
 
     status, out = _run(tmp_path, [])
 
-    assert (status, out) == (0, "")
+    assert (status, "hooks/barrel.py" in out) == (1, True)
 
 
 # 10

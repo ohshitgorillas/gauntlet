@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import os
+import subprocess
 import sys
 import tempfile
 from contextlib import redirect_stdout
@@ -38,20 +39,23 @@ def _load_gate() -> ModuleType:
 GATE = _load_gate()
 
 
-def _run(source: str, extra: dict[str, str] | None = None) -> tuple[int, str]:
+def _run(source: str, extra: dict[str, str] | None = None, listed: bool = False) -> tuple[int, str]:
     """Write a suite into a throwaway tree, run the gate over its module, and
-    return status and stdout."""
+    return status and stdout. With `listed` the tree is a git checkout the suite
+    sits in untracked, and the gate picks its own file set."""
     cwd = Path.cwd()
     with tempfile.TemporaryDirectory() as tmp:
         for relpath, text in {MODULE: source, **(extra or {})}.items():
             path = Path(tmp) / relpath
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
+        if listed:
+            subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True, timeout=60)
         os.chdir(tmp)
         out = io.StringIO()
         try:
             with redirect_stdout(out):
-                status = GATE.check([MODULE])
+                status = GATE.check(GATE.tracked_tests() if listed else [MODULE])
         finally:
             os.chdir(cwd)
     return status, out.getvalue()
@@ -133,6 +137,9 @@ def self_test() -> int:
 
     status, out = _run(COPY, {"tests/support/fixtures/reply.txt": FIXTURE})
     check("a literal lying inside a fixture file passes", (status, out), (0, ""))
+
+    status, out = _run(COPY, listed=True)
+    check("with no paths an untracked test module is read", (status, MODULE in out), (1, True))
 
     check("the shipped suite passes its own gate", GATE.main(["no-copy-assertions.py"]), 0)
 

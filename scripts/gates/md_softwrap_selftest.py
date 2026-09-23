@@ -77,8 +77,9 @@ def _run(mode: str, files: dict[str, str]) -> tuple[int, str, dict[str, str]]:
 def _run_tracked(files: dict[str, str], tracked: list[str]) -> tuple[int, str]:
     """Run bare `--check` in a throwaway git tree, with `tracked` added to its index.
 
-    The no-argument default reads the index, so the only honest test of it is a
-    real index: an untracked offender left beside a tracked one proves the gate
+    The no-argument default asks git for the tracked and the untracked files, so
+    the only honest test of it is a real checkout: an untracked offender is read
+    beside a tracked one, and an ignored one is left out, which proves the gate
     is reading `git ls-files` rather than the directory.
     """
     argv, cwd = sys.argv, Path.cwd()
@@ -176,7 +177,14 @@ def self_test() -> int:
     )
 
     status, out = _run_tracked({"loose.md": HARD, "ok.md": SOFT}, ["ok.md"])
-    check("--check with no paths ignores an untracked hard-wrapped file", (status, out), (0, ""))
+    check(
+        "--check with no paths refuses an untracked hard-wrapped file",
+        (status, "loose.md" in out),
+        (1, True),
+    )
+
+    status, out = _run_tracked({".gitignore": "loose.md\n", "loose.md": HARD, "ok.md": SOFT}, [])
+    check("--check with no paths ignores a gitignored hard-wrapped file", (status, out), (0, ""))
 
     if failed:
         print(f"\n{failed} FAILED")

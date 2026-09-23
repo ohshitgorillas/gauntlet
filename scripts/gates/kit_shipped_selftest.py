@@ -11,7 +11,9 @@ reading path raises reports nothing at all.
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from types import ModuleType
 
@@ -39,6 +41,16 @@ DEFINITION = (
 
 #: the paths a sound kit carries
 CARRIED = {"hooks/lanes.py", "docs/agents.md", "agents/juror.md"}
+
+
+def _untracked_prose() -> dict[str, set[str]]:
+    """The paths the gate reads out of a git tree whose one document is untracked."""
+    with tempfile.TemporaryDirectory() as tmp:
+        subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True, timeout=60)
+        (Path(tmp) / "docs").mkdir()
+        (Path(tmp) / "docs/new.md").write_text("See `hooks/gone.py`.\n", encoding="utf-8")
+        found: dict[str, set[str]] = GATE.prose_paths(Path(tmp))
+    return found
 
 
 def _rules() -> dict[str, bool]:
@@ -93,6 +105,9 @@ def _rules() -> dict[str, bool]:
             and len(GATE.judge_version("0.5.0", "0.4.0")) == 1
             and len(GATE.judge_version(None, "0.5.0")) == 1
             and len(GATE.judge_version("0.5.0", None)) == 1
+        ),
+        "an untracked document is read for the paths it names": (
+            _untracked_prose() == {"docs/new.md": {"hooks/gone.py"}}
         ),
         "the index is read as git answers it": (
             GATE.MANIFEST in GATE.tracked() and "hooks/lanes.py" in GATE.tracked()

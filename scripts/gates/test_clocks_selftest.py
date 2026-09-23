@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import os
+import subprocess
 import sys
 import tempfile
 from contextlib import redirect_stdout
@@ -39,19 +40,22 @@ def _load_gate() -> ModuleType:
 GATE = _load_gate()
 
 
-def _run(source: str, name: str = MODULE) -> tuple[int, str]:
+def _run(source: str, name: str = MODULE, listed: bool = False) -> tuple[int, str]:
     """Write `source` into a throwaway tree, run the gate over it, and return its
-    status and stdout."""
+    status and stdout. With `listed` the tree is a git checkout the module sits in
+    untracked, and the gate picks its own file set."""
     cwd = Path.cwd()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source)
+        if listed:
+            subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True, timeout=60)
         os.chdir(tmp)
         out = io.StringIO()
         try:
             with redirect_stdout(out):
-                status = GATE.check([name])
+                status = GATE.check(GATE.tracked_tests() if listed else [name])
         finally:
             os.chdir(cwd)
     return status, out.getvalue()
@@ -120,6 +124,9 @@ def self_test() -> int:
 
     status, _ = _run(SLEEP, name=E2E)
     check("an end-to-end test gets no carve-out from the sleep ban", status, 1)
+
+    status, out = _run(SLEEP, listed=True)
+    check("with no paths an untracked test module is read", (status, MODULE in out), (1, True))
 
     check("the shipped suite passes its own gate", GATE.main(["test-clocks.py"]), 0)
 

@@ -4,8 +4,9 @@
     scripts/gates/test-clocks.py [<path>...]
     scripts/gates/test-clocks.py --self-test
 
-With no paths the gate reads `git ls-files 'tests/*.py'`, which is the whole of
-what this repository tests itself with. Paths on argv override that set.
+With no paths the gate reads `git ls-files --cached --others --exclude-standard
+'tests/*.py'`, tracked and untracked alike less what git ignores, which is the
+whole of what this repository tests itself with. Paths on argv override that set.
 
 `docs/testing.md` rule 7, two patterns in one AST pass.
 
@@ -120,9 +121,9 @@ def faults(name: str, source: str) -> list[str]:
 
 
 def tracked_tests() -> list[str]:
-    """Return the tracked test modules of the tree the gate is run in."""
+    """Return the test modules of the tree the gate is run in, tracked or untracked."""
     listed = subprocess.run(
-        ["git", "ls-files", "-z", *TRACKED],
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", *TRACKED],
         capture_output=True,
         text=True,
         check=True,
@@ -147,7 +148,7 @@ def check(names: list[str]) -> int:
 
 
 def main(argv: list[str]) -> int:
-    """Check the paths on argv, or the tracked test modules when argv names none."""
+    """Check the paths on argv, or the listed test modules when argv names none."""
     names = argv[1:]
     return check(names or tracked_tests())
 
