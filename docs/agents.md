@@ -1,6 +1,6 @@
 # The roster
 
-Nine agents, and the whole system is the shape of what each one is not allowed to see or write.
+Eight agents, and the whole system is the shape of what each one is not allowed to see or write.
 
 | Agent | Sees the code | Writes | Hooks |
 | --- | --- | --- | --- |
@@ -10,13 +10,13 @@ Nine agents, and the whole system is the shape of what each one is not allowed t
 | `arbiter` | **no** | `<gauntlet dir>/reviews/<slug>.<N>.txt`, `<gauntlet dir>/specs/approved/<slug>.txt` | `lanes`, `no-impl-reads` |
 | `scrivener` | **no** | `<tests dir>/` of its own spec worktree | `lanes`, `no-impl-reads` |
 | `bailiff` | **no** | nothing | `lanes`, `no-impl-reads` |
-| `juror` | **no** | nothing | `lanes`, `no-impl-reads` |
+| `juror` | **no** | `<gauntlet dir>/verdicts/<slug>.txt` | `lanes`, `no-impl-reads` |
 | `auditor` | **no** | nothing | `lanes`, `no-impl-reads` |
 | the main agent | yes | everything else | all of them, session-wide |
 
 ## The switch
 
-"All of them, session-wide" holds for a session with the gauntlet on, which is every session the owner does not start with `GAUNTLET=off claude`. That variable silences `lanes.py`, `no-impl-reads.py` and the `Stop` gate for one session, so the owner can work outside the chain — repairing a lane file, demoing the kit, working on the hooks themselves — without weakening a hook in the tree. It is not an agent and takes no row: it belongs to the hand that launches the session, an agent inside one may never propose it, set it, or suggest the owner set it. No hook reads a shell command, so nothing holds the switch inside the session but this rule.
+"All of them, session-wide" holds for a session with the gauntlet on, which is every session the owner does not start with `GAUNTLET=off claude`. That variable silences `lanes.py`, `no-impl-reads.py`, `bwrap-wrap.py`, `blind-write.py`, `lane-audit.py`, `kit-probe.py` and the `Stop` gate for one session, so the owner can work outside the chain — repairing a lane file, demoing the kit, working on the hooks themselves — without weakening a hook in the tree. It is not an agent and takes no row: it belongs to the hand that launches the session, an agent inside one may never propose it, set it, or suggest the owner set it. No hook reads a shell command, so nothing holds the switch inside the session but this rule.
 
 One statement here covers every sentence in this file that says a hook denies something, including `pair.sh red` below. Each is a statement about a session with the gauntlet on.
 

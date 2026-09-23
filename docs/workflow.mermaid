@@ -9,7 +9,7 @@ flowchart TD
     only the test suite?`"}
     lane["`**The tests-only lane**
     no discovery, no plan, no plan review.
-    A test is struck or amended under review instead.`"]
+    A test is struck, amended or rehomed under review instead.`"]
     sweepq{"`A test you brought,
     or a sweep of the suite?`"}
     sweep("`**You**
@@ -38,8 +38,6 @@ flowchart TD
     draft["`The main agent drafts the plan:
     what is wrong, what you will see change, which files get touched,
     what changes for callers, what it costs, what is still open.`"]
-    citecheck["`Every citation is resolved against the tree.
-    A pointer that lands nowhere, or on the wrong file, is caught here.`"]
     citebad{"`Does every citation
     land where the plan says?`"}
 
@@ -80,8 +78,8 @@ flowchart TD
     Nothing is approved and nothing is written.`"]
     repair["`The main agent repairs the named sentences,
     and says which sentences it changed.`"]
-    leash["`A cap of eight rounds.
-    A plan that cannot settle in eight comes to you.
+    leash["`A cap of whatever leash the project sets.
+    A plan that cannot settle within it comes to you.
     A round that goes to you with a question does not count against it.`"]
 
     esc["`**Escalation**
@@ -129,8 +127,7 @@ flowchart TD
     questions --> detective
     detective --> cites
     cites --> draft
-    draft --> citecheck
-    citecheck --> citebad
+    draft --> citebad
     citebad -- no --> draft
     citebad -- yes --> pros
     pros --> framing
@@ -444,18 +441,6 @@ flowchart TD
     by that juror and no other hand. A turn that leaves a red run
     unruled does not end: the Stop hook names the slug.`"]
 
-    owner3("`**You**
-    read the certified red run: one verdict per line,
-    from an agent that wrote none of the tests
-    and has never seen the code.`")
-    word3{"`The first line of your reply`"}
-    hold3["`Everything else holds the gate shut.
-    Implementation does not start on a run
-    that only read like a pass.`"]
-    amend3["`**approved with revision**
-    What you write below that line is applied before work starts.`"]
-    ok3["`**approved**`"]
-
     stage4["`**Stage 4**`"]
 
     stage3 -- "pair tool: open" --> pairopen
@@ -496,14 +481,7 @@ flowchart TD
     greenv -- "characterization, refactor" --> verdictfile
     redv --> verdictfile
     errorv --> verdictfile
-    verdictfile --> owner3
-    owner3 --> word3
-    word3 -- "anything else" --> hold3
-    hold3 --> owner3
-    word3 --> amend3
-    word3 --> ok3
-    amend3 --> stage4
-    ok3 --> stage4
+    verdictfile --> stage4
 
 
     %% ---- Stage 4: implementation, against tests nobody may edit. ----
@@ -649,8 +627,7 @@ flowchart TD
     perline5["`One verdict per behavior line: PIN where the test still
     delivers the line's input and asserts its outcome byte-identical
     to the red commit, SOFT where either differs, MISSING where no test
-    covers the line, EXTRA past the line count. A strike line inverts
-    MISSING alone: there, the test being gone is the success.`"]
+    covers the line, EXTRA past the line count.`"]
     rows5["`Plus one verdict per collateral: row, read from the same
     committed block: HELD where the quoted assertion still sits
     byte-identical in that test's own body, ALTERED where it does not.
@@ -740,9 +717,9 @@ flowchart TD
     class bailiff,freshbail,auditor,amendwrite agent
     class brief,design,owner,word owner
     class ownerrule,owner2,word2 owner
-    class owner3,word3,owner5 owner
+    class owner5 owner
     class sweep,rowspick,exempt,amendword owner
     class amend,ok exit
     class amend2,ok2,stage3 exit
-    class amend3,ok3,stage4 exit
+    class stage4 exit
     class stage5,done exit

@@ -43,7 +43,7 @@ brief:
 
 ## Register, and where a fact lives
 
-A plan body is written in the compressed register the agent definitions under `agents/` use — clipped articles, fragments, dense — and not in the full English of this file. `CLAUDE.md:68` sets the register of the repository's own prose and does not reach the artifacts under `<gauntlet dir>/`; this line sets theirs. The reason is arithmetic rather than taste: a plan is paid for in three contexts — the `prosecutor`'s every round, the implementation stage that reads the approved file from disk, and the owner's on `READY` — so a word of narration costs three times what it reads like.
+A plan body is written in the compressed register the agent definitions under `agents/` use — clipped articles, fragments, dense — and not in the full English of this file. `CLAUDE.md:76` sets the register of the repository's own prose and does not reach the artifacts under `<gauntlet dir>/`; this line sets theirs. The reason is arithmetic rather than taste: a plan is paid for in three contexts — the `prosecutor`'s every round, the implementation stage that reads the approved file from disk, and the owner's on `READY` — so a word of narration costs three times what it reads like.
 
 Each fact lands in exactly one section, and a section that needs it again names the section carrying it rather than restating it. The rationale for a design choice belongs under **Which files get touched**; the price of that choice belongs under **What it costs**; a defect in the tree belongs under **What is wrong** and is cited, not re-narrated, where the change to it is described. A plan that states one reading in two sections has said nothing more and has made the reviewer resolve the same citation twice.
 
