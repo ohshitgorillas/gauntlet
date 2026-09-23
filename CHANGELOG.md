@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-23
+
 ### Added
 - **A blind agent's tools line carries no shell and no `pair` tool.** `scripts/gates/blind-no-shell.py` holds every agent in the `BLIND` tuple to that, and the gate run fails where one does.
 - **No hook reads a `Bash` call's command.** `scripts/gates/no-command-reads.py` fails the gate run where any hook or server inspects the command text, or where a wired `Bash` hook answers two command texts differently for one caller.
