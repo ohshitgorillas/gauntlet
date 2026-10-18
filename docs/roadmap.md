@@ -14,9 +14,7 @@ Each milestone states what it builds and a **Done when** check. A milestone is d
 
 ## M0. Launcher spikes
 
-Throwaway code that answers the questions the design takes on trust. Answers live under "Measured" in `design.md` §4 (rule 4). Open:
-
-- Whether a container under `--network none`, with a relay on container loopback to a unix socket held by a proxy sidecar container at the same SELinux level (`--security-opt label=level:...` on both), gets the CLI's request to the proxy with the placeholder `ANTHROPIC_API_KEY` on it.
+Throwaway code that answers the questions the design takes on trust. Answers live under "Measured" in `design.md` §4 (rule 4). Open: none.
 
 **Done when:** each item has a recorded yes or no with the command that showed it, and every no has a design change written into `design.md`.
 
@@ -134,9 +132,6 @@ These are decided by evidence from the milestone named, not ahead of it.
 
 | Question | Settled by |
 |---|---|
-| Is a fresh container per launch fast enough, or is a warm pool needed, and does a pool break "removed when the launch ends"? | M0 timing, M3 wall clock |
-| How does the container reach the host proxy under rootless networking without opening other host ports? | M0 |
-| Which placeholder credential does the CLI accept without checking it against the API, so the proxy can replace it? | M0 |
-| What do round caps of 2 cost per job in tokens, and do real plans pass inside them? | M7 trace |
+| Is a fresh container per launch fast enough, or is a warm pool needed, and does a pool break "removed when the launch ends"? | M0 timing, M3 wall clock || What do round caps of 2 cost per job in tokens, and do real plans pass inside them? | M7 trace |
 | Does the trimmed interface view give testers enough to write tests that collect? | M5, M7 |
 | Does `stubgen` handle the pilot repository's dynamic modules? | M5 |
