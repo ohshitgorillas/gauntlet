@@ -28,10 +28,10 @@ A legal brief carries one question: an open M0 bullet, or one "Open questions" r
 1. Check the brief against the rule above. Steered or measured: answer as it says and stop.
 2. Run `git status --short` and keep its output for `TREE`.
 3. Write `CLAIM`: the question as one sentence that is either true or false. Where `docs/` gives it no yes-or-no reading, such as a time with no threshold, the answer will be `UNSETTLED`; no threshold is invented.
-4. Build the experiment in the scratchpad. Start from the "Measured" flags and image and change exactly one thing: the one the question is about. Every mount source lives under the scratchpad, save the claude binary and credentials file "Measured" already binds read-only; `:z` and `:Z` go on scratchpad sources only.
-5. Pick one label for the dispatch, `gauntlet-spike=<UTC time as YYYYMMDDTHHMMSS>`. Every `podman run` carries `--label` with it, `--cidfile` under the scratchpad, podman's own `--timeout`, and is wrapped in `timeout`. Read each container id from its cidfile at launch.
+4. Build the experiment in the scratchpad. Start from the "Measured" flags and image, with `--rm` dropped because step 7 removes by id instead, and change exactly one thing: the one the question is about. Every mount source lives under the scratchpad, save the claude binary and credentials file "Measured" already binds read-only; `:z` and `:Z` go on scratchpad sources only.
+5. Pick one label for the dispatch, `gauntlet-spike=<UTC time as YYYYMMDDTHHMMSS>`. Every `podman run` carries `--label` with it, a fresh `--cidfile` under the scratchpad, podman's own `--timeout`, never `--rm`, and is wrapped in `timeout`. Once each `podman run` returns, and before anything removes its container, read the id from the cidfile and confirm the container still exists with `podman ps -a --no-trunc --filter id=<id> --format '{{.ID}} {{.Status}}'`.
 6. Run the experiment. A failure under the baseline flags is the finding: answer `NO`, never adjust the container and rerun.
-7. Remove each recorded id with `podman rm -f --ignore <id>`. Then run both `LEFT` commands below.
+7. Remove each recorded id with `podman rm -f <id>`; an id it cannot find is reported, not ignored. Then run both `LEFT` commands below.
 8. Run `git status --short` again; it matches step 2 or you report the difference. Report and stop.
 
 ## Rails
@@ -45,15 +45,15 @@ A legal brief carries one question: an open M0 bullet, or one "Open questions" r
 ```
 QUESTION "<the roadmap line, verbatim>" | docs/roadmap.md <M0|Open questions>
 CLAIM <the true-or-false sentence tested>
-BASELINE <the "Measured" flags and image used> | CHANGED <the one change the question is about>
+BASELINE <the "Measured" flags and image used, --rm dropped> | CHANGED <the one change the question is about>
 ANSWER <YES|NO|UNSETTLED>
 SHOWN BY <the command, verbatim>
 DECISIVE "<its output line, verbatim>"
 CONSEQUENCE <on NO: docs/design.md §<section>: one line | on UNSETTLED: the number measured and the threshold docs/ lacks | on YES: none>
 CONTAINERS <n> | label gauntlet-spike=<value>
-  <full id> | cidfile <path>
+  <full id> | cidfile <path> | existed: "<the step 5 podman ps -a line, verbatim>"
 REMOVED
-  podman rm -f --ignore <id> | "<its output, verbatim>"
+  podman rm -f <id> | "<its output, verbatim>"
 LEFT <n of the ids above still listed>
   podman ps -a --no-trunc --filter id=<id> ... --format '{{.ID}} {{.Status}}' | "<output, verbatim, or (empty)>"
   podman ps -a --no-trunc --filter label=gauntlet-spike=<value> --format '{{.ID}} {{.Status}}' | "<output, verbatim, or (empty)>"
