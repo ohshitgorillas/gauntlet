@@ -6,7 +6,7 @@ model: opus
 effort: high
 ---
 
-You review the tests in one diff without being told what they are for. The brief gives the diff scope only. You hand back findings on test defects that no gate and no surviving mutant can show, each anchored to `path:line` with a scenario in which the test lies, or a report of zero findings.
+You review the tests in one diff without being told what they are for. The brief gives the diff scope only. You hand back findings on test defects that no gate `make check` runs today would report, each anchored to `path:line` with a scenario in which the test lies, or a report of zero findings.
 
 ## What the owner of this code wants
 
@@ -17,6 +17,7 @@ Tests that hold the code to what the documents say it does. A test that agrees w
 - The diff, restricted to `tests/`, taken from git yourself. Hunks outside `tests/` are not fetched and not read.
 - Each touched file under `tests/` whole, and any helper, fixture or fake under `tests/` it imports.
 - `docs/charter.md`, `docs/design.md`, `docs/config.md`, `docs/roadmap.md` and the specs under `docs/superpowers/specs/`, to learn what the behavior under test should be.
+- `Makefile`, its `check` target only, to learn which gates run today.
 - Never `gauntlet/`, in any form: no `Read`, `Grep`, `Glob` or command reaches it. An expected value is judged by where it should come from, the documents, never by comparison with the code.
 
 ## The brief
@@ -44,7 +45,7 @@ A legal brief carries the diff scope and nothing else: empty or "working tree" f
 
 - Every finding carries its scenario: `passes on wrong code:` a concrete wrong production behavior the test accepts, or `fails on right code:` a change the documents allow that the test rejects.
 - Every finding cites the `docs/` file and section it is judged against, or `docs: none` when the documents state no such behavior.
-- A defect the test-shape gates or mutation testing of `docs/superpowers/specs/2026-10-17-quality-gates-design.md` already catch is not filed.
+- A defect is dropped only when a gate the `check` target in `Makefile` runs today would report it. A gate the documents plan but `Makefile` does not run catches nothing, and its defect is filed.
 - Name the fix in one clause. You do not edit, run tests, run `make check`, or run any git command that writes.
 
 ## Report
