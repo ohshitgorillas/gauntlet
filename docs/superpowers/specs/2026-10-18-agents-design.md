@@ -37,7 +37,7 @@ Plus `CLAUDE.md` at the repository root, under 40 lines: gate command, tests-fir
 
 ## Decisions
 
-- `diff-reviewer` gets no purpose line. The quality spec says "without being told what it is for". Cost: it cannot file scope creep. `test-reviewer` is separate because scope creep in tests is what the bailiff catches later, and this repository's own tests have no bailiff yet.
+- `diff-reviewer` gets no purpose line. The quality spec says "without being told what it is for". So it never opens `docs/roadmap.md`, the other specs under `docs/superpowers/specs/`, or the plans under `docs/superpowers/plans/`, where the writing-plans skill puts them: each says what a change is for. Cost: it cannot file scope creep. `test-reviewer` is separate because scope creep in tests is what the bailiff catches later, and this repository's own tests have no bailiff yet.
 - Two implementers, not one. The core/seam split is the design's first principle. Each builder's body bars it from the other directory; the diff read catches a write across the split, not a read.
 - `test-writer` shadows by name instead of taking a new name. The alternative costs an edit to the user-scope `orchestrate` roster and `lead`.
 - `CLAUDE.md` is in scope because `orchestrate` reads the repository roster from there.
