@@ -132,6 +132,7 @@ These are decided by evidence from the milestone named, not ahead of it.
 
 | Question | Settled by |
 |---|---|
-| Is a fresh container per launch fast enough, or is a warm pool needed, and does a pool break "removed when the launch ends"? | M0 timing, M3 wall clock || What do round caps of 2 cost per job in tokens, and do real plans pass inside them? | M7 trace |
+| Is a fresh container per launch fast enough, or is a warm pool needed, and does a pool break "removed when the launch ends"? | M0 timing, M3 wall clock |
+| What do round caps of 2 cost per job in tokens, and do real plans pass inside them? | M7 trace |
 | Does the trimmed interface view give testers enough to write tests that collect? | M5, M7 |
 | Does `stubgen` handle the pilot repository's dynamic modules? | M5 |
