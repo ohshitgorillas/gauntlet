@@ -16,7 +16,7 @@ Each milestone states what it builds and a **Done when** check. A milestone is d
 
 Throwaway code that answers the questions the design takes on trust. Answers live under "Measured" in `design.md` §4 (rule 4). Open:
 
-- Whether a container under `--network none`, with the proxy's unix socket bound in with `:z` and a relay on container loopback, gets the CLI's request to the proxy with the placeholder `ANTHROPIC_API_KEY` on it, and reaches no address other than that socket: not the host, not the internet.
+- Whether a container under `--network none`, with a relay on container loopback to a unix socket held by a proxy sidecar container at the same SELinux level (`--security-opt label=level:...` on both), gets the CLI's request to the proxy with the placeholder `ANTHROPIC_API_KEY` on it.
 
 **Done when:** each item has a recorded yes or no with the command that showed it, and every no has a design change written into `design.md`.
 
