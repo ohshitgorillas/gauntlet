@@ -24,7 +24,7 @@ Agents live in `.claude/agents/`, one per craft, each confined to the paths in *
 | `mutant-hunter` | `tests/` | **own** |
 | `core-builder` | `gauntlet/core/` | `test-writer` |
 | `seam-builder` | `gauntlet/seams/` | `test-writer` |
-| `gatesmith` | gate scripts, `pyproject.toml`, `Makefile`, pre-commit | `test-writer` |
+| `gatesmith` | gate scripts, `pyproject.toml`, `uv.lock`, `Makefile`, pre-commit, `.gitignore` | `test-writer` |
 | `spiker` | scratchpad only | **none** |
 | `diff-reviewer` | nothing | — |
 | `test-reviewer` | nothing | — |
