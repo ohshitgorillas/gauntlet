@@ -25,7 +25,7 @@ Throwaway code that answers the questions the design takes on trust. Five are al
 
 ## Agents
 
-The roster of [`superpowers/specs/2026-10-18-agents-design.md`](superpowers/specs/2026-10-18-agents-design.md) in `.claude/agents/`, each agent written by `role-author` and accepted by one dispatch proof. All nine are written. Proofs passed: `diff-reviewer`, `test-reviewer`. Proofs outstanding: `test-writer` and `gatesmith` need the Gates scaffold; `mutant-hunter` needs a surviving mutant; `spiker` takes one open M0 item; `core-builder` and `seam-builder` take a scope test on the body now and a live dispatch at M1 and M2.
+The roster of [`superpowers/specs/2026-10-18-agents-design.md`](superpowers/specs/2026-10-18-agents-design.md) in `.claude/agents/`, each agent written by `role-author` and accepted by one dispatch proof. All nine are written. Proofs passed: `diff-reviewer`, `test-reviewer`, `spiker`, and `gatesmith`, with the scaffold and the suppression gate landed and `make check` green. Proofs outstanding: `test-writer` passed only in its earlier stub-reading form, and its `stubgen` interface-view form is unproven; `mutant-hunter` needs the mutation gate and a surviving mutant; `core-builder` and `seam-builder` take a scope test on the body now and a live dispatch at M1 and M2.
 
 **Done when:** every agent has passed the dispatch proof its row in the spec names.
 
