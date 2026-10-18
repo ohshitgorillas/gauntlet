@@ -21,10 +21,10 @@ Agents live in `.claude/agents/`, one per craft, each confined to the paths in *
 |---|---|---|
 | `role-author` | `.claude/agents/`, `roles/`, `.gauntlet/skills/` | **none** |
 | `test-writer` | `tests/` | — |
-| `mutant-hunter` | `tests/` | **own** |
-| `core-builder` | `gauntlet/core/` | `test-writer` |
-| `seam-builder` | `gauntlet/seams/` | `test-writer` |
-| `gatesmith` | gate scripts, `pyproject.toml`, `uv.lock`, `Makefile`, pre-commit, `.gitignore` | `test-writer` |
+| `mutant-hunter` | `tests/`, a scratchpad copy of the tree | **own** |
+| `core-builder` | `gauntlet/core/`, `gauntlet/__init__.py` | `test-writer`; none for a `stub` step |
+| `seam-builder` | `gauntlet/seams/` | `test-writer`; none for a `stub` step |
+| `gatesmith` | `gates/`, `pyproject.toml`, `uv.lock`, `Makefile`, pre-commit and `.git/hooks`, `.gitignore` | `test-writer`; none for `scaffold`, `stub` or `dependency` |
 | `spiker` | scratchpad only | **none** |
 | `diff-reviewer` | nothing | — |
 | `test-reviewer` | nothing | — |
