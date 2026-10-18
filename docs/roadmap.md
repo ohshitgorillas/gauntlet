@@ -14,12 +14,11 @@ Each milestone states what it builds and a **Done when** check. A milestone is d
 
 ## M0. Launcher spikes
 
-Throwaway code that answers the questions the design takes on trust.
+Throwaway code that answers the questions the design takes on trust. Four are already answered and recorded under "Measured" in `design.md` §4: the `cli_path` wrapper over stdio with in-process MCP tools, `output_format`, `:O` overlays, and the locked read-only bind mount. They are not run again. What remains:
 
-- The SDK with `cli_path` set to a wrapper runs `claude` inside `podman run -i`, over stdio, and the in-process SDK MCP tools reach it.
-- An empty `tools` list leaves a judge with no tools; `output_format` constrains its answer to the schema.
-- The credential proxy injects the API key, and a container with no key reaches the API only through `ANTHROPIC_BASE_URL`.
-- `:z` mounts work under SELinux; `:O` overlays discard writes.
+- An empty `tools` list leaves a judge with no tools. Only non-empty lists have been run.
+- The credential proxy injects the API key, and a container with no key reaches the API only through `ANTHROPIC_BASE_URL`. The measured runs bind-mounted the real credentials file read-only; no proxy existed.
+- `:z` mounts work under SELinux. The measured runs used `--security-opt label=disable`.
 - Per-launch container start time and its share of a job's wall clock.
 
 **Done when:** each item has a recorded yes or no with the command that showed it, and every no has a design change written into `design.md`.

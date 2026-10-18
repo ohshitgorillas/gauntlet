@@ -126,6 +126,21 @@ Launches load no host settings, hooks or instruction files (`setting_sources=[]`
 
 Mounts that are bound into a container are locked. Measured on Fedora 44 with podman 5.8.9: unmounting, remounting and new namespaces from inside all fail to make a read-only path writable.
 
+### Measured
+
+Taken on 2026-10-17 with `podman version 5.8.9`, Claude Code `2.1.302`, `claude-agent-sdk 0.2.168`, image `docker.io/library/python:3.13-slim`, every container run with `--rm --userns=keep-id --cap-drop=all --security-opt no-new-privileges`. Scripts: `exp.sh`, `exp_sdk.py` and `claude-in-podman.sh` under `~/.claude/jobs/efee45eb/tmp/research/`; transcript `~/.claude/projects/-home-atom-dev-gauntlet/efee45eb-06bf-4dbd-9983-7364f029120f/subagents/agent-aa9801e5327a67927.jsonl`, line 80. These are not measured again (roadmap rule 4).
+
+| Claim | Command | Decisive output |
+|---|---|---|
+| The SDK with `cli_path` set to a wrapper runs `claude` inside `podman run -i` over stdio, and in-process SDK MCP tools reach it | `venv/bin/python -I exp_sdk.py` with `ClaudeAgentOptions(cli_path="claude-in-podman.sh", mcp_servers={"h": create_sdk_mcp_server(...)}, strict_mcp_config=True, setting_sources=[], permission_mode="dontAsk")`; the wrapper runs `podman run --rm -i ... /usr/local/bin/claude "$@"` | `init tools: ['Edit', 'Glob', 'Grep', 'Read', 'StructuredOutput', 'Write', 'mcp__h__run_tests']` then `tool_use: mcp__h__run_tests {"ids": "tests/test_new.py"}` and `harness tool calls: [{'ids': 'tests/test_new.py'}]` |
+| `output_format` constrains the answer to a JSON schema | same launch, `output_format={"type": "json_schema", "schema": SCHEMA}` | `structured: {"tools_i_have": [...], "files_seen": [...], "src_readable": false, "spawned_subagent": false, ...}`, every required key present |
+| A `tools` list without `Bash` or `Agent` leaves the agent without them | same launch, `tools=["Read", "Glob", "Grep"]` | init tool list carries no `Bash` and no `Agent`; the agent's own notes: "I do not have an Agent/Task tool" |
+| `:O` overlays discard writes | `podman run ... -v "$R/job:/work:O" -w /work python:3.13-slim bash -c 'echo junk > src/calc.py; rm -rf tests; touch scratch_file; ls'` | `scratch_file` listed inside; on the host `ls job` gives `spec src tests` and `cat job/src/calc.py` gives `def add(a, b): return a + b  # SECRET_IMPL` |
+| A read-only bind mount cannot be made writable from inside, non-root | `-v "$R/job:/work" -v "$R/job/tests:/work/tests:ro"`, then `umount /work/tests`, `mount -o remount,rw /work/tests`, `unshare -Urm sh -c "umount /work/tests \|\| mount -o remount,rw,bind /work/tests; touch /work/tests/y"`; repeated with `--cap-add SYS_ADMIN` | `umount: /work/tests: must be superuser to unmount.` then `touch: cannot touch '/work/tests/y': Read-only file system`; same with `SYS_ADMIN` added |
+| A labelled bind mount fails without `:z` on SELinux | the same launch without `--security-opt label=disable` | ``exec container process `/usr/local/bin/claude`: Permission denied`` and `touch: cannot touch 'src/new.py': Permission denied` |
+
+The `:ro` result holds for the non-root user `--userns=keep-id` gives; a root process with `CAP_SYS_ADMIN` was not tested and is not how any kind runs. The SELinux runs passed only with `--security-opt label=disable`; `:z` itself was not run and stays an M0 item.
+
 - Not instead: exempting any caller from the launcher. Every exemption in the old system became a hole.
 - Not instead: widening the mounts when a tool breaks under them. The tool's own configuration is fixed instead. Widening the mount table one gap at a time is how the old system drifted.
 - Not instead: separate OS users or a gatekeeper process; the Claude Code sandbox setting; shell-less agents with an MCP tool per allowed action, which turns into a list of every command spelled out.
