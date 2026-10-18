@@ -14,7 +14,6 @@ MARKERS: dict[str, re.Pattern[str]] = {
     "pragma: no mutate": re.compile(r"pragma\s*:\s*no\s*mutate", re.IGNORECASE),
 }
 
-PYTHON_SUFFIXES = frozenset({".py", ".pyi", ".pyw"})
 PYTHON_SHEBANG = re.compile(rb"^#!.*python")
 
 
@@ -28,11 +27,13 @@ class Suppression:
 
 
 def is_python_source(path: Path) -> bool:
-    """Return whether `path` is a regular file holding Python, by suffix or by shebang."""
+    """Return whether `path` is a Python file: a name ending in `.py`, or an extensionless file whose first line is a python shebang."""
     if not path.is_file():
         return False
-    if path.suffix in PYTHON_SUFFIXES:
+    if path.name.endswith(".py"):
         return True
+    if path.suffix:
+        return False
     with path.open("rb") as source:
         first_line = source.readline()
     return PYTHON_SHEBANG.match(first_line) is not None

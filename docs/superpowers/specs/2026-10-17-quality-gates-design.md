@@ -17,7 +17,7 @@ These gates go in before any product code. M1 starts under the full set.
 
 ## Gates
 
-All gates run from one entry point, `make check`, which pre-commit invokes. Every gate applies to every Python file in the tree: `gauntlet/`, `tests/`, gate scripts, and any hook or tool script. No path is excluded.
+All gates run from one entry point, `make check`, which pre-commit invokes. Every gate applies to every Python file in the tree: `gauntlet/`, `tests/`, gate scripts, and any hook or tool script. No path is excluded. A Python file is a file whose name ends in `.py`, or an extensionless file whose first line is a shebang that names python; a `.pyw` file is not one.
 
 ### Types
 

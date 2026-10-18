@@ -16,3 +16,29 @@ dev = [
     "pre-commit",
     "pytest",
 ]
+
+[tool.mypy]
+strict = true
+warn_unreachable = true
+disallow_any_explicit = true
+disallow_any_expr = true
+enable_error_code = [
+    "deprecated",
+    "exhaustive-match",
+    "explicit-override",
+    "ignore-without-code",
+    "mutable-override",
+    "possibly-undefined",
+    "redundant-expr",
+    "redundant-self",
+    "truthy-bool",
+    "truthy-iterable",
+    "unimported-reveal",
+    "unused-awaitable",
+    "unused-ignore",
+]
+python_version = "3.12"
+explicit_package_bases = true
+
+[tool.ruff]
+target-version = "py312"
