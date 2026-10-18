@@ -10,7 +10,7 @@ Rules for building Gauntlet. What Gauntlet is and how it works lives in `docs/`:
 ## Tests first
 
 - Every behavior gets its red test before its code, from whoever the *Red test* column below names, and the red run is the proof. A test is never edited to pass.
-- The test writer reads `docs/`, the spec and the interface of the stub, never `gauntlet/`. Expected values come from the documents, never from running the code.
+- The test writer reads `docs/`, the spec and the `stubgen` interface view of the stub, never `gauntlet/` or `gates/`. Expected values come from the documents, never from running the code.
 - Reviewers are blind: a brief to `diff-reviewer` or `test-reviewer` carries the diff scope and nothing else. A brief that says what the change is for is refused, and the bare brief goes to a fresh reviewer.
 
 ## Roster
@@ -29,7 +29,7 @@ Agents live in `.claude/agents/`, one per craft, each confined to the paths in *
 | `diff-reviewer` | nothing | — |
 | `test-reviewer` | nothing | — |
 
-User-scope `lead`, `hitman`, `ratchet`, `clocksmith`, `hooksmith` and `calibrator` apply here unchanged. A step no agent above owns goes to `general-purpose` with its red test from `test-writer`.
+User-scope `lead`, `hitman`, `ratchet`, `clocksmith`, `hooksmith` and `calibrator` apply here unchanged. A step no agent above owns goes to `general-purpose` with its red test from `test-writer`. A change confined to `docs/` takes no red test.
 
 ## Layout
 
