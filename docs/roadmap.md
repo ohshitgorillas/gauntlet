@@ -14,12 +14,10 @@ Each milestone states what it builds and a **Done when** check. A milestone is d
 
 ## M0. Launcher spikes
 
-Throwaway code that answers the questions the design takes on trust. Five are already answered and recorded under "Measured" in `design.md` §4: the `cli_path` wrapper over stdio with in-process MCP tools, `output_format`, `:O` overlays, the locked read-only bind mount, and `:z` on the job folder under SELinux. They are not run again. What remains:
+Throwaway code that answers the questions the design takes on trust. Answers live under "Measured" in `design.md` §4 (rule 4). Open:
 
-- An empty `tools` list leaves a judge with no tools. Only non-empty lists have been run.
-- The credential proxy injects the API key, and a container with no key reaches the API only through `ANTHROPIC_BASE_URL`. The measured runs bind-mounted the real credentials file read-only; no proxy existed.
-- The CLI binary bound read-only from the host can be executed under SELinux without `--security-opt label=disable`. The `:z` run mounted no binary.
-- Per-launch container start time and its share of a job's wall clock.
+- Whether `--network pasta:-T,<port>` lets a container reach the host proxy on loopback and reach no other host port.
+- Whether the CLI, given a placeholder `ANTHROPIC_API_KEY`, sends its requests to the proxy once that route works.
 
 **Done when:** each item has a recorded yes or no with the command that showed it, and every no has a design change written into `design.md`.
 
