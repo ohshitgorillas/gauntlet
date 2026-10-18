@@ -28,7 +28,7 @@ roles:
 
 | Key | Required | Meaning |
 |---|---|---|
-| `image` | yes | `Containerfile` for the pinned image every container runs. It holds the whole toolchain the tests and gates need. Every dependency change needs a rebuild. |
+| `image` | yes | `Containerfile` for the repository's toolchain image. It holds the whole toolchain the tests and gates need. The harness builds the pinned image every container runs on top of it, adding the CLI at the harness's pinned version, the `socat` relay and the `gauntlet-launch` entrypoint; the `Containerfile` carries none of them. Every dependency change needs a rebuild. |
 | `tests` | yes | Each test directory and the command that runs it. `{ids}` is replaced with the test ids. The red run uses every entry. |
 | `gates` | yes | The command the harness runs, in its own container, after each build step and before land. |
 | `test_helpers` | no | Files outside `tests/` that testers may read: fakes, clocks, fixtures. |

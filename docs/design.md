@@ -117,14 +117,18 @@ No kind has git, the `gauntlet` CLI, the job record, or the ability to start sub
 
 ### The launcher
 
-Every role, judges included, starts through one launcher. The harness calls the Claude Agent SDK with `cli_path` set to a wrapper that runs the Claude Code CLI inside a fresh rootless podman container. The CLI is installed in the pinned image at a pinned version and is never bound in from the host. The host's binary is labelled `data_home_t`, which a container process cannot execute without `label=disable` (measured, below). Relabelling it with `:z` would relabel the host's live CLI. A judge's container has no mounts at all, so its CLI has to come from the image anyway. The kind decides two things:
+Every role, judges included, starts through one launcher. The harness calls the Claude Agent SDK with `cli_path` set to a wrapper that runs the Claude Code CLI inside a fresh rootless podman container. The CLI is installed in the pinned image at a pinned version and is never bound in from the host. The host's binary is labelled `data_home_t`, which a container process cannot execute without `label=disable` (measured, below). Relabelling it with `:z` would relabel the host's live CLI.
+
+The repository's `Containerfile` builds its toolchain image. The harness builds the pinned image on top of it, adding three things the repository never supplies: the CLI at a version the harness pins, `socat` as the proxy relay, and the entrypoint `gauntlet-launch`. The wrapper runs `podman run ... <pinned image> gauntlet-launch "$@"`. `gauntlet-launch` starts `socat TCP-LISTEN:<port>,bind=127.0.0.1,fork UNIX-CONNECT:/run/gauntlet/proxy.sock`, waits until `127.0.0.1:<port>` accepts a connection, and then execs `/usr/local/bin/claude "$@"`. The harness's gate and test containers use the same image with their own command and never start `gauntlet-launch`.
+
+Every container that runs the CLI binds one path, the proxy socket folder, at `/run/gauntlet` with `:z`. That covers every role launch, judges included. The harness's gate and test containers run no CLI and bind no socket. The kind decides two things:
 
 1. **Mounts.** Which paths exist in the container, and whether each is read-only or writable. Everything else does not exist.
 2. **Tools.** The SDK `tools` list. A tool left off the list is not present at all, which is a hard restriction rather than a permission prompt. Leaving out `Agent` is what stops a role from starting subagents.
 
 Harness tools (`run_tests`, `open_job`, `job_status`, `job_record`) are in-process SDK MCP tools. They run in the harness on the host, and the CLI reaches them over stdio.
 
-Launches load no host settings, hooks or instruction files (`setting_sources=[]`, `strict_mcp_config=True`, `permission_mode="dontAsk"`, a tmpfs home). Every container sees the job tree at `/work`, runs as a non-root user with all capabilities dropped and `no-new-privileges`, and is removed when the launch ends. Job folders are mounted with `:z` so SELinux labels allow access.
+Launches load no host settings, hooks or instruction files (`setting_sources=[]`, `strict_mcp_config=True`, `permission_mode="dontAsk"`, a tmpfs home). Every container but a judge's sees the job tree at `/work`; every container runs as a non-root user with all capabilities dropped and `no-new-privileges`, and is removed when the launch ends. Job folders are mounted with `:z` so SELinux labels allow access.
 
 Mounts that are bound into a container are locked. Measured on Fedora 44 with podman 5.8.9: unmounting, remounting and new namespaces from inside all fail to make a read-only path writable.
 
@@ -210,7 +214,7 @@ The job tree is mounted as a podman overlay volume (`:O`), so writes land in a t
 
 ### Judge launches
 
-A judge's container has no mounts, and its launch has an empty tool list. Its whole input is in its prompt, and its answer is constrained by a JSON schema (`output_format`). Setting `output_format` adds one tool, `StructuredOutput`, which is how the answer comes back, so an empty list leaves a judge that one tool and nothing that reads, writes, runs or starts a subagent (measured, §4).
+A judge's container binds only the proxy socket folder, which every CLI launch carries, and no job path. Its launch has an empty tool list. Its whole input is in its prompt, and its answer is constrained by a JSON schema (`output_format`). Setting `output_format` adds one tool, `StructuredOutput`, which is how the answer comes back, so an empty list leaves a judge that one tool and nothing that reads, writes, runs or starts a subagent (measured, §4).
 
 ## 5. Epics
 
