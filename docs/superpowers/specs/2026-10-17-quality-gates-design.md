@@ -1,6 +1,6 @@
 # Quality gates for building Gauntlet
 
-Status: draft for owner approval.
+Status: approved 2026-10-18.
 
 ## Intent
 
