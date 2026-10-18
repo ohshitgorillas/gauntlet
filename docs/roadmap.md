@@ -24,6 +24,12 @@ Throwaway code that answers the questions the design takes on trust.
 
 **Done when:** each item has a recorded yes or no with the command that showed it, and every no has a design change written into `design.md`.
 
+## Gates
+
+The quality gates of [`superpowers/specs/2026-10-17-quality-gates-design.md`](superpowers/specs/2026-10-17-quality-gates-design.md), before any product code.
+
+**Done when:** `make check` runs every gate in the spec on an empty `gauntlet/` and passes, and each gate script's own tests pass under it.
+
 ## M1. Core and records
 
 - `core/verdicts.py`: answer schemas per role, `COULD NOT JUDGE` blocking like a failure.
