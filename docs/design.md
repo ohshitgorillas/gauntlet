@@ -100,7 +100,7 @@ Every role runs in exactly one kind. The kind alone decides what the role can se
 
 | Kind | Sees | Writes | Tools | Roles |
 |---|---|---|---|---|
-| judge | only what the harness puts in its prompt | nothing | none | arbiter, juror, bailiff, auditor |
+| judge | only what the harness puts in its prompt | nothing | `StructuredOutput` only | arbiter, juror, bailiff, auditor |
 | reader | the job checkout | nothing | Read, Grep, Glob | brief-writer, planner, detective, prosecutor, reviewers |
 | coordinator | the main checkout | nothing | Read, Grep, Glob, `open_job`, `job_status`, `job_record` | coordinator |
 | scratch | a throwaway copy of the job checkout | the copy, discarded after | shell, Read, Write, Edit, Grep, Glob | examiner |
@@ -115,7 +115,7 @@ No kind has git, the `gauntlet` CLI, the job record, or the ability to start sub
 
 ### The launcher
 
-Every role, judges included, starts through one launcher. The harness calls the Claude Agent SDK with `cli_path` set to a wrapper that runs the Claude Code CLI inside a fresh rootless podman container. The kind decides two things:
+Every role, judges included, starts through one launcher. The harness calls the Claude Agent SDK with `cli_path` set to a wrapper that runs the Claude Code CLI inside a fresh rootless podman container. The CLI is installed in the pinned image at a pinned version and is never bound in from the host. The host's binary is labelled `data_home_t`, which a container process cannot execute without `label=disable` (measured, below). Relabelling it with `:z` would relabel the host's live CLI. A judge's container has no mounts at all, so its CLI has to come from the image anyway. The kind decides two things:
 
 1. **Mounts.** Which paths exist in the container, and whether each is read-only or writable. Everything else does not exist.
 2. **Tools.** The SDK `tools` list. A tool left off the list is not present at all, which is a hard restriction rather than a permission prompt. Leaving out `Agent` is what stops a role from starting subagents.
@@ -139,8 +139,12 @@ Taken on 2026-10-17 with `podman version 5.8.9`, Claude Code `2.1.302`, `claude-
 | A read-only bind mount cannot be made writable from inside, non-root | `-v "$R/job:/work" -v "$R/job/tests:/work/tests:ro"`, then `umount /work/tests`, `mount -o remount,rw /work/tests`, `unshare -Urm sh -c "umount /work/tests \|\| mount -o remount,rw,bind /work/tests; touch /work/tests/y"`; repeated with `--cap-add SYS_ADMIN` | `umount: /work/tests: must be superuser to unmount.` then `touch: cannot touch '/work/tests/y': Read-only file system`; same with `SYS_ADMIN` added |
 | A labelled bind mount fails without `:z` on SELinux | the same launch without `--security-opt label=disable` | ``exec container process `/usr/local/bin/claude`: Permission denied`` and `touch: cannot touch 'src/new.py': Permission denied` |
 | A job folder bound with `:z`, and `tests/` with `:ro,z`, is readable and writable by the non-root user under SELinux without `label=disable` | `podman run --rm --userns=keep-id --cap-drop=all --security-opt no-new-privileges -v job:/work:z -v job/tests:/work/tests:ro,z -w /work python:3.13-slim bash -c 'cat /proc/self/attr/current; ls -Zd /work; touch src/new.py && echo "src write: ok"; touch tests/x'` (2026-10-18, image pulled that day, no CLI binary mounted) | `system_u:system_r:container_t:s0:c789,c931`, `system_u:object_r:container_file_t:s0 /work`, `src write: ok`, `touch: cannot touch 'tests/x': Read-only file system` |
+| An empty `tools` list leaves a launch one tool, `StructuredOutput`, which `output_format` adds | the `exp_sdk.py` launch above with `tools=[]` and no harness MCP tools, so the SDK passes `--tools ""` to the CLI | `init tools: ['StructuredOutput']`; the agent's notes: "I do not have Read, Bash, or Agent/Task tools" |
+| A CLI with no credential in the container refuses before it sends anything, so `ANTHROPIC_BASE_URL` alone does not reach the API | `podman run --userns=keep-id --cap-drop=all --security-opt no-new-privileges --tmpfs /home/agent:rw,mode=1777 -e HOME=/home/agent -v claude:/usr/local/bin/claude:ro,z -e ANTHROPIC_BASE_URL=http://host.containers.internal:18765 -w /home/agent python:3.13-slim /usr/local/bin/claude -p 'Reply with exactly the word PROXY_OK and nothing else.'`, `claude` a copy of the CLI in a scratch folder, a host proxy listening on `127.0.0.1:18765` | `Not logged in · Please run /login`; the proxy log holds only `listening 127.0.0.1:18765` |
+| The host's CLI binary, bound `:ro` without `:z`, cannot be executed under SELinux without `label=disable` | the `:z` run's flags plus `-v ~/.local/share/claude/versions/2.1.302:/usr/local/bin/claude:ro`, running `cat /proc/self/attr/current; ls -Z /usr/local/bin/claude; /usr/local/bin/claude --version` | host label `unconfined_u:object_r:data_home_t:s0`; inside, `system_u:system_r:container_t:s0:c404,c617`, then `bash: line 1: /usr/local/bin/claude: Permission denied` |
+| A fresh container, image already local, takes 59 to 88 ms from `podman run` to its first command, and 66 to 95 ms to return | three runs of the `:z` run's flags with `-v job:/work:z -w /work python:3.13-slim date +%s%N`, timed against host `date +%s%N` around each run | `run 1 start_to_exec_ms=88 run_total_ms=95 exec_to_return_ms=7`; runs 2 and 3 give 59/66 and 80/86 ms |
 
-The `:ro` result holds for the non-root user `--userns=keep-id` gives; a root process with `CAP_SYS_ADMIN` was not tested and is not how any kind runs. The `:z` run mounted no CLI binary from the host, so whether that read-only bind can be executed under SELinux without `label=disable` stays an M0 item.
+The last four rows used image `ce3ff9524414`. The `:ro` result holds for the non-root user `--userns=keep-id` gives; a root process with `CAP_SYS_ADMIN` is outside it and is not how any kind runs. The route from a rootless container to a proxy on the host is unmeasured: the credential run stops at the CLI's own login check first. A copy of the CLI bound `:ro,z` from a scratch folder, labelled `container_file_t`, executes where the host's `data_home_t` original does not. The start time excludes `--rm` teardown and CLI start-up, and its share of a job's wall clock waits for the first job wall clock at M3.
 
 - Not instead: exempting any caller from the launcher. Every exemption in the old system became a hole.
 - Not instead: widening the mounts when a tool breaks under them. The tool's own configuration is fixed instead. Widening the mount table one gap at a time is how the old system drifted.
@@ -161,6 +165,7 @@ The job checkout is a git worktree at `.gauntlet/jobs/<id>/tree`. Containers see
 - The job tree is mounted writable, with `tests/` and the protected set mounted read-only on top.
 - `.git` is mounted read-only. A writable `.git` file could be pointed at a directory the implementer controls, with settings such as `core.fsmonitor`, and the harness's next git command on the host would run the implementer's code.
 - No credentials are inside. The harness runs a forwarding proxy that adds the API key to each request, and the container reaches it through `ANTHROPIC_BASE_URL`. The container has no other network access unless `gauntlet.yaml` allows it.
+- A CLI with no credential refuses before it sends anything (measured, §4), so `ANTHROPIC_BASE_URL` alone is not enough. The launcher gives the container a placeholder credential that the CLI accepts and that is worth nothing outside the proxy. The proxy drops it and adds the real key to each request. Which placeholder the CLI accepts without first checking it against the API is not yet measured.
 - An implementer may run tests while it works. Those runs are only advisory. The harness's own gate run is the one that counts.
 
 ### The protected set
@@ -200,7 +205,7 @@ The job tree is mounted as a podman overlay volume (`:O`), so writes land in a t
 
 ### Judge launches
 
-A judge's container has no mounts, and its launch has an empty tool list. Its whole input is in its prompt, and its answer is constrained by a JSON schema (`output_format`).
+A judge's container has no mounts, and its launch has an empty tool list. Its whole input is in its prompt, and its answer is constrained by a JSON schema (`output_format`). Setting `output_format` adds one tool, `StructuredOutput`, which is how the answer comes back, so an empty list leaves a judge that one tool and nothing that reads, writes, runs or starts a subagent (measured, §4).
 
 ## 5. Epics
 

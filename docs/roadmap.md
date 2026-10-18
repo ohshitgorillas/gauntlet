@@ -139,6 +139,7 @@ These are decided by evidence from the milestone named, not ahead of it.
 |---|---|
 | Is a fresh container per launch fast enough, or is a warm pool needed, and does a pool break "removed when the launch ends"? | M0 timing, M3 wall clock |
 | How does the container reach the host proxy under rootless networking without opening other host ports? | M0 |
+| Which placeholder credential does the CLI accept without checking it against the API, so the proxy can replace it? | M0 |
 | What do round caps of 2 cost per job in tokens, and do real plans pass inside them? | M7 trace |
 | Does the trimmed interface view give testers enough to write tests that collect? | M5, M7 |
 | Does `stubgen` handle the pilot repository's dynamic modules? | M5 |
