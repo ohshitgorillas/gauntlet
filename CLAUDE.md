@@ -4,7 +4,7 @@ Rules for building Gauntlet. What Gauntlet is and how it works lives in `docs/`:
 
 ## Gates
 
-- `make check` is the gate, defined by `docs/superpowers/specs/2026-10-17-quality-gates-design.md`. It runs before every commit, in full, unpiped. Until the Gates milestone lands it, a commit carries no gate run and the report says so.
+- `make check` is the gate, defined by `docs/superpowers/specs/2026-10-17-quality-gates-design.md`. It runs before every commit, in full, unpiped. A commit report names each gate the spec lists that `make check` does not run.
 - No suppression, exemption, baseline, threshold or exclusion, ever. A gate says no; the fix is the code. There is no owner-approved exemption path in this repository.
 
 ## Tests first
@@ -22,9 +22,9 @@ Agents live in `.claude/agents/`, one per craft, each confined to the paths in *
 | `role-author` | `.claude/agents/`, `roles/`, `.gauntlet/skills/` | **none** |
 | `test-writer` | `tests/` | — |
 | `mutant-hunter` | `tests/`, a scratchpad copy of the tree | **own** |
-| `core-builder` | `gauntlet/core/`, `gauntlet/__init__.py` | `test-writer`; none for a `stub` step |
-| `seam-builder` | `gauntlet/seams/` | `test-writer`; none for a `stub` step |
-| `gatesmith` | `gates/`, `pyproject.toml`, `uv.lock`, `Makefile`, pre-commit and `.git/hooks`, `.gitignore` | `test-writer`; none for `scaffold`, `stub` or `dependency` |
+| `core-builder` | `gauntlet/core/`, `gauntlet/__init__.py`, `gauntlet/core/__init__.py` | `test-writer`; none for a `stub` or `rewrite` step |
+| `seam-builder` | `gauntlet/seams/`, `gauntlet/seams/__init__.py` | `test-writer`; none for a `stub` or `rewrite` step |
+| `gatesmith` | `gates/`, `pyproject.toml`, `uv.lock`, `Makefile`, pre-commit and `.git/hooks`, `.gitignore` | `test-writer`; none for `scaffold`, `stub`, `dependency` or `rewrite` |
 | `spiker` | scratchpad only | **none** |
 | `diff-reviewer` | nothing | — |
 | `test-reviewer` | nothing | — |

@@ -11,7 +11,7 @@ image: .gauntlet/Containerfile
 tests:
   - {dir: tests/py, run: "pytest {ids}"}
   - {dir: tests/js, run: "node --test {ids}"}
-gates: scripts/gate.sh make check
+gates: scripts/gate.sh
 test_helpers: [hqptuner/clock.py, tests/support/fake_clock.py]
 test_policy: docs/testing.md
 protected: [conftest.py, pyproject.toml, package.json, scripts/gate.sh]
