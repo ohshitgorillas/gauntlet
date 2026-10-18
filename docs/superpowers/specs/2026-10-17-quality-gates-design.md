@@ -85,6 +85,7 @@ A gate script fails on any of:
 
 - Every gate script has its own tests, under every gate above.
 - A wiring check fails if a script in the gates directory is not invoked by `make check`.
+- A gate reads its checker's machine-readable output where the checker offers one, and a finding carries the checker's whole message.
 
 ## Judgment layer
 

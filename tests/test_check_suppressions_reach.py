@@ -144,11 +144,10 @@ def test_gate_sh(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("relative", LOCATIONS)
 def test_tree_verdict(tmp_path: Path, relative: str) -> None:
-    """A suppression comment in any one Python file of the tree turns the verdict of the gate run over the tree's files."""
-    marked = _seed_tree(tmp_path / "marked", relative)
-    clean = _seed_tree(tmp_path / "clean", "")
+    """A suppression comment in any one Python file of the tree fails the gate run over the tree's files."""
+    marked = _seed_tree(tmp_path, relative)
 
-    assert main(marked) != main(clean)
+    assert main(marked) != 0
 
 
 def test_clean_tree(tmp_path: Path) -> None:

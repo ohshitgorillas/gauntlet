@@ -71,21 +71,27 @@ def _seed_tree(root: Path, broken: str, shebang: str = SHEBANG) -> list[Path]:
 
 
 @pytest.mark.parametrize("relative", LOCATIONS)
-def test_tree_verdict(tmp_path: Path, relative: str) -> None:
-    """A type error in one Python file of the tree turns the verdict of the gate run over the tree's files."""
-    broken = _seed_tree(tmp_path / "broken", relative)
-    clean = _seed_tree(tmp_path / "clean", "")
+def test_tree_fails(tmp_path: Path, relative: str) -> None:
+    """A type error in one Python file of the tree fails the gate run over the tree's files."""
+    files = _seed_tree(tmp_path, relative)
 
-    assert main(broken) != main(clean)
+    assert main(files) != 0
 
 
 @pytest.mark.parametrize("shebang", SHEBANGS)
-def test_shebang(tmp_path: Path, shebang: str) -> None:
-    """A type error in an extensionless script whose shebang names python turns the verdict."""
-    broken = _seed_tree(tmp_path / "broken", SCRIPT, shebang)
-    clean = _seed_tree(tmp_path / "clean", "", shebang)
+def test_shebang_fails(tmp_path: Path, shebang: str) -> None:
+    """A type error in an extensionless script whose shebang names python fails the gate."""
+    files = _seed_tree(tmp_path, SCRIPT, shebang)
 
-    assert main(broken) != main(clean)
+    assert main(files) != 0
+
+
+@pytest.mark.parametrize("shebang", SHEBANGS)
+def test_shebang_clean(tmp_path: Path, shebang: str) -> None:
+    """A well-typed tree holding an extensionless script whose shebang names python passes the gate."""
+    files = _seed_tree(tmp_path, "", shebang)
+
+    assert main(files) == 0
 
 
 @pytest.mark.parametrize(("relative", "source"), NOT_PYTHON)
