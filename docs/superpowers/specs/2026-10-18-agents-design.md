@@ -1,6 +1,6 @@
 # Agents for building Gauntlet
 
-Status: approved 2026-10-18.
+Status: approved 2026-10-18. Progress against the build order is tracked in [`../../roadmap.md`](../../roadmap.md), "Agents".
 
 ## Intent
 
