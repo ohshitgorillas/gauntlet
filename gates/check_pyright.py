@@ -3,6 +3,7 @@
 import ast
 import subprocess
 import sys
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NotRequired, TypedDict
@@ -59,6 +60,11 @@ def describe(diagnostic: Diagnostic) -> str:
     return f"{diagnostic['file']}{place} - {diagnostic['severity']}: {message}{rule}"
 
 
+def where(diagnostic: Diagnostic) -> str:
+    """Return the resolved path of the file `diagnostic` lies in, the form in which the gate hands pyright its files."""
+    return str(Path(diagnostic["file"]).resolve())
+
+
 def read_diagnostic(entry: object, completed: subprocess.CompletedProcess[str]) -> Diagnostic:
     """Read one entry of pyright's `generalDiagnostics` as a `Diagnostic`, checking each field the gate reads, and raise `UnfinishedError` when one is missing or of another type."""
     match entry:
@@ -109,20 +115,36 @@ def report(completed: subprocess.CompletedProcess[str]) -> Report:
             raise UnfinishedError(completed.returncode, completed.stdout)
 
 
-def parses(path: Path, version: tuple[int, int]) -> bool:
-    """Tell whether the file at `path` can be read and parsed under the grammar of Python `version`.
+@dataclass(frozen=True)
+class Parse:
+    """What parsing one file under the grammar of the pinned Python told: whether it was read and parsed, and each warning the parse raised, one line each."""
+
+    parsed: bool
+    warned: list[str]
+
+
+def parse(path: Path, version: tuple[int, int]) -> Parse:
+    """Read and parse the file at `path` under the grammar of Python `version`, recording every warning the parse raises.
 
     Only the parser runs, never the compiler's symbol table, so an error pyright's binder raises
     in a file that parses, such as `global x` after an assignment to `x`, leaves the file parsed.
     A parse that cannot run to its end is one the gate could not make, so the file is not parsed:
     the parser raises `MemoryError` when its stack overflows, and `RecursionError` when building
-    the tree runs past the recursion limit.
+    the tree runs past the recursion limit. Every warning the parse raises, such as the
+    `SyntaxWarning` of an invalid escape sequence, is recorded whatever the warning filters of
+    whoever runs the gate say, and none is printed or raised here: each is kept as one line
+    naming the file, the line, the warning's category and its message.
     """
-    try:
-        ast.parse(path.read_bytes(), feature_version=version)
-    except (OSError, SyntaxError, MemoryError, RecursionError):
-        return False
-    return True
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        try:
+            ast.parse(path.read_bytes(), filename=str(path), feature_version=version)
+        except (OSError, SyntaxError, MemoryError, RecursionError):
+            parsed = False
+        else:
+            parsed = True
+    warned = [f"{path}:{warning.lineno}: {warning.category.__name__}: {warning.message}" for warning in caught]
+    return Parse(parsed=parsed, warned=warned)
 
 
 def main(paths: list[Path]) -> int:
@@ -133,11 +155,14 @@ def main(paths: list[Path]) -> int:
     each is printed with its whole message and its rule. pyright reports a file it could not
     read or could not parse with diagnostics no rule raised, and it reports the same way an
     error its binder raises, or a `reveal_type`, in a file it parsed and checked in full; its
-    report gives nothing else that tells the two apart. So a file where pyright reported a
-    diagnostic no rule raised is read and parsed here, under the grammar pyright parses with,
-    `pythonVersion` in `pyproject.toml`, not the grammar of the interpreter the gate runs under:
-    a file that cannot be read or parsed is one pyright did not finish, and the diagnostics no
-    rule raised there are its report of not finishing. Every other diagnostic is a finding,
+    report gives nothing else that tells the two apart. So every given file is read and parsed
+    here, under the grammar pyright parses with, `pythonVersion` in `pyproject.toml`, not the
+    grammar of the interpreter the gate runs under: a file where pyright reported a diagnostic
+    no rule raised and that cannot be read or parsed is one pyright did not finish, and the
+    diagnostics no rule raised there are its report of not finishing. A warning raised while
+    a file is parsed is an error for that parse, so a file whose parse raises one is a file
+    pyright did not finish too, whatever pyright reported there: each such warning is printed,
+    after the diagnostics, as the report of not finishing it. Every other diagnostic is a finding,
     including one no rule raised in a file that parses. pyright also drops a given file from its
     analysis with no diagnostic at all, as one its default excludes match, so when its report's
     `summary.filesAnalyzed` counts fewer
@@ -173,17 +198,20 @@ def main(paths: list[Path]) -> int:
     except UnfinishedError as unread:
         print_unread("check_pyright", "pyright", unread, len(sources))
         return BLOCKED
-    given = frozenset(sources)
-    located = [diagnostic for diagnostic in read.diagnostics if str(Path(diagnostic["file"]).resolve()) in given]
+    parses = {source: parse(Path(source), version) for source in sources}
+    located = [diagnostic for diagnostic in read.diagnostics if where(diagnostic) in parses]
     for diagnostic in located:
         sys.stdout.write(f"{describe(diagnostic)}\n")
-    unfinished = {diagnostic["file"] for diagnostic in located if "rule" not in diagnostic and not parses(Path(diagnostic["file"]), version)}
-    findings = [diagnostic for diagnostic in located if "rule" in diagnostic or diagnostic["file"] not in unfinished]
-    dropped = read.analyzed < len(given)
+    warned = [line for source in sources for line in parses[source].warned]
+    for line in warned:
+        sys.stdout.write(f"{line}\n")
+    unparsed = {where(diagnostic) for diagnostic in located if "rule" not in diagnostic and not parses[where(diagnostic)].parsed}
+    findings = [diagnostic for diagnostic in located if "rule" in diagnostic or where(diagnostic) not in unparsed]
+    dropped = read.analyzed < len(parses)
     if dropped:
         sys.stdout.write("check_pyright: pyright left some of the given Python files out of its analysis\n")
     sys.stdout.write(f"check_pyright: {len(findings)} finding(s) in {len(sources)} Python file(s)\n")
-    if unfinished or dropped:
+    if unparsed or warned or dropped:
         return BLOCKED
     return 1 if findings else 0
 
