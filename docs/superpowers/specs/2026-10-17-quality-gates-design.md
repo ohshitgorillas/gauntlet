@@ -17,7 +17,7 @@ These gates go in before any product code. M1 starts under the full set.
 
 ## Gates
 
-All gates run from one entry point, `make check`, which pre-commit invokes. Every gate applies to every Python file in the tree: `gauntlet/`, `tests/`, gate scripts, and any hook or tool script. No path is excluded. A Python file is a file whose name ends in `.py`, or an extensionless file whose first line is a shebang that names python; a `.pyw` file is not one.
+All gates run from one entry point, `make check`, which pre-commit invokes. Every gate applies to every Python file in the tree: `gauntlet/`, `tests/`, gate scripts, and any hook or tool script. No path is excluded. A Python file is a file whose name ends in `.py` or `.pyi`, or an extensionless file whose first line is a shebang that names python; a `.pyw` file is not one. Every gate is a script under `gates/` that `make check` runs; a gate whose checker is an external tool runs that tool over the tree's Python files with the settings in `pyproject.toml`, which holds those settings and nothing else does, and returns the checker's findings. A gate exits 0 with no finding, 1 with one or more findings, and 2 when its checker could not finish; it prints each finding on its own line and prints its count line on every run.
 
 ### Types
 
