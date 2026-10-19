@@ -34,6 +34,8 @@ PYTHON_SHEBANG = re.compile(rb"^#!.*python")
 
 NAMES_NOTHING = frozenset({errno.ENOENT, errno.ENOTDIR})
 
+MAJOR_MINOR = re.compile(r"[0-9]+\.[0-9]+")
+
 BLOCKED = 2
 
 
@@ -113,24 +115,49 @@ def no_type_check_references(path: Path, tree: ast.Module, keywords: list[tuple[
     return [Suppression(path=path, line=reference.line, kind="reference to", marker=reference.functions) for reference in Resolver(keywords).run(tree)]
 
 
-def pinned_grammar() -> tuple[int, int] | None:
-    """Return the Python version the tree is pinned to, as `(major, minor)`: pyright's `pythonVersion` in `pyproject.toml`, or None when that is not set, since pyright then takes the version of the interpreter the gate hands it, the one `ast` parses with by default.
+class UnpinnedError(Exception):
+    """`pyproject.toml` pins no Python to parse with: it cannot be read, sets no pyright `pythonVersion`, sets one that is not a `major.minor` version, or sets one the parser has no grammar for."""
 
-    The pin is read from `pyproject.toml` on every call, never kept in a gate, so a gate that
-    parses with it parses with the grammar the type checkers take from the same file.
+
+def pinned_grammar() -> tuple[int, int]:
+    """Return the Python version the tree is pinned to, as `(major, minor)`: pyright's `pythonVersion` in `pyproject.toml`.
+
+    This is the one home of the pin rule, for every gate that parses a Python file. The pin is
+    read from `pyproject.toml` on every call; a gate calls it once per run and parses every file
+    of the run with what it returned, so a gate that parses with it parses with the grammar the
+    type checkers take from the same file, and all the files of one run under one grammar. A
+    `pyproject.toml` that cannot be read, sets no `pythonVersion`, or sets one that is not a
+    `major.minor` version, such as `"3"`, `"3.12.0"` or `"py312"`, pins nothing, and neither
+    does one whose version the parser has no grammar for, such as `"2.7"` or `"4.0"`, which
+    `ast.parse` refuses: `UnpinnedError` is raised with a message naming the key, and the gate
+    never falls back to the grammar of the interpreter it runs under.
     """
-    with CONFIG.open("rb") as config:
-        settings: object = tomllib.load(config)
+    try:
+        with CONFIG.open("rb") as config:
+            settings: object = tomllib.load(config)
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        message = f"{CONFIG}: cannot read pyright's `pythonVersion`: {error}"
+        raise UnpinnedError(message) from error
     match settings:
-        case {"tool": {"pyright": {"pythonVersion": str() as version}}}:
-            major, minor, *_ = version.split(".")
-            return int(major), int(minor)
+        case {"tool": {"pyright": {"pythonVersion": str() as version}}} if MAJOR_MINOR.fullmatch(version):
+            major, minor = version.split(".")
+            pinned = (int(major), int(minor))
+            try:
+                ast.parse("", feature_version=pinned)
+            except (ValueError, OverflowError) as error:
+                message = f"{CONFIG}: pyright's `pythonVersion` is {version!r}, a version the parser has no grammar for: {error}"
+                raise UnpinnedError(message) from error
+            return pinned
+        case {"tool": {"pyright": {"pythonVersion": object() as version}}}:
+            message = f"{CONFIG}: pyright's `pythonVersion` is {version!r}, not a `major.minor` version"
+            raise UnpinnedError(message)
         case _:
-            return None
+            message = f"{CONFIG}: sets no pyright `pythonVersion`"
+            raise UnpinnedError(message)
 
 
-def parse_pinned(path: Path, source: str) -> ast.Module:
-    """Parse `source` with the grammar of the pinned Python, `pinned_grammar`, raising `SyntaxError` on what that grammar cannot parse.
+def parse_pinned(path: Path, source: str, version: tuple[int, int]) -> ast.Module:
+    """Parse `source` with the grammar of the pinned Python `version`, as `pinned_grammar` returned it, raising `SyntaxError` on what that grammar cannot parse.
 
     A source nested deeper than the parser can go cannot be parsed either: the parser raises
     `MemoryError` when its stack overflows, and `RecursionError` when building the tree of a
@@ -141,13 +168,18 @@ def parse_pinned(path: Path, source: str) -> ast.Module:
     turn a file that parses into one the gate did not finish.
     """
     with warnings.catch_warnings(action="ignore", category=SyntaxWarning):
-        return ast.parse(source, filename=str(path), feature_version=pinned_grammar())
+        return ast.parse(source, filename=str(path), feature_version=version)
 
 
-def find_suppressions(path: Path) -> list[Suppression]:
+def find_suppressions(path: Path, version: tuple[int, int] | None = None) -> list[Suppression]:
     """Return every suppression comment and every `no_type_check` reference in the Python file at `path`, in line order.
 
-    Raise `OSError` when the file, or the `pyproject.toml` that holds the pin, cannot be read, `SyntaxError`, `UnicodeDecodeError` or
+    The file is parsed with the grammar of the pinned Python `version`; a call that gives none,
+    as for one file looked at on its own, reads the pin with `pinned_grammar`. A run over many
+    files reads the pin once and gives it to every call, so its files parse under one grammar.
+
+    Raise `OSError` when the file cannot be read, `UnpinnedError` when no `version` is given and
+    `pyproject.toml` pins no Python to parse it with, `SyntaxError`, `UnicodeDecodeError` or
     `tokenize.TokenError` when it cannot be decoded or tokenized, `SyntaxError` when the
     grammar of the pinned Python cannot parse it, and `MemoryError` or `RecursionError` when
     its parse runs deeper than the parser can go.
@@ -156,15 +188,16 @@ def find_suppressions(path: Path) -> list[Suppression]:
         source = reader.read()
     tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
     comments = comment_suppressions(path, tokens)
-    references = no_type_check_references(path, parse_pinned(path, source), case_keywords(tokens))
+    tree = parse_pinned(path, source, pinned_grammar() if version is None else version)
+    references = no_type_check_references(path, tree, case_keywords(tokens))
     return sorted(comments + references)
 
 
-def scan(path: Path) -> list[Suppression] | Unfinished:
-    """Return every finding in the Python file at `path`, or what the gate reported when it could not read, tokenize or parse that file."""
+def scan(path: Path, version: tuple[int, int] | None = None) -> list[Suppression] | Unfinished:
+    """Return every finding in the Python file at `path`, parsed with the pinned Python `version` as `find_suppressions` reads it, or what the gate reported when it could not read, tokenize or parse that file, or, given no `version`, found no Python pinned to parse it with."""
     try:
-        return find_suppressions(path)
-    except (OSError, SyntaxError, UnicodeDecodeError, tokenize.TokenError, MemoryError, RecursionError) as error:
+        return find_suppressions(path, version)
+    except (OSError, UnpinnedError, SyntaxError, UnicodeDecodeError, tokenize.TokenError, MemoryError, RecursionError) as error:
         return Unfinished(path=path, report=f"{type(error).__name__}: {error}")
 
 
@@ -174,25 +207,32 @@ def main(paths: list[Path]) -> int:
     When every file was parsed, print a count line and exit 1 on any finding and 0 on none.
     A file the gate cannot read, tokenize or parse is one it did not finish: print each
     finding of the other files all the same, then what the gate reported for each such
-    file, then a count line saying on how many files it could not finish and with how many
-    findings, and exit 2. When no path is a Python file, nothing was checked: print a line
-    saying so and exit 1.
+    file, then the same count line, in the same shape, as the last line, and exit 2. When no path is a Python file, nothing was checked: print a line
+    saying so and exit 1. When `pyproject.toml` pins no `major.minor` pyright `pythonVersion`,
+    or pins one the parser has no grammar for, no file can be parsed with the grammar of the pinned Python, so none is checked: print an
+    error naming the key, then a count line with no finding as the last line, and exit 2. The pin
+    is read once, before any file is checked, and every file of the run is parsed with it.
     """
     sources = [path for path in paths if is_python_source(path)]
     if not sources:
         sys.stdout.write(f"check_suppressions: no Python file among {len(paths)} path(s); nothing was checked\n")
         return 1
-    scans = [scan(path) for path in sources]
+    try:
+        version = pinned_grammar()
+    except UnpinnedError as unpinned:
+        sys.stdout.write(f"check_suppressions: {unpinned}\n")
+        sys.stdout.write(f"check_suppressions: 0 finding(s) in {len(sources)} Python file(s)\n")
+        return BLOCKED
+    scans = [scan(path, version) for path in sources]
     found = [suppression for scanned in scans if not isinstance(scanned, Unfinished) for suppression in scanned]
     unfinished = [scanned for scanned in scans if isinstance(scanned, Unfinished)]
     for suppression in found:
         sys.stdout.write(f"{suppression.path}:{suppression.line}: {suppression.kind} `{suppression.marker}`\n")
     for file in unfinished:
         sys.stdout.write(f"{file.path}: {file.report}\n")
-    if unfinished:
-        sys.stdout.write(f"check_suppressions: the gate could not finish on {len(unfinished)} of {len(sources)} Python file(s), with {len(found)} finding(s)\n")
-        return BLOCKED
     sys.stdout.write(f"check_suppressions: {len(found)} finding(s) in {len(sources)} Python file(s)\n")
+    if unfinished:
+        return BLOCKED
     return 1 if found else 0
 
 

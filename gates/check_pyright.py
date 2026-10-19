@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
-from gates.check_suppressions import is_python_source, pinned_grammar
+from gates.check_suppressions import UnpinnedError, is_python_source, pinned_grammar
 from gates.json_report import UnfinishedError, is_list, load, print_unread
 
 CONFIG = Path(__file__).resolve().parent.parent / "pyproject.toml"
@@ -109,15 +109,18 @@ def report(completed: subprocess.CompletedProcess[str]) -> Report:
             raise UnfinishedError(completed.returncode, completed.stdout)
 
 
-def parses(path: Path, version: tuple[int, int] | None) -> bool:
+def parses(path: Path, version: tuple[int, int]) -> bool:
     """Tell whether the file at `path` can be read and parsed under the grammar of Python `version`.
 
     Only the parser runs, never the compiler's symbol table, so an error pyright's binder raises
     in a file that parses, such as `global x` after an assignment to `x`, leaves the file parsed.
+    A parse that cannot run to its end is one the gate could not make, so the file is not parsed:
+    the parser raises `MemoryError` when its stack overflows, and `RecursionError` when building
+    the tree runs past the recursion limit.
     """
     try:
         ast.parse(path.read_bytes(), feature_version=version)
-    except (OSError, SyntaxError):
+    except (OSError, SyntaxError, MemoryError, RecursionError):
         return False
     return True
 
@@ -138,21 +141,30 @@ def main(paths: list[Path]) -> int:
     including one no rule raised in a file that parses. pyright also drops a given file from its
     analysis with no diagnostic at all, as one its default excludes match, so when its report's
     `summary.filesAnalyzed` counts fewer
-    files than it was given, print a line saying how many it analyzed: it did not finish on the
-    rest. When pyright finished on every file, print a count line and exit 1 on any finding and
-    0 on none. When it did not finish on some file, print a count line saying on how many files
-    and with how many findings, and exit 2, whatever it found in the other files. Exit 1 when no
-    path is a Python file, since pyright
-    handed no file checks the whole project instead. When pyright writes no report the gate can
+    files than it was given, print a line saying it left some out: it did not finish on them.
+    When pyright finished on every file, print a count line and exit 1 on any finding and
+    0 on none. When it did not finish on some file, print the count line as the last line, the
+    one line that counts files, and exit 2, whatever it found in the other files. Exit 1 when
+    no path is a Python file, since pyright
+    handed no file checks the whole project instead. When `pyproject.toml` pins no `major.minor`
+    pyright `pythonVersion`, or pins one the parser has no grammar for, by the one pin rule of
+    `pinned_grammar`, pyright is not run: print an error naming the key, then a count line
+    with no finding as the last line, and exit 2. When pyright writes no report the gate can
     read, whether it rejects its settings or its arguments, fails otherwise, is killed by a
     signal, never starts, or writes a report of another shape, it gave no verdict the gate can
-    read: print its whole output, each line on a line of its own, then a count line saying
-    pyright could not finish and with what status, and exit 2.
+    read: print its whole output, each line on a line of its own, then its exit status, then a
+    count line with no finding as the last line, and exit 2.
     """
     sources = [str(path.resolve()) for path in paths if is_python_source(path)]
     if not sources:
         sys.stdout.write(f"check_pyright: no Python file among {len(paths)} path(s); nothing was checked\n")
         return 1
+    try:
+        version = pinned_grammar()
+    except UnpinnedError as unpinned:
+        sys.stdout.write(f"check_pyright: {unpinned}\n")
+        sys.stdout.write(f"check_pyright: 0 finding(s) in {len(sources)} Python file(s)\n")
+        return BLOCKED
     command = [sys.executable, "-m", "pyright", "--outputjson", "--project", str(CONFIG), "--pythonpath", sys.executable, *sources]
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     sys.stderr.write(completed.stderr)
@@ -165,17 +177,14 @@ def main(paths: list[Path]) -> int:
     located = [diagnostic for diagnostic in read.diagnostics if str(Path(diagnostic["file"]).resolve()) in given]
     for diagnostic in located:
         sys.stdout.write(f"{describe(diagnostic)}\n")
-    version = pinned_grammar()
     unfinished = {diagnostic["file"] for diagnostic in located if "rule" not in diagnostic and not parses(Path(diagnostic["file"]), version)}
     findings = [diagnostic for diagnostic in located if "rule" in diagnostic or diagnostic["file"] not in unfinished]
-    dropped = 0
-    if read.analyzed < len(given):
-        dropped = len(given) - read.analyzed
-        sys.stdout.write(f"check_pyright: pyright analyzed {read.analyzed} of the {len(given)} Python file(s) it was given\n")
-    if unfinished or dropped:
-        sys.stdout.write(f"check_pyright: pyright could not finish on {len(unfinished) + dropped} of {len(sources)} Python file(s), with {len(findings)} finding(s)\n")
-        return BLOCKED
+    dropped = read.analyzed < len(given)
+    if dropped:
+        sys.stdout.write("check_pyright: pyright left some of the given Python files out of its analysis\n")
     sys.stdout.write(f"check_pyright: {len(findings)} finding(s) in {len(sources)} Python file(s)\n")
+    if unfinished or dropped:
+        return BLOCKED
     return 1 if findings else 0
 
 

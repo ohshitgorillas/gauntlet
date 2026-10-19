@@ -41,6 +41,12 @@ def load(completed: subprocess.CompletedProcess[str]) -> object:
 
 
 def print_unread(gate: str, checker: str, unread: UnfinishedError, files: int) -> None:
-    """Print the whole output of a checker run that gave no verdict the gate can read, each line on a line of its own, then the gate's count line saying the checker could not finish and with what status."""
+    """Print the whole output of a checker run that gave no verdict the gate can read, each line on a line of its own, then the checker's exit status, then the gate's count line.
+
+    The count line is the one a finished run prints, in the same shape, and the last line printed:
+    no finding was read, so it counts none, over the `files` Python files the gate was given. The
+    status line names no number of files, since the count line is the one line that counts them.
+    """
     sys.stdout.write("".join(f"{line}\n" for line in unread.output.splitlines()))
-    sys.stdout.write(f"{gate}: {checker} exited {unread.status} and gave no report it could read on {files} Python file(s)\n")
+    sys.stdout.write(f"{gate}: {checker} exited {unread.status}\n")
+    sys.stdout.write(f"{gate}: 0 finding(s) in {files} Python file(s)\n")
