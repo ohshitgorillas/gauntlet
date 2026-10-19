@@ -41,11 +41,11 @@ A test file is a Python file under `tests/`, or a Python file named `conftest.py
 
 ### Suppression gate
 
-A gate script fails on any of:
+A gate script fails on any of the items below. The comment markers of the first two items are found by tokenizing and match only inside a comment token, never inside a string. A marker matches anywhere in the comment, ignoring case and the whitespace around the colon and between its words, so `#mypy:`, `# FMT: OFF`, `# type:ignore` and `x = 1  # note; fmt:skip` are each a finding. A marker needs no word boundary on either side, so `# notmypy: x` and `# fmt: offset` are each a finding too. A comment that carries more than one marker is one finding that names every marker it carries. A marker of the first item that contains a marker of the second, as `# pyright: ignore` contains `# pyright:`, carries both, and its comment is one finding naming both.
 
-- a `noqa`, `type: ignore`, `pyright: ignore`, `pragma: no cover` or `pragma: no mutate` comment, found by tokenizing;
+- a `noqa`, `type: ignore`, `pyright: ignore`, `pragma: no cover` or `pragma: no mutate` comment;
 - a `# mypy:`, `# pyright:`, `# fmt: off` or `# fmt: skip` comment;
-- a `@typing.no_type_check` decorator;
+- a `@typing.no_type_check` decorator. The ban is on the function, not its spelling: it covers `typing.no_type_check` and `typing.no_type_check_decorator`, `typing_extensions` included, and any reference to either is a finding wherever it appears: imported, bound to another name, used as a decorator or called, so the import line and the assignment line are each a finding. Finding it takes a parse with the grammar of the pinned Python, 3.12, so a file the gate can tokenize but that grammar cannot parse, syntax added in 3.13 or later included, is a file the gate did not finish, and the gate exits 2 by the rule of the Gates intro. A parse that cannot run to its end, as when it runs out of depth or memory, is one the gate could not make, and its file is one the gate did not finish in the same way;
 - a `per-file-ignores` entry other than `tests/** = ["S101"]`;
 - an `ignore` entry not on the list above, or `preview` on;
 - any mypy `[[tool.mypy.overrides]]` section, or a pyright rule downgraded from strict;
