@@ -22,9 +22,9 @@ Agents live in `.claude/agents/`, one per craft, each confined to the paths in *
 | `role-author` | `.claude/agents/`, `roles/`, `.gauntlet/skills/` | **none** |
 | `test-writer` | `tests/` | — |
 | `mutant-hunter` | `tests/`, a scratchpad copy of the tree | **own** |
-| `core-builder` | `gauntlet/core/`, `gauntlet/__init__.py`, `gauntlet/core/__init__.py` | `test-writer`; none for a `stub` or `rewrite` step |
-| `seam-builder` | `gauntlet/seams/`, `gauntlet/seams/__init__.py` | `test-writer`; none for a `stub` or `rewrite` step |
-| `gatesmith` | `gates/`, `pyproject.toml`, `uv.lock`, `Makefile`, pre-commit and `.git/hooks`, `.gitignore` | `test-writer`; none for `scaffold`, `stub`, `dependency` or `rewrite` |
+| `core-builder` | `gauntlet/core/`, `gauntlet/__init__.py`, `gauntlet/core/__init__.py` | `test-writer`; none for a `stub`, `rewrite` or `finding` step |
+| `seam-builder` | `gauntlet/seams/`, `gauntlet/seams/__init__.py` | `test-writer`; none for a `stub`, `rewrite` or `finding` step |
+| `gatesmith` | `gates/`, `pyproject.toml`, `uv.lock`, `Makefile`, pre-commit and `.git/hooks`, `.gitignore` | `test-writer`; none for `scaffold`, `stub`, `dependency`, `rewrite` or `finding` |
 | `spiker` | scratchpad only | **none** |
 | `diff-reviewer` | nothing | — |
 | `test-reviewer` | nothing | — |
