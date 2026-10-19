@@ -3,12 +3,11 @@
 import ast
 import subprocess
 import sys
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
-from gates.check_suppressions import is_python_source
+from gates.check_suppressions import is_python_source, pinned_grammar
 from gates.json_report import UnfinishedError, is_list, load, print_unread
 
 CONFIG = Path(__file__).resolve().parent.parent / "pyproject.toml"
@@ -110,18 +109,6 @@ def report(completed: subprocess.CompletedProcess[str]) -> Report:
             raise UnfinishedError(completed.returncode, completed.stdout)
 
 
-def grammar() -> tuple[int, int] | None:
-    """Return the Python version whose grammar pyright parses with, as `(major, minor)`: its `pythonVersion` in `pyproject.toml`, or None when that is not set, since pyright then takes the version of the interpreter the gate hands it, the one `ast` parses with by default."""
-    with CONFIG.open("rb") as config:
-        settings: object = tomllib.load(config)
-    match settings:
-        case {"tool": {"pyright": {"pythonVersion": str() as version}}}:
-            major, minor, *_ = version.split(".")
-            return int(major), int(minor)
-        case _:
-            return None
-
-
 def parses(path: Path, version: tuple[int, int] | None) -> bool:
     """Tell whether the file at `path` can be read and parsed under the grammar of Python `version`.
 
@@ -178,7 +165,7 @@ def main(paths: list[Path]) -> int:
     located = [diagnostic for diagnostic in read.diagnostics if str(Path(diagnostic["file"]).resolve()) in given]
     for diagnostic in located:
         sys.stdout.write(f"{describe(diagnostic)}\n")
-    version = grammar()
+    version = pinned_grammar()
     unfinished = {diagnostic["file"] for diagnostic in located if "rule" not in diagnostic and not parses(Path(diagnostic["file"]), version)}
     findings = [diagnostic for diagnostic in located if "rule" in diagnostic or diagnostic["file"] not in unfinished]
     dropped = 0
