@@ -11,6 +11,7 @@ from mypy import api
 from mypy.errors import SHOW_NOTE_CODES
 
 from gates.check_suppressions import is_python_source
+from gates.json_report import UnfinishedError
 
 CONFIG = Path(__file__).resolve().parent.parent / "pyproject.toml"
 
@@ -32,10 +33,30 @@ class Record(TypedDict):
     severity: str
 
 
-def parse(line: str) -> Record:
-    """Read one line of mypy's `--output json` report, which holds one record as a JSON object."""
-    record: Record = json.loads(line)
-    return record
+def parse(line: str, status: int, report: str) -> Record:
+    """Read one line of mypy's `--output json` report, which holds one record as a JSON object, checking each field the gate reads.
+
+    The record is checked, not trusted: a line that is not JSON, or a record missing a field the
+    gate reads or holding one of another type than `Record` gives it, as when a mypy release
+    renames, drops or retypes one, is no record the gate can read, and raises `UnfinishedError`
+    with mypy's exit `status` and its whole `report`.
+    """
+    try:
+        entry: object = json.loads(line)
+    except json.JSONDecodeError as error:
+        raise UnfinishedError(status, report) from error
+    match entry:
+        case {
+            "file": str() as file,
+            "line": int() as number,
+            "message": str() as message,
+            "hint": str() | None as hint,
+            "code": str() | None as code,
+            "severity": str() as severity,
+        }:
+            return Record(file=file, line=number, message=message, hint=hint, code=code, severity=severity)
+        case _:
+            raise UnfinishedError(status, report)
 
 
 def describe(record: Record) -> str:
@@ -57,12 +78,30 @@ class Verdict:
     finished: bool
 
 
-def show(report: str, source: str) -> int:
-    """Print each record of `report` located in `source`, in report order, and return how many are findings, every record but a note."""
-    located = [record for record in (parse(line) for line in report.splitlines()) if record["file"] == source]
+def show(records: list[Record], source: str) -> int:
+    """Print each of `records` located in `source`, in report order, and return how many are findings, every record but a note."""
+    located = [record for record in records if record["file"] == source]
     for record in located:
         sys.stdout.write(f"{describe(record)}\n")
     return len([record for record in located if record["severity"] != NOTE])
+
+
+def read(report: str, status: int, source: str) -> Verdict:
+    """Read mypy's JSON `report` of its check of `source`, which exited `status`, print the records located in `source`, and return the verdict.
+
+    Every line of the report is read before any is printed, so a report the gate cannot read
+    prints none of its records. Raise `UnfinishedError` when mypy gave no verdict the gate can
+    read: a line of its report is no record the gate can read, or it exited other than 0 or 1
+    without the sign of a blocking error, exit 2 with a record in its report.
+    """
+    records = [parse(line, status, report) for line in report.splitlines()]
+    if status in FINISHED:
+        return Verdict(show(records, source), finished=True)
+    if status == BLOCKED and records:
+        findings = show(records, source)
+        sys.stdout.write(f"check_mypy: mypy stopped on a blocking error checking {source}\n")
+        return Verdict(findings, finished=False)
+    raise UnfinishedError(status, report)
 
 
 def check(source: str) -> Verdict:
@@ -80,9 +119,10 @@ def check(source: str) -> Verdict:
     still writes it to its JSON report as a record: the records located in `source` are printed
     the same way, then a line saying the check of `source` stopped, and the check counts as
     unfinished, even when the blocking error lies only in an imported file it does not show.
-    When mypy does not finish a check and its report holds no record, it gave no verdict the
-    gate can read: its whole output is printed, then a line saying so, and the check counts as
-    unfinished.
+    When mypy does not finish a check and its report holds no record, or writes a report with a
+    line the gate cannot read, as a record missing a field the gate reads or holding one of
+    another type, it gave no verdict the gate can read: its whole output is printed, then its
+    exit status and `source`, and the check counts as unfinished.
 
     mypy runs without its cache: a cached module replays its findings under the path it had
     when cached, so a file moved with unchanged content, or a file sharing its module name and
@@ -92,15 +132,12 @@ def check(source: str) -> Verdict:
     arguments = ["--config-file", str(CONFIG), "--cache-dir", os.devnull, "--show-absolute-path", "--no-error-summary", "--output", "json", source]
     report, errors, status = api.run(arguments)
     sys.stderr.write(errors)
-    if status in FINISHED:
-        return Verdict(show(report, source), finished=True)
-    if status == BLOCKED and report:
-        findings = show(report, source)
-        sys.stdout.write(f"check_mypy: mypy stopped on a blocking error checking {source}\n")
-        return Verdict(findings, finished=False)
-    sys.stdout.write("".join(f"{line}\n" for line in report.splitlines()))
-    sys.stdout.write(f"check_mypy: mypy exited {status} with no verdict on {source}\n")
-    return Verdict(0, finished=False)
+    try:
+        return read(report, status, source)
+    except UnfinishedError as unread:
+        sys.stdout.write("".join(f"{line}\n" for line in unread.output.splitlines()))
+        sys.stdout.write(f"check_mypy: mypy exited {unread.status} on {source}\n")
+        return Verdict(0, finished=False)
 
 
 def main(paths: list[Path]) -> int:
@@ -112,9 +149,10 @@ def main(paths: list[Path]) -> int:
     counted, so the gate never fails on a finding it does not show; a run over every file of the
     tree gives that file too, and reports the finding there. When no path is a Python file,
     nothing was checked: print a line saying so and exit 1, so an empty file list never passes.
-    When every check finished, print a count line and exit 1 on any finding and 0 on none. When
-    any check did not finish, print a count line saying how many, and exit 2, since the checker
-    could not finish on the tree.
+    Every run that checked a file ends on its count line, the one line that counts files, in the
+    same shape whether or not every check finished. When every check finished, exit 1 on any
+    finding and 0 on none. When any check did not finish, exit 2, whatever was found in the
+    other files, since the checker could not finish on the tree.
     """
     sources = sorted({os.path.abspath(path) for path in paths if is_python_source(path)})
     if not sources:
@@ -122,11 +160,10 @@ def main(paths: list[Path]) -> int:
         return 1
     verdicts = [check(source) for source in sources]
     findings = sum(verdict.findings for verdict in verdicts)
-    unfinished = len([verdict for verdict in verdicts if not verdict.finished])
-    if unfinished:
-        sys.stdout.write(f"check_mypy: mypy could not finish on {unfinished} of {len(sources)} Python file(s), with {findings} finding(s)\n")
-        return BLOCKED
+    unfinished = any(not verdict.finished for verdict in verdicts)
     sys.stdout.write(f"check_mypy: {findings} finding(s) in {len(sources)} Python file(s)\n")
+    if unfinished:
+        return BLOCKED
     return 1 if findings else 0
 
 

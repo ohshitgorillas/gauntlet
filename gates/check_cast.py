@@ -97,13 +97,14 @@ def main(paths: list[Path]) -> int:
     1 when no path is a Python file, since nothing was checked. Exit 0 on none. When ruff cannot
     read or cannot parse a file it was given, it did not finish on that file but still checked
     the others: print each finding it reported all the same, then each entry for a file it could
-    not finish, with ruff's whole message, then a count line saying on how many files ruff could
-    not finish and with how many findings, and exit 2, since the checker could not finish on the
-    tree. When ruff writes
-    no report the gate can read, whether it rejects its settings, fails otherwise, is killed by
-    a signal, never starts, or writes a report of another shape, it gave no verdict the gate can
-    read: print its whole output, each line on a line of its own, then a count line saying ruff
-    could not finish and with what status, and exit 2.
+    not finish, with ruff's whole message, then the count line, and exit 2, since the checker
+    could not finish on the tree. When ruff writes no report the gate can read, whether it
+    rejects its settings, fails otherwise, is killed by a signal, never starts, or writes a
+    report of another shape, it gave no verdict the gate can read: print its whole output, each
+    line on a line of its own, then ruff's exit status, then the count line, and exit 2.
+
+    Every run that checked a file ends on the one count line,
+    `check_cast: N finding(s) in M Python file(s)`, finished or not; no other line counts files.
 
     ruff runs without its cache: the cache keys a file on its modification time and permission
     bits, not its content, so a file whose content changed while both stayed the same, as a copy
@@ -122,15 +123,11 @@ def main(paths: list[Path]) -> int:
     except UnfinishedError as unread:
         print_unread("check_cast", "ruff", unread, len(sources))
         return BLOCKED
-    for finding in read.findings:
-        sys.stdout.write(f"{describe(finding)}\n")
-    if read.unfinished:
-        for entry in read.unfinished:
-            sys.stdout.write(f"{describe(entry)}\n")
-        unfinished_files = len({entry["filename"] for entry in read.unfinished})
-        sys.stdout.write(f"check_cast: ruff could not finish on {unfinished_files} of {len(sources)} Python file(s), with {len(read.findings)} finding(s)\n")
-        return BLOCKED
+    for entry in [*read.findings, *read.unfinished]:
+        sys.stdout.write(f"{describe(entry)}\n")
     sys.stdout.write(f"check_cast: {len(read.findings)} finding(s) in {len(sources)} Python file(s)\n")
+    if read.unfinished:
+        return BLOCKED
     return 1 if read.findings else 0
 
 

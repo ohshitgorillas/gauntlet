@@ -215,13 +215,14 @@ def run(module: str, seed: int) -> Run:
 
 
 def print_unfinished(unfinished: Run, given: Path) -> None:
-    """Print pytest's own error for a run over the test module given as `given` that it did not finish, then what its exit status and report were.
+    """Print pytest's own error for a run over the test module given as `given` that it did not finish, then its exit status.
 
     pytest writes an error that stops it before any test runs, as a usage error or an unknown
     config key, to its stderr, and one that stops it during collection, as a collection error or
     an internal error, to its JUnit XML report: both are printed, the report's as each failed
     element's message and pytest's whole report of it. A run that collected no test, exit 5, says
-    so in a line of its own.
+    so in a line of its own. The status line names no number of files and says nothing of the
+    report, since the count line is the one line that counts files.
     """
     sys.stdout.write("".join(f"{line}\n" for line in unfinished.completed.stderr.splitlines()))
     for case in unfinished.cases or []:
@@ -230,8 +231,7 @@ def print_unfinished(unfinished: Run, given: Path) -> None:
             sys.stdout.write("".join(f"{line}\n" for line in outcome.text.splitlines()))
     if unfinished.completed.returncode == ExitCode.NO_TESTS_COLLECTED:
         sys.stdout.write(f"{GATE}: pytest collected no test from {given}\n")
-    held = "no JUnit XML report the gate can read" if unfinished.cases is None else f"a JUnit XML report of {len(unfinished.cases)} failed test(s)"
-    sys.stdout.write(f"{GATE}: pytest exited {unfinished.completed.returncode} with {held} on {given}\n")
+    sys.stdout.write(f"{GATE}: pytest exited {unfinished.completed.returncode} on {given}\n")
 
 
 def main(paths: list[Path]) -> int:
@@ -247,9 +247,10 @@ def main(paths: list[Path]) -> int:
     break replaced by a space; then the count line, with the failing tests and the test files run,
     and exit 1 on any finding and 0 on none. Each test module's verdict is its own: a module
     pytest did not finish, one from which it collected no test included, prints pytest's own
-    error in its place, and every module it did finish still prints its findings. When pytest did
-    not finish over some test module, the count line says over how many of the test files and
-    with how many findings, and the run exits 2, whatever the other modules found.
+    error in its place, and every module it did finish still prints its findings. The count line,
+    in the same shape whether or not pytest finished, is the last line printed and the one line
+    that counts files. When pytest did not finish over some test module, the run exits 2,
+    whatever the other modules found.
     """
     selection = select(paths)
     if not selection.modules:
@@ -259,20 +260,19 @@ def main(paths: list[Path]) -> int:
     seed = secrets.randbits(SEED_BITS)
     sys.stdout.write(f"{GATE}: seed {seed}\n")
     findings = 0
-    unfinished = 0
+    unfinished = False
     for module, given in selection.modules.items():
         finished = run(module, seed)
         found = verdict(finished, module, given)
         if found is None:
             print_unfinished(finished, given)
-            unfinished += 1
+            unfinished = True
         else:
             sys.stdout.write("".join(f"{identity}: {one_line(message)}\n" for identity, message in found.items()))
             findings += len(found)
-    if unfinished:
-        sys.stdout.write(f"{GATE}: pytest could not finish on {unfinished} of {files} Python file(s), with {findings} finding(s)\n")
-        return BLOCKED
     sys.stdout.write(f"{GATE}: {findings} finding(s) in {files} Python file(s)\n")
+    if unfinished:
+        return BLOCKED
     return 1 if findings else 0
 
 
