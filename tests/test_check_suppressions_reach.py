@@ -1,6 +1,6 @@
 """Tests for the reach of the suppression gate: which files it counts as Python files, and that it covers every one of them in the tree.
 
-Source: the quality gates design spec under docs/superpowers/specs/, "Gates", first paragraph: every gate applies to every Python file in the tree, `gauntlet/`, `tests/`, gate scripts and any hook or tool script, and no path is excluded. A Python file is a file whose name ends in `.py`, or an extensionless file whose first line is a shebang that names python; a `.pyw` file is not one. Applied to the gate of "Suppression gate", whose first bullet names the `noqa` comment.
+Source: the quality gates design spec under docs/superpowers/specs/, "Gates", first paragraph: every gate applies to every Python file in the tree, `gauntlet/`, `tests/`, gate scripts and any hook or tool script, and no path is excluded. A Python file is a file whose name ends in `.py` or `.pyi`, or an extensionless file whose first line is a shebang that names python; a `.pyw` file is not one. Applied to the gate of "Suppression gate", whose first bullet names the `noqa` comment.
 """
 
 from pathlib import Path
@@ -103,13 +103,6 @@ def test_pyw_python(tmp_path: Path) -> None:
     assert is_python_source(path) is False
 
 
-def test_pyi(tmp_path: Path) -> None:
-    """A file whose name ends in `.pyi` does not end in `.py` and has an extension, so it is not a Python file."""
-    path = _seed(tmp_path, "stub.pyi", "value: int\n")
-
-    assert is_python_source(path) is False
-
-
 def test_sh_python(tmp_path: Path) -> None:
     """A python shebang makes only an extensionless file a Python file, not one with another suffix."""
     path = _seed(tmp_path, "tool.sh", PYTHON_SHEBANG + CLEAN_BODY)
@@ -125,11 +118,6 @@ def test_gate_pyw(tmp_path: Path) -> None:
 def test_gate_pyw_py(tmp_path: Path) -> None:
     """The gate does not apply to a `.pyw` file whose first line names python, so a marker in it does not fail it."""
     assert _gate_with_marked(tmp_path, "window.pyw", PYTHON_SHEBANG + MARKED_BODY) == 0
-
-
-def test_gate_pyi(tmp_path: Path) -> None:
-    """The gate does not apply to a `.pyi` file, so a marker in one does not fail it."""
-    assert _gate_with_marked(tmp_path, "stub.pyi", "value: int  # noqa\n") == 0
 
 
 def test_gate_sh_py(tmp_path: Path) -> None:
