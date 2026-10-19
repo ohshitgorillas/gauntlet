@@ -1,6 +1,8 @@
 """Suppression gate: fail on any comment that silences a checker."""
 
+import errno
 import re
+import stat
 import sys
 import tokenize
 from dataclasses import dataclass
@@ -17,6 +19,8 @@ MARKERS: dict[str, re.Pattern[str]] = {
 PYTHON_SUFFIXES = (".py", ".pyi")
 
 PYTHON_SHEBANG = re.compile(rb"^#!.*python")
+
+NAMES_NOTHING = frozenset({errno.ENOENT, errno.ENOTDIR})
 
 BLOCKED = 2
 
@@ -38,19 +42,22 @@ def is_python_source(path: Path) -> bool:
     read, may be a Python file, and nothing short of reading it tells, so it is taken as one:
     the gate hands it to its checker, which reports that it could not read it, and the gate
     exits 2 on a file it could not finish instead of skipping it or dying before any check runs.
+    Only a path that names nothing, because it or one of its directories does not exist, is
+    told not to be a file by its failure. The path is stat'ed here, not asked `Path.is_file()`,
+    which reports False on any error and so cannot tell the two apart.
     """
     named = path.name.endswith(PYTHON_SUFFIXES)
     if not named and path.suffix:
         return False
     try:
-        if not path.is_file():
+        if not stat.S_ISREG(path.stat().st_mode):
             return False
         if named:
             return True
         with path.open("rb") as source:
             first_line = source.readline()
-    except OSError:
-        return True
+    except OSError as error:
+        return error.errno not in NAMES_NOTHING
     return PYTHON_SHEBANG.match(first_line) is not None
 
 
