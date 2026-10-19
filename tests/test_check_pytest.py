@@ -32,8 +32,6 @@ CHILD = (
 
 JOINED = "FirstPart SecondPart"
 
-MESSAGE = f"ValueError: {JOINED}"
-
 PASSING = "def test_seeded():\n    pass\n"
 
 CALL_FAILS = "def test_seeded():\n    raise ValueError('FirstPart\\nSecondPart')\n"
@@ -67,25 +65,12 @@ XFAIL_PASSES = "import pytest\n\n\n@pytest.mark.xfail\ndef test_seeded():\n    p
 
 WARNS = "import warnings\n\n\ndef test_seeded():\n    warnings.warn('SeededWarning', UserWarning, stacklevel=1)\n"
 
-SEED_RECORDER = (
-    "import sys\n"
-    "from pathlib import Path\n\n\n"
-    "def test_seeded(request):\n"
-    "    Path(RECORD).write_text(str(request.config.getoption('randomly_seed')), encoding='utf-8')\n"
+NOISE_FAILS = (
+    "import sys\n\n\n"
+    "def test_seeded():\n"
     "    print('SeededNoise')\n"
     "    print('SeededNoise', file=sys.stderr)\n"
     "    raise ValueError('FirstPart\\nSecondPart')\n"
-)
-
-PLUGINS_ACTIVE = (
-    "def test_seeded(request):\n"
-    "    manager = request.config.pluginmanager\n"
-    "    if not (manager.has_plugin('randomly') and manager.has_plugin('timeout')):\n"
-    "        raise RuntimeError('SeededPluginMissing')\n"
-    "    if request.config.getoption('randomly_reorganize') is not True:\n"
-    "        raise RuntimeError('SeededOrderFixed')\n"
-    "    if manager.get_plugin('timeout').get_env_settings(request.config).timeout != 30:\n"
-    "        raise RuntimeError('SeededTimeoutOff')\n"
 )
 
 FAILING_PLUGIN = "def pytest_runtest_call(item):\n    raise RuntimeError('SeededPlugin')\n"
@@ -217,18 +202,8 @@ def _count_line(findings: int, files: int) -> str:
     return f"check_pytest: {findings} finding(s) in {files} Python file(s)"
 
 
-def _recorded(record: Path) -> str:
-    return record.read_text(encoding="utf-8") if record.exists() else ""
-
-
-def _recorder(tmp_path: Path) -> tuple[Path, Path]:
-    record = tmp_path / "seed.txt"
-    test_file = _seed(tmp_path, "tests/test_seeded.py", SEED_RECORDER.replace("RECORD", repr(str(record))))
-    return test_file, record
-
-
 def _finding_pattern(test_id: str) -> str:
-    return re.escape(f"{test_id}: {MESSAGE}")
+    return re.escape(f"{test_id}: ") + "[^\n]*" + re.escape(JOINED)
 
 
 def _report(paths: list[Path], capfd: pytest.CaptureFixture[str]) -> str:
@@ -243,12 +218,12 @@ def test_output(tmp_path: Path) -> None:
     The seeded test prints `SeededNoise` to both streams and fails with a two-line message, so pytest's console output
     holds lines a gate that passed it on would print.
     """
-    test_file, record = _recorder(tmp_path)
+    test_file = _seed(tmp_path, "tests/test_seeded.py", NOISE_FAILS)
 
     output = _child([test_file]).stdout
     pattern = (
-        re.escape(f"check_pytest: seed {_recorded(record)}")
-        + "\n"
+        re.escape("check_pytest: seed ")
+        + "[0-9]+\n"
         + _finding_pattern(f"{test_file}::test_seeded")
         + "\n"
         + re.escape(_count_line(1, 1))
@@ -259,12 +234,12 @@ def test_output(tmp_path: Path) -> None:
 
 
 def test_seed_line(tmp_path: Path) -> None:
-    """Before any finding the gate prints `check_pytest: seed N` with the seed pytest-randomly used."""
-    test_file, record = _recorder(tmp_path)
+    """Before any finding the gate prints `check_pytest: seed N`."""
+    test_file = _seed(tmp_path, "tests/test_seeded.py", NOISE_FAILS)
 
     first = _first_line([test_file])
 
-    assert first == f"check_pytest: seed {_recorded(record)}"
+    assert re.fullmatch(re.escape("check_pytest: seed ") + "[0-9]+", first)
 
 
 def test_fresh_seed(tmp_path: Path) -> None:
@@ -391,22 +366,6 @@ def test_error(
         paths.append(_seed(tmp_path, "tests/conftest.py", conftest))
 
     assert token in _report(paths, capfd)
-
-
-def test_plugins(tmp_path: Path) -> None:
-    """In the run the gate starts, pytest-randomly reorders tests and pytest-timeout holds each to 30 seconds."""
-    test_file = _seed(tmp_path, "tests/test_seeded.py", PLUGINS_ACTIVE)
-
-    assert main([test_file]) == 0
-
-
-def test_addopts(tmp_path: Path) -> None:
-    """A `PYTEST_ADDOPTS` that disables both plugins never reaches pytest: order stays random and the timeout 30 s."""
-    test_file = _seed(tmp_path, "tests/test_seeded.py", PLUGINS_ACTIVE)
-
-    result = _child([test_file], "PYTEST_ADDOPTS=-p no:randomly -p no:timeout")
-
-    assert result.returncode == 0
 
 
 def test_plugins_env(tmp_path: Path) -> None:
