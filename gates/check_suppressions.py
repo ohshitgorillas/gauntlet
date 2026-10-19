@@ -86,25 +86,31 @@ class Unfinished:
     report: str
 
 
-def comment_suppressions(path: Path, source: str) -> list[Suppression]:
-    """Return one finding per comment token of `source` that carries a marker, naming every marker it carries."""
-    comments = [token for token in tokenize.generate_tokens(io.StringIO(source).readline) if token.type == tokenize.COMMENT]
+def comment_suppressions(path: Path, tokens: list[tokenize.TokenInfo]) -> list[Suppression]:
+    """Return one finding per comment token among `tokens` that carries a marker, naming every marker it carries."""
+    comments = [token for token in tokens if token.type == tokenize.COMMENT]
     carried = [(comment.start[0], [marker for marker, pattern in MARKERS.items() if pattern.search(comment.string)]) for comment in comments]
     return [Suppression(path=path, line=line, kind="suppression comment", marker=", ".join(markers)) for line, markers in carried if markers]
 
 
-def no_type_check_references(path: Path, tree: ast.Module) -> list[Suppression]:
-    """Return one finding per reference in `tree` to `no_type_check` or `no_type_check_decorator` of `typing` or `typing_extensions`.
+def case_keywords(tokens: list[tokenize.TokenInfo]) -> list[tuple[int, int]]:
+    """Return the start, line and column, of each name token `case` among `tokens`, in source order: every `case` keyword, and any name `case` that is not one."""
+    return [token.start for token in tokens if token.type == tokenize.NAME and token.string == "case"]
+
+
+def no_type_check_references(path: Path, tree: ast.Module, keywords: list[tuple[int, int]]) -> list[Suppression]:
+    """Return one finding per reference in `tree` to `no_type_check` or `no_type_check_decorator` of `typing` or `typing_extensions`, a `case` line read from `keywords`, the `case` name tokens of its source.
 
     A reference is a name importing the function, a use of a name any binding of which, in a
     scope Python's scoping rules resolve the use to, can be the function, by an import, a star
     import, an assignment from another reference, or a `for` target or `match` capture pattern
     that takes it, and an attribute naming it of a name any such binding of which can be a
-    typing module, by an import or by an assignment from another such name. Where and in what
-    order the bindings of the name sit in that scope, and whether any of them runs, does not
-    matter.
+    typing module, by an import or by an assignment from another such name. The line of a
+    `case` whose capture pattern can take the function is a reference too, on the line its
+    `case` keyword sits on. Where and in what order the bindings of the name sit in that scope,
+    and whether any of them runs, does not matter.
     """
-    return [Suppression(path=path, line=reference.line, kind="reference to", marker=reference.functions) for reference in Resolver().run(tree)]
+    return [Suppression(path=path, line=reference.line, kind="reference to", marker=reference.functions) for reference in Resolver(keywords).run(tree)]
 
 
 def pinned_grammar() -> tuple[int, int] | None:
@@ -148,8 +154,9 @@ def find_suppressions(path: Path) -> list[Suppression]:
     """
     with tokenize.open(path) as reader:
         source = reader.read()
-    comments = comment_suppressions(path, source)
-    references = no_type_check_references(path, parse_pinned(path, source))
+    tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    comments = comment_suppressions(path, tokens)
+    references = no_type_check_references(path, parse_pinned(path, source), case_keywords(tokens))
     return sorted(comments + references)
 
 
