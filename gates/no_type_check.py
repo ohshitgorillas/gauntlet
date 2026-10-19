@@ -2,6 +2,7 @@
 
 import ast
 import bisect
+import tokenize
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
@@ -214,9 +215,15 @@ class Resolver:
     can build is read whole.
     """
 
-    def __init__(self, case_keywords: Sequence[Position]) -> None:
-        """Start with no reference found, given the position, line and column, of each `case` name token of the module's source, in source order."""
-        self.case_keywords = case_keywords
+    def __init__(self, tokens: Sequence[tokenize.TokenInfo]) -> None:
+        """Start with no reference found, given the tokens of the module's source, in source order, the source the tree `run` reads was parsed from.
+
+        The start, line and column, of each name token `case` among them is kept in source
+        order, every `case` keyword and any name `case` that is not one, for `case_line` to
+        search: the list is built here, from the tokens themselves, so its order and its
+        character columns are the ones `case_line` relies on.
+        """
+        self.case_keywords: list[Position] = [token.start for token in tokens if token.type == tokenize.NAME and token.string == "case"]
         self.references: list[Reference] = []
         self.stack: list[tuple[ast.AST, Scope]] = []
         self.scopes: list[Scope] = []

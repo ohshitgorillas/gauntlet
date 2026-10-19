@@ -67,11 +67,29 @@ WARNS = "import warnings\n\n\ndef test_seeded():\n    warnings.warn('SeededWarni
 
 NOISE_FAILS = (
     "import sys\n\n\n"
-    "def test_seeded():\n"
+    "def test_seeded(request):\n"
+    "    seed = request.config.getoption('randomly_seed')\n"
     "    print('SeededNoise')\n"
     "    print('SeededNoise', file=sys.stderr)\n"
-    "    raise ValueError('FirstPart\\nSecondPart')\n"
+    "    raise ValueError(f'FirstPart\\nSecondPart {seed}')\n"
 )
+
+SHUFFLED_TESTS = 20
+
+SHUFFLED = "RUN_ORDER = []\n" + "".join(
+    f"\n\ndef test_seeded{index}():\n"
+    f"    RUN_ORDER.append({index})\n"
+    f"    assert RUN_ORDER != list(range({SHUFFLED_TESTS}))\n"
+    for index in range(SHUFFLED_TESTS)
+)
+
+TIMEOUT_CONFTEST = (
+    "def pytest_timeout_set_timer(item, settings):\n    item.user_properties.append(('timeout', settings.timeout))\n"
+)
+
+TIMED = "def test_seeded(request):\n    assert request.node.user_properties == [('timeout', 30)]\n"
+
+UNKNOWN_OPTION = "--seededunknownoption"
 
 FAILING_PLUGIN = "def pytest_runtest_call(item):\n    raise RuntimeError('SeededPlugin')\n"
 
@@ -203,7 +221,7 @@ def _count_line(findings: int, files: int) -> str:
 
 
 def _finding_pattern(test_id: str) -> str:
-    return re.escape(f"{test_id}: ") + "[^\n]*" + re.escape(JOINED)
+    return re.escape(f"{test_id}: ValueError: {JOINED}")
 
 
 def _report(paths: list[Path], capfd: pytest.CaptureFixture[str]) -> str:
@@ -215,17 +233,18 @@ def _report(paths: list[Path], capfd: pytest.CaptureFixture[str]) -> str:
 def test_output(tmp_path: Path) -> None:
     """A finished run with one failing test prints its seed line, the one finding line and the count line, nothing else.
 
-    The seeded test prints `SeededNoise` to both streams and fails with a two-line message, so pytest's console output
-    holds lines a gate that passed it on would print.
+    The seeded test prints `SeededNoise` to both streams and fails with a two-line message ending in the seed
+    pytest-randomly used, so pytest's console output holds lines a gate that passed it on would print, and the seed
+    line must carry that same seed.
     """
     test_file = _seed(tmp_path, "tests/test_seeded.py", NOISE_FAILS)
 
     output = _child([test_file]).stdout
     pattern = (
         re.escape("check_pytest: seed ")
-        + "[0-9]+\n"
+        + "([0-9]+)\n"
         + _finding_pattern(f"{test_file}::test_seeded")
-        + "\n"
+        + " \\1\n"
         + re.escape(_count_line(1, 1))
         + "\n?"
     )
@@ -234,12 +253,15 @@ def test_output(tmp_path: Path) -> None:
 
 
 def test_seed_line(tmp_path: Path) -> None:
-    """Before any finding the gate prints `check_pytest: seed N`."""
+    """Before any finding the gate prints `check_pytest: seed N`, N the seed pytest-randomly used for the run."""
     test_file = _seed(tmp_path, "tests/test_seeded.py", NOISE_FAILS)
 
-    first = _first_line([test_file])
+    output = _child([test_file]).stdout
+    pattern = (
+        re.escape("check_pytest: seed ") + "([0-9]+)\n" + _finding_pattern(f"{test_file}::test_seeded") + " \\1\n"
+    )
 
-    assert re.fullmatch(re.escape("check_pytest: seed ") + "[0-9]+", first)
+    assert re.match(pattern, output)
 
 
 def test_fresh_seed(tmp_path: Path) -> None:
@@ -376,3 +398,27 @@ def test_plugins_env(tmp_path: Path) -> None:
     result = _child([test_file], f"PYTHONPATH={plugin.parent}", "PYTEST_PLUGINS=seededplugin")
 
     assert result.returncode == 0
+
+
+def test_addopts_env(tmp_path: Path) -> None:
+    """A `PYTEST_ADDOPTS` holding an option pytest does not know never reaches pytest."""
+    test_file = _seed(tmp_path, "tests/test_seeded.py", PASSING)
+
+    result = _child([test_file], f"PYTEST_ADDOPTS={UNKNOWN_OPTION}")
+
+    assert result.returncode == 0
+
+
+def test_shuffled(tmp_path: Path) -> None:
+    """pytest-randomly reorders the tests of a file: the last of twenty tests fails only if they ran in file order."""
+    test_file = _seed(tmp_path, "tests/test_seeded.py", SHUFFLED)
+
+    assert _last_line([test_file]) == _count_line(0, 1)
+
+
+def test_timeout(tmp_path: Path) -> None:
+    """pytest-timeout is active and sets each test a timeout of 30 seconds, read through its own timer hook."""
+    test_file = _seed(tmp_path, "tests/test_seeded.py", TIMED)
+    conftest = _seed(tmp_path, "tests/conftest.py", TIMEOUT_CONFTEST)
+
+    assert main([test_file, conftest]) == 0

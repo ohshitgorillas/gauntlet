@@ -114,15 +114,24 @@ def _is_count_line(line: str) -> bool:
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_last(tmp_path: Path, seed: Callable[[Path], list[Path]]) -> None:
-    """The last line an unfinished run prints is a count line, never a line counting the files it did not finish."""
-    status, lines = _run(seed(tmp_path))
+    """The last line an unfinished run prints is a count line, never a line counting the files it did not finish.
 
-    assert (status, [_is_count_line(line) for line in lines[-1:]]) == (UNFINISHED, [True])
+    The count line is the one line of the run that counts `file(s)`; any other line that does is a line counting files.
+    """
+    status, lines = _run(seed(tmp_path))
+    counting = [line for line in lines if "file(s)" in line]
+
+    assert (status, counting, [_is_count_line(line) for line in lines[-1:]]) == (UNFINISHED, lines[-1:], [True])
 
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_after(tmp_path: Path, seed: Callable[[Path], list[Path]]) -> None:
-    """What the checker reported comes before the count line, so lines precede the count line that ends the run."""
-    status, lines = _run(seed(tmp_path))
+    """What the checker reported for the unfinished file, the last one given, comes before the count line.
 
-    assert (status, len(lines[:-1]) > 0, [_is_count_line(line) for line in lines[-1:]]) == (UNFINISHED, True, [True])
+    The report is read only for the unfinished file's name, so another file's finding cannot stand in for it.
+    """
+    paths = seed(tmp_path)
+    status, lines = _run(paths)
+    reported = paths[-1].name in "\n".join(lines[:-1])
+
+    assert (status, reported, [_is_count_line(line) for line in lines[-1:]]) == (UNFINISHED, True, [True])

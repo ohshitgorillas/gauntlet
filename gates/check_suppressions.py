@@ -36,6 +36,9 @@ NAMES_NOTHING = frozenset({errno.ENOENT, errno.ENOTDIR})
 
 MAJOR_MINOR = re.compile(r"[0-9]+\.[0-9]+")
 
+# The oldest Python whose grammar `ast.parse` has, by its `feature_version` documentation; the newest is the interpreter's own.
+OLDEST_GRAMMAR = (3, 7)
+
 BLOCKED = 2
 
 
@@ -95,13 +98,8 @@ def comment_suppressions(path: Path, tokens: list[tokenize.TokenInfo]) -> list[S
     return [Suppression(path=path, line=line, kind="suppression comment", marker=", ".join(markers)) for line, markers in carried if markers]
 
 
-def case_keywords(tokens: list[tokenize.TokenInfo]) -> list[tuple[int, int]]:
-    """Return the start, line and column, of each name token `case` among `tokens`, in source order: every `case` keyword, and any name `case` that is not one."""
-    return [token.start for token in tokens if token.type == tokenize.NAME and token.string == "case"]
-
-
-def no_type_check_references(path: Path, tree: ast.Module, keywords: list[tuple[int, int]]) -> list[Suppression]:
-    """Return one finding per reference in `tree` to `no_type_check` or `no_type_check_decorator` of `typing` or `typing_extensions`, a `case` line read from `keywords`, the `case` name tokens of its source.
+def no_type_check_references(path: Path, tree: ast.Module, tokens: list[tokenize.TokenInfo]) -> list[Suppression]:
+    """Return one finding per reference in `tree` to `no_type_check` or `no_type_check_decorator` of `typing` or `typing_extensions`, a `case` line read from `tokens`, the tokens of the source `tree` was parsed from.
 
     A reference is a name importing the function, a use of a name any binding of which, in a
     scope Python's scoping rules resolve the use to, can be the function, by an import, a star
@@ -112,7 +110,7 @@ def no_type_check_references(path: Path, tree: ast.Module, keywords: list[tuple[
     `case` keyword sits on. Where and in what order the bindings of the name sit in that scope,
     and whether any of them runs, does not matter.
     """
-    return [Suppression(path=path, line=reference.line, kind="reference to", marker=reference.functions) for reference in Resolver(keywords).run(tree)]
+    return [Suppression(path=path, line=reference.line, kind="reference to", marker=reference.functions) for reference in Resolver(tokens).run(tree)]
 
 
 class UnpinnedError(Exception):
@@ -128,9 +126,13 @@ def pinned_grammar() -> tuple[int, int]:
     type checkers take from the same file, and all the files of one run under one grammar. A
     `pyproject.toml` that cannot be read, sets no `pythonVersion`, or sets one that is not a
     `major.minor` version, such as `"3"`, `"3.12.0"` or `"py312"`, pins nothing, and neither
-    does one whose version the parser has no grammar for, such as `"2.7"` or `"4.0"`, which
-    `ast.parse` refuses: `UnpinnedError` is raised with a message naming the key, and the gate
-    never falls back to the grammar of the interpreter it runs under.
+    does one whose version the parser has no grammar for. The parser of the interpreter the
+    gate runs under has the grammars of `OLDEST_GRAMMAR` through its own version and no other:
+    `ast.parse` refuses only a major other than 3, and takes a minor outside that range, one
+    above its own included, parsing with a grammar that is not that version's. So a version outside
+    that range, such as `"2.7"`, `"3.6"`, `"4.0"`, or `"3.13"` under a 3.12 interpreter, pins
+    nothing: `UnpinnedError` is raised with a message naming the key, and the gate never
+    falls back to the grammar of the interpreter it runs under.
     """
     try:
         with CONFIG.open("rb") as config:
@@ -142,11 +144,13 @@ def pinned_grammar() -> tuple[int, int]:
         case {"tool": {"pyright": {"pythonVersion": str() as version}}} if MAJOR_MINOR.fullmatch(version):
             major, minor = version.split(".")
             pinned = (int(major), int(minor))
-            try:
-                ast.parse("", feature_version=pinned)
-            except (ValueError, OverflowError) as error:
-                message = f"{CONFIG}: pyright's `pythonVersion` is {version!r}, a version the parser has no grammar for: {error}"
-                raise UnpinnedError(message) from error
+            newest = (sys.version_info.major, sys.version_info.minor)
+            if not OLDEST_GRAMMAR <= pinned <= newest:
+                message = (
+                    f"{CONFIG}: pyright's `pythonVersion` is {version!r}, a version the parser has no grammar for:"
+                    f" the parser of Python {newest[0]}.{newest[1]} has the grammars of {OLDEST_GRAMMAR[0]}.{OLDEST_GRAMMAR[1]} through {newest[0]}.{newest[1]}"
+                )
+                raise UnpinnedError(message)
             return pinned
         case {"tool": {"pyright": {"pythonVersion": object() as version}}}:
             message = f"{CONFIG}: pyright's `pythonVersion` is {version!r}, not a `major.minor` version"
@@ -189,7 +193,7 @@ def find_suppressions(path: Path, version: tuple[int, int] | None = None) -> lis
     tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
     comments = comment_suppressions(path, tokens)
     tree = parse_pinned(path, source, pinned_grammar() if version is None else version)
-    references = no_type_check_references(path, tree, case_keywords(tokens))
+    references = no_type_check_references(path, tree, tokens)
     return sorted(comments + references)
 
 
