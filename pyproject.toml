@@ -16,6 +16,7 @@ dev = [
     "pre-commit",
     "pyright[nodejs]",
     "pytest",
+    "ruff",
 ]
 
 [tool.mypy]
@@ -47,3 +48,10 @@ pythonVersion = "3.12"
 
 [tool.ruff]
 target-version = "py312"
+
+[tool.ruff.lint]
+select = ["TID251", "E902"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.cast".msg = "narrow the type in the code instead"
+"typing_extensions.cast".msg = "narrow the type in the code instead"

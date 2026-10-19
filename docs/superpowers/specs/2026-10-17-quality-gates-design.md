@@ -17,13 +17,13 @@ These gates go in before any product code. M1 starts under the full set.
 
 ## Gates
 
-All gates run from one entry point, `make check`, which pre-commit invokes. Every gate applies to every Python file in the tree: `gauntlet/`, `tests/`, gate scripts, and any hook or tool script. No path is excluded. A Python file is a file whose name ends in `.py` or `.pyi`, or an extensionless file whose first line is a shebang that names python; a `.pyw` file is not one. A gate's verdict on a Python file is the same whatever other files the tree holds. Every gate is a script under `gates/` that `make check` runs; a gate whose checker is an external tool runs that tool over the tree's Python files with the settings in `pyproject.toml`, which holds those settings and nothing else does, and returns the checker's findings. A gate exits 0 with no finding, 1 with one or more findings, and 2 when its checker could not finish; it prints each finding on its own line and prints its count line on every run.
+All gates run from one entry point, `make check`, which pre-commit invokes. Every gate applies to every Python file in the tree: `gauntlet/`, `tests/`, gate scripts, and any hook or tool script. No path is excluded. A Python file is a file whose name ends in `.py` or `.pyi`, or an extensionless file whose first line is a shebang that names python; a `.pyw` file is not one. A gate's verdict on a Python file is the same whatever other files the tree holds. Every gate is a script under `gates/` that `make check` runs; a gate whose checker is an external tool runs that tool over the tree's Python files with the settings in `pyproject.toml`, which holds those settings and nothing else does, and returns the checker's findings. A gate exits 0 with no finding, 1 with one or more findings, and 2 when its checker could not finish; it prints each finding on its own line and prints its count line on every run. A gate given no Python file prints that nothing was checked and exits 1, since an empty run proves nothing.
 
 ### Types
 
 - mypy with `strict = true`, plus `warn_unreachable = true`, `disallow_any_explicit = true`, `disallow_any_expr = true`, and every optional error code in `enable_error_code`. `python_version = "3.12"`, `requires-python = ">=3.12"`, ruff `target-version = "py312"`.
 - pyright in `strict` mode.
-- `typing.cast` is banned (ruff `TID251`).
+- `typing.cast` is banned (ruff `TID251`). The ban is on the function, not its spelling: it covers `typing.cast` under every name it is imported by, `typing_extensions.cast` included, and the banned-api table lists each such name.
 
 ### Lint and format
 
