@@ -16,6 +16,8 @@ dev = [
     "pre-commit",
     "pyright[nodejs]",
     "pytest",
+    "pytest-randomly",
+    "pytest-timeout",
     "ruff",
 ]
 
@@ -45,6 +47,12 @@ explicit_package_bases = true
 [tool.pyright]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
+
+[tool.pytest.ini_options]
+addopts = ["--strict-markers", "--strict-config"]
+filterwarnings = ["error"]
+xfail_strict = true
+timeout = 30
 
 [tool.ruff]
 target-version = "py312"
