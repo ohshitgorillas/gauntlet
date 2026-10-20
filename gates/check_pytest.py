@@ -75,10 +75,9 @@ class Selection:
 
 @dataclass(frozen=True)
 class Outcome:
-    """One `failure` or `error` element of pytest's JUnit XML report: its `message` attribute and its text, pytest's whole report of it."""
+    """One `failure` or `error` element of pytest's JUnit XML report: its `message` attribute."""
 
     message: str
-    text: str
 
 
 @dataclass(frozen=True)
@@ -391,7 +390,7 @@ def read_report(report: Path) -> list[Case] | None:
             message = child.get("message")
             if message is None:
                 return None
-            outcomes.append(Outcome(message=message, text=child.text or ""))
+            outcomes.append(Outcome(message=message))
         cases.append(Case(classname=classname, name=name, outcomes=tuple(outcomes)))
     return cases
 
@@ -461,24 +460,16 @@ def run(module: str, seed: int, space: Path, started: Started) -> Run:
     return Run(completed=completed, cases=read_report(report))
 
 
-def unfinished_text(unfinished: Run, given: Path) -> str:
-    """Return pytest's own error for a run over the test module given as `given` that it did not finish, then its exit status, one line each.
+def unfinished_text(unfinished: Run) -> str:
+    """Return pytest's own error for a run over a test module that it did not finish, and nothing of the gate's own.
 
-    pytest writes an error that stops it before any test runs, as a usage error or an unknown
-    config key, to its stderr, and one that stops it during collection, as a collection error or
-    an internal error, to its JUnit XML report: both are printed, the report's as each failed
-    element's message and pytest's whole report of it. A run that collected no test, exit 5, says
-    so in a line of its own. The status line names no number of files and says nothing of the
-    report, since the count line is the one line that counts files.
+    pytest's own error is its whole console output, its stdout and then its stderr, printed
+    as it wrote them and never parsed: pytest reports a collection error or a run that collected
+    no test on its stdout, and a usage error or an unknown config key on its stderr, and a
+    `conftest.py` may write to either. No line of the gate's own follows it, neither pytest's exit
+    status nor that it collected no test, which pytest's output already says in its own words.
     """
-    lines = list(unfinished.completed.stderr.splitlines())
-    for case in unfinished.cases or []:
-        for outcome in case.outcomes:
-            lines.append(f"{case.classname}::{case.name}: {one_line(outcome.message)}")
-            lines.extend(outcome.text.splitlines())
-    if unfinished.completed.returncode == ExitCode.NO_TESTS_COLLECTED:
-        lines.append(f"{GATE}: pytest collected no test from {given}")
-    lines.append(f"{GATE}: pytest exited {unfinished.completed.returncode} on {given}")
+    lines = [*unfinished.completed.stdout.splitlines(), *unfinished.completed.stderr.splitlines()]
     return "".join(f"{line}\n" for line in lines)
 
 
@@ -497,7 +488,7 @@ def report(module: str, given: Path, seed: int, space: Path, started: Started) -
         return Report(text=f"{GATE}: cannot run pytest on {given}: {error}\n", findings=0, finished=False)
     found = verdict(finished, module, given)
     if found is None:
-        return Report(text=unfinished_text(finished, given), findings=0, finished=False)
+        return Report(text=unfinished_text(finished), findings=0, finished=False)
     text = "".join(f"{identity}: {one_line(message)}\n" for identity, message in found.items())
     return Report(text=text, findings=len(found), finished=True)
 
