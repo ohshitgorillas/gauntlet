@@ -337,7 +337,7 @@ def test_unmade(tmp_path: Path, kind: str, code: int) -> None:
         output = captured(lambda: main(paths, scratch_root=scratch))
     finally:
         _restore(scratch)
-    shapes = [_shape(line.rstrip("\n"), scratch, os.strerror(code)) for line in output.lines]
+    shapes = [_shape(line.rstrip("\n"), scratch, os.strerror(code)) for line in output.merged]
 
     assert (output.result, shapes) == (UNFINISHED, [ERROR, COUNT_NO_FINDING])
 
@@ -353,7 +353,7 @@ def test_undeleted(tmp_path: Path, companion: str, *, finds: bool) -> None:
         output = captured(lambda: main([locker, other], scratch_root=scratch))
     finally:
         _restore(scratch)
-    shapes = [_shape(line.rstrip("\n"), scratch, os.strerror(errno.EACCES)) for line in output.lines]
+    shapes = [_shape(line.rstrip("\n"), scratch, os.strerror(errno.EACCES)) for line in output.merged]
     finding = f"{other}::test_seeded: ValueError: SeededFailure"
     expected = [SEED, finding, ERROR, COUNT_ONE_FINDING] if finds else [SEED, ERROR, COUNT_NO_FINDING]
 
