@@ -1,4 +1,4 @@
-"""Host-safety wrapper: run one heavy command under an exclusive lock, at niceness 19 and the host's lowest I/O priority."""
+"""Host-safety wrapper: run one heavy command under an exclusive lock, at niceness 19 and, on Linux, the lowest I/O priority."""
 
 import argparse
 import os
@@ -21,16 +21,19 @@ NICE = "nice"
 
 END_OPTIONS = "--"
 
-IO_LOWEST = {"darwin": ["taskpolicy", "-b"], "linux": ["ionice", "-c3"]}
+# The words before `nice` that lower the I/O priority on each host the wrapper runs on: none on `darwin`, whose
+# background policy would confine a run to the efficiency cores.
+IO_LOWEST: dict[str, list[str]] = {"darwin": [], "linux": ["ionice", "-c3"]}
 
 
 def wrapped(command: list[str], platform: str, niceness: int) -> list[str] | None:
-    """Return the command line that runs `command` at niceness 19 and the lowest I/O priority of `platform`, or None.
+    """Return the command line that runs `command` at niceness 19, and on `linux` the lowest I/O priority, or None.
 
-    `platform` is a host as `sys.platform` names it. On `linux` the I/O priority is lowered by
-    `ionice -c3`, on `darwin` by `taskpolicy -b`; each tool, `nice` too, is named bare, for `PATH`
-    to find. Any other host has no documented tool for it, so it gets no line, since a heavy run
-    is never made unthrottled.
+    `platform` is a host as `sys.platform` names it. On `linux` the line is
+    `ionice -c3 nice -n <k> -- <command>`; on `darwin` it is `nice -n <k> -- <command>`, with no
+    `taskpolicy -b`, since macOS's background policy confines a run to the efficiency cores. Each
+    tool is named bare, for `PATH` to find. Any other host gets no line, since a heavy run is
+    never made unthrottled.
 
     `nice` takes an increment, not a niceness, so the line raises the niceness by the difference
     between 19 and `niceness`, the caller's own, which the line's process inherits. A caller at 19
@@ -45,11 +48,11 @@ def wrapped(command: list[str], platform: str, niceness: int) -> list[str] | Non
 
 
 def missing(platform: str) -> list[str]:
-    """Return each tool of `platform`'s line, its I/O tool and `nice`, that is not found on `PATH`.
+    """Return each tool of `platform`'s line that is not found on `PATH`: its I/O tool where it has one, and `nice`.
 
     `platform` is one `wrapped` gives a line for.
     """
-    return [tool for tool in (IO_LOWEST[platform][0], NICE) if shutil.which(tool) is None]
+    return [tool for tool in (*IO_LOWEST[platform][:1], NICE) if shutil.which(tool) is None]
 
 
 def status(returncode: int) -> int:

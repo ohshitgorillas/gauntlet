@@ -4,22 +4,24 @@ Source: the agents design spec under docs/superpowers/specs/, "Decisions", the b
 wrapped in `uv run python -m gates.heavy`, the host-safety wrapper in `gates/heavy.py`". "It holds an exclusive
 `fcntl.flock` lock on `/tmp/gauntlet-heavy.lock` for the whole of the command it is given, so a second wrapped run waits
 until the first ends; given `--lock <path>` before its command, it locks that path instead". "It runs that command at
-niceness 19 and the host's lowest I/O priority". "It exits with its command's exit status."
+niceness 19, and on Linux at the lowest I/O priority too". "It exits with its command's exit status."
 The owner names the lock as one taken with `fcntl.flock`, so a lock the test takes that way on the given path is one the
 wrapper waits on.
 
 Every wrapped run here is given `--lock` with a path under the test's temporary directory and never takes the default:
 every documented heavy run, this suite's own among them, already holds the default lock, so a test that took it would
 wait on itself. Waiting is held by order, never by a clock: a run that must wait is given WAIT seconds to break the order
-it is held to, and the line it writes must come after the line written once the lock is released. The I/O priority is
-held to what the documented tool itself sets: the same probe, run under `taskpolicy -b` on macOS or `ionice -c3` on
-Linux, gives the expected state. A child inherits its parent's I/O priority, and this suite's own wrapped run may
-already be at the lowest, so the wrapper and each probe are started from the host's default I/O priority, and the probe
+it is held to, and the line it writes must come after the line written once the lock is released. On Linux the I/O
+priority is held to what the documented tool itself sets: the same probe, run under `ionice -c3`, gives the expected
+state. On macOS the line is "`nice -n <k> -- <command>`, with no `taskpolicy -b`", so the expected state is the one the
+probe gives with no tool. A child inherits its parent's I/O priority, and this suite's own wrapped run may already be
+at the lowest, so the wrapper and each probe are started from the host's default I/O priority, and on Linux the probe
 run from there with no tool must give a state other than the expected one.
 
 Every documented heavy run is made under the wrapper, this suite's own among them, so the test process may already be
 at niceness 19, and a probe would show it whatever the wrapper did. The spec has the wrapper run its command by the line
-`taskpolicy -b nice -n <k> -- <command>` on macOS and `ionice -c3 nice -n <k> -- <command>` on Linux, `k` being 19 less
+`nice -n <k> -- <command>` on macOS, "with no `taskpolicy -b`", and `ionice -c3 nice -n <k> -- <command>` on Linux, `k`
+being 19 less
 `niceness` floored at 0, `niceness` its own process's read with `os.getpriority(os.PRIO_PROCESS, 0)`, with each tool
 found on `PATH`; so the niceness run puts a stand-in `nice` first on `PATH` that notes the arguments it is given and
 then runs the real `nice` with them, and the step the wrapper takes is held by what the stand-in noted. A process cannot
@@ -27,10 +29,11 @@ lower its own niceness, so a suite already at 19 can start no wrapper below it; 
 whose `os.nice` and `os.getpriority` report a niceness other than the suite's, and the step it takes is held to 19 less
 the niceness reported, a caller at 19 or above getting `nice -n 0`.
 
-The same bullet has "each tool is found on `PATH`" and "where the line's tool is not on `PATH`, the wrapper runs nothing
-and exits 2, since a heavy run is never made unthrottled". So a stand-in for the host's I/O tool first on `PATH` notes
-the arguments it is given and runs the rest of the line, and a run whose `PATH` lacks the I/O tool, `nice` or both is held
-to exit 2 with its command never run.
+The same bullet has "each tool is found on `PATH`" and "where a tool of the line is not on `PATH`, the wrapper runs
+nothing and exits 2, since a heavy run is never made unthrottled". So on Linux a stand-in for `ionice` first on `PATH`
+notes the arguments it is given and runs the rest of the line; on macOS a stand-in for `taskpolicy` first on `PATH` is
+never run, the line having "no `taskpolicy -b`". A run whose `PATH` lacks a tool of the line is held to exit 2 with its
+command never run: on Linux `ionice`, `nice` or both, on macOS `nice`.
 """
 
 import contextlib
@@ -101,7 +104,12 @@ LINUX_IO = (
 
 IO_PROBE = {"darwin": DARWIN_IO, "linux": LINUX_IO}
 
-IO_LOWEST = {"darwin": ["/usr/sbin/taskpolicy", "-b"], "linux": ["ionice", "-c3"]}
+# The tool that sets the I/O priority the spec has the command run at: "on Linux at the lowest I/O priority too". On
+# macOS the line is "`nice -n <k> -- <command>`, with no `taskpolicy -b`", so no tool sets it.
+IO_LOWEST: dict[str, list[str]] = {"darwin": [], "linux": ["ionice", "-c3"]}
+
+# Whether the expected I/O state differs from the host's default: only Linux lowers it.
+IO_LOWERED = {"darwin": False, "linux": True}
 
 # macOS: setpriority(PRIO_DARWIN_PROCESS = 4, self, 0) leaves background, and setiopolicy_np(IOPOL_TYPE_DISK = 0,
 # IOPOL_SCOPE_PROCESS = 0, IOPOL_DEFAULT = 0) takes the default disk policy; then the rest of the line runs.
@@ -141,10 +149,16 @@ BLOCKED = 2
 
 IO_TOOL = {"darwin": "taskpolicy", "linux": "ionice"}
 
-IO_OPTION = {"darwin": "-b", "linux": "-c3"}
+IO_OPTION = "-c3"
 
 # How many arguments each stand-in drops before running the rest: the I/O tool its option, nice its -n and step.
 DROPS = {"io": 1, "nice": 2}
+
+
+def _io_line(step: str, command: list[str]) -> list[str]:
+    """The arguments the host's I/O tool is given, nice -n taking step: none on macOS, where the line is "`nice -n <k>
+    -- <command>`, with no `taskpolicy -b`"."""
+    return [IO_OPTION, "nice", "-n", step, "--", *command] if IO_LOWERED[sys.platform] else []
 
 
 def _python(code: str, *arguments: str) -> list[str]:
@@ -320,8 +334,8 @@ def test_niceness(tmp_path: Path, reported: int, step: str) -> None:
 
 
 def test_io_priority(tmp_path: Path) -> None:
-    """The command runs at the I/O priority the host's documented tool sets: taskpolicy -b on macOS, ionice -c3 on Linux,
-    when the wrapper starts from the host's default I/O priority, which alone gives another."""
+    """The command runs at the I/O priority the spec names when the wrapper starts from the host's default: on Linux the
+    one ionice -c3 sets, which the default alone does not give; on macOS, with no taskpolicy -b, the default."""
     wrapped = tmp_path / "wrapped"
     reference = tmp_path / "reference"
     unwrapped = tmp_path / "unwrapped"
@@ -332,13 +346,14 @@ def test_io_priority(tmp_path: Path) -> None:
 
     _launch([*lift, *_wrapped(tmp_path / "heavy.lock", _python(probe, str(wrapped)))])
 
-    assert (_lines(wrapped), _lines(unwrapped) == _lines(reference)) == (_lines(reference), False)
+    assert (_lines(wrapped), _lines(unwrapped) != _lines(reference)) == (_lines(reference), IO_LOWERED[sys.platform])
 
 
 @pytest.mark.parametrize(("reported", "step"), REPORTED, ids=REPORTED_IDS)
 def test_io_tool_on_path(tmp_path: Path, reported: int, step: str) -> None:
-    """The host's I/O tool is the one found first on PATH, given its option, nice -n with 19 less the wrapper's own
-    niceness, this process's and the one the wrapper's process reports where it reports another, and the command."""
+    """On Linux ionice is the one found first on PATH, given -c3, nice -n with 19 less the wrapper's own niceness, this
+    process's and the one the wrapper's process reports where it reports another, and the command. On macOS a
+    taskpolicy first on PATH is never run."""
     record = tmp_path / "io"
     reported_record = tmp_path / "reported"
     command = _python("pass")
@@ -351,21 +366,22 @@ def test_io_tool_on_path(tmp_path: Path, reported: int, step: str) -> None:
     _launch(_reporting(tmp_path / "heavy.lock", reported, command), {"PATH": f"{reported_tools}:{SYSTEM_PATH}"})
 
     assert (_lines(record), _lines(reported_record)) == (
-        [
-            IO_OPTION[sys.platform],
-            "nice",
-            "-n",
-            str(max(0, int(NICENESS) - os.getpriority(os.PRIO_PROCESS, 0))),
-            "--",
-            *command,
-        ],
-        [IO_OPTION[sys.platform], "nice", "-n", step, "--", *command],
+        _io_line(str(max(0, int(NICENESS) - os.getpriority(os.PRIO_PROCESS, 0))), command),
+        _io_line(step, command),
     )
 
 
-@pytest.mark.parametrize("present", [[], ["nice"], ["io"]], ids=["neither", "only-nice", "only-io"])
+# The tools put on PATH in a run held to exit 2. The macOS case with only nice is removed: the line there is "`nice -n
+# <k> -- <command>`, with no `taskpolicy -b`", so with nice on PATH no tool of the line is missing.
+MISSING = {
+    "darwin": ([[], ["io"]], ["neither", "only-io"]),
+    "linux": ([[], ["nice"], ["io"]], ["neither", "only-nice", "only-io"]),
+}
+
+
+@pytest.mark.parametrize("present", MISSING[sys.platform][0], ids=MISSING[sys.platform][1])
 def test_tool_missing(tmp_path: Path, present: list[str]) -> None:
-    """Where the host's I/O tool or nice is not on PATH, the wrapper runs nothing and exits 2."""
+    """Where a tool of the line is not on PATH, the wrapper runs nothing and exits 2."""
     log = tmp_path / "log"
     tools = tmp_path / "tools"
     tools.mkdir()

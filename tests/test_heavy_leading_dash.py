@@ -3,7 +3,8 @@
 Source: the agents design spec under docs/superpowers/specs/, "Decisions", the bullet on heavy runs: the wrapper runs
 its command "by the line one pure function gives, `wrapped(command, platform, niceness)`, where `platform` is the host
 as `sys.platform` names it, `linux` or `darwin`, and `niceness` is the caller's own [...]: on Linux `ionice -c3 nice -n
-<k> -- <command>`, on macOS `taskpolicy -b nice -n <k> -- <command>`, where `k` is 19 − niceness [...]; the `--` ends
+<k> -- <command>`, on macOS `nice -n <k> -- <command>`, with no `taskpolicy -b`, [...] where `k` is 19 − niceness
+[...]; the `--` ends
 `nice`'s options, so any command is run as given, one whose first word begins with `-` included; each tool is found on
 `PATH`". "It exits with its command's exit status." The wrapper is given `--lock <path>` before its command.
 
@@ -34,7 +35,7 @@ STATUS = 3
 
 LINUX = ["ionice", "-c3", "nice", "-n", "19", "--"]
 
-DARWIN = ["taskpolicy", "-b", "nice", "-n", "19", "--"]
+DARWIN = ["nice", "-n", "19", "--"]
 
 LONE = ["-x"]
 
@@ -62,7 +63,7 @@ def test_linux_x() -> None:
 
 def test_darwin_x() -> None:
     """On macOS a command whose first word is a lone -x follows nice's --, exactly as given."""
-    assert heavy.wrapped(LONE, "darwin", 0) == ["taskpolicy", "-b", "nice", "-n", "19", "--", "-x"]
+    assert heavy.wrapped(LONE, "darwin", 0) == ["nice", "-n", "19", "--", "-x"]
 
 
 def test_linux_n() -> None:
