@@ -1,9 +1,10 @@
 """Red tests for the gates core gate error and the exit code a run's outcome calls for.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "report.py: what a run prints and how it
-exits": `GateError(report)` is an Exception whose report is printed as the checker's; an `Outcome` holds the run's
-`Finding`, `Remark` and `Unfinished` lines and the gate's own notes; `exit_code(outcome)` is 2 on any Unfinished, else
-1 on any Finding, else 0.
+exits": `GateError(report)` is an Exception that "keeps `.report`, the report as given, which the runner reads by that
+name"; how else it carries the report is not written, so it is read here only by that name. An `Outcome` holds the
+run's `Finding`, `Remark` and `Unfinished` lines and the gate's own notes; `exit_code(outcome)` is 2 on any Unfinished,
+else 1 on any Finding, else 0.
 
 The count line and the empty run: the same section names `count_line(gate, findings, files)` and
 `nothing_checked(gate, selects, given)`; their text is the quality-gates design spec's, "Gates", intro: "The count line
@@ -19,11 +20,12 @@ knows counts, `\\r\\n` as one break, and nothing else in a line is touched. The 
 reads the same for a finding: "every line break in it replaced by a space".
 
 What a finished run prints: the same section names `render(gate, outcome, files)`, "notes, lines in order, each
-Unfinished text once per run, count line last"; a Finding is "One line, counted in N", a Remark is "printed, not
-counted". So a Finding or Remark is one printed line, its breaks made spaces as `one_line` makes them, an Unfinished is
-the printed lines of its whole text as `output_lines` splits them, and the count line names the files handed in and the
-number of Findings. Which place a repeated Unfinished text keeps among other lines, and the order of two notes, are not
-written, and no test here holds either.
+Unfinished text once per run, count line last; passes every Finding and Remark text through one_line, the one home for
+that rule"; a Finding is "One line, counted in N", a Remark is "printed, not counted". So `render` itself makes a
+Finding or Remark one printed line, its breaks made spaces as `one_line` makes them, a text that holds breaks being a
+text it is handed; an Unfinished is the printed lines of its whole text as `output_lines` splits them, and the count
+line names the files handed in and the number of Findings. Which place a repeated Unfinished text keeps among other
+lines, and the order of two notes, are not written, and no test here holds either.
 
 The one writer: the same section names `write(lines, *, error=False)`, "the only writer: looks up sys.stdout/stderr at
 call time, flushes". So the lines it is given are printed one per line, in order, each as given, a blank one as a blank
@@ -64,10 +66,11 @@ SEED = "check_pytest: seed 1234"
 
 
 def test_gate_error_is_an_exception_that_carries_its_report() -> None:
-    """Raise a GateError and catch it as an Exception whose message is the report it was given."""
-    with pytest.raises(Exception, match=r"\A" + re.escape(REPORT) + r"\Z") as caught:
+    """Raise a GateError and catch it as an Exception whose `.report` is the report it was given, as given."""
+    with pytest.raises(Exception) as caught:
         raise GateError(REPORT)
-    assert caught.type is GateError
+    error = caught.value
+    assert isinstance(error, GateError) and error.report == REPORT
 
 
 @pytest.mark.parametrize(
@@ -348,7 +351,11 @@ def test_order(gate: str, outcome: Outcome, files: int, expected: list[str]) -> 
     ],
 )
 def test_one_line(outcome: Outcome, expected: list[str]) -> None:
-    """render: a Finding or a Remark is exactly one printed line, each line break in its text made a space."""
+    """render: a Finding or a Remark is exactly one printed line, render passing its text through one_line.
+
+    Gates core spec section 1, render: "passes every Finding and Remark text through one_line, the one home for that
+    rule", so a Finding or Remark built with line breaks in its text is printed as one line, each break made a space.
+    """
     assert render("check_pytest", outcome, 1) == expected
 
 

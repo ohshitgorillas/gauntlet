@@ -34,7 +34,7 @@ Each checker's own record types stay in its gate: mypy's Record, pyright's Diagn
 ### report.py: what a run prints and how it exits
 
 ```python
-class GateError(Exception): __init__(self, report: str)  # something stops the checker; report printed as the checker's, exit 2
+class GateError(Exception): __init__(self, report: str)  # something stops the checker; keeps `.report`, the report as given, which the runner reads by that name; printed as the checker's, exit 2
 Finding(text: str)          # frozen dataclasses. One line, counted in N
 Remark(text: str)           # a checker line that is no finding (a mypy note): printed, not counted
 Unfinished(text: str)       # the checker's report on what it did not finish, or a GateError's report: exit 2
@@ -44,7 +44,7 @@ def exit_code(outcome: Outcome) -> int                  # 2 on any Unfinished, e
 def count_line(gate: str, findings: int, files: int) -> str
 def one_line(text: str) -> str                          # every str.splitlines break becomes a space
 def output_lines(text: str) -> list[str]                # a checker's console output, one printed line per str.splitlines line
-def render(gate: str, outcome: Outcome, files: int) -> list[str]  # notes, lines in order, each Unfinished text once per run, count line last
+def render(gate: str, outcome: Outcome, files: int) -> list[str]  # notes, lines in order, each Unfinished text once per run, count line last; passes every Finding and Remark text through one_line, the one home for that rule; passes each Unfinished text through output_lines, the one home for that rule
 def nothing_checked(gate: str, selects: str, given: int) -> list[str]
 def write(lines: Sequence[str], *, error: bool = False) -> None  # the only writer: looks up sys.stdout/stderr at call time, flushes
 ```
@@ -250,7 +250,7 @@ How the planned gates plug in:
 
 There are three helpers in `tests/support/`. The spec already names that directory as the home of seeded strings.
 
-- **`capture.py`.** `captured(call: Callable[[], T]) -> Captured[T]`, which has `.result`, `.out`, `.err` and `.merged`: `.out` and `.err` are the lines written to fd 1 and fd 2 (and to `sys.stdout` and `sys.stderr`), kept apart, and `.merged` is every line of both in the order written. This is (b): it works in-process, at the file-descriptor level. It flushes, saves fds 1 and 2 with `os.dup`, points each at its own bound Unix datagram socket with `os.dup2`, both connected to one receiving socket, and points `sys.stdout` and `sys.stderr` at a write-through wrapper over their own fd for the duration of the call. Every write is one datagram, queued in the order written and tagged with the sender's address, so one file could not tell the fds apart and this can. A reader thread drains the queue during the call. Everything is restored in `finally`, then the thread is stopped and joined.
+- **`capture.py`.** `captured(call: Callable[[], T]) -> Captured[T]`, which has `.result`, `.out`, `.err` and `.merged`: `.out` and `.err` are the lines written to fd 1 and fd 2 (and to `sys.stdout` and `sys.stderr`), kept apart, and `.merged` is every line of both in the order written. How capture works is in `2026-10-20-capture-design.md`.
   - It sees writes to either Python stream in the order made, direct fd writes, and a checker child's output.
   - The gate's code runs in the test's own interpreter, so coverage and mutmut's trampolines reach it. g1l's child-interpreter helper cannot give that.
   - It replaces 12 files using capsys, 11 using redirect_stdout, 4 using capfd and 10 that start a child.
@@ -416,3 +416,6 @@ What each milestone's design step must settle:
 - 3, mypy as a child process (`python -m mypy` per file, from the warm cache), with its cost measured in C3; keep `mypy.api.run` only if that cost is large. (Void, technical.)
 - 4, the core lives in `gates/core/` inside Gauntlet for now: standard library only, nothing Gauntlet-specific, extractable later for HQPTuner. (Owner.)
 - 5, in-flight work: g1l and mypy-cache are not committed; their good parts are harvested as section 4 describes. G1l, G-mypy-cache, G-mypy-cache-gap, T-capture, G1f and G1m fold into the core steps and close. G4-3b B1-B4 pause until C7. (Owner.)
+- 6, GateError keeps `.report`, the report as given, and the runner reads that named field. (Void, technical.)
+- 7, `render` passes every Finding and Remark text through `one_line`, the one home for that rule. (Void, technical.)
+- 8, `render` passes each Unfinished text through `output_lines`, the one home for that rule. (Void, technical.)
