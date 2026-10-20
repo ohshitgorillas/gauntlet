@@ -1,14 +1,17 @@
 """Red tests for the test-support capture helper.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 3, the "capture.py" bullet: `captured(call)` returns a
-`Captured` with `.result` and `.lines`; it works in-process, at the file-descriptor level; fds 1 and 2 and sys.stdout and
-sys.stderr all reach one file for the duration of the call, and everything is restored in `finally`. It sees writes to
-either Python stream in the order made, direct fd writes, and a checker child's output.
+`Captured` with `.result`, `.out`, `.err` and `.merged`; `.out` and `.err` are the lines written to fd 1 and fd 2 (and to
+sys.stdout and sys.stderr), kept apart, and `.merged` is every line of both in the order written. It works in-process, at
+the file-descriptor level, and everything is restored in `finally`, then its reader thread is stopped and joined, so
+none of its threads is left running once it returns or raises. It sees writes to either Python stream in the order
+made, direct fd writes, and a checker child's output.
 """
 
 import os
 import subprocess
 import sys
+import threading
 from typing import TextIO
 
 import pytest
@@ -74,7 +77,7 @@ def test_captured_sees_every_line_from_every_channel_in_the_order_written() -> N
         sys.stdout.write("seven: sys.stdout again\n")
         sys.stderr.write("eight: sys.stderr again\n")
 
-    lines = captured(call).lines
+    lines = captured(call).merged
 
     assert _bare(lines) == [
         "one: sys.stdout",
@@ -92,9 +95,44 @@ def test_captured_sees_every_line_from_every_channel_in_the_order_written() -> N
     ]
 
 
+def test_captured_keeps_stdout_apart_from_stderr_and_merges_both_in_the_order_written() -> None:
+    def call() -> None:
+        print("out one: sys.stdout")
+        print("err one: sys.stderr", file=sys.stderr)
+        os.write(2, b"err two: fd 2\n")
+        os.write(1, b"out two: fd 1\n")
+        sys.stdout.write("out three: sys.stdout again\n")
+        os.write(1, b"out four: fd 1 again\n")
+        sys.stderr.write("err three: sys.stderr again\n")
+
+    capture = captured(call)
+
+    assert _bare(capture.out) == [
+        "out one: sys.stdout",
+        "out two: fd 1",
+        "out three: sys.stdout again",
+        "out four: fd 1 again",
+    ]
+    assert _bare(capture.err) == [
+        "err one: sys.stderr",
+        "err two: fd 2",
+        "err three: sys.stderr again",
+    ]
+    assert _bare(capture.merged) == [
+        "out one: sys.stdout",
+        "err one: sys.stderr",
+        "err two: fd 2",
+        "out two: fd 1",
+        "out three: sys.stdout again",
+        "out four: fd 1 again",
+        "err three: sys.stderr again",
+    ]
+
+
 def test_captured_restores_fds_and_python_streams_after_the_call(capfd: pytest.CaptureFixture[str]) -> None:
     stdout_before, stderr_before = sys.stdout, sys.stderr
     fd1_before, fd2_before = _fd_identity(1), _fd_identity(2)
+    threads_before = set(threading.enumerate())
 
     def call() -> None:
         print("inside")
@@ -102,6 +140,7 @@ def test_captured_restores_fds_and_python_streams_after_the_call(capfd: pytest.C
 
     captured(call)
 
+    assert set(threading.enumerate()) == threads_before
     assert sys.stdout is stdout_before
     assert sys.stderr is stderr_before
     assert _fd_identity(1) == fd1_before
@@ -117,6 +156,7 @@ def test_captured_restores_fds_and_python_streams_after_the_call(capfd: pytest.C
 def test_captured_lets_the_exception_propagate_and_still_restores(capfd: pytest.CaptureFixture[str]) -> None:
     stdout_before, stderr_before = sys.stdout, sys.stderr
     fd1_before, fd2_before = _fd_identity(1), _fd_identity(2)
+    threads_before = set(threading.enumerate())
 
     def call() -> None:
         print("before the raise")
@@ -126,6 +166,7 @@ def test_captured_lets_the_exception_propagate_and_still_restores(capfd: pytest.
     with pytest.raises(Boom, match="raised inside the call"):
         captured(call)
 
+    assert set(threading.enumerate()) == threads_before
     assert sys.stdout is stdout_before
     assert sys.stderr is stderr_before
     assert _fd_identity(1) == fd1_before

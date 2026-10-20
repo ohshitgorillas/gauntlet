@@ -35,6 +35,7 @@ holds it. That no other module writes is held by the structure test the same spe
 
 import io
 import re
+from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
 
 import pytest
@@ -53,6 +54,7 @@ from gates.core.report import (
     render,
     write,
 )
+from tests.support.capture import captured
 
 REPORT = "mypy: cannot start: no such file or directory"
 FINDING = "a.py:3:5: error: Name 'x' is not defined  [name-defined]"
@@ -429,58 +431,60 @@ def _buffered() -> tuple[io.TextIOWrapper, io.BytesIO]:
     return io.TextIOWrapper(raw, encoding="utf-8", newline="\n"), raw
 
 
+def _written(call: Callable[[], object]) -> tuple[str, str, list[str]]:
+    """What `call` prints to a sys.stdout and a sys.stderr of its own, and every line that reaches fd 1 or fd 2 instead.
+
+    The streams put in place for the call are neither sys.__stdout__ nor sys.__stderr__ nor a wrapper over fd 1 or 2, so
+    a writer that does not look up sys.stdout and sys.stderr when it is called prints nothing to them.
+    """
+    out, err = io.StringIO(), io.StringIO()
+
+    def redirected() -> None:
+        with redirect_stdout(out), redirect_stderr(err):
+            call()
+
+    seen = captured(redirected)
+    return out.getvalue(), err.getvalue(), seen.merged
+
+
 def test_write_stdout() -> None:
     """write: the lines given are printed one per line, in order, to the sys.stdout in place, and none to sys.stderr."""
-    out, err = io.StringIO(), io.StringIO()
-    with redirect_stdout(out), redirect_stderr(err):
-        write(list(PRINTED))
-    assert (out.getvalue(), err.getvalue()) == (PRINTED_TEXT, "")
+    assert _written(lambda: write(list(PRINTED))) == (PRINTED_TEXT, "", [])
 
 
 def test_write_stderr() -> None:
     """write: asked for the error stream, it prints the lines to the sys.stderr in place, and none to sys.stdout."""
-    out, err = io.StringIO(), io.StringIO()
-    with redirect_stdout(out), redirect_stderr(err):
-        write(list(PRINTED), error=True)
-    assert (out.getvalue(), err.getvalue()) == ("", PRINTED_TEXT)
+    assert _written(lambda: write(list(PRINTED), error=True)) == ("", PRINTED_TEXT, [])
 
 
 def test_write_verbatim() -> None:
     """write: each line prints as given, a blank one as a blank line, indentation, tabs and trailing spaces kept."""
-    out = io.StringIO()
-    with redirect_stdout(out):
-        write(list(KEPT))
-    assert out.getvalue() == KEPT_TEXT
+    assert _written(lambda: write(list(KEPT))) == (KEPT_TEXT, "", [])
 
 
 def test_write_none() -> None:
     """write: no line given prints nothing, not even a blank line, between the lines of the calls around it."""
-    out = io.StringIO()
-    with redirect_stdout(out):
+
+    def calls() -> None:
         write([SEED])
         write([])
         write([FAILED])
-    assert out.getvalue() == SEED + "\n" + FAILED + "\n"
+
+    assert _written(calls) == (SEED + "\n" + FAILED + "\n", "", [])
 
 
 def test_write_out_per_call() -> None:
     """write: each call prints to the sys.stdout in place at that call, not the one an earlier call found."""
-    first, second = io.StringIO(), io.StringIO()
-    with redirect_stdout(first):
-        write([SEED])
-    with redirect_stdout(second):
-        write([FAILED])
-    assert (first.getvalue(), second.getvalue()) == (SEED + "\n", FAILED + "\n")
+    first = _written(lambda: write([SEED]))
+    second = _written(lambda: write([FAILED]))
+    assert (first, second) == ((SEED + "\n", "", []), (FAILED + "\n", "", []))
 
 
 def test_write_err_per_call() -> None:
     """write: each call asked for the error stream prints to the sys.stderr in place at that call."""
-    first, second = io.StringIO(), io.StringIO()
-    with redirect_stderr(first):
-        write([SEED], error=True)
-    with redirect_stderr(second):
-        write([FAILED], error=True)
-    assert (first.getvalue(), second.getvalue()) == (SEED + "\n", FAILED + "\n")
+    first = _written(lambda: write([SEED], error=True))
+    second = _written(lambda: write([FAILED], error=True))
+    assert (first, second) == (("", SEED + "\n", []), ("", FAILED + "\n", []))
 
 
 def test_write_flush_stdout() -> None:
