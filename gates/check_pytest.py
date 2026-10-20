@@ -4,6 +4,8 @@ import fnmatch
 import os
 import re
 import secrets
+import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -40,6 +42,12 @@ FAILED_OUTCOMES = frozenset({"failure", "error"})
 PY_SUFFIX = re.compile(r"\.py$")
 
 PROCESSES_PER_CPU_PAIR = 2
+
+RUN_PREFIX = f"{GATE}-"
+
+REPORT = "report.xml"
+
+BASETEMP = "basetemp"
 
 
 @dataclass(frozen=True)
@@ -197,7 +205,7 @@ def verdict(finished: Run, module: str, given: Path) -> dict[str, str] | None:
     return failing if agrees else None
 
 
-def run(module: str, seed: int) -> Run:
+def run(module: str, seed: int, space: Path) -> Run:
     """Run pytest over the test module at `module` from the repository root under the settings in `pyproject.toml` with pytest-randomly's seed `seed`, and read its JUnit XML report.
 
     pytest reads its settings from the repository's `pyproject.toml` alone, never from a file
@@ -208,23 +216,28 @@ def run(module: str, seed: int) -> Run:
     where pytest and its plugins read options and settings, so none reaches it from outside,
     `PYTEST_ADDOPTS` and `PYTEST_PLUGINS` among them, and pytest-randomly and pytest-timeout load
     as installed.
+
+    `space` is a directory of this module's own inside the run's temp directory, which no other
+    process shares: its JUnit XML report is written in it, and pytest's `--basetemp` is a path in
+    it that pytest itself makes. `--basetemp` is passed on the command line and changes no
+    setting `pyproject.toml` holds.
     """
     environment = {key: value for key, value in os.environ.items() if not key.startswith(PYTEST_ENVIRONMENT)}
-    with tempfile.TemporaryDirectory() as scratch:
-        report = Path(scratch) / "report.xml"
-        command = [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-c",
-            str(CONFIG),
-            f"--rootdir={ROOT}",
-            f"--junitxml={report}",
-            f"--randomly-seed={seed}",
-            module,
-        ]
-        completed = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
-        return Run(completed=completed, cases=read_report(report))
+    report = space / REPORT
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-c",
+        str(CONFIG),
+        f"--rootdir={ROOT}",
+        f"--junitxml={report}",
+        f"--basetemp={space / BASETEMP}",
+        f"--randomly-seed={seed}",
+        module,
+    ]
+    completed = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
+    return Run(completed=completed, cases=read_report(report))
 
 
 def unfinished_text(unfinished: Run, given: Path) -> str:
@@ -248,14 +261,14 @@ def unfinished_text(unfinished: Run, given: Path) -> str:
     return "".join(f"{line}\n" for line in lines)
 
 
-def report(module: str, given: Path, seed: int) -> Report:
-    """Run pytest over the test module at `module`, given as `given`, with pytest-randomly's seed `seed`, and return what the gate prints for it.
+def report(module: str, given: Path, seed: int, space: Path) -> Report:
+    """Run pytest over the test module at `module`, given as `given`, with pytest-randomly's seed `seed` and the module's own temp directory `space`, and return what the gate prints for it.
 
     A run pytest finished prints each failing test as one finding, its id, a colon, a space and
     the message of its failure with every line break replaced by a space. A run it did not finish
     prints pytest's own error in their place.
     """
-    finished = run(module, seed)
+    finished = run(module, seed, space)
     found = verdict(finished, module, given)
     if found is None:
         return Report(text=unfinished_text(finished, given), findings=0, finished=False)
@@ -281,7 +294,79 @@ def processes(modules: int, cpus: int) -> int:
     return max(1, min(modules, cpus // PROCESSES_PER_CPU_PAIR))
 
 
-def main(paths: list[Path], read_cpus: Callable[[], int | None] = cpus) -> int:
+def make_spaces(spaces: list[Path]) -> tuple[Path, OSError] | None:
+    """Make each directory of `spaces`, in order, and return the first one the OS would not make with its OS error, or `None` when every one was made."""
+    for space in spaces:
+        try:
+            space.mkdir()
+        except OSError as error:
+            return space, error
+    return None
+
+
+def check(selection: Selection, count: int, spaces: list[Path]) -> tuple[int, bool]:
+    """Print the seed line, then run every test module of `selection` in parallel on a host of `count` CPUs and print each module's lines, in the order the modules were given.
+
+    Each module's pytest process takes the directory of `spaces` at its own place in the order
+    the modules were given, already made. Return how many findings the modules printed, and
+    whether pytest did not finish over some module. On any exception, `KeyboardInterrupt`
+    included, no module that has not started is run, and every pytest process already started
+    has ended before the exception leaves this function.
+    """
+    seed = secrets.randbits(SEED_BITS)
+    sys.stdout.write(f"{GATE}: seed {seed}\n")
+    findings = 0
+    unfinished = False
+    seeds = [seed] * len(selection.modules)
+    pool = ThreadPoolExecutor(max_workers=processes(len(selection.modules), count))
+    try:
+        for module_report in pool.map(report, selection.modules.keys(), selection.modules.values(), seeds, spaces):
+            sys.stdout.write(module_report.text)
+            findings += module_report.findings
+            unfinished = unfinished or not module_report.finished
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+    return findings, unfinished
+
+
+def unlock(run_directory: Path) -> None:
+    """Make `run_directory` and every directory inside it readable, writable and searchable by its owner, so that nothing a test left read-only keeps it from being deleted.
+
+    A test may leave a directory under its own temp directory without the owner's read, write or
+    search permission, which keeps its entries from being listed or removed. Only directories
+    inside `run_directory`, itself included, are changed, never a symbolic link or what it points
+    to, and never the scratch root above it. A directory whose mode cannot be read or changed is
+    left as it is, so that deleting it fails and names the OS error.
+    """
+    directories = [str(run_directory)]
+    while directories:
+        directory = directories.pop()
+        try:
+            mode = os.lstat(directory).st_mode
+            if not stat.S_ISDIR(mode):
+                continue
+            os.chmod(directory, stat.S_IMODE(mode) | stat.S_IRWXU)
+            with os.scandir(directory) as entries:
+                directories.extend(entry.path for entry in entries if entry.is_dir(follow_symlinks=False))
+        except OSError:
+            continue
+
+
+def delete(run_directory: Path) -> OSError | None:
+    """Delete `run_directory` and all it holds, a directory a test left read-only included, and return the OS error that left any of it behind, or `None` when nothing is left."""
+    unlock(run_directory)
+    try:
+        shutil.rmtree(run_directory)
+    except OSError as error:
+        return error
+    return None
+
+
+def main(
+    paths: list[Path],
+    read_cpus: Callable[[], int | None] = cpus,
+    scratch_root: Path | None = None,
+) -> int:
     """Run pytest over the test files among the Python files in `paths` and print each failing test.
 
     A test file is a test module, a file whose path as given has a `tests` directory component
@@ -304,6 +389,15 @@ def main(paths: list[Path], read_cpus: Callable[[], int | None] = cpus) -> int:
     never fewer than one, where C is the count `read_cpus` returns, `cpus` by default; a host whose count it cannot read
     runs no test, prints why and the count line, and exits 2. Each module's lines print together,
     in the order the modules were given, whatever the order the processes end in.
+
+    Before its seed line the run makes one temp directory of its own under `scratch_root`, the
+    system temp directory as `tempfile` gives it when `None`, and inside it one directory for each
+    test module's pytest process. A directory of these the run cannot make prints one line naming
+    its path and the OS error, then the count line with no finding, and exits 2, with no seed line
+    and no test run. The run's temp directory and all it holds, a directory a test left read-only
+    included, are deleted on every exit path, every exception included; a deletion that fails
+    prints one line naming the path and the OS error after every module's lines, then the count
+    line, and the run exits 2, whatever the modules found.
     """
     selection = select(paths)
     if not selection.modules:
@@ -315,18 +409,29 @@ def main(paths: list[Path], read_cpus: Callable[[], int | None] = cpus) -> int:
         sys.stdout.write(f"{GATE}: cannot read the number of CPUs this process may run on; no test was run\n")
         sys.stdout.write(f"{GATE}: 0 finding(s) in {files} Python file(s)\n")
         return BLOCKED
-    seed = secrets.randbits(SEED_BITS)
-    sys.stdout.write(f"{GATE}: seed {seed}\n")
+    root = Path(tempfile.gettempdir()) if scratch_root is None else scratch_root
+    try:
+        run_directory = Path(tempfile.mkdtemp(prefix=RUN_PREFIX, dir=root))
+    except OSError as error:
+        sys.stdout.write(f"{GATE}: cannot make a temp directory in {root}: {error}\n")
+        sys.stdout.write(f"{GATE}: 0 finding(s) in {files} Python file(s)\n")
+        return BLOCKED
+    spaces = [run_directory / str(index) for index in range(len(selection.modules))]
     findings = 0
     unfinished = False
-    seeds = [seed] * len(selection.modules)
-    with ThreadPoolExecutor(max_workers=processes(len(selection.modules), count)) as pool:
-        for module_report in pool.map(report, selection.modules.keys(), selection.modules.values(), seeds):
-            sys.stdout.write(module_report.text)
-            findings += module_report.findings
-            unfinished = unfinished or not module_report.finished
+    try:
+        unmade = make_spaces(spaces)
+        if unmade is None:
+            findings, unfinished = check(selection, count, spaces)
+        else:
+            space, refusal = unmade
+            sys.stdout.write(f"{GATE}: cannot make a temp directory {space}: {refusal}\n")
+    finally:
+        left = delete(run_directory)
+        if left is not None:
+            sys.stdout.write(f"{GATE}: cannot delete the temp directory {run_directory}: {left}\n")
     sys.stdout.write(f"{GATE}: {findings} finding(s) in {files} Python file(s)\n")
-    if unfinished:
+    if unmade is not None or unfinished or left is not None:
         return BLOCKED
     return 1 if findings else 0
 
