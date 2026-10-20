@@ -2,9 +2,9 @@
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Tests", the "pytest strictness" bullet. "Each run of the pytest gate makes one temp directory of its own under the run's scratch root, before its seed line. The scratch root is the `scratch_root` argument of the gate's `main`, used as given". "Each test module's pytest process takes a path of its own inside the run's temp directory as pytest's `--basetemp`, which no other process shares". "The run's temp directory and all it holds are deleted on every exit path: every return and every exception, `KeyboardInterrupt` included, a run that did not finish among them. After a run the scratch root holds exactly what it held before, every other entry in it untouched". "A run temp directory the gate cannot make, a missing scratch root included, prints one error line naming the path and the OS error, then the count line with N 0 and M the test files given, and exits 2." "A deletion that fails ... is temp space the gate cannot delete and is never passed over: after the seed line and every module's lines, the gate prints one error line naming the path and the OS error, then the count line with N the findings it read, and exits 2, whatever the modules found." Placement is judged only by the scratch root the test hands the run, seen from inside a seeded test module through pytest's public `tmp_path_factory.getbasetemp()`. The seed line's shape is `<gate>: seed N`; the count line's shape and the empty run come from the "Gates" intro; a finding's shape from the JUnit sub-bullet. The gate's script is `gates/check_pytest.py`, so `<gate>` is `check_pytest`.
 
-The documents do not spell the OS error's text, so an error line is held to what names the path and the error: the scratch root's path, which every path under it begins with, and `os.strerror` of the errno the operating system gives for the failure seeded. The run's temp directory is made undeletable by a seeded test module that takes write permission off the scratch root, which lies outside the temp space the gate owns.
+The documents do not spell the OS error's text, so an error line is held to what names the path and the error, and `os.strerror` of the errno the operating system gives for the failure seeded. A run temp directory never made is named by no path the test can learn, so its line is held to the scratch root's path, which every path under it begins with. The run's temp directory is made undeletable by a seeded test module that lists the scratch root, which held nothing before the run, and then takes write permission off it, which lies outside the temp space the gate owns; the one entry it listed is the run's temp directory, and the error line must name that path itself, never one inside it.
 
-A recording module lists the scratch root in its test body and again as its pytest process exits, after pytest has written its JUnit report. An interrupted run is looked at where `main` leaves, its exception still alive, once the interrupting module's pytest process has ended, and again after the child interpreter has exited.
+A recording module lists the scratch root in its test body and again as its pytest process exits, after pytest has written its JUnit report; as it exits it also lists every file under the scratch root that parses as a JUnit XML report, a `testsuites` or `testsuite` root, with a test case named as its own test, whose name is seeded per module, found by the file's content, never by its file name; a file that is not XML, the module's own bytecode among them, is never one. An interrupted run is looked at where `main` leaves, its exception still alive, once the interrupting module's pytest process has ended, and again after the child interpreter has exited.
 """
 
 import errno
@@ -58,13 +58,31 @@ LIBRARY = "def double(value):\n    return value * 2\n"
 RECORDING = (
     "import atexit\n"
     "import os\n"
-    "import pathlib\n\n"
+    "import pathlib\n"
+    "from xml.etree import ElementTree\n\n"
     "RECORD = pathlib.Path(RECORD_PATH)\n"
-    "SCRATCH = pathlib.Path(SCRATCH_PATH)\n\n\n"
+    "REPORTS = RECORD.with_name(RECORD.stem + '-reports.txt')\n"
+    "SCRATCH = pathlib.Path(SCRATCH_PATH)\n"
+    "NAME = 'test_seeded_RECORD_STEM'\n\n\n"
+    "def holds_report(path):\n"
+    "    try:\n"
+    "        root = ElementTree.parse(path).getroot()\n"
+    "    except (OSError, ElementTree.ParseError):\n"
+    "        return False\n"
+    "    cases = [case.get('name') for case in root.iter('testcase')]\n"
+    "    return root.tag in ('testsuites', 'testsuite') and NAME in cases\n\n\n"
+    "def reports():\n"
+    "    return sorted(\n"
+    "        (pathlib.Path(folder) / name).relative_to(SCRATCH).as_posix()\n"
+    "        for folder, _, names in os.walk(SCRATCH)\n"
+    "        for name in names\n"
+    "        if holds_report(pathlib.Path(folder) / name)\n"
+    "    )\n\n\n"
     "def record(base, entries):\n"
     "    seen = sorted({*entries, *os.listdir(SCRATCH)})\n"
-    "    RECORD.write_text('\\n'.join([base, *seen]), encoding='utf-8')\n\n\n"
-    "def test_seeded(tmp_path_factory, tmp_path):\n"
+    "    RECORD.write_text('\\n'.join([base, *seen]), encoding='utf-8')\n"
+    "    REPORTS.write_text('\\n'.join(reports()), encoding='utf-8')\n\n\n"
+    "def test_seeded_RECORD_STEM(tmp_path_factory, tmp_path):\n"
     "    (tmp_path / 'left.txt').write_text('left', encoding='utf-8')\n"
     "    atexit.register(record, str(tmp_path_factory.getbasetemp()), os.listdir(SCRATCH))\n"
 )
@@ -90,10 +108,47 @@ INTERRUPTING = (
 )
 
 LOCKING = (
+    "import os\n"
     "import pathlib\n\n"
+    "RECORD = pathlib.Path(RECORD_PATH)\n"
     "SCRATCH = pathlib.Path(SCRATCH_PATH)\n\n\n"
     "def test_seeded():\n"
+    "    RECORD.write_text('\\n'.join(sorted(os.listdir(SCRATCH))), encoding='utf-8')\n"
     f"    SCRATCH.chmod({READ_ONLY:#o})\n"
+)
+
+NESTED = (
+    "import sys\n"
+    "from pathlib import Path\n\n"
+    f"from {main.__module__} import {main.__name__}\n\n"
+    f"{main.__name__}([Path(sys.argv[2])], scratch_root=Path(sys.argv[1]))\n"
+)
+
+NESTING = (
+    "import os\n"
+    "import pathlib\n"
+    "import subprocess\n\n"
+    "RECORD = pathlib.Path(RECORD_PATH)\n"
+    "SCRATCH = pathlib.Path(SCRATCH_PATH)\n\n\n"
+    "def snapshot():\n"
+    "    return '\\n'.join(\n"
+    "        path.relative_to(SCRATCH).as_posix() + ('/' if path.is_dir() else ' ' + path.read_bytes().hex())\n"
+    "        for path in sorted(SCRATCH.rglob('*'))\n"
+    "    )\n\n\n"
+    "def test_seeded(tmp_path):\n"
+    "    (tmp_path / 'left.txt').write_text('left', encoding='utf-8')\n"
+    "    entries = '\\n'.join(sorted(os.listdir(SCRATCH)))\n"
+    "    before = snapshot()\n"
+    "    subprocess.run(\n"
+    "        [PYTHON_PATH, '-c', NESTED_SOURCE, str(SCRATCH), INNER_MODULE_PATH],\n"
+    "        cwd=REPO_PATH,\n"
+    "        stdout=subprocess.DEVNULL,\n"
+    "        stderr=subprocess.DEVNULL,\n"
+    "        check=False,\n"
+    "    )\n"
+    "    RECORD.write_text(entries, encoding='utf-8')\n"
+    "    RECORD.with_name(RECORD.stem + '-before.txt').write_text(before, encoding='utf-8')\n"
+    "    RECORD.with_name(RECORD.stem + '-after.txt').write_text(snapshot(), encoding='utf-8')\n"
 )
 
 CHILD = (
@@ -162,15 +217,20 @@ def _fill(
     for marker, path in (("RECORD_PATH", record), ("PID_PATH", pid), ("LOCK_PATH", lock)):
         if path is not None:
             filled = filled.replace(marker, repr(str(path)))
-    return filled
+    return filled if record is None else filled.replace("RECORD_STEM", record.stem)
 
 
 def _record_lines(record: Path) -> list[str]:
     return record.read_text(encoding="utf-8").splitlines() if record.exists() else []
 
 
-def _recording_run(root: Path) -> tuple[Path, list[list[str]]]:
-    """Run the gate over two recording modules with a scratch root of the test's own; return the root and each module's record."""
+def _reports_of(record: Path) -> list[str]:
+    """The files under the scratch root, relative to it, that parsed as a JUnit XML report of the recording module's test as its pytest process exited."""
+    return _record_lines(record.with_name(f"{record.stem}-reports.txt"))
+
+
+def _recording_run(root: Path) -> tuple[Path, list[list[str]], list[list[str]]]:
+    """Run the gate over two recording modules with a scratch root of the test's own; return the root, each module's record and each module's reports."""
     scratch = _scratch(root)
     records = [root / "records" / "alpha.txt", root / "records" / "zulu.txt"]
     records[0].parent.mkdir()
@@ -178,7 +238,7 @@ def _recording_run(root: Path) -> tuple[Path, list[list[str]]]:
         _seed(root, f"tree/tests/test_{record.stem}.py", _fill(RECORDING, scratch, record)) for record in records
     ]
     main(modules, scratch_root=scratch)
-    return scratch, [_record_lines(record) for record in records]
+    return scratch, [_record_lines(record) for record in records], [_reports_of(record) for record in records]
 
 
 def _base(lines: list[str]) -> Path | None:
@@ -208,24 +268,60 @@ def _nested(bases: list[Path | None]) -> int:
 
 def test_inside(tmp_path: Path) -> None:
     """Each test module's pytest temp directory lies inside the scratch root the run is handed."""
-    scratch, records = _recording_run(tmp_path)
+    scratch, records, _ = _recording_run(tmp_path)
 
     assert [_top(_base(lines), scratch) != "" for lines in records] == [True, True]
 
 
+def _nested_run(root: Path) -> tuple[Path, list[str], list[str], bool]:
+    """Run the gate over one module that, while its run is live, runs the gate again in a child interpreter over a recording module, both runs handed the same scratch root.
+
+    Return the scratch root, its entries as the outer module saw them before the inner run, the inner module's record, and whether the scratch root after the inner run held exactly what it held before it.
+    """
+    scratch = _scratch(root)
+    record = root / "records" / "outer.txt"
+    inner = root / "records" / "inner.txt"
+    record.parent.mkdir()
+    inner_module = _seed(root, "nested/tests/test_inner.py", _fill(RECORDING, scratch, inner))
+    source = (
+        _fill(NESTING, scratch, record)
+        .replace("INNER_MODULE_PATH", repr(str(inner_module)))
+        .replace("PYTHON_PATH", repr(sys.executable))
+        .replace("REPO_PATH", repr(str(REPO_ROOT)))
+        .replace("NESTED_SOURCE", repr(NESTED))
+    )
+    outer = _seed(root, "tree/tests/test_outer.py", source)
+    main([outer], scratch_root=scratch)
+    before = _record_lines(record.with_name(f"{record.stem}-before.txt"))
+    after = _record_lines(record.with_name(f"{record.stem}-after.txt"))
+    return scratch, _record_lines(record), _record_lines(inner), bool(before) and before == after
+
+
 def test_one_per_run(tmp_path: Path) -> None:
-    """While the modules run, each module's JUnit report written included, the scratch root holds one new entry, and both modules' pytest temp directories lie in it."""
-    scratch, records = _recording_run(tmp_path)
+    """While the modules run, each module's JUnit report written included, the scratch root holds one new entry, and both modules' pytest temp directories and JUnit reports lie in it; a second run that starts while the first is live makes a new entry of its own, holds its module's pytest temp directory in it, and leaves every entry it found untouched."""
+    scratch, records, reports = _recording_run(tmp_path / "first")
 
     seen = sorted({entry for lines in records for entry in _new(lines[1:])})
     tops = sorted({_top(_base(lines), scratch) for lines in records})
+    placed = [sorted({Path(entry).parts[0] for entry in lines}) for lines in reports]
 
-    assert (len(seen), seen == tops) == (ONE_RUN_DIRECTORY, True)
+    shared, outer_seen, inner_lines, untouched = _nested_run(tmp_path / "second")
+    own = sorted({entry for entry in inner_lines[1:] if entry not in outer_seen})
+    inner_top = _top(_base(inner_lines), shared)
+
+    assert (len(seen), seen == tops, placed == [seen, seen], len(own), own == [inner_top], untouched) == (
+        ONE_RUN_DIRECTORY,
+        True,
+        True,
+        ONE_RUN_DIRECTORY,
+        True,
+        True,
+    )
 
 
 def test_own_basetemp(tmp_path: Path) -> None:
     """Each module's pytest temp directory is its own, inside the scratch root: none shared, none inside another's."""
-    scratch, records = _recording_run(tmp_path)
+    scratch, records, _ = _recording_run(tmp_path)
 
     bases = [_base(lines) for lines in records]
     inside = [_top(base, scratch) != "" for base in bases]
@@ -300,13 +396,30 @@ def test_interrupt(tmp_path: Path) -> None:
     assert (len(_new(record)), where_left == before, after == before) == (ONE_RUN_DIRECTORY, True, True)
 
 
-def _shape(line: str, scratch: Path, error: str) -> str:
-    """A printed line, with the seed line and an error line naming a path under the scratch root and the OS error each put as its kind."""
+def _under(root: Path) -> re.Pattern[str]:
+    """Names a path under the root, the root included."""
+    return re.compile(re.escape(str(root)))
+
+
+def _exactly(path: Path | None) -> re.Pattern[str]:
+    """Names the path itself, never a path inside it; with no path, names nothing."""
+    if path is None:
+        return re.compile(r"(?!)")
+    return re.compile(re.escape(str(path)) + r"(?![\w/-])")
+
+
+def _shape(line: str, named: re.Pattern[str], error: str) -> str:
+    """A printed line, with the seed line and an error line naming the path and the OS error each put as its kind."""
     if SEED_LINE.fullmatch(line) is not None:
         return SEED
-    if str(scratch) in line and error in line:
+    if named.search(line) is not None and error in line:
         return ERROR
     return line
+
+
+def _run_directory(scratch: Path, entries: list[str]) -> Path | None:
+    """The run's temp directory: the one entry of a scratch root that held nothing before the run, as a module saw it while it ran."""
+    return scratch / entries[0] if len(entries) == ONE_RUN_DIRECTORY else None
 
 
 def _unmade_scratch(root: Path, kind: str) -> Path:
@@ -337,7 +450,7 @@ def test_unmade(tmp_path: Path, kind: str, code: int) -> None:
         output = captured(lambda: main(paths, scratch_root=scratch))
     finally:
         _restore(scratch)
-    shapes = [_shape(line.rstrip("\n"), scratch, os.strerror(code)) for line in output.merged]
+    shapes = [_shape(line.rstrip("\n"), _under(scratch), os.strerror(code)) for line in output.merged]
 
     assert (output.result, shapes) == (UNFINISHED, [ERROR, COUNT_NO_FINDING])
 
@@ -347,13 +460,15 @@ def test_undeleted(tmp_path: Path, companion: str, *, finds: bool) -> None:
     """A run temp directory the gate cannot delete prints one error line after every module's lines, then the count line, and exits 2."""
     scratch = tmp_path / "scratch"
     scratch.mkdir()
-    locker = _seed(tmp_path, "tree/tests/test_locker.py", _fill(LOCKING, scratch))
+    record = tmp_path / "record.txt"
+    locker = _seed(tmp_path, "tree/tests/test_locker.py", _fill(LOCKING, scratch, record))
     other = _seed(tmp_path, "tree/tests/test_other.py", companion)
     try:
         output = captured(lambda: main([locker, other], scratch_root=scratch))
     finally:
         _restore(scratch)
-    shapes = [_shape(line.rstrip("\n"), scratch, os.strerror(errno.EACCES)) for line in output.merged]
+    run = _run_directory(scratch, _record_lines(record))
+    shapes = [_shape(line.rstrip("\n"), _exactly(run), os.strerror(errno.EACCES)) for line in output.merged]
     finding = f"{other}::test_seeded: ValueError: SeededFailure"
     expected = [SEED, finding, ERROR, COUNT_ONE_FINDING] if finds else [SEED, ERROR, COUNT_NO_FINDING]
 
