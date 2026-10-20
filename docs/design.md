@@ -29,7 +29,7 @@ Each section states a mechanism, then lists the approaches it replaces under **N
 
 ## 2. Workflow
 
-A job runs these stages in order. "You approve" means the job waits at a screen until you act.
+A job runs these stages in order. "You approve" means the job waits at a screen until you act. Proposed, pending the owner's approval: a design stage for the shared core, review against that design, fixing by cause, structure jobs and a structure audit, in [`superpowers/specs/2026-10-20-structure-first-design.md`](superpowers/specs/2026-10-20-structure-first-design.md).
 
 | # | Stage | Who | Input | Returns | Gate |
 |---|---|---|---|---|---|
