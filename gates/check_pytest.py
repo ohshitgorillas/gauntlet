@@ -7,6 +7,8 @@ import secrets
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from xml.etree import ElementTree
@@ -36,6 +38,8 @@ SEED_BITS = 32
 FAILED_OUTCOMES = frozenset({"failure", "error"})
 
 PY_SUFFIX = re.compile(r"\.py$")
+
+PROCESSES_PER_CPU_PAIR = 2
 
 
 @dataclass(frozen=True)
@@ -69,6 +73,15 @@ class Run:
 
     completed: subprocess.CompletedProcess[str]
     cases: list[Case] | None
+
+
+@dataclass(frozen=True)
+class Report:
+    """What the gate prints for one test module, its findings or pytest's error in their place, with how many findings it holds and whether pytest finished."""
+
+    text: str
+    findings: int
+    finished: bool
 
 
 def is_test_module(path: Path) -> bool:
@@ -214,8 +227,8 @@ def run(module: str, seed: int) -> Run:
         return Run(completed=completed, cases=read_report(report))
 
 
-def print_unfinished(unfinished: Run, given: Path) -> None:
-    """Print pytest's own error for a run over the test module given as `given` that it did not finish, then its exit status.
+def unfinished_text(unfinished: Run, given: Path) -> str:
+    """Return pytest's own error for a run over the test module given as `given` that it did not finish, then its exit status, one line each.
 
     pytest writes an error that stops it before any test runs, as a usage error or an unknown
     config key, to its stderr, and one that stops it during collection, as a collection error or
@@ -224,17 +237,51 @@ def print_unfinished(unfinished: Run, given: Path) -> None:
     so in a line of its own. The status line names no number of files and says nothing of the
     report, since the count line is the one line that counts files.
     """
-    sys.stdout.write("".join(f"{line}\n" for line in unfinished.completed.stderr.splitlines()))
+    lines = list(unfinished.completed.stderr.splitlines())
     for case in unfinished.cases or []:
         for outcome in case.outcomes:
-            sys.stdout.write(f"{case.classname}::{case.name}: {one_line(outcome.message)}\n")
-            sys.stdout.write("".join(f"{line}\n" for line in outcome.text.splitlines()))
+            lines.append(f"{case.classname}::{case.name}: {one_line(outcome.message)}")
+            lines.extend(outcome.text.splitlines())
     if unfinished.completed.returncode == ExitCode.NO_TESTS_COLLECTED:
-        sys.stdout.write(f"{GATE}: pytest collected no test from {given}\n")
-    sys.stdout.write(f"{GATE}: pytest exited {unfinished.completed.returncode} on {given}\n")
+        lines.append(f"{GATE}: pytest collected no test from {given}")
+    lines.append(f"{GATE}: pytest exited {unfinished.completed.returncode} on {given}")
+    return "".join(f"{line}\n" for line in lines)
 
 
-def main(paths: list[Path]) -> int:
+def report(module: str, given: Path, seed: int) -> Report:
+    """Run pytest over the test module at `module`, given as `given`, with pytest-randomly's seed `seed`, and return what the gate prints for it.
+
+    A run pytest finished prints each failing test as one finding, its id, a colon, a space and
+    the message of its failure with every line break replaced by a space. A run it did not finish
+    prints pytest's own error in their place.
+    """
+    finished = run(module, seed)
+    found = verdict(finished, module, given)
+    if found is None:
+        return Report(text=unfinished_text(finished, given), findings=0, finished=False)
+    text = "".join(f"{identity}: {one_line(message)}\n" for identity, message in found.items())
+    return Report(text=text, findings=len(found), finished=True)
+
+
+def cpus() -> int | None:
+    """Return C, the number of CPUs the gate's process may run on, read in this process, or `None` when it cannot be read.
+
+    On a host that keeps an affinity, any but `darwin` and `win32`, C is the number of CPUs
+    `os.sched_getaffinity` allows this process; elsewhere, as on macOS, it is the host's CPU
+    count, `os.cpu_count()`, which is `None` when the host does not say. No command is run to
+    read it.
+    """
+    if sys.platform != "darwin" and sys.platform != "win32":
+        return len(os.sched_getaffinity(0))
+    return os.cpu_count()
+
+
+def processes(modules: int, cpus: int) -> int:
+    """Return how many pytest processes run at once over `modules` test modules on a host of `cpus` CPUs: one per module up to floor(`cpus` / 2), and never fewer than one."""
+    return max(1, min(modules, cpus // PROCESSES_PER_CPU_PAIR))
+
+
+def main(paths: list[Path], read_cpus: Callable[[], int | None] = cpus) -> int:
     """Run pytest over the test files among the Python files in `paths` and print each failing test.
 
     A test file is a test module, a file whose path as given has a `tests` directory component
@@ -251,25 +298,33 @@ def main(paths: list[Path]) -> int:
     in the same shape whether or not pytest finished, is the last line printed and the one line
     that counts files. When pytest did not finish over some test module, the run exits 2,
     whatever the other modules found.
+
+    Each test module runs in a pytest process of its own, and a `conftest.py` gets none. The
+    processes run in parallel, as many at once as there are test modules up to floor(C / 2) and
+    never fewer than one, where C is the count `read_cpus` returns, `cpus` by default; a host whose count it cannot read
+    runs no test, prints why and the count line, and exits 2. Each module's lines print together,
+    in the order the modules were given, whatever the order the processes end in.
     """
     selection = select(paths)
     if not selection.modules:
         sys.stdout.write(f"{GATE}: no test file among {len(paths)} path(s); nothing was checked\n")
         return 1
     files = len(selection.modules) + len(selection.conftests)
+    count = read_cpus()
+    if count is None:
+        sys.stdout.write(f"{GATE}: cannot read the number of CPUs this process may run on; no test was run\n")
+        sys.stdout.write(f"{GATE}: 0 finding(s) in {files} Python file(s)\n")
+        return BLOCKED
     seed = secrets.randbits(SEED_BITS)
     sys.stdout.write(f"{GATE}: seed {seed}\n")
     findings = 0
     unfinished = False
-    for module, given in selection.modules.items():
-        finished = run(module, seed)
-        found = verdict(finished, module, given)
-        if found is None:
-            print_unfinished(finished, given)
-            unfinished = True
-        else:
-            sys.stdout.write("".join(f"{identity}: {one_line(message)}\n" for identity, message in found.items()))
-            findings += len(found)
+    seeds = [seed] * len(selection.modules)
+    with ThreadPoolExecutor(max_workers=processes(len(selection.modules), count)) as pool:
+        for module_report in pool.map(report, selection.modules.keys(), selection.modules.values(), seeds):
+            sys.stdout.write(module_report.text)
+            findings += module_report.findings
+            unfinished = unfinished or not module_report.finished
     sys.stdout.write(f"{GATE}: {findings} finding(s) in {files} Python file(s)\n")
     if unfinished:
         return BLOCKED
