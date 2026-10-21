@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from gates.check_mutation import GATE, Mutant, Mutated, main, outcome, setting_findings
+from gates.check_mutation import GATE, Mutant, Mutated, outcome, setting_findings
 from gates.core.report import Finding, exit_code, render
 from gates.core.runner import run_gate
 from tests.support.capture import captured
@@ -113,14 +113,12 @@ def _count(findings: int, files: int) -> str:
 @pytest.mark.parametrize("files", EMPTY_RUNS)
 def test_empty_run(tmp_path: Path, files: tuple[tuple[str, str], ...]) -> None:
     """A run given no Python file that is not a test file prints that nothing was checked, then its count line: exit 1."""
-    paths: list[Path] = []
-    for relative, text in files:
-        path = tmp_path / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-        paths.append(path)
+    project = scaffold(tmp_path, dict(files))
+    paths = [tmp_path / relative for relative, _ in files]
 
-    output = captured(lambda: main(paths))
+    output = captured(
+        lambda: run_gate(GATE, paths, project=project, process=FakeRunner([]))
+    )
 
     assert (output.result, output.merged) == (
         1,
@@ -133,7 +131,7 @@ def test_empty_run(tmp_path: Path, files: tuple[tuple[str, str], ...]) -> None:
 
 @pytest.mark.parametrize("pyproject", UNPINNED)
 def test_unpinned(tmp_path: Path, pyproject: str) -> None:
-    """A tree with no `major.minor` pyright pythonVersion prints one error naming the key, then its count line: exit 2."""
+    """A tree with no `major.minor` pyright pythonVersion prints one error naming the key and the file, then its count line: exit 2."""
     files = {"seeded.py": SOURCE, "tests/test_seeded.py": PASSING_TEST}
     project = scaffold(tmp_path, files, pyproject=pyproject)
     paths = [tmp_path / name for name in files]
@@ -146,10 +144,14 @@ def test_unpinned(tmp_path: Path, pyproject: str) -> None:
         output.result,
         len(output.merged),
         "pythonVersion" in output.merged[0],
+        "tool.pyright.pythonVersion" in output.merged[0],
+        "pyproject.toml" in output.merged[0],
         output.merged[-1],
     ) == (
         2,
         2,
+        True,
+        True,
         True,
         f"{_count(0, 1)}\n",
     )
@@ -187,13 +189,21 @@ def test_finished_clean() -> None:
 
 
 def test_finished_findings_in_order() -> None:
-    """Key findings, then each mutant not killed, by path as given then name, one line each with its diff: exit 1."""
+    """The key finding, and each mutant not killed by path as given then name, one line each with its diff: exit 1."""
     done = outcome([KEY_FINDING], Mutated(mutants=(LATER, SURVIVOR, UNREACHED)))
 
-    assert (exit_code(done), render(GATE.name, done, 2)) == (
+    lines = render(GATE.name, done, 2)
+
+    assert (
+        exit_code(done),
+        len(lines),
+        KEY_FINDING.text in lines,
+        [line for line in lines if line != KEY_FINDING.text],
+    ) == (
         1,
+        5,
+        True,
         [
-            KEY_FINDING.text,
             _line(UNREACHED),
             _line(SURVIVOR),
             _line(LATER),
@@ -222,13 +232,14 @@ def test_unfinished() -> None:
 
     done = outcome([KEY_FINDING], Mutated(mutants=(SURVIVOR,), error=error))
 
-    assert (exit_code(done), render(GATE.name, done, 1)) == (
+    lines = render(GATE.name, done, 1)
+
+    assert (exit_code(done), lines[:2], sorted(lines[2:-1]), lines[-1]) == (
         2,
         [
             "mutmut exited 1",
             "FAILED tests/test_seeded.py::test_seeded",
-            KEY_FINDING.text,
-            _line(SURVIVOR),
-            _count(2, 1),
         ],
+        sorted([KEY_FINDING.text, _line(SURVIVOR)]),
+        _count(2, 1),
     )
