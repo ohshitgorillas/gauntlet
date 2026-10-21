@@ -104,12 +104,17 @@ def _make_deletable(directory: Path) -> None:
 
 @dataclass(frozen=True)
 class Run:
-    """What a gate's check works with: the project, the selected sources, the run's scratch and its process runner."""
+    """What a gate's check works with: the project, the selected sources, the run's scratch and its process runner.
+
+    `given` is every Python file given, test files included, as `python_files` returns them; `sources` is selected
+    from it. The default `()` keeps a hand-built Run valid and gives a check that reads it no file.
+    """
 
     project: Project
     sources: tuple[Source, ...]
     scratch: Scratch
     process: Runner
+    given: tuple[Source, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -213,7 +218,8 @@ def run_gate(
 
     The scratch is closed on every path, an interrupt included, which then goes on with nothing printed.
     """
-    sources = gate.select(python_files(paths))
+    given = tuple(python_files(paths))
+    sources = gate.select(given)
     if not sources:
         write(nothing_checked(gate.name, gate.selects, len(paths)))
         return 1
@@ -221,7 +227,8 @@ def run_gate(
     try:
         try:
             run_project = Project.current() if project is None else project
-            outcome = gate.check(Run(project=run_project, sources=tuple(sources), scratch=scratch, process=process))
+            gate_run = Run(project=run_project, sources=tuple(sources), scratch=scratch, process=process, given=given)
+            outcome = gate.check(gate_run)
         except (GateError, OSError) as error:
             outcome = Outcome(lines=(Unfinished(_report(error)),))
     finally:

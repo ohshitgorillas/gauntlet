@@ -92,6 +92,16 @@ def nothing_checked(gate: str, selects: str, given: int) -> list[str]:
     return [f"{gate}: nothing checked: no {selects} among the {given} file(s) given", count_line(gate, 0, 0)]
 
 
+def time_cap(checker: str, seconds: float) -> str:
+    """Give the gate's own line naming the checker, as given, and the time cap that ended it, in seconds."""
+    return f"the checker {checker} ran past its time cap of {seconds} seconds"
+
+
+def timed_out(output: str, checker: str, seconds: float) -> tuple[Unfinished, Unfinished]:
+    """Give a capped checker's lines: an Unfinished of its whole output as given, then one of its time_cap line."""
+    return Unfinished(output), Unfinished(time_cap(checker, seconds))
+
+
 def write(lines: Sequence[str], *, error: bool = False) -> None:
     """Print the lines, one per line, to sys.stdout, or sys.stderr when asked for the error stream, and flush it."""
     stream = sys.stderr if error else sys.stdout
