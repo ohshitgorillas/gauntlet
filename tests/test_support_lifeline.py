@@ -5,7 +5,9 @@ Source: the no-wall-clock design spec under docs/superpowers/specs/, the `tests/
 `release` closes the write end and a second call does nothing; leaving it releases, then closes the read end. A
 `Witness` makes a FIFO and opens its read end without blocking; every process that opens it to write is a holder, and
 `ended`, called after every holder's ready line, blocks until every holder has closed it and returns what they wrote.
-`ready(fd)` blocks until a child writes one line on fd and returns it, b"" when every writer closed first. `Pids` gives
+`ready(fd)` blocks until a child writes one line on fd and returns it, b"" when every writer closed first. A `Beacon`
+is a pipe whose `write_fd` a child is handed; `seen` closes the test's write end, then reads the read end: the child's
+line, or b"" when every child holding the write end closed it first; leaving it closes each end still open. `Pids` gives
 the pids children note in its file and SIGKILLs each at teardown, passing over a ProcessLookupError. `HOLD` writes a
 ready line to fd 1, then reads the fd its first argument names to EOF and exits 0; `WITNESS` opens the FIFO its first
 argument names to write, writes a mark and a ready line, then holds on the fd its second argument names; `MEET` opens
@@ -26,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.support.lifeline import HOLD, MEET, WITNESS, Lifeline, Pids, Witness, ready
+from tests.support.lifeline import HOLD, MEET, WITNESS, Beacon, Lifeline, Pids, Witness, ready
 
 READY = b"ready\n"
 
@@ -46,6 +48,9 @@ LATE_HOLDER = (
     "witness.write(b'late' * 262144)\n"
     "witness.close()\n"
 )
+
+# A child that writes the ready line on fd argv[1], then reads fd argv[2] to EOF.
+SIGNALLER = "import os, sys\nos.write(int(sys.argv[1]), b'ready\\n')\nwhile os.read(int(sys.argv[2]), 65536):\n    pass\n"
 
 
 @contextlib.contextmanager
@@ -196,6 +201,55 @@ def test_ready_gives_back_nothing_when_every_writer_closed_first() -> None:
         os.close(read_fd)
 
     assert line == b""
+
+
+def _open_fds() -> set[str]:
+    """The fds this process has open, as /dev/fd lists them."""
+    return set(os.listdir("/dev/fd"))
+
+
+def test_seen_gives_back_the_line_a_child_still_holding_the_beacon_wrote() -> None:
+    with (
+        Lifeline() as line,
+        Beacon() as beacon,
+        _child(SIGNALLER, str(beacon.write_fd), str(line.read_fd), fds=(beacon.write_fd, line.read_fd)) as child,
+    ):
+        seen = beacon.seen()
+        line.release()
+        status = child.wait()
+
+    assert (seen, status) == (READY, 0)
+
+
+def test_seen_gives_back_nothing_when_every_child_holding_the_beacon_closed_it_first() -> None:
+    with Beacon() as beacon, _child("pass\n", fds=(beacon.write_fd,)) as child:
+        seen = beacon.seen()
+        status = child.wait()
+
+    assert (seen, status) == (b"", 0)
+
+
+def test_leaving_a_beacon_closes_both_its_ends() -> None:
+    before = _open_fds()
+    with Beacon():
+        pass
+    after = _open_fds()
+
+    assert after == before
+
+
+def test_leaving_a_beacon_after_seen_closes_nothing_a_second_time(tmp_path: Path) -> None:
+    other = tmp_path / "other.txt"
+    other.write_text("other", encoding="utf-8")
+    with Beacon() as beacon:
+        beacon.seen()
+        fd = os.open(other, os.O_RDONLY)
+    try:
+        kept = os.read(fd, 16)
+    finally:
+        os.close(fd)
+
+    assert kept == b"other"
 
 
 def test_no_pids_noted_before_the_file_is_written(tmp_path: Path) -> None:

@@ -4,13 +4,18 @@ Design: the no-wall-clock design spec under docs/superpowers/specs/, the `tests/
 is an event on a pipe or FIFO, blocked on with no timeout: pytest-timeout is the one bound on a test that hangs. A
 `Lifeline` is a pipe whose write end only the test holds, so a child reading its read end to end of file lives until
 the test releases it. A `Witness` is a FIFO the test reads; every process that opens it to write is a holder, and its
-end of file comes only when every holder has closed it. `Pids` kills, by pid, the pids children note in a file.
+end of file comes only when every holder has closed it. A `Beacon` is a pipe a child writes one ready line on, its write
+end handed to the child; the test reads that line once the child has started. `Pids` kills, by pid, the pids children
+note in a file.
 
 The child code is run as `python -c <code> <arguments>`. `HOLD` writes the ready line `ready` to fd 1 and then reads
 the fd its first argument names to its end. `WITNESS` opens the FIFO its first argument names to write, writes the
 mark `held` into it, writes the ready line and then holds on the fd its second argument names. `MEET` opens the FIFO
 its first argument names for reading (`read`) or writing (`write`), as its second argument says; a FIFO's open blocks
 until both ends are open, so it returns once the other side has opened it.
+
+`Beacon.seen` closes the test's write end before it reads, so its read ends on the child's line or, when every child
+holding the write end has closed it without writing, at once on end of file; neither path waits on time.
 """
 
 import contextlib
@@ -95,6 +100,34 @@ def ready(fd: int) -> bytes:
             break
         line += byte
     return line
+
+
+class Beacon:
+    """A pipe a child writes one ready line on; the test reads it once the child has started."""
+
+    write_fd: int
+
+    def __init__(self) -> None:
+        self._read_fd, self.write_fd = os.pipe()
+        self._write_open = True
+
+    def _close_write(self) -> None:
+        if self._write_open:
+            os.close(self.write_fd)
+            self._write_open = False
+
+    def seen(self) -> bytes:
+        """Close the test's write end, then the line on the read end; b"" when every child holding it closed it first."""
+        self._close_write()
+        return ready(self._read_fd)
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """Close each end still open."""
+        self._close_write()
+        os.close(self._read_fd)
 
 
 class Pids:
