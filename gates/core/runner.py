@@ -138,7 +138,7 @@ class Checker[R](Protocol):
     def lines(self, report: R, batch: Sequence[Source], *, stopped: bool) -> Sequence[Line]: ...
 
 
-def check_with[R](checker: Checker[R]) -> Callable[[Run], Outcome]:
+def check_with[R](checker: Checker[R], *, budget: Callable[[], int] | None = None) -> Callable[[Run], Outcome]:
     """Return the check that runs the checker's batches in order and gives their lines in that order.
 
     A GateError or OSError from a batch's command or process ends the check there: its report follows the lines of the

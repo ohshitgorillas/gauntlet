@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import FrameType, TracebackType
@@ -354,3 +354,8 @@ def cpu_budget(cpus: int | None = None) -> int:
         message = "cannot read the host's CPU count"
         raise GateError(message)
     return cpus // 2
+
+
+def run_all(process: Runner, commands: Iterable[Command], cap: int) -> list[Completed | GateError | OSError]:
+    """Run each Command through the process, at most cap at once; return one result per Command started, in order."""
+    raise NotImplementedError
