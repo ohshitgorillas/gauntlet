@@ -5,12 +5,12 @@ import shutil
 import stat
 import sys
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn, Protocol
 
-from gates.core.checker import Command, Completed, Runner, run
+from gates.core.checker import Command, Completed, Runner, run, run_all
 from gates.core.project import Project, Source, python_files
 from gates.core.report import GateError, Line, Outcome, Unfinished, exit_code, nothing_checked, render, write
 
@@ -139,22 +139,34 @@ class Checker[R](Protocol):
 
 
 def check_with[R](checker: Checker[R], *, budget: Callable[[], int] | None = None) -> Callable[[Run], Outcome]:
-    """Return the check that runs the checker's batches in order and gives their lines in that order.
+    """Return the check that runs the checker's batches, the budget's number at once, and gives their lines in order.
 
-    A GateError or OSError from a batch's command or process ends the check there: its report follows the lines of the
-    batches before it, and no later batch runs.
+    The budget is called once per check, after `batches` and before the first `command`; the cap is `max(1, budget())`,
+    and None runs one batch at a time. A GateError or OSError from the budget is the one Unfinished, with no batch run.
+    The batches run through `run_all`, each command made in batch order. A GateError or OSError from a batch's command
+    or process ends the check at the first such batch in batch order: its report follows the lines of the batches
+    before it, no batch starts once it is seen, and no later batch gives a line.
     """
 
     def check(run: Run) -> Outcome:
+        batches = checker.batches(run)
+        try:
+            cap = 1 if budget is None else max(1, budget())
+        except (GateError, OSError) as error:
+            return Outcome(lines=(Unfinished(_report(error)),))
+        commands: list[Command] = []
+
+        def made() -> Iterator[Command]:
+            for batch in batches:
+                commands.append(checker.command(run, batch))
+                yield commands[-1]
+
         lines: list[Line] = []
-        for batch in checker.batches(run):
-            try:
-                command = checker.command(run, batch)
-                completed = run.process(command)
-            except (GateError, OSError) as error:
-                lines.append(Unfinished(_report(error)))
+        for index, result in enumerate(run_all(run.process, made(), cap)):
+            if isinstance(result, GateError | OSError):
+                lines.append(Unfinished(_report(result)))
                 break
-            lines.extend(_batch_lines(checker, batch, command, completed))
+            lines.extend(_batch_lines(checker, batches[index], commands[index], result))
         return Outcome(lines=tuple(lines))
 
     return check
