@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn, Protocol
 
-from gates.core.checker import Command, Completed, Runner, run, run_all
+from gates.core.checker import Command, Completed, NextDone, Runner, first_done, run, run_all
 from gates.core.project import Project, Source, python_files
 from gates.core.report import GateError, Line, Outcome, Unfinished, exit_code, nothing_checked, render, timed_out, write
 
@@ -115,6 +115,7 @@ class Run:
     scratch: Scratch
     process: Runner
     given: tuple[Source, ...] = ()
+    next_done: NextDone = first_done
 
 
 @dataclass(frozen=True)
@@ -154,6 +155,8 @@ def check_with[R](checker: Checker[R], *, budget: Callable[[], int] | None = Non
     """
 
     def check(run: Run) -> Outcome:
+        if run.next_done is not first_done:
+            raise NotImplementedError
         batches = checker.batches(run)
         try:
             cap = 1 if budget is None else max(1, budget())
@@ -215,12 +218,15 @@ def run_gate(
     *,
     project: Project | None = None,
     process: Runner = run,
+    next_done: NextDone = first_done,
     scratch_root: Path | None = None,
 ) -> int:
     """Run the gate over the paths, print its lines and return its exit code; M is the number of sources selected.
 
     The scratch is closed on every path, an interrupt included, which then goes on with nothing printed.
     """
+    if next_done is not first_done:
+        raise NotImplementedError
     given = tuple(python_files(paths))
     sources = gate.select(given)
     if not sources:

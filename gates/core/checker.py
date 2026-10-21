@@ -9,13 +9,14 @@ import subprocess
 import sys
 import tempfile
 import threading
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import FrameType, TracebackType
 from typing import IO, Protocol, Self, TypeGuard
 
+from gates.core.clock import SYSTEM, Clock
 from gates.core.report import GateError
 
 # The niceness a throttled checker runs at: `nice -n` adds to the caller's own, so the step is this less it.
@@ -63,7 +64,7 @@ class Completed:
 type Runner = Callable[[Command], Completed]
 
 
-def run(command: Command) -> Completed:
+def run(command: Command, *, clock: Clock = SYSTEM) -> Completed:
     """Run the checker in a session of its own; kill its whole group at the timeout or on any interrupt.
 
     An interrupt is any signal of ENDING_SIGNALS that would end this process, from the moment the checker starts
@@ -72,6 +73,8 @@ def run(command: Command) -> Completed:
 
     Raises GateError when the program cannot start, when the wait on it cannot be set up, or when an output file cannot be deleted or read.
     """
+    if clock is not SYSTEM:
+        raise NotImplementedError
     argv = command.argv
     if command.throttled:
         path = os.pathsep.join(os.get_exec_path(command.env))
@@ -401,7 +404,20 @@ def cpu_budget(cpus: int | None = None) -> int:
     return cpus // 2
 
 
-def run_all(process: Runner, commands: Iterable[Command], cap: int) -> list[Completed | GateError | OSError]:
+type NextDone = Callable[[Collection[Future[Completed]]], set[Future[Completed]]]
+
+
+def first_done(running: Collection[Future[Completed]]) -> set[Future[Completed]]:
+    raise NotImplementedError
+
+
+def run_all(
+    process: Runner,
+    commands: Iterable[Command],
+    cap: int,
+    *,
+    next_done: NextDone = first_done,
+) -> list[Completed | GateError | OSError]:
     """Run each Command through the process in worker threads, at most cap at once; return the results in their order.
 
     The next Command is taken, in the calling thread, only when fewer than cap are running. A GateError or OSError from
@@ -411,6 +427,8 @@ def run_all(process: Runner, commands: Iterable[Command], cap: int) -> list[Comp
     kills the group of every checker `run` has started and not yet reaped, waits for every worker, puts the handlers
     back, and only then lets the exception and each signal recorded take their course.
     """
+    if next_done is not first_done:
+        raise NotImplementedError
     results: dict[int, Completed | GateError | OSError] = {}
     running: dict[Future[Completed], int] = {}
     with _Interrupts() as interrupts, ThreadPoolExecutor(max_workers=cap) as pool:
