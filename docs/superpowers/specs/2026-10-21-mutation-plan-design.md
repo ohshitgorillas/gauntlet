@@ -1,4 +1,4 @@
-Status: proposed, for the owner's approval.
+Status: approved by the owner.
 
 ## Why
 
