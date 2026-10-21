@@ -406,19 +406,82 @@ def test_git_runs(tmp_path: Path) -> None:
     assert (result.status, Path(result.stdout.strip()).resolve()) == (0, tmp_path.resolve())
 
 
-def test_git_ignores_hook_variables(tmp_path: Path) -> None:
-    """A GIT_DIR a hook exports does not reach git: it still finds the root's own repository."""
+@pytest.mark.parametrize(
+    "variables",
+    [
+        pytest.param({"GIT_DIR": "{elsewhere}", "GIT_WORK_TREE": "{elsewhere}"}, id="git-dir-and-work-tree"),
+        pytest.param({"GIT_DIR": "{elsewhere}"}, id="git-dir"),
+        pytest.param({"GIT_WORK_TREE": "{elsewhere}"}, id="work-tree"),
+        pytest.param({"GIT_COMMON_DIR": "{elsewhere}"}, id="common-dir"),
+        pytest.param({"GIT_OBJECT_DIRECTORY": "{elsewhere}"}, id="object-directory"),
+        pytest.param({"GIT_CONFIG_COUNT": "1"}, id="config-count"),
+        pytest.param({"GIT_CONFIG_PARAMETERS": "bogus"}, id="config-parameters"),
+    ],
+)
+def test_git_ignores_hook_variables(tmp_path: Path, variables: dict[str, str]) -> None:
+    """None of these GIT_ variables reaches a real git, each on its own: it still finds the root's own repository.
+
+    Every variable here, reaching git, sends `rev-parse --show-toplevel` elsewhere or fails it (decision 12); that every
+    GIT_ name is dropped, these and any other, is test_git_drops_every_git_variable's claim.
+    """
     _init(tmp_path)
     program = (
         "import sys\nfrom pathlib import Path\nfrom gates.core.project import Project\n"
         "print(Project(Path(sys.argv[1])).git('rev-parse', '--show-toplevel').stdout, end='')\n"
     )
-    env = {**environment(), "GIT_DIR": str(tmp_path / "elsewhere"), "GIT_WORK_TREE": str(tmp_path / "elsewhere")}
+    elsewhere = tmp_path / "elsewhere"
+    env = {**environment(), **{name: value.format(elsewhere=elsewhere) for name, value in variables.items()}}
     child = subprocess.run(
         [sys.executable, "-c", program, str(tmp_path)], env=env, capture_output=True, text=True, check=False
     )
 
     assert (child.returncode, Path(child.stdout.strip()).resolve()) == (0, tmp_path.resolve())
+
+
+REPO_ROOT = Path(__file__).parents[1]
+
+HOOK_VARIABLES = {
+    "GIT_GAUNTLET_UNHEARD_OF": "made up",
+    "GIT_INDEX_FILE": "/nonexistent/elsewhere",
+    "GIT_NAMESPACE": "x",
+    "GIT_CONFIG_KEY_0": "core.bare",
+}
+
+LOOKALIKES = {"GIT": "bare", "GITHUB_TOKEN": "kept"}
+
+
+def test_git_drops_every_git_variable(tmp_path: Path) -> None:
+    """Every variable whose name starts with GIT_ is dropped, a made-up one included, not a list of names (decision 12).
+
+    A child starts with these GIT_ variables, calls `git` with a recording runner, and prints the GIT_ names it saw
+    itself and those the runner was given. A runner given no environment at all would let git inherit every GIT_
+    variable, so the child exits non-zero on it. The prefix is GIT_, not GIT: a name that merely begins GIT, as
+    GITHUB_TOKEN, reaches the runner with its value, which the child prints last.
+    """
+    program = (
+        "import sys\nfrom pathlib import Path\nfrom gates.core.checker import environment\n"
+        "from gates.core.project import Project\nfrom tests.support.fake import FakeRunner, completed\n"
+        "runner = FakeRunner([completed()])\nProject(Path(sys.argv[1])).git('status', process=runner)\n"
+        "env = runner.commands[0].env\n"
+        "if env is None:\n    sys.exit('git was given no environment, so it inherits every variable')\n"
+        "print(' '.join(sorted(n for n in environment() if n.startswith('GIT_'))))\n"
+        "print(' '.join(sorted(n for n in env if n.startswith('GIT_'))))\n"
+        "print(' '.join(f'{n}={env[n]}' for n in sorted(env) if n.startswith('GIT') and not n.startswith('GIT_')))\n"
+    )
+    clean = {name: value for name, value in environment().items() if not name.startswith("GIT")}
+    child = subprocess.run(
+        [sys.executable, "-c", program, str(tmp_path)],
+        env={**clean, **HOOK_VARIABLES, **LOOKALIKES},
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert (child.returncode, child.stdout.splitlines()) == (
+        0,
+        [" ".join(sorted(HOOK_VARIABLES)), "", "GIT=bare GITHUB_TOKEN=kept"],
+    )
 
 
 # key_findings
