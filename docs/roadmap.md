@@ -61,8 +61,10 @@ The quality gates of [`superpowers/specs/2026-10-17-quality-gates-design.md`](su
 - The survey screen shows candidates ranked by payoff and risk and what is sound; the owner selects, and one structure job opens per selected candidate, run as separate jobs one after another.
 - A structure job ports every copy and lands only when `uncovered` is empty at the end of its Review. The surveyor also runs in a structure job's Review.
 - Land merges only when the owner's uncommitted changes touch none of the landed files (§6).
+- `seams/git.py`: a worktree per running Build step, merged into the job branch as each step finishes (structure-first spec, decision 20).
+- Until M8 a DesignChange stops the job (decision 19); until M10 a bare `gauntlet audit` opens no job and fails (decision 21).
 
-**Done when:** a fixture repository with one concern copied in three files and no core yields three anchors in one cause and one candidate with its payoff, risk and keeps; a design whose `uncovered` is empty at Design; spec lines for the keeps locked before any port step; a landed job that adds the home, ports every caller and leaves `uncovered` empty at the end of Review; a fixture with two such concerns, both selected, yields two jobs, the second starting after the first ends; and the land screen lists every skipped stage.
+**Done when:** a fixture repository with one concern copied in three files and no core yields three anchors in one cause and one candidate with its payoff, risk and keeps; a design whose `uncovered` is empty at Design; spec lines for the keeps locked before any port step; a landed job that adds the home, ports every caller and leaves `uncovered` empty at the end of Review; a fixture with two such concerns, both selected, yields two jobs, the second starting after the first ends; two port steps on disjoint files build at once and both reach the job branch; and the land screen lists every skipped stage.
 
 ## M4. Adversarial loops and owner controls
 
@@ -89,7 +91,7 @@ The quality gates of [`superpowers/specs/2026-10-17-quality-gates-design.md`](su
 - Bailiff with `PIN` / `UNPINNED` per line and `HELD` / `ALTERED` per collateral row.
 - Full land screen: diff split into tests and code, red and green lines, open findings, amendments and bypasses, cost per role.
 
-**Done when:** the M3s fixture job runs every stage with no bypass, and a planted softened assertion is ruled `UNPINNED`; a planted copy of a design home's logic yields one COPY finding anchored at both places, one cause and one fix step whose diff removes the copy, and the next round holds no instance of it; and a job without a design that copies a function already in the tree yields one COPY finding and a fix step whose diff calls the existing function.
+**Done when:** the M3s fixture job runs every stage with no bypass, and a planted softened assertion is ruled `UNPINNED`; a planted copy of a design home's logic yields one COPY finding anchored at both places, one cause and one fix step whose diff removes the copy, and the next round holds no instance of it.
 
 ## M7s. Structure pilot
 
@@ -104,6 +106,12 @@ Run Gauntlet's audit and structure jobs on a real, established repository, for e
 - The planner's outline carries the shared-structure flag. Design runs between Outline and Plan with one architect and no rounds when the flag is set, and Stubs writes the design's stubs first.
 
 **Done when:** a small brief against a fixture repository with Python and JS tests lands a green change, and the land screen lists every skipped stage; a fixture brief whose outline flags shared structure shows a design screen and leaves `design.md`; and a bug-fix fixture brief whose outline leaves the flag unset shows Design skipped by rule on the land screen.
+
+## M6f. Review on feature jobs
+
+Feature jobs run Review and Bailiff as M6 built them, the structure reviewer reading the tree for code the diff repeats on a job without a design.
+
+**Done when:** the M3f fixture job runs every stage with no bypass; and a job without a design that copies a function already in the tree yields one COPY finding and a fix step whose diff calls the existing function.
 
 ## M7f. Feature pilot
 
@@ -127,7 +135,7 @@ Reopen covers Design: a DesignChange amends the job's own design and reruns the 
 
 ## M10. Audit jobs
 
-`gauntlet audit <scope>`: the auditor per test file, selected rows becoming a job that starts at Spec and skips Stubs, Build and Review.
+`gauntlet audit <scope>`: the auditor per test file, selected rows becoming a job that starts at Spec and skips Stubs, Build and Review. It replaces the refusal M3s gives a bare `audit`.
 
 **Done when:** an audit of a fixture test file with a planted policy violation yields a `STRIKE` or `AMEND` row, and that row lands as a job.
 

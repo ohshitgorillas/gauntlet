@@ -14,9 +14,9 @@ Each step that depends on a question says so and is built on the recommendation 
 6. **`route` with a path `owners` lacks.** Recommend a typed error `UnownedPath(path: str)` in `causes.py`, moved into M1's error family when M1's design names it.
 7. **Where `survey.md` lives.** `write_survey` takes an audit folder that `docs/design.md` §7 lacks. Recommend `.gauntlet/audits/<id>/survey.md`, added to §7 by D1.
 8. **role-author against the one schema home.** role-author's description and its agents-spec row say a `roles/` role is written "with its answer schema", and the four roles have no agents-spec row. Recommend: before R1, the owner amends the row to "naming its answer schema in `gauntlet/core/verdicts.py`", and R briefs give the role's line from the spec's `roles/` block and the paragraph under it as its row.
-9. **PLAN input for a STRUCTURE job.** The planner takes brief, outline, discovery and objections; a STRUCTURE job has only its candidate, copies and design. Needs an architect ruling.
-10. **`DesignChange` before M8.** `route` can return one; reopening DESIGN on it is M8. Until M8: the stop screen (M4), or before M4 a stop row in `state.json`. Needs a ruling.
-11. **Parallel BUILD commits in one worktree.** Decision 17 builds steps in parallel; `docs/design.md` does not say how two implementers' commits on one job branch interleave. A sequential cut needs an owner ruling.
+9. **PLAN input for a STRUCTURE job.** Settled by the spec's decision 18.
+10. **`DesignChange` before M8.** Settled by decision 19: it stops the job.
+11. **Parallel BUILD commits.** Settled by decision 20: a worktree per running step.
 
 ## When steps may start
 
@@ -98,7 +98,7 @@ Each step that depends on a question says so and is built on the recommendation 
 
 ### C4b. Red (`test-writer`)
 
-- `tests/test_core_decide_structure.py`, one behavior per spec `decide` bullet, CoreMissing bullets aside: `Stage` and `Shape` values; `FIRST` and `SKIPPED`; DESIGN problems or an uncovered copy fail a round under `caps.design`; Q3's unhomed concern fails a round; STUBS takes the design's stubs first; REVIEW grouping, routing, `COULD NOT JUDGE`, held cause ids against `caps.review`; a STRUCTURE job's SPEC carries each `keeps` line; its REVIEW leaves only when `uncovered` is empty; its BUILD starts every startable step, any other job's the first.
+- `tests/test_core_decide_structure.py`, one behavior per spec `decide` bullet, CoreMissing bullets aside: `Stage` and `Shape` values; `FIRST` and `SKIPPED`; DESIGN problems or an uncovered copy fail a round under `caps.design`; Q3's unhomed concern fails a round; STUBS takes the design's stubs first; REVIEW grouping, routing, `COULD NOT JUDGE`, held cause ids against `caps.review`; a DesignChange stops the job (Q10); a STRUCTURE job's SPEC carries each `keeps` line; its REVIEW leaves only when `uncovered` is empty; its BUILD starts every startable step, any other job's the first.
 
 ### C5. Build (`core-builder`)
 
@@ -135,7 +135,7 @@ Each step that depends on a question says so and is built on the recommendation 
 
 ### S4-S6. `gauntlet audit --structure` (M3s)
 
-- **Inputs:** C5, S3, R3. S4 `seam-builder` `stub`: `audit` in `gauntlet/seams/cli.py`. S5 `test-writer` `tests/test_seams_cli_audit.py`: `--structure` opens one STRUCTURE job through `open_structure` per selected candidate, none for an unselected one, run one after another; without `--structure` the test-audit shape runs. S6 `seam-builder` build on S5; reviews, `make check`, one commit.
+- **Inputs:** C5, S3, R3. S4 `seam-builder` `stub`: `audit` in `gauntlet/seams/cli.py`. S5 `test-writer` `tests/test_seams_cli_audit.py`: `--structure` opens one STRUCTURE job through `open_structure` per selected candidate, none for an unselected one, run one after another; without it, `audit` opens no job and returns nonzero (spec decision 21). S6 `seam-builder` build on S5; reviews, `make check`, one commit.
 
 ## Feature phase
 
@@ -147,7 +147,7 @@ Built after M7s; no step above reads it.
 
 ### C6. `tests/test_core_decide_core_missing.py` (`test-writer`, M8)
 
-- **Inputs:** C5. One behavior per spec bullet: `complete` or `partial` with CoreMissing → an offer, the step on its usual course; `blocked` → a STRUCTURE job opened at once; BUILD starts only `startable` steps under the held paths of decision 13; a landed STRUCTURE job empties `held` and the waiting steps rerun from STUBS; a merge conflict or a stopped STRUCTURE job stops the feature job once no step is startable; until M12 the STRUCTURE job starts when no step is startable; a `DesignChange` reopens DESIGN on the change alone.
+- **Inputs:** C5. One behavior per spec bullet: `complete` or `partial` with CoreMissing → an offer, the step on its usual course; `blocked` → a STRUCTURE job opened at once; BUILD starts only `startable` steps under the held paths of decision 13; a landed STRUCTURE job empties `held` and the waiting steps rerun from STUBS; a merge conflict or a stopped STRUCTURE job stops the feature job once no step is startable; until M12 the STRUCTURE job starts when no step is startable; a `DesignChange` reopens DESIGN on the change alone, replacing C4b's stop.
 
 ### C7. Build (`core-builder`, M8)
 

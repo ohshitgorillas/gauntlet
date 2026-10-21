@@ -1,6 +1,6 @@
 # Proposal: structure mode first
 
-Status: approved by the owner and applied to `docs/roadmap.md` and `docs/superpowers/plans/structure-first-plan.md`, bar the edits section 4 leaves to a ruling. Line citations are to `main` at `cd6415c`. "Inferred" marks a claim no document states.
+Status: approved by the owner and applied to `docs/roadmap.md` and `docs/superpowers/plans/structure-first-plan.md`, the rulings it leaves open settled by the roadmap's M6f and the spec's decisions 18 to 21. Line citations are to `main` at `cd6415c`. "Inferred" marks a claim no document states.
 
 Sources: `docs/roadmap.md` (R), `docs/design.md` (DD), the structure-first spec `docs/superpowers/specs/2026-10-20-structure-first-design.md` (S), its plan `docs/superpowers/plans/structure-first-plan.md` (P), the gates core spec `docs/superpowers/specs/2026-10-20-gates-core-design.md` (GC).
 

@@ -1,6 +1,6 @@
 # Structure first in the harness
 
-Status: proposed, for the owner's approval.
+Status: approved.
 
 ## Why
 
@@ -188,9 +188,9 @@ def decide(state: State, answer: Answer) -> Action
 - A job delivers its request at the size asked (decision 8). A BUILD answer of `complete` or `partial` carrying CoreMissing leaves the step to its usual course, and its candidate becomes an offer on the land screen with its payoff and risk. The owner accepts it, which opens a STRUCTURE job, or declines it, and the ruling is recorded; the feature job lands either way.
 - A BUILD answer of `blocked` carrying CoreMissing means the request cannot be done correctly without the core, and its candidate's `why` says so in a sentence on the status and land screens. The harness opens a STRUCTURE job for that candidate without waiting for the owner, who still approves its design (decision 6).
 - Meanwhile the feature job keeps building: BUILD starts only the steps `startable` returns, with the held paths of `core/schedule.py`, so only the blocked step and the steps that touch its files or the STRUCTURE job's wait. When the STRUCTURE job lands, the harness merges `main` into the feature job's branch, `held` empties, and the waiting steps run from STUBS. A merge that conflicts, or a STRUCTURE job that stops without landing, stops the feature job at its stop screen once no step is startable. Until M12 the STRUCTURE job starts when the feature job has no startable step left; under M12 it starts at once and runs beside it.
-- A STRUCTURE job, whether an audit pick or a spawn, opens at DESIGN with its candidate and the copies as its brief. Its approved order becomes its plan's steps: the steps that write the new home, then port steps, each moving one group of callers onto the home and deleting their copies (decision 7). Its BUILD starts every step `startable` returns, so port steps on disjoint files run in parallel; any other job's BUILD starts the first startable step, one at a time.
+- A STRUCTURE job, whether an audit pick or a spawn, opens at DESIGN with its candidate and the copies as its brief. Its approved order becomes its plan's steps: the steps that write the new home, then port steps, each moving one group of callers onto the home and deleting their copies (decision 7). Its BUILD starts every step `startable` returns, so port steps on disjoint files run in parallel, each in its own worktree (decision 20); any other job's BUILD starts the first startable step, one at a time. Its PLAN reads the design in the outline's place (decision 18).
 - A STRUCTURE job's SPEC carries each of its candidate's `keeps` lines as a spec line, and the arbiter rejects a spec that drops one, so every hard-won behavior is locked at LOCK before any port step purges a copy (decision 9).
-- REVIEW's findings, the structure reviewer's on every job among them (decision 1), pass `finding_problems` and then go to the grouper. Its causes pass `partition_problems`, and a grouping that fails is `COULD NOT JUDGE`. Each cause takes `route`: a FixStep goes to BUILD and a DesignChange reopens DESIGN on the change alone, after which the owner approves the change and the steps it touches rerun from STUBS. A cause id the next round still holds counts against `caps.review`.
+- REVIEW's findings, the structure reviewer's on every job among them (decision 1), pass `finding_problems` and then go to the grouper. Its causes pass `partition_problems`, and a grouping that fails is `COULD NOT JUDGE`. Each cause takes `route`: a FixStep goes to BUILD and a DesignChange reopens DESIGN on the change alone, after which the owner approves the change and the steps it touches rerun from STUBS; until M8 builds reopen, a DesignChange stops the job instead (decision 19). A cause id the next round still holds counts against `caps.review`.
 - In a STRUCTURE job's REVIEW the surveyor also surveys the job tree for the job's concern. Each copy it finds is a COPY finding, grouped and routed like any other, and the job leaves REVIEW only when `uncovered` with every step done returns none of them (decision 7).
 
 **`gauntlet/seams/job.py`.** Writes and reads the new records in the job folder: `design.N.md`, `design.N.objections.md`, `design.md`, `causes.N.md`, `offers.md` (each spawned or offered candidate and the owner's ruling on an offer), and for a structure audit `survey.md`. Nothing else writes these files. It is also the one opener of a STRUCTURE job, for an audit pick and a spawn alike. It replaces nothing; the list at `docs/design.md:248`-`261` gains these files.
@@ -213,7 +213,7 @@ def structure_section(spawned: Sequence[Candidate], offered: Sequence[Candidate]
 def survey_screen(survey: Survey, causes: Sequence[Cause]) -> Screen     # candidates in rank order with payoff, risk and anchors, then what is sound; the owner selects
 ```
 
-**`gauntlet/seams/cli.py`.** Gives `gauntlet audit` its second shape. A structure audit opens one STRUCTURE job through `open_structure` for each candidate the owner selects, never one job for several (decision 5). Until M12's epics exist, those jobs run as separate jobs one after another, each starting when the one before it ends; under M12, `startable` runs them, in parallel on disjoint files and in sequence on overlapping ones (decision 6). It replaces nothing; the test-audit shape (`docs/design.md:93`) stays.
+**`gauntlet/seams/cli.py`.** Gives `gauntlet audit` its second shape. A structure audit opens one STRUCTURE job through `open_structure` for each candidate the owner selects, never one job for several (decision 5). Until M12's epics exist, those jobs run as separate jobs one after another, each starting when the one before it ends; under M12, `startable` runs them, in parallel on disjoint files and in sequence on overlapping ones (decision 6). It replaces nothing; the test-audit shape (`docs/design.md:93`) stays, and until M10 builds it a bare `audit` refuses (decision 21).
 
 ```python
 def audit(scope: Path, *, structure: bool = False) -> int   # gauntlet audit <scope> [--structure]
@@ -307,7 +307,7 @@ M0, Agents, Gates, M2, M5, M7, M9, M11 and M13 do not change.
 
 ## Decisions taken
 
-Each decision names the question put to the owner, then the owner's ruling, which is what holds.
+Each decision names the question put to the owner, then the owner's ruling, which is what holds. Decisions 18 to 21 settle questions the build plan raised, within decisions 1 to 17.
 
 1. **When DESIGN runs.** Design runs only when the planner flags that the job creates or changes shared structure. Bug fixes and ordinary features skip it, and are still checked for copying what the core already has.
    - Written in: Modules (`core/design.py`, `core/causes.py`, `core/decide.py`, `roles/`), Homes ("Whether a job needs a design", "Whether a diff copies what the core already has"), Order (D1, M3, M6).
@@ -340,3 +340,11 @@ Each decision names the question put to the owner, then the owner's ruling, whic
    - Written in: Modules (the STRUCTURE job's SPEC bullet), Homes ("Behaviors a purge must keep"), Order (M10).
 17. **Where BUILD runs in parallel.** Parallel BUILD happens only in STRUCTURE jobs. Any other job's BUILD starts one startable step at a time.
    - Written in: Modules (the STRUCTURE job's BUILD bullet), Order (M8, M12).
+18. **What a STRUCTURE job's PLAN reads.** A STRUCTURE job has no outline and no discovery table. Its planner reads the job's brief (its candidate and copies), the approved design in the outline's place, and the prosecutor's objections. The plan keeps the design's steps one for one, with their names, implementers and paths, and adds to each the spec lines it serves and the stubs it needs; the prosecutor fails a plan that adds, drops or reorders a design step.
+   - Written in: Modules (the STRUCTURE job's opening bullet), plan Q9.
+19. **What a DesignChange does before M8.** Until M8 builds reopen, a DesignChange stops the job with its cause, as a reached round cap does: a stop row in `state.json` before M4, the stop screen from M4. M8 replaces the stop with the reopen of DESIGN.
+   - Written in: Modules (the REVIEW bullet), plan Q10, C4b, C6.
+20. **How parallel BUILD steps commit.** Each running step of a STRUCTURE job's BUILD gets its own worktree and branch from the job branch's head, mounted at `/work`, and its tests and gates run there. When the step finishes, the harness commits it there and merges it into the job branch, and a step started later branches from the merged head. `startable` keeps running steps on disjoint declared files, so a merge that conflicts means a step wrote outside its files: that step fails its gate.
+   - Written in: Modules (the STRUCTURE job's BUILD bullet), plan Q11, roadmap M3s.
+21. **What a bare `audit` does before M10.** Until M10 builds the test audit, `gauntlet audit <scope>` without `--structure` opens no job and returns a nonzero code, saying the test audit is not built: a check that did not run never passes. M10 replaces the refusal.
+   - Written in: Modules (`seams/cli.py`), plan S5.
