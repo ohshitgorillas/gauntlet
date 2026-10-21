@@ -5,10 +5,12 @@ Source: the gates core design spec under docs/superpowers/specs/, section 1, "ch
 `Command` carries `timeout: float | None`, and `Completed` carries `timed_out: bool`.
 
 A process in its own session leads it, so its session id is its own pid. The checker here starts a child of its own,
-which stays in the checker's process group. That child opens a FIFO the test holds the read end of, writes a marker into
-it and keeps it open for far longer than any test waits. The test reads the FIFO to its end: the end comes only when
-every writer has closed it, so it comes promptly only when the child is dead. A child still holding it after the wait
-is killed by the test, and the read gives back the marker followed by ALIVE.
+which stays in the checker's process group. That child holds a `Witness` FIFO (the `tests/support/lifeline.py` module
+of the no-wall-clock design spec), writes a marker into it and then lives on a `Lifeline` the test releases only after
+the FIFO's end; the checker lives on the same `Lifeline`, and both note their pids for the test's `Pids` to kill at
+teardown. The test reads the FIFO to its end: the end comes only when every holder has closed it, so it comes before
+the release only when the child is dead. A child the group kill missed holds the FIFO until pytest-timeout ends the
+test.
 
 The interrupt is a KeyboardInterrupt in the process that called `run`: the checker sends SIGINT to the test's own pid
 once its child holds the FIFO. Whether `run` raises the interrupt again after it kills the group the documents do not
@@ -17,27 +19,18 @@ say, so a KeyboardInterrupt out of `run` is let through and nothing is claimed a
 
 import contextlib
 import os
-import signal
 import sys
-import time
 from pathlib import Path
 
 from gates.core.checker import Command, Completed, run
+from tests.support.lifeline import WITNESS, Lifeline, Pids, Witness
 
 # A timeout the checker's child opens the FIFO well inside.
 TIMEOUT = 3.0
 
-# How long the test waits for the FIFO's end once `run` has returned.
-WAIT = 5.0
-
-# How long the test sleeps between reads of the FIFO while a writer holds it and has nothing new.
-POLL = 0.05
-
 EXIT_CODE = 3
 
 HELD = b"held"
-
-ALIVE = b" alive"
 
 NO_TARGET = "0"
 
@@ -47,36 +40,33 @@ SLEEPER = "import time\ntime.sleep(20)\n"
 
 SESSION = "import os, sys\nsys.stdout.write(str(os.getsid(0) == os.getpid()))\n"
 
-GRANDCHILD = (
-    "import os, sys, time\n"
-    "held = os.open(sys.argv[1], os.O_WRONLY)\n"
-    "os.write(held, b'held')\n"
-    "print('ready', flush=True)\n"
-    "time.sleep(40)\n"
-)
-
+# Arguments: the FIFO, the pids file, the pid to interrupt or 0, the lifeline's read end, the child's code.
 CHECKER = (
-    "import os, signal, subprocess, sys, time\n"
-    "fifo, pids, target = sys.argv[1], sys.argv[2], int(sys.argv[3])\n"
+    "import os, signal, subprocess, sys\n"
+    "fifo, pids, target, line = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]\n"
     "child = subprocess.Popen(\n"
-    "    [sys.executable, '-c', sys.argv[4], fifo],\n"
-    "    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,\n"
+    "    [sys.executable, '-c', sys.argv[5], fifo, line],\n"
+    "    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, pass_fds=(int(line),),\n"
     ")\n"
     "child.stdout.readline()\n"
     "with open(pids, 'w', encoding='utf-8') as out:\n"
     "    out.write(f'{os.getpid()}\\n{child.pid}\\n')\n"
     "if target:\n"
     "    os.kill(target, signal.SIGINT)\n"
-    "time.sleep(20)\n"
+    "while os.read(int(line), 65536):\n"
+    "    pass\n"
 )
 
 LEAVER = (
     "import subprocess, sys\n"
+    "fifo, pids, line = sys.argv[1], sys.argv[2], sys.argv[4]\n"
     "child = subprocess.Popen(\n"
-    "    [sys.executable, '-c', sys.argv[4], sys.argv[1]],\n"
-    "    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,\n"
+    "    [sys.executable, '-c', sys.argv[5], fifo, line],\n"
+    "    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, pass_fds=(int(line),),\n"
     ")\n"
     "child.stdout.readline()\n"
+    "with open(pids, 'w', encoding='utf-8') as out:\n"
+    "    out.write(f'{child.pid}\\n')\n"
 )
 
 
@@ -84,51 +74,17 @@ def _python(code: str, *arguments: str) -> tuple[str, ...]:
     return (sys.executable, "-c", code, *arguments)
 
 
-def _run(cwd: Path, argv: tuple[str, ...], timeout: float | None = None) -> Completed:
-    return run(Command(argv=argv, cwd=cwd, timeout=timeout))
-
-
-def _kill_leftovers(pids: Path) -> None:
-    """Kill, by the pids the checker recorded, the checker and its child where either outlived the run."""
-    if not pids.exists():
-        return
-    for pid in pids.read_text(encoding="utf-8").split():
-        with contextlib.suppress(ProcessLookupError):
-            os.kill(int(pid), signal.SIGKILL)
-
-
-def _drain(fifo: int, pids: Path) -> bytes:
-    """Read the FIFO to its end: what the child wrote, then ALIVE where a writer still held it after WAIT seconds."""
-    held = b""
-    deadline = time.monotonic() + WAIT
-    while True:
-        try:
-            chunk = os.read(fifo, 1024)
-        except BlockingIOError:
-            if time.monotonic() >= deadline:
-                _kill_leftovers(pids)
-                return held + ALIVE
-            time.sleep(POLL)
-            continue
-        if not chunk:
-            return held
-        held += chunk
-        deadline = time.monotonic() + WAIT
+def _run(cwd: Path, argv: tuple[str, ...], timeout: float | None = None, pass_fds: tuple[int, ...] = ()) -> Completed:
+    return run(Command(argv=argv, cwd=cwd, timeout=timeout, pass_fds=pass_fds))
 
 
 def _group_run(tmp_path: Path, target: str, timeout: float | None, checker: str = CHECKER) -> bytes:
     """Run the checker and its child through `run`, and read the FIFO the child held to its end."""
-    path = tmp_path / "held.fifo"
-    pids = tmp_path / "pids.txt"
-    os.mkfifo(path)
-    fifo = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
-    try:
-        argv = _python(checker, str(path), str(pids), target, GRANDCHILD)
+    with Lifeline() as line, Pids(tmp_path / "pids.txt") as pids, Witness(tmp_path / "held.fifo") as witness:
+        argv = _python(checker, str(witness.path), str(pids.path), target, str(line.read_fd), WITNESS)
         with contextlib.suppress(KeyboardInterrupt):
-            _run(tmp_path, argv, timeout)
-        return _drain(fifo, pids)
-    finally:
-        os.close(fifo)
+            _run(tmp_path, argv, timeout, (line.read_fd,))
+        return witness.ended()
 
 
 def test_own_session(tmp_path: Path) -> None:
