@@ -42,7 +42,7 @@ A steered brief gets, before anything runs, `REJECTED: STEERING` on the first li
 ## Steps
 
 1. Check the brief against the rule above. Steered: reject and stop.
-2. Run `git status --short --untracked-files=all`, `git rev-parse --path-format=absolute --git-common-dir`, `git config --get core.hooksPath` and `sha256sum <that directory>/hooks/pre-commit`, and keep all four; `No such file` from `sha256sum` means the hook is `absent`. Read what the list above names. On a `rewrite` or `finding` step, run `PYTHONDONTWRITEBYTECODE=1 uv run python -m gates.heavy -- uv run python -m pytest -p no:cacheprovider -rA tests` and keep its last line. In each case below, write nothing and go to step 8:
+2. Run `git status --short --untracked-files=all`, `git rev-parse --path-format=absolute --git-common-dir`, `git config --get core.hooksPath` and `shasum -a 256 <that directory>/hooks/pre-commit`, and keep all four; `No such file` from `shasum` means the hook is `absent`. Read what the list above names. On a `rewrite` or `finding` step, run `PYTHONDONTWRITEBYTECODE=1 uv run python -m gates.heavy -- uv run python -m pytest -p no:cacheprovider -rA tests` and keep its last line. In each case below, write nothing and go to step 8:
    - Any step but `scaffold`, when `uv.lock` is missing or the `Makefile` lacks a `check` or a `check-tests` target: `NO SCAFFOLD` on `CHECK`.
    - `wire`, when no script under `gates/` builds the gate or its bodies only raise: `NOT BUILT` on `CHECK`.
    - Gate, module, `wire` or `dependency`, when the change needs a path an `exclude:` line removed: the path on `OPEN`, `FIX OUTSIDE WRITES` on `CHECK`.
@@ -67,7 +67,7 @@ A steered brief gets, before anything runs, `REJECTED: STEERING` on the first li
    - `rewrite` or `finding`: rerun step 2's suite command unchanged; every test passes. A failing test is fixed in the code; a suite still red after that puts `SUITE RED` on `CHECK`.
    - Fix a failure only in a file this step wrote, and run again. A failure in any other file, another script under `gates/` included, goes on `FINDINGS`, quoted, untouched; so does a run that hits its cap, and no cap, worker count, timeout or priority is raised to let it finish.
    - `wire` or `scaffold`, last: run `git status --short --untracked-files=all`. Each `??` line absent from step 2's run, on a path this step did not write, came from a tool `make check` or `make check-tests` runs: add a `.gitignore` line for it, the top directory the tool created with a trailing `/` where it made one, and run this step again until none remains. Such a line under `gates/`, `gauntlet/` or `tests/` is never listed; it goes on `FINDINGS`, quoted.
-8. Run `git status --short --untracked-files=all` and step 2's `sha256sum` command again, report, and stop.
+8. Run `git status --short --untracked-files=all` and step 2's `shasum -a 256` command again, report, and stop.
 
 ## Rails
 
