@@ -7,12 +7,13 @@ and "Gates", intro, for the empty run, the pin and the count line; the gates cor
 A run given no Python file that is not a test file prints that nothing was checked, then the count line for no file,
 and exits 1. A tree with no `major.minor` pyright `pythonVersion` is unfinished: an error naming the key, then the count
 line over the given non-test files, exit 2. A `[tool.mutmut]` key that narrows or widens the scope, or changes mutmut's
-own time limit, is a finding naming the key. A finding is the path as given, mutmut's name, its status, then mutmut's
-diff with every line break a space, in order of path then name. At the wall-clock cap every unchecked mutant is a
-finding and the run exits 1; any other unfinished run prints the checker's error, then every finding, then the count
-line, and exits 2.
+own time limit, is a finding naming the key. A finding is one line carrying the path as given, mutmut's name, its
+status, then mutmut's diff with every line break a space, its separators unpinned, in order of path then name. At the
+wall-clock cap every unchecked mutant is a finding and the run exits 1; any other unfinished run prints the checker's
+error, then every finding, then the count line, and exits 2.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -101,9 +102,41 @@ AT_THE_CAP = Mutant(
 
 KEY_FINDING = Finding("pyproject.toml: tool.mutmut.tests_dir: seeded")
 
+PATH_CHARACTERS = r"\w/\\~-"
 
-def _line(mutant: Mutant) -> str:
-    return f"{mutant.given} {mutant.name} {mutant.status}: {ONE_LINE_DIFF}"
+NAME_CHARACTERS = r"\w"
+
+
+def _whole(part: str, characters: str) -> str:
+    """A pattern matching the part only as a whole token: no token character or dot touches it before, and no token
+    character, nor a dot then a token character, follows it."""
+    return rf"(?<![.{characters}]){re.escape(part)}(?![{characters}]|\.[{characters}])"
+
+
+def _carries(line: str, mutant: Mutant) -> bool:
+    """Whether the line is one line carrying the mutant's path, name, status and one-line diff, in that order.
+
+    The quality gates spec, "Mutation testing blocks" (line 87): the separators between the parts and the line's
+    layout are program wording, so only the parts and their order are held. The path is the file's path as given and
+    the name is the mutant's name as mutmut gives it, so each must stand whole, not inside a longer path or name.
+    """
+    pattern = ".*".join(
+        (
+            _whole(mutant.given, PATH_CHARACTERS),
+            _whole(mutant.name, NAME_CHARACTERS),
+            re.escape(mutant.status),
+            re.escape(ONE_LINE_DIFF),
+        )
+    )
+    return bool(re.search(pattern, line)) and "\n" not in line
+
+
+def _carried(lines: list[str], mutants: tuple[Mutant, ...]) -> list[bool]:
+    """For each mutant in turn, whether the line in its place carries it; a missing line carries nothing."""
+    return [
+        index < len(lines) and _carries(lines[index], mutant)
+        for index, mutant in enumerate(mutants)
+    ]
 
 
 def _count(findings: int, files: int) -> str:
@@ -193,22 +226,20 @@ def test_finished_findings_in_order() -> None:
     done = outcome([KEY_FINDING], Mutated(mutants=(LATER, SURVIVOR, UNREACHED)))
 
     lines = render(GATE.name, done, 2)
+    rest = [line for line in lines if line != KEY_FINDING.text]
 
     assert (
         exit_code(done),
         len(lines),
         KEY_FINDING.text in lines,
-        [line for line in lines if line != KEY_FINDING.text],
+        _carried(rest[:3], (UNREACHED, SURVIVOR, LATER)),
+        rest[3:],
     ) == (
         1,
         5,
         True,
-        [
-            _line(UNREACHED),
-            _line(SURVIVOR),
-            _line(LATER),
-            _count(4, 2),
-        ],
+        [True, True, True],
+        [_count(4, 2)],
     )
 
 
@@ -220,14 +251,18 @@ def test_at_the_cap() -> None:
 
     # The quality gates spec, "No copy" (line 93): wording that originates in the program is not a valid pin,
     # so the cap line is held by its place and the cap it names, 600 seconds, not its words.
-    assert (exit_code(done), len(lines), "600" in lines[0], lines[1:]) == (
+    assert (
+        exit_code(done),
+        len(lines),
+        "600" in lines[0],
+        _carried(lines[1:2], (AT_THE_CAP,)),
+        lines[2:],
+    ) == (
         1,
         3,
         True,
-        [
-            _line(AT_THE_CAP),
-            _count(1, 1),
-        ],
+        [True],
+        [_count(1, 1)],
     )
 
 
@@ -238,13 +273,23 @@ def test_unfinished() -> None:
     done = outcome([KEY_FINDING], Mutated(mutants=(SURVIVOR,), error=error))
 
     lines = render(GATE.name, done, 1)
+    findings = lines[2:-1]
 
-    assert (exit_code(done), lines[:2], sorted(lines[2:-1]), lines[-1]) == (
+    assert (
+        exit_code(done),
+        lines[:2],
+        len(findings),
+        KEY_FINDING.text in findings,
+        _carried([line for line in findings if line != KEY_FINDING.text], (SURVIVOR,)),
+        lines[-1],
+    ) == (
         2,
         [
             "mutmut exited 1",
             "FAILED tests/test_seeded.py::test_seeded",
         ],
-        sorted([KEY_FINDING.text, _line(SURVIVOR)]),
+        2,
+        True,
+        [True],
         _count(2, 1),
     )
