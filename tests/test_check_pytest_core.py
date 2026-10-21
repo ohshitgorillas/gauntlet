@@ -17,17 +17,39 @@ does under the `junit_suite_name` setting the gate passes.
 import errno
 import os
 import re
+import subprocess
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from gates.check_pytest import GATE
-from gates.core.checker import Command
+from gates.core.checker import Command, environment
 from gates.core.runner import run_gate
 from tests.support.capture import captured
 from tests.support.fake import FakeRunner, completed
 from tests.support.project import scaffold
 
+REPO_ROOT = Path(__file__).parents[1]
+
 SEED_LINE = re.compile(r"check_pytest: seed \d+")
+
+# The two variables the spec says pytest's environment is without.
+SEEDED_VARIABLES = ("PYTEST_ADDOPTS", "PYTEST_PLUGINS")
+
+# A child interpreter that runs `_run` under the tmp path it is given, then writes whether the one pytest command got an
+# environment of its own and which of the variables it is given that environment still holds.
+ENVIRONMENT_CHILD = (
+    "import sys\n"
+    "from pathlib import Path\n\n"
+    "from tests.test_check_pytest_core import _junit, _run\n\n"
+    "_, _, runner = _run(Path(sys.argv[1]), 0, '', _junit(Path('MODULE'), classname='tests.test_seeded', message=None))\n"
+    "(command,) = runner.commands\n"
+    "env = command.env or {}\n"
+    "sys.stdout.write(repr((command.env is not None, [name for name in sys.argv[2:] if name in env])))\n"
+)
+
+# What the child writes when the command has an environment of its own holding neither variable.
+NOTHING_LEAKED: tuple[bool, list[str]] = (True, [])
 
 PASSING = "def test_seeded():\n    pass\n"
 
@@ -108,13 +130,17 @@ def test_each_module_gets_its_own_pytest(tmp_path: Path) -> None:
 
 
 def test_environment_drops_pytest_variables(tmp_path: Path) -> None:
-    """The pytest process gets no variable whose name begins with PYTEST_."""
-    junit = _junit(Path("MODULE"), classname="tests.test_seeded", message=None)
-    _, _, runner = _run(tmp_path, 0, "", junit)
+    """A gate started with PYTEST_ADDOPTS and PYTEST_PLUGINS set hands its pytest an environment of its own without them."""
+    result = subprocess.run(  # A child interpreter is the one way to start the gate with the two variables set.
+        [sys.executable, "-c", ENVIRONMENT_CHILD, str(tmp_path), *SEEDED_VARIABLES],
+        cwd=REPO_ROOT,
+        env={**environment(), **dict.fromkeys(SEEDED_VARIABLES, "seeded")},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
-    (command,) = runner.commands
-    assert command.env is not None
-    assert [name for name in command.env if name.startswith("PYTEST_")] == []
+    assert (result.returncode, result.stdout) == (0, repr(NOTHING_LEAKED))
 
 
 def test_exit_five_is_unfinished(tmp_path: Path) -> None:

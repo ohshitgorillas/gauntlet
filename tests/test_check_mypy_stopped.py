@@ -7,23 +7,24 @@ design spec, "Gates", the sub-bullet's sentence: "A status the checker documents
 as mypy's 2 on a blocking error, is not a finish either, and the gate prints the report it read."
 
 A stopped batch's lines are one Unfinished per record it read, in the order read, whatever file the record lies in and
-whatever its severity; the gate prints each such text once per run, counts none of them as a finding, and exits 2.
+whatever its severity; the gate prints each such text once per run, counts none of them as a finding, and exits 2. Each
+stop is driven through `run_gate`, its mypy run answered by a canned reply of exit 2 and the records mypy printed.
 """
 
 import json
 from collections.abc import Sequence
 from pathlib import Path
 
-from gates.check_mypy import GATE, Mypy, Record, Report
+from gates.check_mypy import GATE
 from gates.core.checker import Command, Completed
-from gates.core.project import Source
-from gates.core.report import Line
 from gates.core.runner import run_gate
 from tests.support.capture import captured
 from tests.support.fake import FakeRunner, completed
 from tests.support.project import scaffold
 
 IMPORTER = "import broken\n"
+
+COUNT_ONE = "check_mypy: 0 finding(s) in 1 Python file(s)\n"
 
 COUNT_TWO = "check_mypy: 0 finding(s) in 2 Python file(s)\n"
 
@@ -56,27 +57,22 @@ class CacheLeavingRunner:
         return self.replies(command)
 
 
-def _record(
-    file: Path, message: str, severity: str = "error", code: str | None = "misc"
-) -> Record:
-    return Record(
-        file=str(file), line=3, message=message, hint=None, code=code, severity=severity
-    )
+def _carried(line: str, records: Sequence[tuple[Path, str]]) -> str | None:
+    """The message of the first seeded record whose file and message the printed line both carry, else None."""
+    for file, message in records:
+        if message in line and str(file) in line:
+            return message
+    return None
 
 
-def _batch(tmp_path: Path) -> list[Source]:
-    return [Source(given=Path("here.py"), absolute=tmp_path / "here.py")]
-
-
-def _kind_and_message(line: Line, records: Sequence[Record]) -> tuple[str, str | None]:
-    """The line's kind, and the message of the first seeded record whose file and message its text both carry."""
-    for record in records:
-        if record["message"] in line.text and record["file"] in line.text:
-            return (type(line).__name__, record["message"])
-    return (type(line).__name__, None)
-
-
-def _mypy_json(file: Path, message: str, *, sort_keys: bool = False) -> str:
+def _mypy_json(
+    file: Path,
+    message: str,
+    *,
+    sort_keys: bool = False,
+    severity: str = "error",
+    code: str | None = "syntax",
+) -> str:
     """One record as mypy's `--output json` prints it, on its own line."""
     entry: dict[str, object] = {
         "file": str(file),
@@ -84,36 +80,64 @@ def _mypy_json(file: Path, message: str, *, sort_keys: bool = False) -> str:
         "column": 7,
         "message": message,
         "hint": None,
-        "code": "syntax",
-        "severity": "error",
+        "code": code,
+        "severity": severity,
     }
     return json.dumps(entry, sort_keys=sort_keys) + "\n"
+
+
+def _stop(tmp_path: Path, stdout: str) -> tuple[int, list[str]]:
+    """Run the gate over here.py of a scaffolded project: the warm, then one mypy run that stops having printed `stdout`."""
+    project = scaffold(tmp_path / "project", {"here.py": IMPORTER})
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    runner = CacheLeavingRunner(scratch, [WARM, completed(STOP, stdout)])
+    output = captured(
+        lambda: run_gate(
+            GATE,
+            [project.root / "here.py"],
+            project=project,
+            process=runner,
+            scratch_root=scratch,
+        )
+    )
+    return output.result, output.merged
 
 
 def test_a_stop_gives_every_record_wherever_it_lies_as_unfinished(
     tmp_path: Path,
 ) -> None:
-    """A stopped batch's lines are one Unfinished per record, in order: one in the batch's file and one in another."""
-    here = _record(tmp_path / "here.py", HERE_MESSAGE, code="return-value")
-    there = _record(tmp_path / "broken.py", THERE_MESSAGE, code="syntax")
+    """A stop prints each record it read once, in order, one in the batch's file and one in another; none counts; exit 2."""
+    here = tmp_path / "project" / "here.py"
+    there = tmp_path / "project" / "broken.py"
+    records = [(here, HERE_MESSAGE), (there, THERE_MESSAGE)]
 
-    result = Mypy().lines(Report([here, there], ""), _batch(tmp_path), stopped=True)
+    status, lines = _stop(
+        tmp_path,
+        _mypy_json(here, HERE_MESSAGE, code="return-value")
+        + _mypy_json(there, THERE_MESSAGE),
+    )
 
-    assert [_kind_and_message(line, [here, there]) for line in result] == [
-        ("Unfinished", HERE_MESSAGE),
-        ("Unfinished", THERE_MESSAGE),
-    ]
+    assert (status, [_carried(line, records) for line in lines], lines[-1]) == (
+        2,
+        [HERE_MESSAGE, THERE_MESSAGE, None],
+        COUNT_ONE,
+    )
 
 
 def test_a_note_in_a_stop_is_unfinished_too(tmp_path: Path) -> None:
-    """A note mypy reported before it stopped is a record of the stop like any other: an Unfinished, not a Remark."""
-    note = _record(tmp_path / "here.py", NOTE_MESSAGE, severity="note", code=None)
+    """A note mypy reported before it stopped is a record of the stop like any other: printed once, not counted, exit 2."""
+    here = tmp_path / "project" / "here.py"
 
-    result = Mypy().lines(Report([note], ""), _batch(tmp_path), stopped=True)
+    status, lines = _stop(
+        tmp_path, _mypy_json(here, NOTE_MESSAGE, severity="note", code=None)
+    )
 
-    assert [_kind_and_message(line, [note]) for line in result] == [
-        ("Unfinished", NOTE_MESSAGE)
-    ]
+    assert (status, [_carried(line, [(here, NOTE_MESSAGE)]) for line in lines], lines[-1]) == (
+        2,
+        [NOTE_MESSAGE, None],
+        COUNT_ONE,
+    )
 
 
 def test_one_blocking_error_two_files_stop_on_prints_once(tmp_path: Path) -> None:

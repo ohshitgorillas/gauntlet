@@ -15,6 +15,8 @@ cache directory the command names; each later call is a per-file run, which reco
 before it writes a file of its own there, as mypy would. Placement is judged only by the scratch root and the tree.
 """
 
+import errno
+import os
 import stat
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -268,11 +270,12 @@ def test_a_finished_run_leaves_the_scratch_root_as_it_was(tmp_path: Path) -> Non
 
 
 def test_a_failed_warm_is_unfinished_and_runs_no_file(tmp_path: Path) -> None:
-    """A warm that fails ends the run unfinished: the count line last, exit 2, and no per-file mypy run at all."""
+    """A warm that fails ends the run unfinished: its error, the count line last, exit 2, and no per-file mypy run at all."""
     runner = MypyStandIn(warm_reply=completed(1, "", WARM_REFUSAL))
     status, lines = _gate(tmp_path, TWO_NAMES, runner, _scratch_root(tmp_path))
 
     assert (status, lines[-1], len(runner.commands)) == (2, COUNT_TWO, 1)
+    assert WARM_REFUSAL in "".join(lines[:-1])
 
 
 def test_a_failed_warm_leaves_the_scratch_root_as_it_was(tmp_path: Path) -> None:
@@ -284,11 +287,16 @@ def test_a_failed_warm_leaves_the_scratch_root_as_it_was(tmp_path: Path) -> None
 
 
 def test_a_failed_copy_is_one_error_then_the_count_line(tmp_path: Path) -> None:
-    """A warm cache that cannot be copied prints one error and the count line, exits 2 and runs no per-file mypy."""
+    """A warm cache that cannot be copied prints one error and the count line, exits 2 and runs no per-file mypy.
+
+    The error names the warm cache and the OS error the copy met reading its unreadable file.
+    """
     runner = MypyStandIn(warm=_leave_unreadable)
     status, lines = _gate(tmp_path, ONE_NAME, runner, _scratch_root(tmp_path))
+    warm = _cache_dir(runner.commands[0])
 
     assert (status, len(lines), lines[-1], len(runner.commands)) == (2, 2, COUNT_ONE, 1)
+    assert (str(warm) in lines[0], os.strerror(errno.EACCES) in lines[0]) == (True, True)
 
 
 def test_a_failed_copy_leaves_the_scratch_root_as_it_was(tmp_path: Path) -> None:

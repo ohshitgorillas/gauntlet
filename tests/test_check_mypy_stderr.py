@@ -99,11 +99,13 @@ def test_a_stop_prints_its_stderr_as_unfinished_beside_the_records(
 
 def test_a_stop_with_no_stderr_prints_only_its_records(tmp_path: Path) -> None:
     """A stop whose stderr is empty adds no line: the record, then the count line, exit 2."""
-    record = _record(tmp_path / "project" / "here.py")
+    here = tmp_path / "project" / "here.py"
+    record = _record(here)
 
     status, lines = _run(tmp_path, completed(2, record))
 
     assert (status, len(lines), lines[-1]) == (2, 2, COUNT_ONE)
+    assert (MESSAGE in lines[0], str(here) in lines[0]) == (True, True)
 
 
 def test_a_finish_prints_its_stderr_again_as_remarks(tmp_path: Path) -> None:
