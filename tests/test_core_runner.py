@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 from gates.core import checker
-from gates.core.checker import Command, Completed, Runner
+from gates.core.checker import Command, Completed, Runner, environment
 from gates.core.project import Project, Source, non_test_files, python_files
 from gates.core.report import (
     Finding,
@@ -64,6 +64,26 @@ REFUSAL = "cannot start the checker echo: refused"
 FAILURE = "cannot delete the temp space"
 
 KEEP = "keep"
+
+CONFIG = "pyproject.toml"
+
+# The repository root, put on the PYTHONPATH of a child that imports the gates core.
+REPOSITORY = Path(__file__).resolve().parents[1]
+
+# A gate script run by main: a Finding for a source named bad.py, an Unfinished for one named broken.py.
+MAIN = f"""
+from gates.core.report import Finding, Outcome, Unfinished
+from gates.core.runner import Gate, main
+
+SHOWN = {{"bad.py": Finding("bad.py"), "broken.py": Unfinished("broken.py")}}
+
+
+def check(run):
+    return Outcome(lines=tuple(SHOWN[source.given.name] for source in run.sources if source.given.name in SHOWN))
+
+
+main(Gate(name="{NAME}", check=check))
+"""
 
 
 def _names(directory: Path) -> list[str]:
@@ -744,11 +764,7 @@ def test_project_missing(tmp_path: Path) -> None:
     with contextlib.chdir(tmp_path):
         output = captured(lambda: run_gate(Gate(name=NAME, check=Seen()), [Path("a.py")], scratch_root=tmp_path))
 
-    assert (output.result, output.out[-1], len(output.out)) == (
-        2,
-        f"{count_line(NAME, 0, 1)}\n",
-        2,
-    )
+    assert (output.result, CONFIG in output.out[0], output.out[1:]) == (2, True, _printed(count_line(NAME, 0, 1)))
 
 
 def test_process_given(tmp_path: Path) -> None:
@@ -862,18 +878,21 @@ def test_main_exits(tmp_path: Path) -> None:
     assert raised.value.code == 1
 
 
-def test_main_paths(tmp_path: Path) -> None:
-    """main runs over the paths of its command line."""
-    selected: list[list[Source]] = []
+@pytest.mark.parametrize(
+    ("name", "status", "lines"),
+    [
+        ("a.py", 0, [count_line(NAME, 0, 1)]),
+        ("bad.py", 1, ["bad.py", count_line(NAME, 1, 1)]),
+        ("broken.py", 2, ["broken.py", count_line(NAME, 0, 1)]),
+    ],
+)
+def test_main_command_line(tmp_path: Path, name: str, status: int, lines: list[str]) -> None:
+    """main runs over the paths of its command line and exits with the run's exit code."""
+    project = scaffold(tmp_path, {name: "value = 1\n"})
+    env = {**environment(), "PYTHONPATH": str(REPOSITORY)}
+    reply = checker.run(Command(argv=(sys.executable, "-c", MAIN, name), cwd=project.root, env=env, timeout=60.0))
 
-    def select(sources: Sequence[Source]) -> list[Source]:
-        selected.append(list(sources))
-        return []
-
-    with pytest.raises(SystemExit):
-        captured(lambda: main(Gate(name=NAME, check=Seen(), select=select)))
-
-    assert selected == [python_files([Path(argument) for argument in sys.argv[1:]])]
+    assert (reply.status, reply.stdout.splitlines()) == (status, lines)
 
 
 # scaffold
@@ -947,5 +966,7 @@ def test_scaffold_git_unreadable(tmp_path: Path) -> None:
 
 def test_scaffold_git_failure(tmp_path: Path) -> None:
     """A git step that fails raises ScaffoldError."""
-    with pytest.raises(ScaffoldError):
+    with pytest.raises(ScaffoldError) as raised:
         scaffold(tmp_path, {".git": "not a repository\n"}, git=True)
+
+    assert (raised.value.completed.status, raised.value.completed.stderr.startswith("fatal: ")) == (128, True)
