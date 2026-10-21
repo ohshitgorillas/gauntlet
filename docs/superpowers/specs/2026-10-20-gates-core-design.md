@@ -52,7 +52,8 @@ Command(argv: tuple[str, ...], cwd: Path, env: Mapping[str, str] | None = None, 
         throttled: bool = False, outputs: Mapping[str, Path] = {}, capture: bool = True, pass_fds: tuple[int, ...] = ())
 Completed(status: int, stdout: str, stderr: str, timed_out: bool, outputs: Mapping[str, str | None])  # status as a shell reports it; .output() = stdout + stderr
 type Runner = Callable[[Command], Completed]
-def run(command: Command) -> Completed          # own session; the whole group is killed at the timeout or on any interrupt; GateError if the program cannot start
+def read_output(path: Path) -> str | None  # run's default reader of an output file
+def run(command: Command, *, read: Callable[[Path], str | None] = read_output) -> Completed  # own session; the whole group is killed at the timeout or on any interrupt; GateError if the program cannot start
 def python_module(module: str, *arguments: str | Path, cwd: Path, timeout: float | None = None) -> Command
 def environment(*, drop_prefixes: tuple[str, ...] = (), drop: frozenset[str] = frozenset()) -> dict[str, str]
 def throttle_line(platform: str, niceness: int, path: str | None = None) -> list[str]  # heavy's line; GateError on a host with none, or a tool not on `path` (None: os.environ's PATH)
@@ -62,7 +63,7 @@ def run_all(process: Runner, commands: Iterable[Command], cap: int) -> list[Comp
 
 `run` closes in the checker every descriptor of the running process except `pass_fds` and fds 0, 1 and 2. `capture=False` lets the checker inherit the run's own fds 1 and 2 and write straight to them; `Completed.stdout` and `.stderr` come back `""`. A throttled `run` looks its tools up on the PATH of `Command.env`, and on os.environ's PATH when `env` is None, so a test sets PATH in-process through `env`.
 
-`outputs` names the files a checker writes, such as pytest's JUnit XML or mutmut's coverage record. `run` deletes a file already at an output path before it starts the checker, so a file it reads back is one this checker wrote, and an output file that exists but cannot be read, or cannot be deleted, is a GateError. `run` reads them back into `Completed.outputs`, so a gate reads its report from the Completed, and a fake can supply one without touching the filesystem.
+`outputs` names the files a checker writes, such as pytest's JUnit XML or mutmut's coverage record. `run` deletes a file already at an output path before it starts the checker, so a file it reads back is one this checker wrote, and one it cannot delete is a GateError, as `read_output` makes one that exists but cannot be read. `run` reads them back into `Completed.outputs` through `read`, which only a test passes, so a gate reads its report from the Completed and a fake supplies one without the filesystem.
 
 **Replaces:**
 
@@ -75,16 +76,16 @@ def run_all(process: Runner, commands: Iterable[Command], cap: int) -> list[Comp
 ### project.py: the project, its config and its files
 
 ```python
-Source(given: Path, absolute: Path)     # given: as the caller spelled it; absolute: os.path.abspath, the file's identity
+Source(given: Path, absolute: Path)  # given: as the caller spelled it; absolute: os.path.abspath, the file's identity
 def python_files(paths: Sequence[Path]) -> list[Source]  # the spec's Python-file rule; a file given twice is one Source, first spelling kept
-def test_files(sources: Sequence[Source]) -> list[Source]     # the spec's one test-file definition
+def test_files(sources: Sequence[Source]) -> list[Source]  # the spec's one test-file definition
 def non_test_files(sources: Sequence[Source]) -> list[Source]
 Project(root: Path)
-    Project.current() -> Project          # the working directory (decision 1); GateError if it holds no pyproject.toml
-    .config -> Path                       # root / "pyproject.toml", the one file that holds every checker's settings
-    .settings() -> Mapping[str, object]   # read once per run; GateError naming the file if unreadable or not TOML
+    Project.current() -> Project  # the working directory (decision 1); GateError if it holds no pyproject.toml
+    .config -> Path  # root / "pyproject.toml", the one file that holds every checker's settings
+    .settings() -> Mapping[str, object]  # read once per run; GateError naming the file if unreadable or not TOML
     .setting(*keys: str) -> object | None
-    .config_text() -> str                 # raw text, for rules about comments (G2's ignore reasons)
+    .config_text() -> str  # raw text, for rules about comments (G2's ignore reasons)
     .git(*arguments: str, process: Runner = run) -> Completed  # in root, without the GIT_ variables a hook exports
 KeyRule(keys: tuple[str, ...], breaks: Callable[[object], bool], says: str)
 def key_findings(project: Project, rules: Sequence[KeyRule]) -> list[Finding]  # "pyproject.toml: tool.mutmut.paths_to_mutate: <says>"
@@ -130,19 +131,19 @@ def comment_markers(parsed: Parsed, markers: Mapping[str, re.Pattern[str]]) -> l
 Gate(name: str, check: Callable[[Run], Outcome],
      select: Callable[[Sequence[Source]], list[Source]] = list, selects: str = "Python file")
 Run(project: Project, sources: tuple[Source, ...], scratch: Scratch, process: Runner,
-    given: tuple[Source, ...] = ())               # given: every Python file given, test files included; sources is select(given) (decision 28)
-class Scratch:                                    # one per run
-    __init__(self, root: Path | None = None)      # None: tempfile.gettempdir(), so TMPDIR moves it; never in the tree
-    directory(self, name: str) -> Path            # a fresh dir inside the run's own temp dir; GateError on OSError
-    copy(self, tree: Path, name: str) -> Path     # GateError on OSError
+    given: tuple[Source, ...] = ())  # given: every Python file given, test files included; sources is select(given) (decision 28)
+class Scratch:  # one per run
+    __init__(self, root: Path | None = None)  # None: tempfile.gettempdir(), so TMPDIR moves it; never in the tree
+    directory(self, name: str) -> Path  # a fresh dir inside the run's own temp dir; GateError on OSError
+    copy(self, tree: Path, name: str) -> Path  # GateError on OSError
     once(self, name: str, make: Callable[[Path], None]) -> Path  # built the first time, the same path after (mypy's warm cache)
-    close(self) -> str | None                     # deletes everything, read-only entries included; returns the failure, never raises
+    close(self) -> str | None  # deletes everything, read-only entries included; returns the failure, never raises
 class Checker[R](Protocol):
-    stopped: frozenset[int]                       # statuses where the checker stopped but its report stands (mypy: {2})
+    stopped: frozenset[int]  # statuses where the checker stopped but its report stands (mypy: {2})
     def batches(self, run: Run) -> Sequence[Sequence[Source]]
     def command(self, run: Run, batch: Sequence[Source]) -> Command
-    def read(self, completed: Completed) -> R     # GateError if the output holds no report the gate can read
-    def expected_status(self, report: R) -> int   # the exit status this report calls for
+    def read(self, completed: Completed) -> R  # GateError if the output holds no report the gate can read
+    def expected_status(self, report: R) -> int  # the exit status this report calls for
     def lines(self, report: R, batch: Sequence[Source], *, stopped: bool) -> Sequence[Line]
 def check_with(checker: Checker[R], *, budget: Callable[[], int] | None = None) -> Callable[[Run], Outcome]  # budget: batches at once (decision 27)
 def run_gate(gate: Gate, paths: Sequence[Path], *, project: Project | None = None,
