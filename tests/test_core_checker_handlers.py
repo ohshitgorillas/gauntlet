@@ -9,10 +9,10 @@ signal is still ignored.
 
 import signal
 import sys
-import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from gates.core.checker import Command, Completed, run
+from gates.core.checker import Command, run
 
 EXIT = "import sys\nsys.exit(int(sys.argv[1]))\n"
 
@@ -23,20 +23,12 @@ CODE = 5
 
 def test_run_off_the_main_thread(tmp_path: Path) -> None:
     """`run` called from a thread other than the main one runs the checker and gives back its Completed."""
-    results: list[Completed] = []
-    errors: list[BaseException] = []
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        completed = pool.submit(
+            run, Command(argv=(sys.executable, "-c", EXIT, str(CODE)), cwd=tmp_path)
+        ).result()
 
-    def target() -> None:
-        try:
-            results.append(run(Command(argv=(sys.executable, "-c", EXIT, str(CODE)), cwd=tmp_path)))
-        except BaseException as error:  # noqa: BLE001  # the thread reports whatever `run` raised
-            errors.append(error)
-
-    thread = threading.Thread(target=target)
-    thread.start()
-    thread.join()
-
-    assert (errors, [completed.status for completed in results]) == ([], [CODE])
+    assert completed.status == CODE
 
 
 def test_ignored_signal_stays_ignored(tmp_path: Path) -> None:
