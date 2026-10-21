@@ -14,7 +14,7 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
-from gates.check_mypy import GATE, Mypy, Record
+from gates.check_mypy import GATE, Mypy, Record, Report
 from gates.core.checker import Command, Completed
 from gates.core.project import Source
 from gates.core.report import Line
@@ -56,8 +56,12 @@ class CacheLeavingRunner:
         return self.replies(command)
 
 
-def _record(file: Path, message: str, severity: str = "error", code: str | None = "misc") -> Record:
-    return Record(file=str(file), line=3, message=message, hint=None, code=code, severity=severity)
+def _record(
+    file: Path, message: str, severity: str = "error", code: str | None = "misc"
+) -> Record:
+    return Record(
+        file=str(file), line=3, message=message, hint=None, code=code, severity=severity
+    )
 
 
 def _batch(tmp_path: Path) -> list[Source]:
@@ -86,12 +90,14 @@ def _mypy_json(file: Path, message: str, *, sort_keys: bool = False) -> str:
     return json.dumps(entry, sort_keys=sort_keys) + "\n"
 
 
-def test_a_stop_gives_every_record_wherever_it_lies_as_unfinished(tmp_path: Path) -> None:
+def test_a_stop_gives_every_record_wherever_it_lies_as_unfinished(
+    tmp_path: Path,
+) -> None:
     """A stopped batch's lines are one Unfinished per record, in order: one in the batch's file and one in another."""
     here = _record(tmp_path / "here.py", HERE_MESSAGE, code="return-value")
     there = _record(tmp_path / "broken.py", THERE_MESSAGE, code="syntax")
 
-    result = Mypy().lines([here, there], _batch(tmp_path), stopped=True)
+    result = Mypy().lines(Report([here, there], ""), _batch(tmp_path), stopped=True)
 
     assert [_kind_and_message(line, [here, there]) for line in result] == [
         ("Unfinished", HERE_MESSAGE),
@@ -103,9 +109,11 @@ def test_a_note_in_a_stop_is_unfinished_too(tmp_path: Path) -> None:
     """A note mypy reported before it stopped is a record of the stop like any other: an Unfinished, not a Remark."""
     note = _record(tmp_path / "here.py", NOTE_MESSAGE, severity="note", code=None)
 
-    result = Mypy().lines([note], _batch(tmp_path), stopped=True)
+    result = Mypy().lines(Report([note], ""), _batch(tmp_path), stopped=True)
 
-    assert [_kind_and_message(line, [note]) for line in result] == [("Unfinished", NOTE_MESSAGE)]
+    assert [_kind_and_message(line, [note]) for line in result] == [
+        ("Unfinished", NOTE_MESSAGE)
+    ]
 
 
 def test_one_blocking_error_two_files_stop_on_prints_once(tmp_path: Path) -> None:
@@ -114,7 +122,9 @@ def test_one_blocking_error_two_files_stop_on_prints_once(tmp_path: Path) -> Non
     The two mypy runs print the same record with its keys in a different order, so each run's whole output differs
     while the record each reads is the same.
     """
-    project = scaffold(tmp_path / "project", {"first.py": IMPORTER, "second.py": IMPORTER})
+    project = scaffold(
+        tmp_path / "project", {"first.py": IMPORTER, "second.py": IMPORTER}
+    )
     broken = project.root / "broken.py"
     scratch = tmp_path / "scratch"
     scratch.mkdir()
@@ -137,7 +147,11 @@ def test_one_blocking_error_two_files_stop_on_prints_once(tmp_path: Path) -> Non
         )
     )
 
-    assert (output.result, sum(BLOCKER_MESSAGE in line for line in output.merged), output.merged[-1]) == (
+    assert (
+        output.result,
+        sum(BLOCKER_MESSAGE in line for line in output.merged),
+        output.merged[-1],
+    ) == (
         2,
         1,
         COUNT_TWO,

@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import TypedDict
@@ -26,6 +27,14 @@ class Record(TypedDict):
     hint: str | None
     code: str | None
     severity: str
+
+
+@dataclass(frozen=True)
+class Report:
+    """What one mypy run reported: its records, and what it wrote to stderr."""
+
+    records: list[Record]
+    stderr: str
 
 
 def record(line: str) -> Record:
@@ -148,23 +157,35 @@ class Mypy:
             cwd=run.project.root,
         )
 
-    def read(self, completed: Completed) -> list[Record]:
-        """The records of mypy's JSON report; GateError on a line that holds none."""
-        return [record(line) for line in completed.stdout.splitlines()]
+    def read(self, completed: Completed) -> Report:
+        """The records of mypy's JSON report, with its stderr; GateError on a line that holds no record."""
+        return Report(
+            records=[record(line) for line in completed.stdout.splitlines()],
+            stderr=completed.stderr,
+        )
 
-    def expected_status(self, report: list[Record]) -> int:
+    def expected_status(self, report: Report) -> int:
         """mypy exits 1 when its report holds a record and 0 when it holds none: exit 1 with no record is a refusal, not a pass."""
-        return 1 if report else 0
+        return 1 if report.records else 0
 
     def lines(
-        self, report: list[Record], batch: Sequence[Source], *, stopped: bool
+        self, report: Report, batch: Sequence[Source], *, stopped: bool
     ) -> list[Line]:
-        """A stop gives every record, wherever it lies, as unfinished; a finish gives the records in the batch's file."""
+        """A stop gives every record, wherever it lies, then its stderr, as unfinished; a finish gives the records in the batch's file, then its stderr as remarks."""
         if stopped:
-            return [Unfinished(describe(entry)) for entry in report]
+            return [
+                *(Unfinished(describe(entry)) for entry in report.records),
+                *([Unfinished(report.stderr)] if report.stderr else []),
+            ]
         here = str(batch[0].absolute)
         return [
-            line for entry in report if entry["file"] == here for line in shown(entry)
+            *(
+                line
+                for entry in report.records
+                if entry["file"] == here
+                for line in shown(entry)
+            ),
+            *(Remark(text) for text in report.stderr.splitlines()),
         ]
 
 
