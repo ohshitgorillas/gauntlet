@@ -68,7 +68,7 @@ Command(argv: tuple[str, ...], cwd: Path, env: Mapping[str, str] | None = None, 
 Completed(status: int, stdout: str, stderr: str, timed_out: bool, outputs: Mapping[str, str | None])  # status as a shell reports it; .output() = stdout + stderr
 type Runner = Callable[[Command], Completed]
 def read_output(path: Path) -> str | None  # run's default reader of an output file
-def run(command: Command, *, read: Callable[[Path], str | None] = read_output, clock: Clock = SYSTEM) -> Completed  # own session; waits on the checker's exit through clock, the timeout passing on that clock; the whole group is killed at the timeout or on any interrupt; GateError if the program cannot start
+def run(command: Command, *, read: Callable[[Path], str | None] = read_output, clock: Clock = SYSTEM) -> Completed  # own session; waits on the checker's exit through clock, the timeout passing on that clock; the whole group is killed whatever ends the wait, the timeout, an interrupt or the checker's own exit, so no process still in the group outlives the run (one that left it by its own `setsid` is not killed); GateError if the program cannot start
 def python_module(module: str, *arguments: str | Path, cwd: Path, timeout: float | None = None) -> Command
 def python_script(script: Path, *arguments: str | Path, cwd: Path, timeout: float | None = None) -> Command  # the interpreter run on a script by its path
 def environment(*, drop_prefixes: tuple[str, ...] = (), drop: frozenset[str] = frozenset()) -> dict[str, str]
