@@ -185,8 +185,9 @@ def _streams(command: Command, stack: contextlib.ExitStack[bool | None]) -> tupl
 def _settle(process: subprocess.Popen[bytes], timeout: float | None, interrupts: _Interrupts) -> bool:
     """Wait for the checker to end; return whether the timeout passed first.
 
-    Whatever ends the wait, the checker's whole group is then killed, so no process the checker left in its session
-    outlives the run; the checker is reaped only after that kill, so its pid still names its group.
+    Whatever ends the wait, the checker's whole process group is then killed, so no process still in that group
+    outlives the run; one that left it, as by its own setsid, is not killed. The checker is reaped only after that
+    kill, so its pid still names its group.
     """
     ended = False
     try:
