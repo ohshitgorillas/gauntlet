@@ -63,7 +63,7 @@ def run(command: Command) -> Completed:
     to the moment it is reaped. The group is killed first; the signal then takes its course. Output files already
     at their paths are deleted before the checker starts, so each one read back was written by this checker.
 
-    Raises GateError when the program cannot start, or when an output file cannot be deleted or read.
+    Raises GateError when the program cannot start, when the wait on it cannot be set up, or when an output file cannot be deleted or read.
     """
     argv = command.argv
     if command.throttled:
@@ -204,9 +204,15 @@ def _await_exit(process: subprocess.Popen[bytes], timeout: float | None) -> bool
     The wait is on the checker alone, never on what a process of its own holds open. On Linux it waits on a pidfd
     of the checker; elsewhere, as on macOS, on a kqueue event for its exit, whose registration the OS refuses with
     ProcessLookupError for a process that has exited already and waits to be reaped.
+
+    Raises GateError when the pidfd cannot be opened, as on a kernel before Linux 5.3 or under a seccomp filter.
     """
     if sys.platform == "linux":
-        descriptor = os.pidfd_open(process.pid)
+        try:
+            descriptor = os.pidfd_open(process.pid)
+        except OSError as error:
+            message = f"cannot wait on the checker {process.pid}: {error}"
+            raise GateError(message) from error
         try:
             return bool(multiplexing.select([descriptor], [], [], timeout)[0])
         finally:
