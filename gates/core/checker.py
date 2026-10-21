@@ -27,6 +27,9 @@ ENDING_SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM)
 # How often `run_all`, cleaning up, kills again the groups of checkers started since, while it waits for its workers.
 REKILL = 0.05
 
+# The GateError's report when the count of CPUs cannot be read.
+UNREAD_CPUS = "cannot read the host's CPU count"
+
 
 @dataclass(frozen=True)
 class Command:
@@ -394,8 +397,7 @@ def cpu_budget(cpus: int | None = None) -> int:
     if cpus is None:
         cpus = len(host.sched_getaffinity(0)) if keeps_affinity(host) else os.cpu_count()
     if cpus is None:
-        message = "cannot read the host's CPU count"
-        raise GateError(message)
+        raise GateError(UNREAD_CPUS)
     return cpus // 2
 
 

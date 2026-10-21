@@ -14,10 +14,14 @@ judged by what it prints for that report alone. The XML names the module's absol
 does under the `junit_suite_name` setting the gate passes.
 """
 
+import errno
+import os
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
 from gates.check_pytest import GATE
+from gates.core.checker import Command
 from gates.core.runner import run_gate
 from tests.support.capture import captured
 from tests.support.fake import FakeRunner, completed
@@ -28,6 +32,9 @@ SEED_LINE = re.compile(r"check_pytest: seed \d+")
 PASSING = "def test_seeded():\n    pass\n"
 
 COLLECTED_NOTHING = "collected 0 items\n\n============ no tests ran in 0.01s ============\n"
+
+# The JUnit XML of a run over MODULE that collected no test: one suite holding no case.
+EMPTY_JUNIT = '<?xml version="1.0"?><testsuites><testsuite name="MODULE" tests="0"></testsuite></testsuites>'
 
 
 def _junit(module: Path, *, classname: str, message: str | None) -> str:
@@ -64,13 +71,40 @@ def test_seed_then_finding(tmp_path: Path) -> None:
     )
 
 
+def _named(command: Command, modules: Sequence[Path]) -> list[str]:
+    """The modules among `modules` that an argument of `command` names, read from the command's working directory."""
+    named = {command.cwd / argument for argument in command.argv}
+    return [str(module) for module in modules if module in named]
+
+
 def test_one_pytest_per_module(tmp_path: Path) -> None:
-    """The one module is run by one pytest, with the JUnit report as an output file, read back by the gate."""
+    """The one module is run by one pytest, named on its command line, with the JUnit report as an output file, read back by the gate."""
     junit = _junit(Path("MODULE"), classname="tests.test_seeded", message=None)
     status, _, runner = _run(tmp_path, 0, "", junit)
+    module = tmp_path / "project/tests/test_seeded.py"
 
     (command,) = runner.commands
-    assert (status, "pytest" in command.argv, set(command.outputs)) == (0, True, {"junit"})
+    assert (status, "pytest" in {Path(argument).name for argument in command.argv}, _named(command, [module]), set(command.outputs)) == (
+        0,
+        True,
+        [str(module)],
+        {"junit"},
+    )
+
+
+def test_each_module_gets_its_own_pytest(tmp_path: Path) -> None:
+    """Two test modules are two pytest processes, each naming its own module and not the other."""
+    project = scaffold(tmp_path / "project", {"tests/test_first.py": PASSING, "tests/test_second.py": PASSING})
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    modules = [project.root / "tests/test_first.py", project.root / "tests/test_second.py"]
+    replies = [
+        completed(0, "", outputs={"junit": _junit(module, classname=f"tests.{module.stem}", message=None)}) for module in modules
+    ]
+    runner = FakeRunner(replies)
+    captured(lambda: run_gate(GATE, modules, project=project, process=runner, scratch_root=scratch))
+
+    assert sorted(_named(command, modules) for command in runner.commands) == [[str(modules[0])], [str(modules[1])]]
 
 
 def test_environment_drops_pytest_variables(tmp_path: Path) -> None:
@@ -84,9 +118,8 @@ def test_environment_drops_pytest_variables(tmp_path: Path) -> None:
 
 
 def test_exit_five_is_unfinished(tmp_path: Path) -> None:
-    """Exit 5, no test collected, calls for no report with 0: pytest's whole output prints, exit 2, no finding."""
-    junit = _junit(Path("MODULE"), classname="tests.test_seeded", message=None)
-    status, lines, _ = _run(tmp_path, 5, COLLECTED_NOTHING, junit)
+    """Exit 5 with the empty report of a run that collected no test is no finish: pytest's whole output prints, exit 2, no finding."""
+    status, lines, _ = _run(tmp_path, 5, COLLECTED_NOTHING, EMPTY_JUNIT)
 
     assert (status, lines[1:-1], lines[-1]) == (2, COLLECTED_NOTHING.splitlines(), "check_pytest: 0 finding(s) in 1 Python file(s)")
 
@@ -106,6 +139,18 @@ def test_no_report_is_unfinished(tmp_path: Path) -> None:
     assert (status, lines[1:-1]) == (2, ["usage: pytest"])
 
 
+def test_signal_death_is_unfinished(tmp_path: Path) -> None:
+    """A pytest a signal ended, status 137 as a shell reports it, prints its whole output, exit 2, though its report reads.
+
+    The report is readable and passing, so only the signal rule makes the run unfinished: a gate that took 137 as a finish
+    would exit 0, and one that took it as a stop whose report stands would print that report, not the whole output.
+    """
+    junit = _junit(Path("MODULE"), classname="tests.test_seeded", message=None)
+    status, lines, _ = _run(tmp_path, 137, "seeded console output\n", junit)
+
+    assert (status, lines[1:-1]) == (2, ["seeded console output"])
+
+
 def test_foreign_case_is_unfinished(tmp_path: Path) -> None:
     """A failed case that is not the module's makes the run unfinished: pytest's whole output, exit 2."""
     junit = _junit(Path("MODULE"), classname="tests.test_other", message="Seeded")
@@ -115,11 +160,22 @@ def test_foreign_case_is_unfinished(tmp_path: Path) -> None:
 
 
 def test_no_seed_when_no_temp_space(tmp_path: Path) -> None:
-    """A scratch root that does not exist is temp space the run cannot make: no seed line, no pytest run, exit 2."""
+    """A scratch root that does not exist is temp space the run cannot make: no seed line, no pytest run, exit 2.
+
+    It prints one error line naming the path and the OS error, then the count line with N 0 and M the test files given.
+    """
     project = scaffold(tmp_path / "project", {"tests/test_seeded.py": PASSING})
     runner = FakeRunner([])
-    output = captured(
-        lambda: run_gate(GATE, [project.root / "tests/test_seeded.py"], project=project, process=runner, scratch_root=tmp_path / "absent")
-    )
+    absent = tmp_path / "absent"
+    output = captured(lambda: run_gate(GATE, [project.root / "tests/test_seeded.py"], project=project, process=runner, scratch_root=absent))
+    lines = [line.rstrip("\n") for line in output.merged]
 
-    assert (output.result, runner.commands, [line for line in output.merged if SEED_LINE.fullmatch(line.rstrip("\n"))]) == (2, [], [])
+    assert (
+        output.result,
+        runner.commands,
+        [line for line in lines if SEED_LINE.fullmatch(line)],
+        len(lines),
+        str(absent) in lines[0],
+        os.strerror(errno.ENOENT) in lines[0],
+        lines[-1],
+    ) == (2, [], [], 2, True, True, "check_pytest: 0 finding(s) in 1 Python file(s)")
