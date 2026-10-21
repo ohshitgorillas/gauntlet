@@ -409,6 +409,21 @@ def test_close_read_only(tmp_path: Path) -> None:
     assert (scratch.close(), _names(root)) == (None, [KEEP])
 
 
+def test_close_leaves_linked_directory(tmp_path: Path) -> None:
+    """Close deletes a symlink to a directory outside the run's temp dir, and changes neither that directory's mode."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    outside.chmod(stat.S_IRUSR | stat.S_IXUSR)
+    root = _scratch_root(tmp_path)
+    scratch = Scratch(root)
+    (scratch.directory("work") / "link").symlink_to(outside, target_is_directory=True)
+    failure = scratch.close()
+    mode = stat.S_IMODE(outside.stat().st_mode)
+    outside.chmod(stat.S_IRWXU)
+
+    assert (failure, _names(root), mode) == (None, [KEEP], stat.S_IRUSR | stat.S_IXUSR)
+
+
 def test_close_nothing_made(tmp_path: Path) -> None:
     """A Scratch that made nothing deletes nothing and returns None."""
     root = _scratch_root(tmp_path)

@@ -93,13 +93,20 @@ class Scratch:
 
 
 def _make_deletable(directory: Path) -> None:
-    """Give the directory and every directory under it DELETABLE, each before it is listed; a symlink is left alone."""
-    directory.chmod(DELETABLE)
-    for parent, names, _ in os.walk(directory):
+    """Give the directory and every directory under it DELETABLE, each before it is listed.
+
+    Each is reached by name through the descriptor of the directory that holds it and changed there without following
+    a symlink, so an entry swapped for a symlink during the walk is refused, never followed out of the run's temp dir.
+    """
+    holder = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.chmod(directory.name, DELETABLE, dir_fd=holder, follow_symlinks=False)
+    finally:
+        os.close(holder)
+    for _, names, _, descriptor in os.fwalk(directory):
         for name in names:
-            path = Path(parent) / name
-            if not path.is_symlink():
-                path.chmod(DELETABLE)
+            if stat.S_ISDIR(os.stat(name, dir_fd=descriptor, follow_symlinks=False).st_mode):
+                os.chmod(name, DELETABLE, dir_fd=descriptor, follow_symlinks=False)
 
 
 @dataclass(frozen=True)
