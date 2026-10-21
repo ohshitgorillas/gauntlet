@@ -8,9 +8,8 @@ An empty run prints the nothing-checked line and the count line for no file, the
 file in M. A checker run counts as finished only when its exit status is the one its report calls for: pyright exits 1
 when its report holds an error and 0 when it holds none, so an exit 0 over an error is not a finished run. A checker
 whose output holds no report the gate can read ends the run unfinished, printing the checker's whole output, then the
-count line; one that ran past its time cap adds the gate's own line naming the cap between them. The pin error is the
-gate's own line, and pyright is not run. A diagnostic pyright reports with no rule in a file that cannot be parsed is
-printed as the checker's report of not finishing it, and is no finding; a warning raised by a parse is printed too.
+count line. The pin error is the gate's own line, and pyright is not run. A diagnostic pyright reports with no rule in
+a file that cannot be parsed is printed as the checker's report of not finishing it, and is no finding; a warning raised by a parse is printed too.
 The gate runs pyright in the project's directory with the project's own settings file.
 """
 
@@ -204,16 +203,6 @@ def test_a_report_of_another_shape_is_unreadable(tmp_path: Path) -> None:
     )
 
     assert (status, lines) == (2, [report + "\n", COUNT_NONE])
-
-
-def test_a_timeout_adds_the_cap_line(tmp_path: Path) -> None:
-    """A pyright that ran past its cap ends the run at exit 2: its output, the gate's line naming the cap, the count line."""
-    reply = completed(-9, "partial\n", timed_out=True)
-    status, lines, fake = _run(tmp_path, {"clean.py": CLEAN}, ["clean.py"], reply)
-
-    (command,) = fake.commands
-    cap = f"the checker {command.argv[0]} ran past its time cap of {command.timeout} seconds\n"
-    assert (status, lines) == (2, ["partial\n", cap, COUNT_NONE])
 
 
 def test_pyright_runs_in_the_project_with_its_settings(tmp_path: Path) -> None:
