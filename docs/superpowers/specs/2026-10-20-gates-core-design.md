@@ -71,11 +71,13 @@ type Runner = Callable[[Command], Completed]
 def run(command: Command) -> Completed          # own session; the whole group is killed at the timeout or on any interrupt; GateError if the program cannot start
 def python_module(module: str, *arguments: str | Path, cwd: Path, timeout: float | None = None) -> Command
 def environment(*, drop_prefixes: tuple[str, ...] = (), drop: frozenset[str] = frozenset()) -> dict[str, str]
-def throttle_line(platform: str, niceness: int) -> list[str]  # heavy's line; GateError on a host with none, or a tool not on PATH
-def cpu_budget() -> int                          # floor(CPUs this process may run on / 2): the mutation and backstop cap
+def throttle_line(platform: str, niceness: int, path: str | None = None) -> list[str]  # heavy's line; GateError on a host with none, or a tool not on `path` (None: os.environ's PATH)
+def cpu_budget(cpus: int | None = None) -> int   # floor(cpus / 2), the mutation and backstop cap; None: the CPUs this process may run on (its affinity where the host keeps one, else the host's count), so a test sets the count in-process
 ```
 
-`outputs` names the files a checker writes, such as pytest's JUnit XML or mutmut's coverage record. `run` reads them back into `Completed.outputs`, so a gate reads its report from the Completed, and a fake can supply one without touching the filesystem.
+`run` closes in the checker every descriptor of the running process except `pass_fds` and fds 0, 1 and 2. `capture=False` lets the checker inherit the run's own fds 1 and 2 and write straight to them; `Completed.stdout` and `.stderr` come back `""`. A throttled `run` looks its tools up on the PATH of `Command.env`, and on os.environ's PATH when `env` is None, so a test sets PATH in-process through `env`.
+
+`outputs` names the files a checker writes, such as pytest's JUnit XML or mutmut's coverage record. `run` deletes a file already at an output path before it starts the checker, so a file it reads back is one this checker wrote, and an output file that exists but cannot be read, or cannot be deleted, is a GateError. `run` reads them back into `Completed.outputs`, so a gate reads its report from the Completed, and a fake can supply one without touching the filesystem.
 
 **Replaces:**
 
@@ -258,7 +260,7 @@ There are three helpers in `tests/support/`. The spec already names that directo
   - The default pyproject.toml is the repository's own, found from this module's path, so a gate test runs under `make check`'s settings.
   - `git=True` initialises a repository and commits, for the mutation gate, G8 and G9.
   - It replaces 58 `_seed` copies, the `_seed_tree` and `_layout` helpers, and the two `_tree` helpers that copy `gates/`.
-- **`fake.py`.** `FakeRunner(replies: Sequence[Completed])` returns canned replies in order and records each Command. `completed(status=0, stdout="", stderr="", outputs={}) -> Completed` builds a reply.
+- **`fake.py`.** `FakeRunner(replies: Sequence[Completed])` returns canned replies in order and appends each Command to the public `commands: list[Command]`; a call with no reply left raises AssertionError naming the Command's argv. `completed(status=0, stdout="", stderr="", outputs={}, *, timed_out=False) -> Completed` builds a reply.
   - Because the test seeds the checker's whole output, "prints what the checker reported and nothing else" becomes an exact list check, `lines == [*seeded, count]`, instead of a predicate over the printed lines.
   - That removes the cause of G1l's T1 cluster (`_carries_report`, `_first_number`), which was filed three times.
 
