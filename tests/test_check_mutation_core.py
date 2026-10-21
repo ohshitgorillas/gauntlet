@@ -35,11 +35,15 @@ EMPTY_RUNS = [
     pytest.param((("tests/test_x.py", PASSING_TEST),), id="test"),
     pytest.param((("tests/x_test.py", PASSING_TEST),), id="sfx"),
     pytest.param((("tmp/tests/test_x.py", PASSING_TEST),), id="nest"),
-    pytest.param((("tests/test_x.py", PASSING_TEST), ("tests/conftest.py", CONFTEST)), id="conf"),
+    pytest.param(
+        (("tests/test_x.py", PASSING_TEST), ("tests/conftest.py", CONFTEST)), id="conf"
+    ),
     pytest.param((("src/seeded.pyw", SOURCE),), id="pyw"),
     pytest.param((("src/runner", "#!/bin/sh\necho seeded\n"),), id="sh"),
     pytest.param((("src/notes.md", "seeded\n"),), id="md"),
-    pytest.param((("tests/test_x.py", PASSING_TEST), ("src/seeded.pyw", SOURCE)), id="mix"),
+    pytest.param(
+        (("tests/test_x.py", PASSING_TEST), ("src/seeded.pyw", SOURCE)), id="mix"
+    ),
 ]
 
 STRICT = '[tool.pyright]\ntypeCheckingMode = "strict"\n'
@@ -58,19 +62,42 @@ UNPINNED = [
 
 PINNED = STRICT + 'pythonVersion = "3.12"\n'
 
-SETTING_KEYS = ["paths_to_mutate", "tests_dir", "also_copy", "timeout_multiplier", "timeout_constant"]
+SETTING_KEYS = [
+    "paths_to_mutate",
+    "tests_dir",
+    "also_copy",
+    "timeout_multiplier",
+    "timeout_constant",
+]
 
 DIFF = "--- seeded.py\n+++ seeded.py\n@@ -1,2 +1,2 @@\n def seeded():\n-    return 1\n+    return 2\n"
 
 ONE_LINE_DIFF = "--- seeded.py +++ seeded.py @@ -1,2 +1,2 @@  def seeded(): -    return 1 +    return 2 "
 
-SURVIVOR = Mutant(given="src/seeded.py", name="seeded.x_seeded__mutmut_1", status="survived", diff=DIFF)
+SURVIVOR = Mutant(
+    given="src/seeded.py",
+    name="seeded.x_seeded__mutmut_1",
+    status="survived",
+    diff=DIFF,
+)
 
-UNREACHED = Mutant(given="src/b.py", name="b.x_b__mutmut_1", status="no tests", diff=DIFF)
+UNREACHED = Mutant(
+    given="src/b.py", name="b.x_b__mutmut_1", status="no tests", diff=DIFF
+)
 
-LATER = Mutant(given="src/seeded.py", name="seeded.x_seeded__mutmut_2", status="survived", diff=DIFF)
+LATER = Mutant(
+    given="src/seeded.py",
+    name="seeded.x_seeded__mutmut_2",
+    status="survived",
+    diff=DIFF,
+)
 
-AT_THE_CAP = Mutant(given="src/seeded.py", name="seeded.x_seeded__mutmut_1", status="unchecked at the cap", diff=DIFF)
+AT_THE_CAP = Mutant(
+    given="src/seeded.py",
+    name="seeded.x_seeded__mutmut_1",
+    status="unchecked at the cap",
+    diff=DIFF,
+)
 
 KEY_FINDING = Finding("pyproject.toml: tool.mutmut.tests_dir: seeded")
 
@@ -86,7 +113,7 @@ def _count(findings: int, files: int) -> str:
 @pytest.mark.parametrize("files", EMPTY_RUNS)
 def test_empty_run(tmp_path: Path, files: tuple[tuple[str, str], ...]) -> None:
     """A run given no Python file that is not a test file prints that nothing was checked, then its count line: exit 1."""
-    paths = []
+    paths: list[Path] = []
     for relative, text in files:
         path = tmp_path / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,9 +138,16 @@ def test_unpinned(tmp_path: Path, pyproject: str) -> None:
     project = scaffold(tmp_path, files, pyproject=pyproject)
     paths = [tmp_path / name for name in files]
 
-    output = captured(lambda: run_gate(GATE, paths, project=project, process=FakeRunner([])))
+    output = captured(
+        lambda: run_gate(GATE, paths, project=project, process=FakeRunner([]))
+    )
 
-    assert (output.result, len(output.merged), "pythonVersion" in output.merged[0], output.merged[-1]) == (
+    assert (
+        output.result,
+        len(output.merged),
+        "pythonVersion" in output.merged[0],
+        output.merged[-1],
+    ) == (
         2,
         2,
         True,
@@ -124,16 +158,23 @@ def test_unpinned(tmp_path: Path, pyproject: str) -> None:
 @pytest.mark.parametrize("key", SETTING_KEYS)
 def test_setting_key(tmp_path: Path, key: str) -> None:
     """A `[tool.mutmut]` key that narrows or widens the scope or changes the time limit is one finding naming the key."""
-    project = scaffold(tmp_path, {}, pyproject=f'{PINNED}\n[tool.mutmut]\n{key} = ["src"]\n')
+    project = scaffold(
+        tmp_path, {}, pyproject=f'{PINNED}\n[tool.mutmut]\n{key} = ["src"]\n'
+    )
 
     findings = setting_findings(project)
 
-    assert [finding.text.startswith(f"pyproject.toml: tool.mutmut.{key}: ") for finding in findings] == [True]
+    assert [
+        finding.text.startswith(f"pyproject.toml: tool.mutmut.{key}: ")
+        for finding in findings
+    ] == [True]
 
 
 def test_no_setting_key(tmp_path: Path) -> None:
     """A `[tool.mutmut]` table holding no such key makes no finding."""
-    project = scaffold(tmp_path, {}, pyproject=f"{PINNED}\n[tool.mutmut]\ndebug = true\n")
+    project = scaffold(
+        tmp_path, {}, pyproject=f"{PINNED}\n[tool.mutmut]\ndebug = true\n"
+    )
 
     assert setting_findings(project) == []
 
@@ -151,7 +192,13 @@ def test_finished_findings_in_order() -> None:
 
     assert (exit_code(done), render(GATE.name, done, 2)) == (
         1,
-        [KEY_FINDING.text, _line(UNREACHED), _line(SURVIVOR), _line(LATER), _count(4, 2)],
+        [
+            KEY_FINDING.text,
+            _line(UNREACHED),
+            _line(SURVIVOR),
+            _line(LATER),
+            _count(4, 2),
+        ],
     )
 
 
@@ -177,5 +224,11 @@ def test_unfinished() -> None:
 
     assert (exit_code(done), render(GATE.name, done, 1)) == (
         2,
-        ["mutmut exited 1", "FAILED tests/test_seeded.py::test_seeded", KEY_FINDING.text, _line(SURVIVOR), _count(2, 1)],
+        [
+            "mutmut exited 1",
+            "FAILED tests/test_seeded.py::test_seeded",
+            KEY_FINDING.text,
+            _line(SURVIVOR),
+            _count(2, 1),
+        ],
     )
