@@ -7,7 +7,7 @@ Status: approved, with its five decisions ruled.
 - **Size and a full queue.** A write to a captured fd blocks as it would on a pipe whose reader is alive. It never fails, and is never cut, for its size or for a full queue.
 - **A call that raises.** Every line written before the call raised reaches the caller.
 - **A holder left running.** A child or other holder that keeps fd 1 or fd 2 open after the call ends is waited on until it closes them. The helper keeps no bound of its own: pytest-timeout's 30 seconds (`pyproject.toml:55`) is the one bound on that wait (decision 3).
-- **Typed errors.** The helper's own errors are typed exceptions carrying data, as the gates spec's "No copy" bullet asks (`docs/superpowers/specs/2026-10-17-quality-gates-design.md:93`).
+- **Typed errors.** The helper's own errors are typed exceptions carrying data, as the gates spec's "No copy" bullet asks (`docs/superpowers/specs/2026-10-17-quality-gates-design.md:94`).
 
 **The constraints conflict on ordering.** No kernel object gives one queue, ordered across two fds and tagged by the fd that wrote, that also blocks like a pipe:
 

@@ -14,7 +14,7 @@ Gauntlet builds structure first for itself, not for the repositories it builds i
 - **Audit covers tests only.** `gauntlet audit` judges tests against the test policy (`docs/design.md:93`, `docs/roadmap.md:107`, `docs/config.md:35`, `:69`). Nothing surveys for a missing core or a duplicated concern.
 - **Round caps have no named reader.** `caps` is a `gauntlet.yaml` key (`docs/config.md:23`, `:40`), but no module in `docs/design.md` §8 (`:265`-`286`) reads the configuration.
 
-The vocabulary below is the product form of rules that already bind Gauntlet's own build: the judgment layer's "duplicated concept, logic in the wrong home, a patch where a root-cause fix belongs" (`docs/superpowers/specs/2026-10-17-quality-gates-design.md:157`), `diff-reviewer`'s categories (`docs/superpowers/specs/2026-10-18-agents-design.md:34`), and the design step that each milestone takes (`docs/superpowers/specs/2026-10-20-gates-core-design.md:364`-`372`). Those stay as rules for building Gauntlet; this design does not replace them.
+The vocabulary below is the product form of rules that already bind Gauntlet's own build: the judgment layer's "duplicated concept, logic in the wrong home, a patch where a root-cause fix belongs" (`docs/superpowers/specs/2026-10-17-quality-gates-design.md:158`), `diff-reviewer`'s categories (`docs/superpowers/specs/2026-10-18-agents-design.md:34`), and the design step that each milestone takes (`docs/superpowers/specs/2026-10-20-gates-core-design.md:364`-`372`). Those stay as rules for building Gauntlet; this design does not replace them.
 
 ## Modules
 
