@@ -6,4 +6,4 @@ repos:
         entry: uv run python -m gates.heavy make check
         language: unsupported
         pass_filenames: false
-        always_run: true
+        files: '(\.pyi?$|^(pyproject\.toml|uv\.lock|Makefile|\.pre-commit-config\.yaml|\.gitignore|\.python-version)$|^(gates|tests)/)'
