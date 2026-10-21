@@ -29,50 +29,53 @@ Each section states a mechanism, then lists the approaches it replaces under **N
 
 ## 2. Workflow
 
-A job runs these stages in order. "You approve" means the job waits at a screen until you act. Proposed, pending the owner's approval: a design stage for the shared core, review against that design, fixing by cause, structure jobs and a structure audit, in [`superpowers/specs/2026-10-20-structure-first-design.md`](superpowers/specs/2026-10-20-structure-first-design.md).
+A job runs these stages in order. "You approve" means the job waits at a screen until you act. A job that creates or changes shared structure also runs a design stage for the shared core, is reviewed against that design, and has its findings fixed by cause. Structure jobs and the structure audit build the shared core in repositories that lack one. All are specified in [`superpowers/specs/2026-10-20-structure-first-design.md`](superpowers/specs/2026-10-20-structure-first-design.md). Stages are named, never numbered.
 
-| # | Stage | Who | Input | Returns | Gate |
-|---|---|---|---|---|---|
-| 1 | Brief | brief-writer (reader) | conversation with you | `brief.md` | you approve |
-| 2 | Discovery | detective (reader) | the planner's questions, all at once | file:line table | — |
-| 3 | Outline | planner (reader) | brief, discovery table | steps, the implementer for each, the areas each touches | you approve or redirect |
-| 4 | Plan | planner and prosecutor (readers), in rounds | brief, outline, discovery, objections | plan; per-check `PASS` / `FAIL` / `COULD NOT JUDGE` | prosecutor passes every check, then you approve |
-| 5 | Spec | planner, examiner (scratch), arbiter (judge), in rounds | brief, plan | behavior lines `S1…` with `bite:` values, collateral rows; per-line rulings | arbiter accepts every line, then you approve |
-| 6 | Stubs | implementer | the plan's stub step | signatures whose bodies only raise | — |
-| 7 | Tests | scriveners (tester) | spec lines routed to them, interface view | tests, with test ids per spec line | — |
-| 8 | Red run | harness, then juror (judge) | every configured test runner; spec, tests, red output | `RED` / `ERROR` / `GREEN` / `INVALID` / `COULD NOT JUDGE` per line | every line `RED` |
-| 9 | Lock | harness | — | commit of the tests on the job branch | — |
-| 10 | Build | implementers, one plan step each | the step, the locked tests | `complete` / `partial` / `blocked`, with a reason | step's tests and gates green |
-| 11 | Review | repo reviewers (reader) | the diff, supplied by the harness | findings with file:line, failure scenario, `blocking` flag | no blocking findings |
-| 12 | Bailiff | bailiff (judge) | final spec, final tests, collateral rows, test policy | `PIN` / `UNPINNED` / `COULD NOT JUDGE` per line; `HELD` / `ALTERED` per collateral row | every line `PIN`, every row as the spec says |
-| 13 | Land | harness | — | land screen | you approve |
+| Stage | Who | Input | Returns | Gate |
+|---|---|---|---|---|
+| Brief | brief-writer (reader) | conversation with you | `brief.md` | you approve |
+| Discovery | detective (reader) | the planner's questions, all at once | file:line table | — |
+| Outline | planner (reader) | brief, discovery table | steps, the implementer for each, the areas each touches, a shared-structure flag | you approve or redirect |
+| Design | architect (reader) | brief, outline, discovery table | modules with stubs, a home for each shared concern, step order, choices; only when the outline carries the flag | `design_problems` empty, then you rule each choice and approve |
+| Plan | planner and prosecutor (readers), in rounds | brief, outline, discovery, objections | plan; per-check `PASS` / `FAIL` / `COULD NOT JUDGE` | prosecutor passes every check, then you approve |
+| Spec | planner, examiner (scratch), arbiter (judge), in rounds | brief, plan | behavior lines `S1…` with `bite:` values, collateral rows; per-line rulings | arbiter accepts every line, then you approve |
+| Stubs | implementer | the plan's stub step | signatures whose bodies only raise | — |
+| Tests | scriveners (tester) | spec lines routed to them, interface view | tests, with test ids per spec line | — |
+| Red run | harness, then juror (judge) | every configured test runner; spec, tests, red output | `RED` / `ERROR` / `GREEN` / `INVALID` / `COULD NOT JUDGE` per line | every line `RED` |
+| Lock | harness | — | commit of the tests on the job branch | — |
+| Build | implementers, one plan step each | the step, the locked tests | `complete` / `partial` / `blocked`, with a reason, or a CoreMissing | step's tests and gates green |
+| Review | repo reviewers and the structure reviewer (readers), the grouper (judge) | the diff, supplied by the harness; the approved design, if any | `Finding` records (`core/verdicts.py`), grouped into causes | no blocking findings |
+| Bailiff | bailiff (judge) | final spec, final tests, collateral rows, test policy | `PIN` / `UNPINNED` / `COULD NOT JUDGE` per line; `HELD` / `ALTERED` per collateral row | every line `PIN`, every row as the spec says |
+| Land | harness | — | land screen | you approve |
 
 Notes on the stages:
 
-- **Plan (4).**
+- **Plan.**
   - The prosecutor resolves every citation in the plan against the tree.
   - It cuts any change you would see that no sentence of the brief asked for. If the planner argues the change is needed, the prosecutor returns `ESCALATE: LEAVE` and you decide.
   - A question the planner dodges counts as a fail. A question no agent can answer goes to you.
   - The prosecutor may return `REFUSE` when the plan text itself tries to steer its ruling.
-  - Each plan step lists the spec lines it serves (filled in at stage 5), the stubs it needs, and the files it expects to touch.
-- **Spec (5).**
+  - Each plan step lists the spec lines it serves (filled in at the Spec stage), the stubs it needs, and the files it expects to touch.
+- **Spec.**
   - A `bite:` value is the measured behavior a test pins. The examiner measures any `bite:` value that needs a script or a rendered state space. It runs on a throwaway copy of the tree.
   - Collateral rows name existing tests that the change alters or retires, and quote the assertion that must survive.
   - The planner routes each line to a tester by the testers' one-line descriptions.
-- **Stubs (6).** Stubs let the red run fail on assertions (`RED`) instead of on missing imports (`ERROR`). A `GREEN` verdict at stage 8 sends the line to the arbiter, which rules whether the spec or the stub is at fault.
-- **Tests (7).**
+- **Design.** The stage runs only when the planner's outline flags that the job creates or changes shared structure. Any other job goes from Outline to Plan, and the land screen shows Design as skipped by rule. A design with any `design_problems` is a failed round under `caps.design`. The owner rules each choice and approves.
+- **Stubs.** The approved design's stubs are written before any plan step's own. Stubs let the red run fail on assertions (`RED`) instead of on missing imports (`ERROR`). A `GREEN` verdict at the red run sends the line to the arbiter, which rules whether the spec or the stub is at fault.
+- **Tests.**
   - A line the scrivener cannot test goes back to the arbiter instead of getting a weak test.
   - For a collateral row, the scrivener repairs the code around the quoted assertion. The harness checks that the assertion is byte-identical.
-- **Red run (8).** The harness runs every runner in `gauntlet.yaml`, not just one. A test that passes before any implementation exists reopens its spec line.
+- **Red run.** The harness runs every runner in `gauntlet.yaml`, not just one. A test that passes before any implementation exists reopens its spec line.
   - Not instead: a pytest-only red run. It once ignored the JS tests entirely.
-- **Juror (8).** Its verdict stops the pipeline. The juror cannot be overruled by any agent; only you can, through `accept`.
+- **Juror.** Its verdict stops the pipeline. The juror cannot be overruled by any agent; only you can, through `accept`.
   - Not instead: a juror whose verdict advises. A juror without teeth was ignored.
-- **Build (10).**
+- **Build.**
   - When a test fails, the implementer either fixes the code or returns `spec_defect`.
   - A `partial` step goes to a fresh implementer, starting from that step's diff. A step is never re-run on top of its own partial work.
   - The harness commits each finished step.
-- **Review (11).** A finding without a file:line and a failure scenario is dropped. Blocking findings go back to the implementer of the step they cite.
-- **Bailiff (12).** It holds none of the reasons the spec was accepted, so a softened assertion cannot reach it as permission.
+  - A step's answer may carry a CoreMissing: what the step needs from the core, with the candidate structure job that would supply it.
+- **Review.** `finding_problems` drops a finding that does not stand. The structure reviewer runs in every job: with the approved design when the job has one, and for copied code alone when it has none. The grouper groups the findings that stand into causes, and each cause goes to one fix, by cause and not by finding. A cause that needs a home the design lacks reopens the design on that change alone.
+- **Bailiff.** It holds none of the reasons the spec was accepted, so a softened assertion cannot reach it as permission.
 
 ### Reopening the spec
 
@@ -81,16 +84,20 @@ Any role's answer may carry `spec_defect: {line, claim, evidence}`. You can rais
 1. The harness pauses the stage that raised it.
 2. The arbiter rules on the defect. Your own reopen skips this step, since you own the spec.
 3. If it is upheld, the planner amends only the affected lines. Arbiter rounds run on the change alone, and you approve it.
-4. For the amended lines, stages 7 to 9 run again. Then stages 10 to 12 run again for the plan steps that serve those lines.
+4. For the amended lines, the Tests, Red run and Lock stages run again. Then Build, Review and Bailiff run again for the plan steps that serve those lines.
 5. If the arbiter rules that the plan is affected too, the planner revises those steps and the prosecutor gets one round on them before step 4.
 
 Spec lines have stable ids, plan steps list the lines they serve, and testers return test ids per line, so the harness computes what an amendment touches. Reopens are capped by `caps.reopen` (default 2). Every amendment appears on the land screen.
 
 - Not instead: separate procedures for plan amendments and spec revisions. One mechanism covers both.
 
+A CoreMissing on a `complete` or `partial` step becomes an offer on the land screen with its payoff and risk. You accept it, which opens a structure job, or decline it, and the feature job lands either way. A CoreMissing on a `blocked` step opens a structure job at once and shows its reason on the status and land screens. Steps that touch neither the blocked step's files nor the structure job's keep building, and the blocked step reruns from Stubs once the structure job lands. A structure job opens at Design, ports every copy onto its new home as small port steps and lands only when no copy remains.
+
 ### Audit jobs
 
-`gauntlet audit <scope>` runs the auditor (judge) over existing tests, one test file per call, against the test policy. Each test gets `VALID`, `STRIKE`, `AMEND` or `NOTE`. The rows you select become a job that starts at stage 5 with those rows as its spec, and skips stages 6, 10 and 11.
+`gauntlet audit <scope>` runs the auditor (judge) over existing tests, one test file per call, against the test policy. Each test gets `VALID`, `STRIKE`, `AMEND` or `NOTE`. The rows you select become a job that starts at Spec with those rows as its spec, and skips Stubs, Build and Review.
+
+`gauntlet audit <scope> --structure` runs the surveyor (reader) over the scope for shared concerns with no home or with copies. You select from the candidates it ranks by payoff and risk, and each selection becomes its own structure job. A structure job starts at Design and skips nothing.
 
 - Not instead: separate lanes with their own pipelines. Job shapes are stages skipped within the one pipeline; rigid lanes did not fit real work.
 
@@ -100,8 +107,8 @@ Every role runs in exactly one kind. The kind alone decides what the role can se
 
 | Kind | Sees | Writes | Tools | Roles |
 |---|---|---|---|---|
-| judge | only what the harness puts in its prompt | nothing | none | arbiter, juror, bailiff, auditor |
-| reader | the job checkout | nothing | Read, Grep, Glob | brief-writer, planner, detective, prosecutor, reviewers |
+| judge | only what the harness puts in its prompt | nothing | none | arbiter, juror, bailiff, auditor, grouper |
+| reader | the job checkout | nothing | Read, Grep, Glob | brief-writer, planner, detective, prosecutor, architect, reviewers, structure-reviewer, surveyor |
 | coordinator | the main checkout | nothing | Read, Grep, Glob, `open_job`, `job_status`, `job_record` | coordinator |
 | scratch | a throwaway copy of the job checkout | the copy, discarded after | shell, Read, Write, Edit, Grep, Glob | examiner |
 | tester | spec, `tests/`, test helpers, test policy, interface view, lint and type configs | `tests/` | shell, Read, Write, Edit, Grep, Glob, `run_tests` | scriveners |
@@ -186,7 +193,7 @@ Code that special-cases the tests is beyond any file rule. It is caught by revie
 - No network.
 - A shell is safe here, because nothing in the container contains the source. The tester lints, formats and typechecks its tests, and runs them against the interface view to catch import errors, collection errors and broken fixtures.
 
-**Interface view.** Before stage 7 the harness generates, with the repository's `interface` commands, a signatures-only view of the public names the plan touches, stubs included: `.pyi` from `stubgen`, `.d.ts` from `tsc --allowJs --declaration --emitDeclarationOnly`. Default values and private helpers can hint at how the code works, so the view is trimmed to the names the plan touches.
+**Interface view.** Before the Tests stage the harness generates, with the repository's `interface` commands, a signatures-only view of the public names the plan touches, stubs included: `.pyi` from `stubgen`, `.d.ts` from `tsc --allowJs --declaration --emitDeclarationOnly`. Default values and private helpers can hint at how the code works, so the view is trimmed to the names the plan touches.
 
 - Not instead: a blind tester with no way to check its work. Blind agents blocked from files they needed stalled.
 
@@ -206,7 +213,7 @@ A judge's container binds only the proxy socket folder, which every CLI launch c
 
 `gauntlet epic` runs an effort too large for one job.
 
-1. **Brief.** Same as stage 1, for the whole effort. You approve `epic.md`.
+1. **Brief.** Same as the Brief stage, for the whole effort. You approve `epic.md`.
 2. **Split.** The coordinator returns jobs, each with a sub-brief, the jobs it depends on, and the areas it expects to touch. One prosecutor round checks the split for gaps, overlap and wrong order. You approve or edit it.
 3. **Run.** The harness starts every job whose dependencies have landed. A dependent job starts from `main` after its dependency lands, so branches never stack. Jobs run in parallel only when their approved plans declare files that do not overlap. A job with no file declaration runs alone.
 4. **Revise.** After each job lands or stops, a fresh coordinator reads the epic record. It may change upcoming sub-briefs, add a job, or stop the epic. Changes and additions come back to you for approval.
@@ -252,8 +259,11 @@ All records live in `.gauntlet/`, which the harness adds to `.git/info/exclude`.
   chat.md brief.md outline.md
   plan.N.md plan.N.objections.md plan.md
   spec.N.md spec.N.rulings.md spec.md
-  red.txt juror.md steps/NN.log review.N.md bailiff.md land.md
+  design.N.md design.N.objections.md design.md
+  red.txt juror.md steps/NN.log review.N.md causes.N.md offers.md bailiff.md land.md
   tree/            job checkout on branch gauntlet/<id>
+.gauntlet/audits/<id>/
+  survey.md        a structure audit's candidates, findings and what is sound
 .gauntlet/epics/<id>/
   epic.md split.N.md split.N.objections.md split.md
   state.json       jobs, dependencies, status, check rows
@@ -268,9 +278,11 @@ Every file is plain text, so a job survives a harness crash. `resume` restarts f
 gauntlet/
   core/              pure, no I/O, one unit test per branch
     decide.py        decide(state, answer) -> next action
-    verdicts.py      answer schemas, COULD NOT JUDGE handling
+    verdicts.py      every answer schema and the anchor type, COULD NOT JUDGE handling
+    design.py        the design record and what makes it valid
+    causes.py        findings grouped into causes, each routed to one fix
     reopen.py        spec line -> affected tests and steps
-    schedule.py      which epic jobs may start
+    schedule.py      which epic jobs, plan steps and structure jobs may start (`startable`)
     land.py          land or refuse
   seams/             thin I/O around the core
     cli.py           every command in §6, plus new, run, epic, audit, status, reopen
@@ -279,9 +291,9 @@ gauntlet/
     proxy.py         the credential proxy
     tools.py         run_tests, open_job, job_status, job_record
     runner.py        harness-owned test and gate runs
-    job.py           job and epic records
+    job.py           job, epic, design, cause, offer and survey records; opens structure jobs
     screens.py       everything you see
-roles/               fixed role prompts with their answer schemas, plus
+roles/               fixed role prompts, each naming its answer schema, plus
                      the general implementer and general tester
 ```
 

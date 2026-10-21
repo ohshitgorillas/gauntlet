@@ -20,7 +20,7 @@ interface:
   - {lang: js, run: "tsc --allowJs --declaration --emitDeclarationOnly --outDir {out} {files}"}
 test_lint: "ruff check {files} && mypy {files}"
 implementer_network: false
-caps: {plan: 2, spec: 2, juror: 2, build: 2, review: 2, reopen: 2}
+caps: {design: 2, plan: 2, spec: 2, juror: 2, build: 2, review: 2, reopen: 2}
 roles:
   planner: {model: claude-opus-5-5, effort: high}
   juror: {effort: medium}
@@ -53,7 +53,7 @@ skills: [clock-seams]
 Craft instructions for the role.
 ```
 
-- **`kind`** is one of `implementer`, `tester` or `reviewer`. A reviewer runs as a reader and takes part in stage 11. The kind fixes what the role can see, write and run; nothing in the file can change that.
+- **`kind`** is one of `implementer`, `tester` or `reviewer`. A reviewer runs as a reader and takes part in the Review stage. The kind fixes what the role can see, write and run; nothing in the file can change that.
 - **`description`** is one line. The planner routes work by it: plan steps go to implementers, spec lines go to testers.
 - **`skills`** names skills from `.gauntlet/skills/` that the role loads.
 - **The body** is the role's craft. It cannot widen the role's permissions, and it cannot override the fixed answer schema for its kind.
