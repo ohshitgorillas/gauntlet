@@ -12,7 +12,7 @@ from typing import NoReturn, Protocol
 
 from gates.core.checker import Command, Completed, Runner, run, run_all
 from gates.core.project import Project, Source, python_files
-from gates.core.report import GateError, Line, Outcome, Unfinished, exit_code, nothing_checked, render, write
+from gates.core.report import GateError, Line, Outcome, Unfinished, exit_code, nothing_checked, render, timed_out, write
 
 # The mode every directory of the run's temp dir is given before it is deleted, so that a read-only one is deleted too.
 DELETABLE = stat.S_IRWXU
@@ -182,11 +182,14 @@ def _batch_lines[R](checker: Checker[R], batch: Sequence[Source], command: Comma
 
     A timeout reads no report and adds the gate's line naming the cap. A stop is read before the expected status, so a
     stop is never a finish, and a stopped batch whose lines hold no Unfinished gets the whole output as one.
+
+    Raises GateError when the batch timed out though its command has no time cap.
     """
     output = completed.output()
     if completed.timed_out:
-        cap = f"the checker {command.argv[0]} ran past its time cap of {command.timeout} seconds"
-        return [Unfinished(output), Unfinished(cap)]
+        if command.timeout is None:
+            raise GateError(f"the checker {command.argv[0]} timed out with no time cap")
+        return list(timed_out(output, command.argv[0], command.timeout))
     try:
         report = checker.read(completed)
     except GateError:
