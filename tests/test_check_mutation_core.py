@@ -120,12 +120,12 @@ def test_empty_run(tmp_path: Path, files: tuple[tuple[str, str], ...]) -> None:
         lambda: run_gate(GATE, paths, project=project, process=FakeRunner([]))
     )
 
-    assert (output.result, output.merged) == (
+    # The quality gates spec, "No copy" (line 93): wording that originates in the program is not a valid pin,
+    # so the line saying nothing was checked is held by its place, not its words.
+    assert (output.result, len(output.merged), output.merged[-1]) == (
         1,
-        [
-            f"check_mutation: nothing checked: no Python file that is not a test file among the {len(paths)} file(s) given\n",
-            f"{_count(0, 0)}\n",
-        ],
+        2,
+        f"{_count(0, 0)}\n",
     )
 
 
@@ -216,10 +216,15 @@ def test_at_the_cap() -> None:
     """At the wall-clock cap, the gate's line naming the cap, then each unchecked mutant as a finding: exit 1."""
     done = outcome([], Mutated(mutants=(AT_THE_CAP,), at_cap=True))
 
-    assert (exit_code(done), render(GATE.name, done, 1)) == (
+    lines = render(GATE.name, done, 1)
+
+    # The quality gates spec, "No copy" (line 93): wording that originates in the program is not a valid pin,
+    # so the cap line is held by its place and the cap it names, 600 seconds, not its words.
+    assert (exit_code(done), len(lines), "600" in lines[0], lines[1:]) == (
         1,
+        3,
+        True,
         [
-            "check_mutation: mutmut hit the wall-clock cap of 600 seconds; every mutant it had not checked is a finding",
             _line(AT_THE_CAP),
             _count(1, 1),
         ],
