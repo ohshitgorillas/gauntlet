@@ -7,9 +7,8 @@ files a checker writes, such as pytest's JUnit XML or mutmut's coverage record. 
 `Completed.outputs`", whose values are `str | None`: the text of each file the checker wrote, and None for one it did not.
 
 A shell reports a process that exited by its exit code, so a checker that exits 3 has status 3. A shell reports a process
-a signal ended as a status greater than 128 (POSIX, "Exit Status for Commands"); the exact value above 128 differs from
-shell to shell and the documents do not name the shell, so a checker a signal ended is held only to a status above 128,
-which a negative signal number never is.
+a signal ended as 128 plus the signal number (POSIX, "Exit Status for Commands"), so a checker SIGKILL ended has status
+137, never a negative signal number.
 
 `Completed` holds `stdout` and `stderr` as two fields, and the quality-gates design spec's "Gates" bullet names the
 checker's whole output as "stdout and stderr", so each is held to its own stream's text alone. A Command's `cwd` and
@@ -19,6 +18,7 @@ process that `env` leaves out never reaches the checker. What `run` does on a ti
 cannot start, a throttled run, an uncaptured run or passed descriptors are other behaviors, and no test here holds them.
 """
 
+import signal
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -27,7 +27,7 @@ import pytest
 
 from gates.core.checker import Command, Completed, run
 
-# A shell reports a process a signal ended as a status greater than this.
+# A shell reports a process a signal ended as this plus the signal number.
 SIGNAL_FLOOR = 128
 
 EXIT = "import sys\nsys.exit(int(sys.argv[1]))\n"
@@ -79,8 +79,8 @@ def test_exit_status(tmp_path: Path, code: int) -> None:
 
 
 def test_signal_status(tmp_path: Path) -> None:
-    """A checker a signal ended has a status greater than 128, as a shell reports it, never a negative signal number."""
-    assert _run(tmp_path, _python(KILLED)).status > SIGNAL_FLOOR
+    """A checker SIGKILL ended has status 128 plus the signal number, as a shell reports it."""
+    assert _run(tmp_path, _python(KILLED)).status == SIGNAL_FLOOR + signal.SIGKILL
 
 
 def test_stdout(tmp_path: Path) -> None:
