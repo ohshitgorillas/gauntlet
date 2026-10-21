@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict
@@ -10,7 +11,11 @@ from typing import TypedDict
 from mypy import api
 from mypy.errors import SHOW_NOTE_CODES
 
-from gates.core.project import is_python_file
+from gates.check_suppressions import is_python_source
+from gates.core.checker import Command, Completed
+from gates.core.project import Source
+from gates.core.report import Line
+from gates.core.runner import Gate, Run, check_with
 
 CONFIG = Path(__file__).resolve().parent.parent / "pyproject.toml"
 
@@ -173,6 +178,43 @@ def check(source: str) -> Verdict:
         sys.stdout.write("".join(f"{line}\n" for line in unread.output.splitlines()))
         sys.stdout.write(f"check_mypy: mypy exited {unread.status} on {source}\n")
         return Verdict(0, finished=False)
+
+
+def warm_cache(run: Run, directory: Path) -> None:
+    """Warm the mypy cache in the directory with mypy on an empty program, through the run's process runner.
+
+    Raises GateError unless mypy exits 0, prints nothing and leaves a file in the directory.
+    """
+    raise NotImplementedError
+
+
+class Mypy:
+    """mypy as a child process, one per Python file, each from its own copy of the run's one warm cache."""
+
+    stopped: frozenset[int] = frozenset({2})
+
+    def batches(self, run: Run) -> list[list[Source]]:
+        """One mypy per file: no verdict depends on another file."""
+        raise NotImplementedError
+
+    def command(self, run: Run, batch: Sequence[Source]) -> Command:
+        """mypy over the batch's one file, from its own copy of the warm cache, as a JSON report."""
+        raise NotImplementedError
+
+    def read(self, completed: Completed) -> list[Record]:
+        """The records of mypy's JSON report, or a GateError."""
+        raise NotImplementedError
+
+    def expected_status(self, report: list[Record]) -> int:
+        """The exit status mypy's report calls for."""
+        raise NotImplementedError
+
+    def lines(self, report: list[Record], batch: Sequence[Source], *, stopped: bool) -> list[Line]:
+        """The gate's lines for the batch's report."""
+        raise NotImplementedError
+
+
+GATE = Gate(name="check_mypy", check=check_with(Mypy()))
 
 
 def main(paths: list[Path]) -> int:
