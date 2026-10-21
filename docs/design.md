@@ -37,7 +37,7 @@ A job runs these stages in order. "You approve" means the job waits at a screen 
 | Discovery | detective (reader) | the planner's questions, all at once | file:line table | — |
 | Outline | planner (reader) | brief, discovery table | steps, the implementer for each, the areas each touches, a shared-structure flag | you approve or redirect |
 | Design | architect (reader) | brief, outline, discovery table | modules with stubs, a home for each shared concern, step order, choices; only when the outline carries the flag | `design_problems` empty, then you rule each choice and approve |
-| Plan | planner and prosecutor (readers), in rounds | brief, outline, discovery, objections | plan; per-check `PASS` / `FAIL` / `COULD NOT JUDGE` | prosecutor passes every check, then you approve |
+| Plan | planner and prosecutor (readers), in rounds | brief, outline (a structure job: the approved design instead), discovery, objections | plan; per-check `PASS` / `FAIL` / `COULD NOT JUDGE` | prosecutor passes every check, then you approve |
 | Spec | planner, examiner (scratch), arbiter (judge), in rounds | brief, plan | behavior lines `S1…` with `bite:` values, collateral rows; per-line rulings | arbiter accepts every line, then you approve |
 | Stubs | implementer | the plan's stub step | signatures whose bodies only raise | — |
 | Tests | scriveners (tester) | spec lines routed to them, interface view | tests, with test ids per spec line | — |
