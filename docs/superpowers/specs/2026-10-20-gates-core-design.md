@@ -45,6 +45,21 @@ def write(lines: Sequence[str], *, error: bool = False) -> None  # the only writ
 - the mutation gate's `count_line` and `finish`
 - all six exit constants
 
+### clock.py: the one home of real time
+
+```python
+type Ready = Callable[[float | None], bool]  # the caller's own wait on an event, for up to the seconds given (None: without end); True when the event came
+class Clock(Protocol):
+    def wait(self, ready: Ready, seconds: float | None) -> bool  # True when the event came before `seconds` passed on this clock; None: no cap
+class SystemClock:  # real time, the only real time in gates/: hands `seconds` to ready as they are
+    def wait(self, ready: Ready, seconds: float | None) -> bool
+SYSTEM: Clock  # a SystemClock; the default of every clock parameter in gates/
+```
+
+Every wait in `gates/` that can end on time as well as on an event goes through a `Clock` handed in, `SYSTEM` by default, and keeps its own wait on the event as the `Ready` it hands that clock; a test hands in a `VirtualClock` (`tests/support/clock.py`). No-wall-clock design, `docs/superpowers/specs/2026-10-21-no-wall-clock-design.md`, decision 6.
+
+**Replaces:** the bare cap `run` handed to the checker's exit wait, which becomes the `Ready` `run` hands its clock.
+
 ### checker.py: running a checker process
 
 ```python
@@ -53,13 +68,15 @@ Command(argv: tuple[str, ...], cwd: Path, env: Mapping[str, str] | None = None, 
 Completed(status: int, stdout: str, stderr: str, timed_out: bool, outputs: Mapping[str, str | None])  # status as a shell reports it; .output() = stdout + stderr
 type Runner = Callable[[Command], Completed]
 def read_output(path: Path) -> str | None  # run's default reader of an output file
-def run(command: Command, *, read: Callable[[Path], str | None] = read_output) -> Completed  # own session; the whole group is killed at the timeout or on any interrupt; GateError if the program cannot start
+def run(command: Command, *, read: Callable[[Path], str | None] = read_output, clock: Clock = SYSTEM) -> Completed  # own session; waits on the checker's exit through clock, the timeout passing on that clock; the whole group is killed at the timeout or on any interrupt; GateError if the program cannot start
 def python_module(module: str, *arguments: str | Path, cwd: Path, timeout: float | None = None) -> Command
 def python_script(script: Path, *arguments: str | Path, cwd: Path, timeout: float | None = None) -> Command  # the interpreter run on a script by its path; mutmut run design, docs/superpowers/specs/2026-10-21-mutmut-run-design.md
 def environment(*, drop_prefixes: tuple[str, ...] = (), drop: frozenset[str] = frozenset()) -> dict[str, str]
 def throttle_line(platform: str, niceness: int, path: str | None = None) -> list[str]  # heavy's line; GateError on a host with none, or a tool not on `path` (None: os.environ's PATH)
 def cpu_budget(cpus: int | None = None) -> int   # floor(cpus / 2), the mutation and backstop cap; None: the CPUs this process may run on (its affinity where the host keeps one, else the host's count), so a test sets the count in-process
-def run_all(process: Runner, commands: Iterable[Command], cap: int) -> list[Completed | GateError | OSError]  # at most cap at once, results in command order (decision 26)
+type NextDone = Callable[[Collection[Future[Completed]]], set[Future[Completed]]]  # blocks until at least one future in running is done; the done ones
+def first_done(running: Collection[Future[Completed]]) -> set[Future[Completed]]  # concurrent.futures.wait(running, return_when=FIRST_COMPLETED), no timeout; the done ones
+def run_all(process: Runner, commands: Iterable[Command], cap: int, *, next_done: NextDone = first_done) -> list[Completed | GateError | OSError]  # at most cap at once, results in command order; every wait on its workers, the cleanup's included, through next_done, which only a test hands in (decision 26)
 ```
 
 `run` closes in the checker every descriptor of the running process except `pass_fds` and fds 0, 1 and 2. `capture=False` lets the checker inherit the run's own fds 1 and 2 and write straight to them; `Completed.stdout` and `.stderr` come back `""`. A throttled `run` looks its tools up on the PATH of `Command.env`, and on os.environ's PATH when `env` is None, so a test sets PATH in-process through `env`.
@@ -132,7 +149,7 @@ def comment_markers(parsed: Parsed, markers: Mapping[str, re.Pattern[str]]) -> l
 Gate(name: str, check: Callable[[Run], Outcome],
      select: Callable[[Sequence[Source]], list[Source]] = list, selects: str = "Python file")
 Run(project: Project, sources: tuple[Source, ...], scratch: Scratch, process: Runner,
-    given: tuple[Source, ...] = ())  # given: every Python file given, test files included; sources is select(given) (decision 28)
+    given: tuple[Source, ...] = (), next_done: NextDone = first_done)  # given: every Python file given, test files included; sources is select(given) (decision 28); next_done: the wait run_all makes on its workers, which check_with hands to run_all beside process; only a test hands in another
 class Scratch:  # one per run
     __init__(self, root: Path | None = None)  # None: tempfile.gettempdir(), so TMPDIR moves it; never in the tree
     directory(self, name: str) -> Path  # a fresh dir inside the run's own temp dir; GateError on OSError
@@ -148,7 +165,7 @@ class Checker[R](Protocol):
     def lines(self, report: R, batch: Sequence[Source], *, stopped: bool) -> Sequence[Line]
 def check_with(checker: Checker[R], *, budget: Callable[[], int] | None = None) -> Callable[[Run], Outcome]  # budget: batches at once (decision 27)
 def run_gate(gate: Gate, paths: Sequence[Path], *, project: Project | None = None,
-             process: Runner = run, scratch_root: Path | None = None) -> int
+             process: Runner = run, next_done: NextDone = first_done, scratch_root: Path | None = None) -> int  # puts process and next_done in the Run it builds
 def main(gate: Gate) -> NoReturn
 ```
 
@@ -408,7 +425,7 @@ Decisions 1, 4 and 5 stand as section 7 records them. Of 1: the git top level, a
 - 23, a GateError or OSError from `command` or from `run.process` ends `check_with` at that batch: the lines of the batches before it stand, then an Unfinished of the error's report, and no later batch runs. An OSError's report, here and in `run_gate`, is `str(error)`. (Void, technical, B5.)
 - 24, `run_gate`: the `given` of `nothing_checked` is `len(paths)`, every path as given; an error before or in `gate.check` gives an Outcome of its one Unfinished line; a failure `close` returns is an Unfinished after the Outcome's lines; on an interrupt `close` runs and the interrupt goes on, nothing printed. Every line goes to stdout. `main` runs `run_gate` over `sys.argv[1:]` and exits with its code. (Void, technical, B5.)
 - 25, `scaffold` writes the config first, then `files`, so a `files` entry named `pyproject.toml` replaces it, bytes included; with `git=True` it initialises the repository and commits everything through `Project.git`, a failing git step raising `ScaffoldError` with that Completed; the `unreadable` paths lose every permission last, after the commit. Its tests sit in `tests/test_core_runner.py`, B5's one test file. (Void, technical, B5.)
-- 26, concurrent batches are a core feature, so check_pytest keeps running its modules in parallel: `run_all(process, commands, cap)` runs each Command through `process` in worker threads, at most `cap` (1 or more) at once. It takes the next Command from `commands`, in the main thread, only when fewer than `cap` are running, so Commands are made and started in their order. It returns one result per Command started, in the order of `commands` whatever the order they finish in: the Completed, or the GateError or OSError that taking the Command or calling `process` raised. Such an error stops it: no Command is taken once one is seen, the ones running are waited for, and the list ends at the first error in command order, so what stands never depends on finish order. Any other exception from `process` goes on after the cleanup below. While it runs, the main thread answers ENDING_SIGNALS as `run` does; on any exception there, a signal's included, it holds signals, kills the process group of every checker `run` has started, in any thread, and not yet reaped, waits for every worker, puts the handlers back, and only then do the exception and each signal recorded take their course. (Coordinator ruling; technical, core-batches.)
+- 26, concurrent batches are a core feature, so check_pytest keeps running its modules in parallel: `run_all(process, commands, cap, *, next_done=first_done)` runs each Command through `process` in worker threads, at most `cap` (1 or more) at once. It takes the next Command from `commands`, in the main thread, only when fewer than `cap` are running, so Commands are made and started in their order. Every wait on its workers, for one to end and in the cleanup for all of them, goes through `next_done`, with no timeout; it never looks at its Runner to find a wait. It returns one result per Command started, in the order of `commands` whatever the order they finish in: the Completed, or the GateError or OSError that taking the Command or calling `process` raised. Such an error stops it: no Command is taken once one is seen, the ones running are waited for, and the list ends at the first error in command order, so what stands never depends on finish order. Any other exception from `process` goes on after the cleanup below. While it runs, the main thread answers ENDING_SIGNALS as `run` does; on any exception there, a signal's included, it holds signals, kills once the process group of every checker `run` has started, in any thread, and not yet reaped, waits through `next_done` until no worker is running, puts the handlers back, and only then do the exception and each signal recorded take their course. While it waits, each checker `run` starts is killed as it is added to the live set, under the lock that add takes, so the cleanup has no poll and no poll interval. (Coordinator ruling; technical, core-batches. Waits and cleanup: no-wall-clock design, decisions 7, 9 and 10.)
 - 27, `check_with(checker, *, budget=None)`: `budget` is the CPU budget the cap is sized by, `cpu_budget` for check_pytest; None runs one batch at a time, so every gate built before it keeps its order and its tests. `budget` is called once per check, after `batches` and before the first `command`; the cap is `max(1, budget())`, so a host of 0 or 1 CPUs still runs one batch at a time, and a GateError or OSError from it is the Outcome of its one Unfinished, with no batch run. The batches run through `run_all`, each batch's command made in batch order; each batch's lines follow the lines of the batch before it, whatever the order they finished in. A GateError or OSError ends the check as decision 23 says, at the first failing batch in batch order: no batch starts once it is seen, and no later batch gives a line, even one that finished. On an interrupt every running batch's process group is killed before the interrupt goes on, as decision 26 says. (Coordinator ruling; technical, core-batches.)
 - 28, `Run.given` carries every Python file given, test files included, as `python_files` returns them; `run_gate` selects `sources` from it, so M and the empty run are unchanged. The mutation and backstop suites are `test_files(run.given)`; a mutation run with a changed function and no test file there is unfinished. The default `()` keeps hand-built Runs valid and fails closed. Refused: `select` returning two lists, selecting inside `check`, re-reading the paths. Reason: two gates need it. (Void, technical, C7b.)
 - 29, `report.time_cap` is the one home of the cap line and `report.timed_out` of a capped checker's pair, its whole output then that line; `check_with` calls `timed_out(output, argv[0], timeout)`, so decision 22's output is unchanged. The mutation gate has no time cap and calls neither: it bounds its work, and the bound, its line and its verdicts are the mutmut run design's (`docs/superpowers/specs/2026-10-21-mutmut-run-design.md`, its decisions 1, 5 and 6). C7a's `AT_THE_CAP` goes. Refused: the gate's own wording, a second copy. (Void, technical, C7b.)
