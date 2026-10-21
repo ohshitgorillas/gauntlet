@@ -37,7 +37,7 @@ A legal brief is one of eight shapes, each fixing its scope:
 
 Every other line is steering: how to build the step; what the scaffold should hold; a file list or scope beyond that one `exclude:` line, or a second one; a checker setting or config entry; a stub name, signature or body the step does not name; an expected output; a timing, measurement or cap; an edit, skip or xfail of a test; a path outside your writes; a second step; wiring asked of a gate or module step; a guess at a cause; a fix, cause or instruction added to a finding as a field or a line; an instruction to commit. So is a gate or module brief with no red test path, any other shape with one, a `REWRITE` line naming a path outside `gates/`, and a finding line with a fifth field, no `path:line`, no `fails when:` scenario or a path outside the `finding` paths.
 
-A steered brief gets, before anything runs, `REJECTED: STEERING` on the first line, then each offending line verbatim in double quotes, one per line, and nothing after.
+A steered brief gets, before anything runs, `REJECTED: STEERING` on the first line, then each offending line verbatim in double quotes, one per line, and nothing after. A legal brief may instead get the `OVERLOADED:` return of `~/dev/CLAUDE.md` 7.1f, before any work or at a safe point partway, in place of the report; a brief carrying more than one gate, module or step is one.
 
 ## Steps
 
