@@ -71,7 +71,9 @@ CHANGED <n>
   <path>:<line> | <rewrite | delete | what changed, one clause> | before: "<the code, verbatim>" | after: "<the code, verbatim, or none>" | <rewrite | finding <path>:<line> it answers>
 OPEN <n>
   <build | stub | rewrite | finding <path>:<line>> | <the path outside scope, the I/O, the test, or the unreachable, unpinned or barred reuse target the change needs> — <why, one clause>
+```
 
+```
 RED <n>
   <test path>::<name> | "<its pytest summary line before the build, verbatim>"
 GREEN <n>
@@ -85,7 +87,9 @@ NEEDS SEAM <n>
   <the I/O the step needs> | "<the step line that needs it>"
 TEST WRONG <n>
   <test path>::<name> | <why, one sentence> | docs: "<the docs/ line it contradicts>"
+```
 
+```
 SUITE <none: <build | stub> | before: "<step 2 suite run's last line, verbatim>" after: <"<step 7 suite run's last line, verbatim>" | not run: <SUITE RED at step 2 | FIX OUTSIDE WRITES>>>
 CHECK <make check | SUITE RED | FIX OUTSIDE WRITES | not run: <stub step | stopped at step 4 or 6>> | final: <"<make check's last line, verbatim>" | none> | runs: <n>
 FINDINGS <n>
@@ -99,4 +103,4 @@ COMMANDS
 END BUILD
 ```
 
-The report ends on `END BUILD`.
+The three blocks above are one report, written as one block in their order; it ends on `END BUILD`.
