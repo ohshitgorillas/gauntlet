@@ -26,6 +26,7 @@ import sys
 import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import override
 
 import pytest
 
@@ -814,6 +815,27 @@ def test_os_error(tmp_path: Path) -> None:
     assert (output.result, output.out) == (
         2,
         _printed(str(error), count_line(NAME, 0, 1)),
+    )
+
+
+class Uncapped(Echo):
+    """An Echo whose command sets no time cap."""
+
+    @override
+    def command(self, run: Run, batch: Sequence[Source]) -> Command:
+        return Command(argv=(ECHO, *(str(source.given) for source in batch)), cwd=run.project.root)
+
+
+def test_timeout_without_cap(tmp_path: Path) -> None:
+    """A batch that timed out though its command sets no time cap prints the gate's report, then the count line, and the run exits 2."""
+    process = FakeRunner([completed(1, "out\n", timed_out=True)])
+    gate = Gate(name=NAME, check=check_with(Uncapped()))
+
+    output = _run(tmp_path, gate, "a.py", process=process)
+
+    assert (output.result, output.out) == (
+        2,
+        _printed(f"the checker {ECHO} timed out with no time cap", count_line(NAME, 0, 1)),
     )
 
 
