@@ -324,3 +324,19 @@ Each decision names the question put to the owner, then the owner's ruling, whic
    - Written in: Modules (`core/verdicts.py` `Candidate` and `CoreMissing`, `core/decide.py`, `seams/screens.py`), Homes ("Whether missing structure is required or optional"), Order (M8).
 9. **What a structure audit reports.** It ranks candidates by payoff and risk, lists what is sound enough to keep, and records hard-won behaviors into the spec before anything is purged.
    - Written in: Modules (`core/verdicts.py` `Survey`, `core/causes.py` `survey_problems`, `core/decide.py`, `seams/screens.py`), Homes ("Whether a survey stands, and its ranking", "Behaviors a purge must keep"), Order (M10).
+10. **How a CoreMissing is treated.** On a blocked step it means the structure is required: it carries a one-sentence `why` and spawns a STRUCTURE job at once. On a complete or partial step it is an optional offer on the land screen.
+   - Written in: Modules (`core/verdicts.py` `CoreMissing`, `core/decide.py`, the BUILD answer of `blocked`), Homes ("Whether missing structure is required or optional"), Order (M8).
+11. **When a spawned STRUCTURE job starts.** Until M12, it starts when the feature job has no startable step left. Under M12, it runs beside the feature job.
+   - Written in: Modules (`core/schedule.py`, the feature job's meanwhile bullet), Order (M8, M12).
+12. **What dependent means.** Dependent means overlapping declared files, the epic rule (`docs/design.md:211`). `startable` is built at M1.
+   - Written in: Modules (`core/schedule.py`), Homes ("Which steps and structure jobs may run beside which"), Order (M1).
+13. **What a feature job holds and how it lands.** The held paths are the blocked step's files plus the CoreMissing's `also` paths, then the STRUCTURE plan's files. On land, `main` is merged into the feature branch, and a conflict stops the feature job.
+   - Written in: Modules (`core/schedule.py` `startable`, the feature job's meanwhile bullet), Order (M8).
+14. **When a DesignChange applies.** A DesignChange applies only to a gap inside the job's own paths. Any other gap goes the CoreMissing route.
+   - Written in: Modules (`core/causes.py` `route`), Homes ("Grouping findings into causes, and routing a cause to one fix"), Order (M8).
+15. **Where the surveyor also runs.** The surveyor also runs in a STRUCTURE job's REVIEW, so R3 moves to M8.
+   - Written in: Modules (the STRUCTURE job's REVIEW bullet, `roles/surveyor.md`), Order (R3, M8).
+16. **What the arbiter rejects.** The arbiter rejects a STRUCTURE spec that drops a `keeps` line.
+   - Written in: Modules (the STRUCTURE job's SPEC bullet), Homes ("Behaviors a purge must keep"), Order (M10).
+17. **Where BUILD runs in parallel.** Parallel BUILD happens only in STRUCTURE jobs. Any other job's BUILD starts one startable step at a time.
+   - Written in: Modules (the STRUCTURE job's BUILD bullet), Order (M8, M12).
