@@ -12,6 +12,7 @@ given first fail when the gate holds back a module they wait for.
 """
 
 import os
+import sys
 from pathlib import Path
 
 from gates.check_pytest import main
@@ -56,7 +57,9 @@ def _rendezvous(root: Path, names: list[str]) -> list[Path]:
     modules: list[Path] = []
     for name in names:
         others = [marks[other] for other in names if other != name]
-        source = RENDEZVOUS.replace("MINE_PATH", repr(marks[name])).replace("OTHER_PATHS", repr(others))
+        source = RENDEZVOUS.replace("MINE_PATH", repr(marks[name])).replace(
+            "OTHER_PATHS", repr(others)
+        )
         modules.append(_seed(root, f"tests/test_{name}.py", source))
     return modules
 
@@ -68,10 +71,16 @@ def test_four_cpus_hold_back_a_third_module(tmp_path: Path) -> None:
     fails when the gate runs the three one at a time. No more: three modules that each wait for all the others fail, as
     the third waits and the first two wait for it alone.
     """
-    pair = [*_rendezvous(tmp_path / "two", ["alpha", "bravo"]), _seed(tmp_path / "two", "tests/test_charlie.py", PASSING)]
+    pair = [
+        *_rendezvous(tmp_path / "two", ["alpha", "bravo"]),
+        _seed(tmp_path / "two", "tests/test_charlie.py", PASSING),
+    ]
     trio = _rendezvous(tmp_path / "three", ["alpha", "bravo", "charlie"])
 
-    assert (main(pair, read_cpus=lambda: FOUR_CPUS), main(trio, read_cpus=lambda: FOUR_CPUS)) == (NO_FINDING, FINDINGS)
+    assert (
+        main(pair, read_cpus=lambda: FOUR_CPUS),
+        main(trio, read_cpus=lambda: FOUR_CPUS),
+    ) == (NO_FINDING, FINDINGS)
 
 
 def test_three_cpus_run_one_at_a_time(tmp_path: Path) -> None:
@@ -96,13 +105,28 @@ def test_no_cpus_still_run_one_at_a_time(tmp_path: Path) -> None:
 
 
 def test_affinity_of_one_cpu_runs_one_at_a_time(tmp_path: Path) -> None:
-    """With no reader given, C is the CPUs this process's affinity allows: pinned to one, the two modules run in turn."""
-    modules = _rendezvous(tmp_path, ["left", "right"])
-    allowed = os.sched_getaffinity(0)
-    os.sched_setaffinity(0, {min(allowed)})
-    try:
-        status = main(modules)
-    finally:
-        os.sched_setaffinity(0, allowed)
+    """With no reader given, C is the CPUs this process may run on, read in this process.
 
-    assert status == FINDINGS
+    Where the host keeps an affinity, C is the CPUs it allows: pinned to one, the two modules run in turn. Elsewhere, as
+    on macOS, C is the host's count: floor(C / 2) modules that each wait for all the others meet, and one module more
+    fails, as the gate holds it back.
+    """
+    if sys.platform == "linux":
+        modules = _rendezvous(tmp_path, ["left", "right"])
+        allowed = os.sched_getaffinity(0)
+        os.sched_setaffinity(0, {min(allowed)})
+        try:
+            status = main(modules)
+        finally:
+            os.sched_setaffinity(0, allowed)
+
+        assert status == FINDINGS
+    else:
+        host = os.cpu_count()
+        assert host is not None
+        at_once = max(1, host // 2)
+        names = [f"module{index}" for index in range(at_once + 1)]
+        fits = _rendezvous(tmp_path / "fits", names[:at_once])
+        over = _rendezvous(tmp_path / "over", names)
+
+        assert (main(fits), main(over)) == (NO_FINDING, FINDINGS)
