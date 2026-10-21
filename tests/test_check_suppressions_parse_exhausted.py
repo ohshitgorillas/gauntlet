@@ -15,7 +15,12 @@ from pathlib import Path
 
 import pytest
 
-from gates.check_suppressions import Unfinished, main, scan
+from gates.check_suppressions import main
+from gates.core.project import Source
+from gates.core.report import Unfinished
+from gates.core.source import parse
+
+PINNED = (3, 12)
 
 UNFINISHED_STATUS = 2
 
@@ -56,10 +61,10 @@ def test_gate_exits_unfinished_on_a_deep_parse_beside_a_finding(tmp_path: Path, 
 
 
 @pytest.mark.parametrize("source", EXHAUSTING.values(), ids=EXHAUSTING.keys())
-def test_scan_names_the_file_whose_parse_ran_out_of_depth(tmp_path: Path, source: str) -> None:
+def test_parse_names_the_file_whose_parse_ran_out_of_depth(tmp_path: Path, source: str) -> None:
     """Return the file whose parse runs out of depth as unfinished, naming its path."""
     deep = _seed(tmp_path, "deep.py", source)
-    result = scan(deep)
+    result = parse(Source(given=deep, absolute=deep), PINNED)
 
     assert isinstance(result, Unfinished)
-    assert result.path == deep
+    assert result.text.startswith(f"{deep}: ")

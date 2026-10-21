@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from gates.check_suppressions import find_suppressions
+from tests.support.suppressions import find_suppressions
 
 NESTED_MARKER_COMMENTS = [
     "# pyright: ignore",

@@ -13,9 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from gates.check_suppressions import Unfinished, main, scan
+from gates.check_suppressions import main
+from gates.core.project import Source
+from gates.core.report import Unfinished
+from gates.core.source import parse
 
 FINDINGS_STATUS = 1
+PINNED = (3, 12)
+
 UNFINISHED_STATUS = 2
 
 NEWER_SOURCES = [
@@ -60,13 +65,13 @@ def test_gate_exits_unfinished_on_newer_syntax_carrying_a_marker(tmp_path: Path,
 
 
 @pytest.mark.parametrize("source", NEWER_SOURCES)
-def test_scan_names_the_file_with_newer_syntax_as_unfinished(tmp_path: Path, source: str) -> None:
+def test_parse_names_the_file_with_newer_syntax_as_unfinished(tmp_path: Path, source: str) -> None:
     """Return the file using syntax added in 3.13 or later as unfinished, naming its path."""
     path = _seed(tmp_path, "newer.py", source)
-    result = scan(path)
+    result = parse(Source(given=path, absolute=path), PINNED)
 
     assert isinstance(result, Unfinished)
-    assert result.path == path
+    assert result.text.startswith(f"{path}: ")
 
 
 @pytest.mark.parametrize("newer_first", [True, False])

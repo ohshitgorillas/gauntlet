@@ -14,9 +14,15 @@ from pathlib import Path
 
 import pytest
 
-from gates.check_suppressions import Unfinished, find_suppressions, main, scan
+from gates.check_suppressions import main
+from gates.core.project import Source
+from gates.core.report import Unfinished
+from gates.core.source import parse
+from tests.support.suppressions import find_suppressions
 
 FINDINGS_STATUS = 1
+PINNED = (3, 12)
+
 UNFINISHED_STATUS = 2
 
 DECORATED_SOURCES = [
@@ -129,10 +135,10 @@ def test_gate_exits_unfinished_whatever_it_found_in_other_files(tmp_path: Path, 
     assert main(paths) == UNFINISHED_STATUS
 
 
-def test_scan_names_the_file_it_cannot_parse_as_unfinished(tmp_path: Path) -> None:
+def test_parse_names_the_file_it_cannot_parse_as_unfinished(tmp_path: Path) -> None:
     """Return the file that does not parse as unfinished, naming its path."""
     path = _seed(tmp_path, "broken.py", "value = = 1  # fmt: skip\n")
-    result = scan(path)
+    result = parse(Source(given=path, absolute=path), PINNED)
 
     assert isinstance(result, Unfinished)
-    assert result.path == path
+    assert result.text.startswith(f"{path}: ")

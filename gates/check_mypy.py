@@ -10,7 +10,7 @@ from typing import TypedDict
 from mypy import api
 from mypy.errors import SHOW_NOTE_CODES
 
-from gates.check_suppressions import is_python_source
+from gates.core.project import is_python_file
 
 CONFIG = Path(__file__).resolve().parent.parent / "pyproject.toml"
 
@@ -190,7 +190,7 @@ def main(paths: list[Path]) -> int:
     other files, since the checker could not finish on the tree.
     """
     sources = sorted(
-        {os.path.abspath(path) for path in paths if is_python_source(path)}
+        {os.path.abspath(path) for path in paths if is_python_file(path)}
     )
     if not sources:
         sys.stdout.write(

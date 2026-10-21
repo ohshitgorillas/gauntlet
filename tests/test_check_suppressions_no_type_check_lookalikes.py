@@ -13,7 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from gates.check_suppressions import find_suppressions, main
+from gates.check_suppressions import main
+from tests.support.suppressions import find_suppressions
 
 ONE_FINDING_COUNT_LINE = "check_suppressions: 1 finding(s) in 1 Python file(s)"
 TWO_FINDINGS_COUNT_LINE = "check_suppressions: 2 finding(s) in 1 Python file(s)"

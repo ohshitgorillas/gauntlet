@@ -22,7 +22,7 @@ from xml.etree import ElementTree
 
 from pytest import ExitCode
 
-from gates.check_suppressions import is_python_source
+from gates.core.project import is_python_file
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -321,7 +321,7 @@ def select(paths: list[Path]) -> Selection:
 
     A file given twice, under one spelling or two, is one file; its first spelling is the one its findings name.
     """
-    sources = [path for path in paths if is_python_source(path)]
+    sources = [path for path in paths if is_python_file(path)]
     modules: dict[str, Path] = {}
     for path in sources:
         if is_test_module(path):

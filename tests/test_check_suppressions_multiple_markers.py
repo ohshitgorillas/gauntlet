@@ -14,7 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from gates.check_suppressions import find_suppressions, main
+from gates.check_suppressions import main
+from tests.support.suppressions import find_suppressions
 
 SEVERAL_MARKER_COMMENTS = [
     ("value = 1  # noqa  type: ignore", ("noqa", "typeignore")),

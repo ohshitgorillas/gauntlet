@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from gates.check_suppressions import find_suppressions
+from tests.support.suppressions import find_suppressions
 
 
 def _source(*lines: str) -> str:

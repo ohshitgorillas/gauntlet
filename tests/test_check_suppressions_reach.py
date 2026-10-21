@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from gates.check_suppressions import is_python_source, main
+from gates.check_suppressions import main
+from gates.core.project import is_python_file
 
 PYTHON_SHEBANG = "#!/usr/bin/env python3\n"
 
@@ -78,7 +79,7 @@ def test_python_source(tmp_path: Path, name: str, source: str) -> None:
     """A `.py` file, or an extensionless file whose first line is a shebang naming python, is a Python file."""
     path = _seed(tmp_path, name, source)
 
-    assert is_python_source(path) is True
+    assert is_python_file(path) is True
 
 
 @pytest.mark.parametrize(("name", "source"), NOT_PYTHON_SOURCES)
@@ -86,28 +87,28 @@ def test_not_python_source(tmp_path: Path, name: str, source: str) -> None:
     """A file with another suffix, or an extensionless file without a python shebang on its first line, is not a Python file."""
     path = _seed(tmp_path, name, source)
 
-    assert is_python_source(path) is False
+    assert is_python_file(path) is False
 
 
 def test_pyw(tmp_path: Path) -> None:
     """A `.pyw` file is not a Python file."""
     path = _seed(tmp_path, "window.pyw", CLEAN_BODY)
 
-    assert is_python_source(path) is False
+    assert is_python_file(path) is False
 
 
 def test_pyw_python(tmp_path: Path) -> None:
     """A `.pyw` file is not a Python file even when its first line is a shebang that names python."""
     path = _seed(tmp_path, "window.pyw", PYTHON_SHEBANG + CLEAN_BODY)
 
-    assert is_python_source(path) is False
+    assert is_python_file(path) is False
 
 
 def test_sh_python(tmp_path: Path) -> None:
     """A python shebang makes only an extensionless file a Python file, not one with another suffix."""
     path = _seed(tmp_path, "tool.sh", PYTHON_SHEBANG + CLEAN_BODY)
 
-    assert is_python_source(path) is False
+    assert is_python_file(path) is False
 
 
 def test_gate_pyw(tmp_path: Path) -> None:
