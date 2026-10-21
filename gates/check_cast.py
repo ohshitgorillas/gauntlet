@@ -1,17 +1,16 @@
 """Cast gate: fail on any use of `typing.cast`, found by ruff's `TID251` under the banned API in `pyproject.toml`."""
 
-import subprocess
-import sys
+import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, TypeGuard
 
-from gates.check_suppressions import is_python_source
-from gates.json_report import UnfinishedError, is_list, load, print_unread
-
-CONFIG = Path(__file__).resolve().parent.parent / "pyproject.toml"
-
-BLOCKED = 2
+from gates.core.checker import Command, Completed, python_module
+from gates.core.project import Source
+from gates.core.report import Finding, GateError, Line, Unfinished
+from gates.core.runner import Checker, Gate, Run, check_with, run_gate
+from gates.core.runner import main as run_main
 
 REPORTED = frozenset({"TID251"})
 
@@ -46,90 +45,119 @@ def describe(violation: Violation) -> str:
 
 @dataclass(frozen=True)
 class Report:
-    """The gate's reading of one JSON report ruff wrote: its findings, and the entries for each file ruff could not read or parse."""
+    """The gate's reading of one JSON report ruff wrote: every entry, which of them are its findings, and which are files ruff could not finish."""
 
-    findings: list[Violation]
-    unfinished: list[Violation]
+    entries: list[Violation]
+
+    @property
+    def findings(self) -> list[Violation]:
+        """The entries of the rule the gate reports; `pyproject.toml` may select any other rule, and its findings belong to the gate that checks it."""
+        return [found for found in self.entries if found["code"] in REPORTED]
+
+    @property
+    def unfinished(self) -> list[Violation]:
+        """The entries for a file ruff could not read (`E902`) or parse (`invalid-syntax`): no verdict on it, the others still checked."""
+        return [found for found in self.entries if found["code"] in UNFINISHED]
 
 
-def violation(entry: object, completed: subprocess.CompletedProcess[str]) -> Violation:
-    """Read one entry of ruff's JSON report as a `Violation`, checking each field the gate reads, and raise `UnfinishedError` when one is missing or of another type."""
+def violation(entry: object, completed: Completed) -> Violation:
+    """Read one entry of ruff's JSON report as a `Violation`, checking each field the gate reads, and raise `GateError` when one is missing or of another type."""
     match entry:
-        case {"code": str() as code, "message": str() as message, "filename": str() as filename, "location": {"row": int() as row, "column": int() as column}}:
-            return Violation(code=code, message=message, filename=filename, location=Location(row=row, column=column))
+        case {
+            "code": str() as code,
+            "message": str() as message,
+            "filename": str() as filename,
+            "location": {"row": int() as row, "column": int() as column},
+        }:
+            return Violation(
+                code=code,
+                message=message,
+                filename=filename,
+                location=Location(row=row, column=column),
+            )
         case _:
-            raise UnfinishedError(completed.returncode, completed.stdout)
+            raise GateError(completed.output())
 
 
-def report(completed: subprocess.CompletedProcess[str]) -> Report:
-    """Read ruff's JSON report from a run that wrote one, and raise `UnfinishedError` for one that did not.
+def is_list(value: object) -> TypeGuard[list[object]]:
+    """Tell whether the value is a list, as one of objects."""
+    return isinstance(value, list)
 
-    ruff wrote a report the gate can read only when it exited 0 or 1 and wrote its JSON report to
-    stdout. The exit status alone does not tell: `python -m ruff` also exits 1 when ruff never
-    starts, as when the ruff module or its binary is missing, and then writes no report. The
-    report is checked, not trusted: it must be a list whose every entry holds each field the gate
-    reads, of the type `Violation` gives it, or the gate has no verdict it can read, as when a
-    ruff release renames, drops or nulls one of those fields. An entry of the rule `E902`, a file
-    ruff could not read, or of `invalid-syntax`, a file ruff could not parse, means ruff did not
-    finish checking that file, so the run gave no verdict on it; it is kept among the report's
-    unfinished entries, and the other files of the run were still checked. Of the other entries,
-    only those of the rule `TID251`, the banned API, are the gate's findings: `pyproject.toml`
-    may select any other rule, and its findings belong to the gate that checks that rule, not
-    to this one.
+
+def report(completed: Completed) -> Report:
+    """Read ruff's JSON report from a run that wrote one, and raise `GateError` for one that did not.
+
+    The report is checked, not trusted: stdout must be a JSON list whose every entry holds each field the gate reads,
+    of the type `Violation` gives it, or the gate has no verdict it can read, as when a ruff release renames, drops or
+    nulls one of those fields, or when `python -m ruff` exits 1 because ruff never starts and writes no report.
     """
-    parsed = load(completed)
-    if not is_list(parsed):
-        raise UnfinishedError(completed.returncode, completed.stdout)
-    violations = [violation(entry, completed) for entry in parsed]
-    return Report(
-        findings=[found for found in violations if found["code"] in REPORTED],
-        unfinished=[found for found in violations if found["code"] in UNFINISHED],
-    )
-
-
-def main(paths: list[Path]) -> int:
-    """Check the Python files among `paths` for `typing.cast` and print each finding.
-
-    ruff checks the rules `pyproject.toml` selects, with its banned API, and honours no `noqa`
-    comment, so a suppressed use is reported all the same. The findings are read from ruff's JSON
-    report, and only those of `TID251` are the gate's, whatever other rule `pyproject.toml`
-    selects; each is printed with its whole message and its code. Exit 1 on any finding, and
-    1 when no path is a Python file, since nothing was checked. Exit 0 on none. When ruff cannot
-    read or cannot parse a file it was given, it did not finish on that file but still checked
-    the others: print each finding it reported all the same, then each entry for a file it could
-    not finish, with ruff's whole message, then the count line, and exit 2, since the checker
-    could not finish on the tree. When ruff writes no report the gate can read, whether it
-    rejects its settings, fails otherwise, is killed by a signal, never starts, or writes a
-    report of another shape, it gave no verdict the gate can read: print its whole output, each
-    line on a line of its own, then ruff's exit status, then the count line, and exit 2.
-
-    Every run that checked a file ends on the one count line,
-    `check_cast: N finding(s) in M Python file(s)`, finished or not; no other line counts files.
-
-    ruff runs without its cache: the cache keys a file on its modification time and permission
-    bits, not its content, so a file whose content changed while both stayed the same, as a copy
-    that keeps them does, would replay its earlier verdict and a use of `typing.cast` it now holds
-    would go unread.
-    """
-    sources = [str(path.resolve()) for path in paths if is_python_source(path)]
-    if not sources:
-        sys.stdout.write(f"check_cast: no Python file among {len(paths)} path(s); nothing was checked\n")
-        return 1
-    command = [sys.executable, "-m", "ruff", "check", "--config", str(CONFIG), "--no-cache", "--ignore-noqa", "--output-format", "json", *sources]
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
-    sys.stderr.write(completed.stderr)
     try:
-        read = report(completed)
-    except UnfinishedError as unread:
-        print_unread("check_cast", "ruff", unread, len(sources))
-        return BLOCKED
-    for entry in [*read.findings, *read.unfinished]:
-        sys.stdout.write(f"{describe(entry)}\n")
-    sys.stdout.write(f"check_cast: {len(read.findings)} finding(s) in {len(sources)} Python file(s)\n")
-    if read.unfinished:
-        return BLOCKED
-    return 1 if read.findings else 0
+        parsed: object = json.loads(completed.stdout)
+    except ValueError as error:
+        raise GateError(completed.output()) from error
+    if not is_list(parsed):
+        raise GateError(completed.output())
+    return Report(entries=[violation(entry, completed) for entry in parsed])
+
+
+class Cast:
+    """ruff's `TID251` over every source in one run, with no cache and no `noqa`.
+
+    ruff runs without its cache: the cache keys a file on its modification time and permission bits, not its content,
+    so a file whose content changed while both stayed the same, as a copy that keeps them does, would replay its
+    earlier verdict and a use of `typing.cast` it now holds would go unread. `--ignore-noqa` keeps a suppressed use a
+    finding.
+    """
+
+    stopped: frozenset[int] = frozenset()
+
+    def batches(self, run: Run) -> list[list[Source]]:
+        """One ruff for all the files: no verdict depends on how they are grouped."""
+        return [list(run.sources)]
+
+    def command(self, run: Run, batch: Sequence[Source]) -> Command:
+        """ruff over the batch, with the project's settings, as a JSON report."""
+        return python_module(
+            "ruff",
+            "check",
+            "--config",
+            run.project.config,
+            "--no-cache",
+            "--ignore-noqa",
+            "--output-format",
+            "json",
+            *(source.absolute for source in batch),
+            cwd=run.project.root,
+        )
+
+    def read(self, completed: Completed) -> Report:
+        """The report ruff wrote, or a GateError."""
+        return report(completed)
+
+    def expected_status(self, report: Report) -> int:
+        """ruff exits 1 with any entry of any rule it was set to check, 0 with none."""
+        return 1 if report.entries else 0
+
+    def lines(
+        self, report: Report, batch: Sequence[Source], *, stopped: bool
+    ) -> list[Line]:
+        """A Finding for each use of the banned name, then an Unfinished for each file ruff could not finish."""
+        del batch, stopped
+        return [
+            *(Finding(describe(found)) for found in report.findings),
+            *(Unfinished(describe(found)) for found in report.unfinished),
+        ]
+
+
+CHECKER: Checker[Report] = Cast()
+
+GATE = Gate(name="check_cast", check=check_with(CHECKER))
+
+
+def main(paths: Sequence[Path]) -> int:
+    """Run the gate over the paths, in the working directory's project, and return its exit code."""
+    return run_gate(GATE, paths)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main([Path(argument) for argument in sys.argv[1:]]))
+    run_main(GATE)
