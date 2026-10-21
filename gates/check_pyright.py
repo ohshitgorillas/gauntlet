@@ -1,19 +1,18 @@
 """pyright gate: type-check every Python file in strict mode under the settings in `pyproject.toml`."""
 
-import ast
-import subprocess
+import json
 import sys
-import warnings
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NotRequired, TypedDict
+from typing import NotRequired, TypedDict, TypeGuard
 
-from gates.check_suppressions import UnpinnedError, is_python_source, pinned_grammar
-from gates.json_report import UnfinishedError, is_list, load, print_unread
-
-CONFIG = Path(__file__).resolve().parent.parent / "pyproject.toml"
-
-BLOCKED = 2
+from gates.core.checker import Command, Completed, python_module
+from gates.core.project import Source
+from gates.core.report import Finding, GateError, Line, Outcome, Unfinished
+from gates.core.runner import Checker, Gate, Run, check_with, run_gate
+from gates.core.runner import main as run_main
+from gates.core.source import Parsed, parse, pinned_version
 
 
 class Position(TypedDict):
@@ -65,25 +64,31 @@ def where(diagnostic: Diagnostic) -> str:
     return str(Path(diagnostic["file"]).resolve())
 
 
-def read_diagnostic(entry: object, completed: subprocess.CompletedProcess[str]) -> Diagnostic:
-    """Read one entry of pyright's `generalDiagnostics` as a `Diagnostic`, checking each field the gate reads, and raise `UnfinishedError` when one is missing or of another type."""
+def read_diagnostic(entry: object, completed: Completed) -> Diagnostic:
+    """Read one entry of pyright's `generalDiagnostics` as a `Diagnostic`, checking each field the gate reads, and raise `GateError` when one is missing or of another type."""
     match entry:
-        case {"file": str() as file, "severity": str() as severity, "message": str() as message}:
+        case {
+            "file": str() as file,
+            "severity": str() as severity,
+            "message": str() as message,
+        }:
             read = Diagnostic(file=file, severity=severity, message=message)
         case _:
-            raise UnfinishedError(completed.returncode, completed.stdout)
+            raise GateError(completed.output())
     match entry:
-        case {"range": {"start": {"line": int() as line, "character": int() as character}}}:
+        case {
+            "range": {"start": {"line": int() as line, "character": int() as character}}
+        }:
             read["range"] = Span(start=Position(line=line, character=character))
         case {"range": object()}:
-            raise UnfinishedError(completed.returncode, completed.stdout)
+            raise GateError(completed.output())
         case _:
             pass
     match entry:
         case {"rule": str() as rule}:
             read["rule"] = rule
         case {"rule": object()}:
-            raise UnfinishedError(completed.returncode, completed.stdout)
+            raise GateError(completed.output())
         case _:
             pass
     return read
@@ -97,8 +102,13 @@ class Report:
     analyzed: int
 
 
-def report(completed: subprocess.CompletedProcess[str]) -> Report:
-    """Read pyright's JSON report from a run that wrote one, and raise `UnfinishedError` for one that did not.
+def is_list(value: object) -> TypeGuard[list[object]]:
+    """Tell whether `value` is a list; every element of a list is an `object`, so the narrowing claims nothing it did not check."""
+    return isinstance(value, list)
+
+
+def report(completed: Completed) -> Report:
+    """Read pyright's JSON report from a run that wrote one, and raise `GateError` for one that did not.
 
     pyright wrote a report the gate can read only when it exited 0 or 1 and wrote its JSON report
     to stdout. The exit status alone does not tell: `python -m pyright` also exits 1 when pyright
@@ -108,113 +118,127 @@ def report(completed: subprocess.CompletedProcess[str]) -> Report:
     `summary` whose `filesAnalyzed` is a number, or the gate has no verdict it can read, as when
     a pyright release renames, drops or retypes one of them.
     """
-    match load(completed):
-        case {"generalDiagnostics": object() as entries, "summary": {"filesAnalyzed": int() as analyzed}} if is_list(entries):
-            return Report(diagnostics=[read_diagnostic(entry, completed) for entry in entries], analyzed=analyzed)
+    try:
+        loaded: object = json.loads(completed.stdout)
+    except ValueError as error:
+        raise GateError(completed.output()) from error
+    match loaded:
+        case {
+            "generalDiagnostics": object() as entries,
+            "summary": {"filesAnalyzed": int() as analyzed},
+        } if is_list(entries):
+            return Report(
+                diagnostics=[read_diagnostic(entry, completed) for entry in entries],
+                analyzed=analyzed,
+            )
         case _:
-            raise UnfinishedError(completed.returncode, completed.stdout)
+            raise GateError(completed.output())
 
 
-@dataclass(frozen=True)
-class Parse:
-    """What parsing one file under the grammar of the pinned Python told: whether it was read and parsed, and each warning the parse raised, one line each."""
+class Pyright:
+    """pyright over every source in one run, its diagnostics read from its JSON report.
 
-    parsed: bool
-    warned: list[str]
-
-
-def parse(path: Path, version: tuple[int, int]) -> Parse:
-    """Read and parse the file at `path` under the grammar of Python `version`, recording every warning the parse raises.
-
-    Only the parser runs, never the compiler's symbol table, so an error pyright's binder raises
-    in a file that parses, such as `global x` after an assignment to `x`, leaves the file parsed.
-    A parse that cannot run to its end is one the gate could not make, so the file is not parsed:
-    the parser raises `MemoryError` when its stack overflows, and `RecursionError` when building
-    the tree runs past the recursion limit. Every warning the parse raises, such as the
-    `SyntaxWarning` of an invalid escape sequence, is recorded whatever the warning filters of
-    whoever runs the gate say, and none is printed or raised here: each is kept as one line
-    naming the file, the line, the warning's category and its message.
+    pyright follows the imports of the given files to resolve types, but a diagnostic is reported only when it lies in
+    one of the given files. pyright reports a file it could not read or could not parse with diagnostics no rule raised,
+    and it reports the same way an error its binder raises, or a `reveal_type`, in a file it parsed and checked in
+    full; its report gives nothing else that tells the two apart. So every given file is read and parsed under the
+    grammar pyright parses with, `pythonVersion` in `pyproject.toml`, not the grammar of the interpreter the gate runs
+    under: a file that cannot be read or parsed is one pyright did not finish, and the diagnostics no rule raised there
+    are its report of not finishing, not findings. A warning raised while a file is parsed is an error for that parse,
+    so such a file is one pyright did not finish too, whatever pyright reported there: each such warning is printed,
+    after the diagnostics, as the report of not finishing it. pyright also drops a given file from its analysis with no
+    diagnostic at all, as one its default excludes match, so when its report's `summary.filesAnalyzed` counts fewer
+    files than it was given, a line says it left some out.
     """
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        try:
-            ast.parse(path.read_bytes(), filename=str(path), feature_version=version)
-        except (OSError, SyntaxError, MemoryError, RecursionError):
-            parsed = False
-        else:
-            parsed = True
-    warned = [f"{path}:{warning.lineno}: {warning.category.__name__}: {warning.message}" for warning in caught]
-    return Parse(parsed=parsed, warned=warned)
+
+    stopped: frozenset[int] = frozenset()
+
+    def __init__(self, version: tuple[int, int]) -> None:
+        """Take the grammar the pinned Python parses with."""
+        self.version = version
+
+    def batches(self, run: Run) -> list[list[Source]]:
+        """One pyright for all the files: a verdict can depend on the other files it follows imports to."""
+        return [list(run.sources)]
+
+    def command(self, run: Run, batch: Sequence[Source]) -> Command:
+        """pyright over the batch, each file by its resolved path, with the project's settings, as a JSON report."""
+        return python_module(
+            "pyright",
+            "--outputjson",
+            "--project",
+            run.project.config,
+            "--pythonpath",
+            sys.executable,
+            *(resolved(source) for source in batch),
+            cwd=run.project.root,
+        )
+
+    def read(self, completed: Completed) -> Report:
+        """The report pyright wrote, or a GateError."""
+        return report(completed)
+
+    def expected_status(self, report: Report) -> int:
+        """pyright exits 1 when its report holds an error, 0 when it holds none."""
+        return (
+            1
+            if any(
+                diagnostic["severity"] == "error" for diagnostic in report.diagnostics
+            )
+            else 0
+        )
+
+    def lines(
+        self, report: Report, batch: Sequence[Source], *, stopped: bool
+    ) -> list[Line]:
+        """The diagnostics in the given files, then each parse that did not finish, then the line for files pyright left out.
+
+        A diagnostic no rule raised in a file that could not be parsed is pyright's report of not finishing it; every
+        other diagnostic is a finding.
+        """
+        del stopped
+        parses = {resolved(source): parse(source, self.version) for source in batch}
+        lines: list[Line] = []
+        for diagnostic in report.diagnostics:
+            parsed = parses.get(where(diagnostic))
+            if parsed is None:
+                continue
+            unfinished = "rule" not in diagnostic and not isinstance(parsed, Parsed)
+            lines.append(
+                Unfinished(describe(diagnostic))
+                if unfinished
+                else Finding(describe(diagnostic))
+            )
+        lines.extend(
+            parsed for parsed in parses.values() if isinstance(parsed, Unfinished)
+        )
+        if report.analyzed < len(parses):
+            lines.append(
+                Unfinished(
+                    "check_pyright: pyright left some of the given Python files out of its analysis"
+                )
+            )
+        return lines
 
 
-def main(paths: list[Path]) -> int:
-    """Type-check the Python files among `paths` and print the diagnostics located in them.
+def resolved(source: Source) -> str:
+    """Return the resolved path of the source, the form in which the gate hands pyright its files."""
+    return str(source.absolute.resolve())
 
-    pyright follows their imports to resolve types, but a diagnostic is reported only when it
-    lies in one of the given files. The diagnostics are read from pyright's JSON report, and
-    each is printed with its whole message and its rule. pyright reports a file it could not
-    read or could not parse with diagnostics no rule raised, and it reports the same way an
-    error its binder raises, or a `reveal_type`, in a file it parsed and checked in full; its
-    report gives nothing else that tells the two apart. So every given file is read and parsed
-    here, under the grammar pyright parses with, `pythonVersion` in `pyproject.toml`, not the
-    grammar of the interpreter the gate runs under: a file where pyright reported a diagnostic
-    no rule raised and that cannot be read or parsed is one pyright did not finish, and the
-    diagnostics no rule raised there are its report of not finishing. A warning raised while
-    a file is parsed is an error for that parse, so a file whose parse raises one is a file
-    pyright did not finish too, whatever pyright reported there: each such warning is printed,
-    after the diagnostics, as the report of not finishing it. Every other diagnostic is a finding,
-    including one no rule raised in a file that parses. pyright also drops a given file from its
-    analysis with no diagnostic at all, as one its default excludes match, so when its report's
-    `summary.filesAnalyzed` counts fewer
-    files than it was given, print a line saying it left some out: it did not finish on them.
-    When pyright finished on every file, print a count line and exit 1 on any finding and
-    0 on none. When it did not finish on some file, print the count line as the last line, the
-    one line that counts files, and exit 2, whatever it found in the other files. Exit 1 when
-    no path is a Python file, since pyright
-    handed no file checks the whole project instead. When `pyproject.toml` pins no `major.minor`
-    pyright `pythonVersion`, or pins one the parser has no grammar for, by the one pin rule of
-    `pinned_grammar`, pyright is not run: print an error naming the key, then a count line
-    with no finding as the last line, and exit 2. When pyright writes no report the gate can
-    read, whether it rejects its settings or its arguments, fails otherwise, is killed by a
-    signal, never starts, or writes a report of another shape, it gave no verdict the gate can
-    read: print its whole output, each line on a line of its own, then its exit status, then a
-    count line with no finding as the last line, and exit 2.
-    """
-    sources = [str(path.resolve()) for path in paths if is_python_source(path)]
-    if not sources:
-        sys.stdout.write(f"check_pyright: no Python file among {len(paths)} path(s); nothing was checked\n")
-        return 1
-    try:
-        version = pinned_grammar()
-    except UnpinnedError as unpinned:
-        sys.stdout.write(f"check_pyright: {unpinned}\n")
-        sys.stdout.write(f"check_pyright: 0 finding(s) in {len(sources)} Python file(s)\n")
-        return BLOCKED
-    command = [sys.executable, "-m", "pyright", "--outputjson", "--project", str(CONFIG), "--pythonpath", sys.executable, *sources]
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
-    sys.stderr.write(completed.stderr)
-    try:
-        read = report(completed)
-    except UnfinishedError as unread:
-        print_unread("check_pyright", "pyright", unread, len(sources))
-        return BLOCKED
-    parses = {source: parse(Path(source), version) for source in sources}
-    located = [diagnostic for diagnostic in read.diagnostics if where(diagnostic) in parses]
-    for diagnostic in located:
-        sys.stdout.write(f"{describe(diagnostic)}\n")
-    warned = [line for source in sources for line in parses[source].warned]
-    for line in warned:
-        sys.stdout.write(f"{line}\n")
-    unparsed = {where(diagnostic) for diagnostic in located if "rule" not in diagnostic and not parses[where(diagnostic)].parsed}
-    findings = [diagnostic for diagnostic in located if "rule" in diagnostic or where(diagnostic) not in unparsed]
-    dropped = read.analyzed < len(parses)
-    if dropped:
-        sys.stdout.write("check_pyright: pyright left some of the given Python files out of its analysis\n")
-    sys.stdout.write(f"check_pyright: {len(findings)} finding(s) in {len(sources)} Python file(s)\n")
-    if unparsed or warned or dropped:
-        return BLOCKED
-    return 1 if findings else 0
+
+def check(run: Run) -> Outcome:
+    """Run pyright over the run's sources under the grammar of the pinned Python; GateError when the pin cannot be read."""
+    checker: Checker[Report] = Pyright(pinned_version(run.project))
+    return check_with(checker)(run)
+
+
+GATE = Gate(name="check_pyright", check=check)
+
+
+def main(paths: Sequence[Path]) -> int:
+    """Run the gate over the paths, in the working directory's project, and return its exit code."""
+    return run_gate(GATE, paths)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main([Path(argument) for argument in sys.argv[1:]]))
+    run_main(GATE)

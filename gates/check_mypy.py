@@ -11,7 +11,6 @@ from mypy import api
 from mypy.errors import SHOW_NOTE_CODES
 
 from gates.check_suppressions import is_python_source
-from gates.json_report import UnfinishedError
 
 CONFIG = Path(__file__).resolve().parent.parent / "pyproject.toml"
 
@@ -20,6 +19,16 @@ FINISHED = frozenset({0, 1})
 BLOCKED = 2
 
 NOTE = "note"
+
+
+class UnfinishedError(Exception):
+    """mypy gave no verdict the gate can read: it exited `status` and wrote `output`, with no record the gate can read in it."""
+
+    def __init__(self, status: int, output: str) -> None:
+        """Carry mypy's exit status and its whole report."""
+        super().__init__(status, output)
+        self.status = status
+        self.output = output
 
 
 class Record(TypedDict):
@@ -54,7 +63,14 @@ def parse(line: str, status: int, report: str) -> Record:
             "code": str() | None as code,
             "severity": str() as severity,
         }:
-            return Record(file=file, line=number, message=message, hint=hint, code=code, severity=severity)
+            return Record(
+                file=file,
+                line=number,
+                message=message,
+                hint=hint,
+                code=code,
+                severity=severity,
+            )
         case _:
             raise UnfinishedError(status, report)
 
@@ -64,10 +80,17 @@ def describe(record: Record) -> str:
 
     A record of severity `note` shows its code only where mypy's text report shows one, for a code in `SHOW_NOTE_CODES`.
     """
-    shown = record["code"] is not None and (record["severity"] != NOTE or record["code"] in SHOW_NOTE_CODES)
+    shown = record["code"] is not None and (
+        record["severity"] != NOTE or record["code"] in SHOW_NOTE_CODES
+    )
     code = f"  [{record['code']}]" if shown else ""
     notes = [] if record["hint"] is None else record["hint"].split("\n")
-    return "\n".join([f"{record['file']}:{record['line']}: {record['severity']}: {record['message']}{code}", *(f"{record['file']}:{record['line']}: note: {note}" for note in notes)])
+    return "\n".join(
+        [
+            f"{record['file']}:{record['line']}: {record['severity']}: {record['message']}{code}",
+            *(f"{record['file']}:{record['line']}: note: {note}" for note in notes),
+        ]
+    )
 
 
 @dataclass(frozen=True)
@@ -99,7 +122,9 @@ def read(report: str, status: int, source: str) -> Verdict:
         return Verdict(show(records, source), finished=True)
     if status == BLOCKED and records:
         findings = show(records, source)
-        sys.stdout.write(f"check_mypy: mypy stopped on a blocking error checking {source}\n")
+        sys.stdout.write(
+            f"check_mypy: mypy stopped on a blocking error checking {source}\n"
+        )
         return Verdict(findings, finished=False)
     raise UnfinishedError(status, report)
 
@@ -129,7 +154,17 @@ def check(source: str) -> Verdict:
     content with one checked before, would report under a path other than its own, and its
     findings would be dropped.
     """
-    arguments = ["--config-file", str(CONFIG), "--cache-dir", os.devnull, "--show-absolute-path", "--no-error-summary", "--output", "json", source]
+    arguments = [
+        "--config-file",
+        str(CONFIG),
+        "--cache-dir",
+        os.devnull,
+        "--show-absolute-path",
+        "--no-error-summary",
+        "--output",
+        "json",
+        source,
+    ]
     report, errors, status = api.run(arguments)
     sys.stderr.write(errors)
     try:
@@ -154,14 +189,20 @@ def main(paths: list[Path]) -> int:
     finding and 0 on none. When any check did not finish, exit 2, whatever was found in the
     other files, since the checker could not finish on the tree.
     """
-    sources = sorted({os.path.abspath(path) for path in paths if is_python_source(path)})
+    sources = sorted(
+        {os.path.abspath(path) for path in paths if is_python_source(path)}
+    )
     if not sources:
-        sys.stdout.write(f"check_mypy: no Python file among {len(paths)} path(s); nothing was checked\n")
+        sys.stdout.write(
+            f"check_mypy: no Python file among {len(paths)} path(s); nothing was checked\n"
+        )
         return 1
     verdicts = [check(source) for source in sources]
     findings = sum(verdict.findings for verdict in verdicts)
     unfinished = any(not verdict.finished for verdict in verdicts)
-    sys.stdout.write(f"check_mypy: {findings} finding(s) in {len(sources)} Python file(s)\n")
+    sys.stdout.write(
+        f"check_mypy: {findings} finding(s) in {len(sources)} Python file(s)\n"
+    )
     if unfinished:
         return BLOCKED
     return 1 if findings else 0
