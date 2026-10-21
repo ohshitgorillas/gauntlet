@@ -24,6 +24,7 @@ text (decision 11); `.git(*arguments)` runs git in the root "without the GIT_ va
 
 The test-shape gates forbid reading `os.environ`, so the variable the git tests know is pytest's own `PYTEST_VERSION`,
 and a `GIT_` variable reaches git only through a child started with an environment the test builds from `environment`.
+The repository a git test makes is made without the `GIT_` variables, so a hook running the suite cannot redirect it.
 """
 
 import contextlib
@@ -391,9 +392,15 @@ def test_git_environment(tmp_path: Path) -> None:
     assert ([name for name in env if name.startswith("GIT_")], env.get("PYTEST_VERSION")) == ([], pytest.__version__)
 
 
+def _init(root: Path) -> None:
+    """Make the root a git repository, free of the GIT_ variables a hook running this suite exports."""
+    env = {name: value for name, value in environment().items() if not name.startswith("GIT_")}
+    subprocess.run(["git", "init", "--quiet", str(root)], env=env, check=True)
+
+
 def test_git_runs(tmp_path: Path) -> None:
     """git runs for real by default, in the root."""
-    subprocess.run(["git", "init", "--quiet", str(tmp_path)], check=True)
+    _init(tmp_path)
     result = Project(tmp_path).git("rev-parse", "--show-toplevel")
 
     assert (result.status, Path(result.stdout.strip()).resolve()) == (0, tmp_path.resolve())
@@ -401,7 +408,7 @@ def test_git_runs(tmp_path: Path) -> None:
 
 def test_git_ignores_hook_variables(tmp_path: Path) -> None:
     """A GIT_DIR a hook exports does not reach git: it still finds the root's own repository."""
-    subprocess.run(["git", "init", "--quiet", str(tmp_path)], check=True)
+    _init(tmp_path)
     program = (
         "import sys\nfrom pathlib import Path\nfrom gates.core.project import Project\n"
         "print(Project(Path(sys.argv[1])).git('rev-parse', '--show-toplevel').stdout, end='')\n"
