@@ -60,7 +60,7 @@ ORDER <n>
 DECISIONS <n open>
   <n> | <question> | recommend: <one clause> | alternative: <one clause>
 RULINGS <n>
-  <its number in Decisions taken> | <n: | new:> | "<the owner's words, verbatim>" | adds: <each module, home or step, or none> | written in: <each section>
+  <its number in Decisions taken> | <n: | new:> | "<the owner's words, verbatim>" | adds: <each module, home and step, or none> | written in: <each section>
 UNFILED <n>
   <question> | from ruling <number> | recommend: <one clause> | alternative: <one clause>
 BEFORE <git status --short at step 2, verbatim>
