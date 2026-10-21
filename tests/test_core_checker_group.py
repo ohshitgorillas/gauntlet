@@ -70,6 +70,15 @@ CHECKER = (
     "time.sleep(20)\n"
 )
 
+LEAVER = (
+    "import subprocess, sys\n"
+    "child = subprocess.Popen(\n"
+    "    [sys.executable, '-c', sys.argv[4], sys.argv[1]],\n"
+    "    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,\n"
+    ")\n"
+    "child.stdout.readline()\n"
+)
+
 
 def _python(code: str, *arguments: str) -> tuple[str, ...]:
     return (sys.executable, "-c", code, *arguments)
@@ -107,14 +116,14 @@ def _drain(fifo: int, pids: Path) -> bytes:
         deadline = time.monotonic() + WAIT
 
 
-def _group_run(tmp_path: Path, target: str, timeout: float | None) -> bytes:
+def _group_run(tmp_path: Path, target: str, timeout: float | None, checker: str = CHECKER) -> bytes:
     """Run the checker and its child through `run`, and read the FIFO the child held to its end."""
     path = tmp_path / "held.fifo"
     pids = tmp_path / "pids.txt"
     os.mkfifo(path)
     fifo = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
     try:
-        argv = _python(CHECKER, str(path), str(pids), target, GRANDCHILD)
+        argv = _python(checker, str(path), str(pids), target, GRANDCHILD)
         with contextlib.suppress(KeyboardInterrupt):
             _run(tmp_path, argv, timeout)
         return _drain(fifo, pids)
@@ -147,3 +156,8 @@ def test_timeout_kills_group(tmp_path: Path) -> None:
 def test_interrupt_kills_group(tmp_path: Path) -> None:
     """On an interrupt the whole group is killed: the checker's child, which held the FIFO, is dead after run."""
     assert _group_run(tmp_path, str(os.getpid()), None) == HELD
+
+
+def test_normal_exit_kills_group(tmp_path: Path) -> None:
+    """A checker that exits normally and leaves its child running: the child, which held the FIFO, is dead after run."""
+    assert _group_run(tmp_path, NO_TARGET, None, LEAVER) == HELD
