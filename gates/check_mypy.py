@@ -214,7 +214,7 @@ class Mypy:
         raise NotImplementedError
 
 
-GATE = Gate(name="check_mypy", check=check_with(Mypy()))
+GATE: Gate = Gate(name="check_mypy", check=check_with(Mypy()))
 
 
 def main(paths: list[Path]) -> int:
