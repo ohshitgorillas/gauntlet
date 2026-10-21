@@ -6,7 +6,7 @@ Builds [`../specs/2026-10-20-structure-first-design.md`](../specs/2026-10-20-str
 
 Each step that depends on a question says so and is built on the recommendation unless the owner rules otherwise.
 
-1. **`needs_design` before `Outline` exists.** The spec puts it in C1, but `Outline` is M1's type and no module defines it yet. Recommend: C1 stubs `design.py` without it; C4s adds it once M1's design names `Outline`.
+1. **`needs_design` before `Outline` exists.** The spec puts it in C1, but `Outline` is M1's type and no module defines it yet. Recommend: C1 stubs `design.py` without it; it joins the feature phase, with C4a.
 2. **CoreMissing's schema check has no function.** The spec says a CoreMissing with the wrong `why` "fails its schema" and names no check. Recommend `core_missing_problems(missing: CoreMissing, blocked: bool) -> tuple[str, ...]` in `verdicts.py`. Alternative: leave it to M1's schema machinery.
 3. **"A concern with no home" cannot occur.** A `Design` names concerns only in its homes. Recommend: `design_problems` checks only "a concern with two homes"; C4b makes a STRUCTURE job's DESIGN a failed round when `home_of(design, candidate.concern)` is `None`.
 4. **Duplicate step names.** `uncovered` and `startable` key on step names, and the spec does not forbid two steps with one name. Recommend adding the problem `step <s>: named <n> times`.
@@ -14,17 +14,20 @@ Each step that depends on a question says so and is built on the recommendation 
 6. **`route` with a path `owners` lacks.** Recommend a typed error `UnownedPath(path: str)` in `causes.py`, moved into M1's error family when M1's design names it.
 7. **Where `survey.md` lives.** `write_survey` takes an audit folder that `docs/design.md` §7 lacks. Recommend `.gauntlet/audits/<id>/survey.md`, added to §7 by D1.
 8. **role-author against the one schema home.** role-author's description and its agents-spec row say a `roles/` role is written "with its answer schema", and the four roles have no agents-spec row. Recommend: before R1, the owner amends the row to "naming its answer schema in `gauntlet/core/verdicts.py`", and R briefs give the role's line from the spec's `roles/` block and the paragraph under it as its row.
+9. **PLAN input for a STRUCTURE job.** The planner takes brief, outline, discovery and objections; a STRUCTURE job has only its candidate, copies and design. Needs an architect ruling.
+10. **`DesignChange` before M8.** `route` can return one; reopening DESIGN on it is M8. Until M8: the stop screen (M4), or before M4 a stop row in `state.json`. Needs a ruling.
+11. **Parallel BUILD commits in one worktree.** Decision 17 builds steps in parallel; `docs/design.md` does not say how two implementers' commits on one job branch interleave. A sequential cut needs an owner ruling.
 
 ## When steps may start
 
 - D0 and D1 are docs only and may start now.
 - Every code step waits on the roadmap's **Gates** milestone ("before any product code"), so on gates-core B4 and B5 and on the steps after them through C7, where the mutation gate lands. No step reads B4 or B5's code (`gauntlet` never imports `gates`). The wait matters because the mutation gate mutates only functions a commit changes: code committed before it exists is never judged.
-- C1-C3 also wait on M1's design step (gates-core spec §5), which takes these modules as given and places C1-C3 in its chunk order. C4s-C7 and S1-S6 need names M1's and M3's designs fix (`Outline`, `State`, `Answer`, `Action`, the record codec, `Screen`, `Section`); each such step says which.
+- C1-C3 also wait on M1's design step (gates-core spec §5), which takes these modules as given and places C1-C3 in its chunk order. C4s-C7 and S1-S6 need names the designs of M1 and M3s fix (`Outline`, `State`, `Answer`, `Action`, the record codec, `Screen`, `Section`); each such step says which.
 
 ## Rules for every step
 
 - **Chain.** stub, then red tests from `test-writer` against the `stubgen` `.pyi` of one stub module, then build. A `test-writer` brief carries one behavior: a test step listing several behaviors is several dispatches, run in the order listed, all writing the step's files. The `.pyi` of support helpers is never a brief: `tests/support/answers.py` is written in C2a beside its own tests, which pass at once.
-- **One commit per chain**, after the last build: `diff-reviewer` and `test-reviewer` on the chain's diff (bare briefs), then `make check` in full, unpiped. Until then `make check` is red on the chain's other red tests; a builder's red `make check` on those alone is expected. Chains: C1-C3, C4s-C5, S1-S3, C6-C7, S4-S6; each R step and each D step is its own commit.
+- **One commit per chain**, after the last build: `diff-reviewer` and `test-reviewer` on the chain's diff (bare briefs), then `make check` in full, unpiped. Until then `make check` is red on the chain's other red tests; a builder's red `make check` on those alone is expected. Chains: C1-C3, C4s-C5, S1-S3, S4-S6, and in the feature phase C6-C7; each R step and each D step is its own commit.
 - **Blank** means empty after `str.strip()`. Paths are compared as exact strings. Every returned tuple keeps input order. Problem strings below are exact; `<x>` is the field's value and `<cat>` the `Category` value (`own-core`).
 
 ## Steps
@@ -90,38 +93,57 @@ Each step that depends on a question says so and is built on the recommendation 
 
 ### C4s. Stubs for `decide` (`core-builder`, `stub`)
 
-- **Inputs:** C3 committed; M1's design approved, naming `Outline`, `State`, `Answer`, `Action`. **Writes:** `gauntlet/core/design.py` (adds `needs_design`), `gauntlet/core/decide.py`.
+- **Inputs:** C3 committed; M1's design approved, naming `State`, `Answer`, `Action`. **Writes:** `gauntlet/core/decide.py`.
 - `decide.py`: `Stage`, `Shape`, `FIRST`, `SKIPPED` as the spec, complete; `decide` stub with M1's signature.
 
-### C4a, C4b. Red (`test-writer`) ∥
+### C4b. Red (`test-writer`)
 
-- C4a `tests/test_core_design_needs_design.py`: `needs_design` is the outline's shared-structure flag, true and false.
-- C4b `tests/test_core_decide_structure.py`, one behavior per spec `decide` bullet, CoreMissing bullets aside: `Stage` and `Shape` values; `FIRST` and `SKIPPED`; OUTLINE → DESIGN or PLAN with DESIGN skipped by rule; DESIGN problems or an uncovered copy fail a round under `caps.design`; Q3's unhomed concern fails a round; STUBS takes the design's stubs first; REVIEW grouping, routing, `COULD NOT JUDGE`, held cause ids against `caps.review`; a STRUCTURE job's SPEC carries each `keeps` line; its REVIEW leaves only when `uncovered` is empty; its BUILD starts every startable step, any other job's the first.
+- `tests/test_core_decide_structure.py`, one behavior per spec `decide` bullet, CoreMissing bullets aside: `Stage` and `Shape` values; `FIRST` and `SKIPPED`; DESIGN problems or an uncovered copy fail a round under `caps.design`; Q3's unhomed concern fails a round; STUBS takes the design's stubs first; REVIEW grouping, routing, `COULD NOT JUDGE`, held cause ids against `caps.review`; a STRUCTURE job's SPEC carries each `keeps` line; its REVIEW leaves only when `uncovered` is empty; its BUILD starts every startable step, any other job's the first.
 
 ### C5. Build (`core-builder`)
 
-- `design.py` on C4a, `decide.py` on C4b. **Done:** C4 tests green; reviews, `make check`, one commit.
+- `decide.py` on C4b. **Done:** C4 tests green; reviews, `make check`, one commit.
 
-### R1. `roles/architect.md` (`role-author`, M3)
+### R1. `roles/architect.md` (`role-author`, M3s)
 
 - **Inputs:** Q8; C3. ∥ S1-S3. Answer `Design`, reader kind. **Done:** its proof passes.
 
-### S1. Stubs (`seam-builder`, `stub`, M3)
+### S1. Stubs (`seam-builder`, `stub`, M3s)
 
-- **Inputs:** C5; M1's record codec; M3's `Screen` and `Section`. **Writes:** `gauntlet/seams/job.py`, `gauntlet/seams/screens.py`, signatures as the spec.
+- **Inputs:** C5; M1's record codec; M3s's `Screen` and `Section`. **Writes:** `gauntlet/seams/job.py`, `gauntlet/seams/screens.py`, signatures as the spec, bar `write_offers` and `structure_section`.
 
 ### S2a, S2b. Red (`test-writer`) ∥
 
-- S2a `tests/test_seams_job_design.py`: each writer writes its spec-named file in the job folder, `design.N.md`, `causes.N.md`, `offers.md`, and returns its path; `read_design` reads back what `write_design` gave `design.md`, and `None` with no `design.md`; `open_structure` makes a job folder whose first stage is DESIGN, carrying the candidate and copies; `write_survey` writes `survey.md` in the audit folder (Q7).
-- S2b `tests/test_seams_screens_design.py`: `design_screen` shows each module, home, step and choice and the objections; `causes_section` each claim with every instance anchor; `structure_section` each spawn's `why` and each offer's payoff and risk; `survey_screen` candidates in rank order with payoff, risk and anchors, then the sound lines.
+- S2a `tests/test_seams_job_design.py`: each writer writes its spec-named file in the job folder, `design.N.md`, `causes.N.md`, and returns its path; `read_design` reads back what `write_design` gave `design.md`, and `None` with no `design.md`; `open_structure` makes a job folder whose first stage is DESIGN, carrying the candidate and copies; `write_survey` writes `survey.md` in the audit folder (Q7).
+- S2b `tests/test_seams_screens_design.py`: `design_screen` shows each module, home, step and choice and the objections; `causes_section` each claim with every instance anchor; `survey_screen` candidates in rank order with payoff, risk and anchors, then the sound lines.
 
 ### S3a, S3b. Build (`seam-builder`) ∥
 
 - S3a `job.py` on S2a; S3b `screens.py` on S2b. **Done:** S2 tests green; reviews, `make check`, one commit.
 
-### R2a, R2b. Roles (`role-author`, M6) ∥
+### R2a. `roles/structure-reviewer.md` (`role-author`, M6)
 
-- R2a `roles/structure-reviewer.md` (reader; COPY, OWN_CORE, DRIFT with a design, COPY alone without). R2b `roles/grouper.md` (judge; `tuple[Cause, ...]`). **Inputs:** Q8, C5.
+- Reader; COPY, OWN_CORE, DRIFT with a design, COPY alone without. **Inputs:** Q8, C5.
+
+### R2b. `roles/grouper.md` (`role-author`, M3s)
+
+- Judge; `tuple[Cause, ...]`. **Inputs:** Q8, C5.
+
+### R3. `roles/surveyor.md` (`role-author`, M3s)
+
+- Reader; `Survey`, findings COPY and MISSING. **Inputs:** Q8, C5.
+
+### S4-S6. `gauntlet audit --structure` (M3s)
+
+- **Inputs:** C5, S3, R3. S4 `seam-builder` `stub`: `audit` in `gauntlet/seams/cli.py`. S5 `test-writer` `tests/test_seams_cli_audit.py`: `--structure` opens one STRUCTURE job through `open_structure` per selected candidate, none for an unselected one, run one after another; without `--structure` the test-audit shape runs. S6 `seam-builder` build on S5; reviews, `make check`, one commit.
+
+## Feature phase
+
+Built after M7s; no step above reads it.
+
+- **C4a** (`test-writer`, M3f) `tests/test_core_design_needs_design.py`: `needs_design` is the outline's shared-structure flag, true and false. Build in `design.py`. **Inputs:** C5; M1's design naming `Outline`.
+- **C4b's OUTLINE bullet** (`test-writer`, M3f): OUTLINE → DESIGN or PLAN with DESIGN skipped by rule. Build in `decide.py`.
+- **Offers** (`test-writer`, `seam-builder`, M8): `write_offers` writes `offers.md` in the job folder and returns its path; `structure_section` shows each spawn's `why` and each offer's payoff and risk. **Inputs:** S3.
 
 ### C6. `tests/test_core_decide_core_missing.py` (`test-writer`, M8)
 
@@ -131,14 +153,6 @@ Each step that depends on a question says so and is built on the recommendation 
 
 - `decide.py` on C6. **Done:** C6 green; reviews, `make check`, one commit.
 
-### R3. `roles/surveyor.md` (`role-author`, M8)
-
-- Reader; `Survey`, findings COPY and MISSING. **Inputs:** Q8, C5; ∥ C6-C7.
-
-### S4-S6. `gauntlet audit --structure` (M10)
-
-- **Inputs:** C7, S3, R3. S4 `seam-builder` `stub`: `audit` in `gauntlet/seams/cli.py`. S5 `test-writer` `tests/test_seams_cli_audit.py`: `--structure` opens one STRUCTURE job through `open_structure` per selected candidate, none for an unselected one, run one after another; without `--structure` the test-audit shape runs. S6 `seam-builder` build on S5; reviews, `make check`, one commit.
-
 ## Parallel sets
 
-D0 ∥ D1. C2a ∥ C2e, then C2b ∥ C2c ∥ C2d. C3a ∥ C3d, then C3b, then C3c. C4a ∥ C4b. R1 ∥ S1-S3. S2a ∥ S2b. S3a ∥ S3b. R2a ∥ R2b. R3 ∥ C6-C7.
+D0 ∥ D1. C2a ∥ C2e, then C2b ∥ C2c ∥ C2d. C3a ∥ C3d, then C3b, then C3c. R1 ∥ S1-S3. S2a ∥ S2b. S3a ∥ S3b. R2a ∥ R2b.

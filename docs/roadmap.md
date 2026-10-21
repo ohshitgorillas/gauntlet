@@ -36,12 +36,12 @@ The quality gates of [`superpowers/specs/2026-10-17-quality-gates-design.md`](su
 - `core/design.py`: the design record and `design_problems`, `home_of`, `uncovered`.
 - `core/causes.py`: findings grouped into causes and routed to one fix each: `finding_problems`, `partition_problems`, `route`, `survey_problems`.
 - `core/schedule.py`: `startable`, which of a job's steps or of the structure jobs may run beside which.
-- `core/decide.py`: `decide(state, answer)` for the stage table of §2, round caps included, with the Design, review-by-cause and structure-job rows.
+- `core/decide.py`: `decide(state, answer)` for the stage table of §2, round caps included, with the Design, review-by-cause and structure-job rows. The structure-job rows are the ones its tests walk; `FIRST` and `SKIPPED` hold all three shapes as data.
 - `seams/job.py`: `state.json` with a row per check run, `trace.jsonl` per launch.
 - `gauntlet resume` from `state.json` after a killed harness.
 - The gate that blocks shell-command parsing in Gauntlet's own code (§1, the one exception).
 
-**Done when:** every branch of `decide`, `design_problems`, `uncovered`, `finding_problems`, `partition_problems`, `route`, `survey_problems` and `startable` has a unit test; a harness killed mid-stage resumes to the same next action.
+**Done when:** every branch of `design_problems`, `uncovered`, `finding_problems`, `partition_problems`, `route`, `survey_problems` and `startable`, and of `decide` on the rows a structure job walks, has a unit test; a harness killed mid-stage resumes to the same next action.
 
 ## M2. Launcher and kinds
 
@@ -52,16 +52,17 @@ The quality gates of [`superpowers/specs/2026-10-17-quality-gates-design.md`](su
 
 **Done when:** a unit test per kind asserts the mount table and tool list `launch.py` builds match §3 and §4 exactly, with no container started.
 
-## M3. Thin end-to-end job
+## M3s. Thin structure job
 
-`gauntlet run <brief.md>` drives outline, design, plan, spec, stubs, tests, red run, juror, lock, build and land, each with a single agent and no review rounds. Prosecutor, arbiter, examiner, review and bailiff are skipped and shown as bypasses.
+`gauntlet audit <scope> --structure` on a fixture repository drives surveyor, grouper, survey screen, owner selection, and one structure job through design, plan, spec with the keeps lines, stubs, tests, red run, lock, build under `startable`, review and land. Design runs one architect and no rounds. Prosecutor, arbiter, examiner, repo reviewers, structure reviewer and bailiff are skipped and shown as bypasses.
 
 - `seams/runner.py`: harness-owned test and gate runs, every runner in `gauntlet.yaml`, harness pytest settings of §4.
-- `seams/screens.py`: approval screens, the design screen and a first land screen.
-- The planner's outline carries the shared-structure flag. Design runs between Outline and Plan with one architect and no rounds when the flag is set, and Stubs writes the design's stubs first.
+- `seams/screens.py`: approval screens, the design screen, the survey screen and a first land screen.
+- The survey screen shows candidates ranked by payoff and risk and what is sound; the owner selects, and one structure job opens per selected candidate, run as separate jobs one after another.
+- A structure job ports every copy and lands only when `uncovered` is empty at the end of its Review. The surveyor also runs in a structure job's Review.
 - Land merges only when the owner's uncommitted changes touch none of the landed files (§6).
 
-**Done when:** a small brief against a fixture repository with Python and JS tests lands a green change, and the land screen lists every skipped stage; a fixture brief whose outline flags shared structure shows a design screen and leaves `design.md`; and a bug-fix fixture brief whose outline leaves the flag unset shows Design skipped by rule on the land screen.
+**Done when:** a fixture repository with one concern copied in three files and no core yields three anchors in one cause and one candidate with its payoff, risk and keeps; a design whose `uncovered` is empty at Design; spec lines for the keeps locked before any port step; a landed job that adds the home, ports every caller and leaves `uncovered` empty at the end of Review; a fixture with two such concerns, both selected, yields two jobs, the second starting after the first ends; and the land screen lists every skipped stage.
 
 ## M4. Adversarial loops and owner controls
 
@@ -70,7 +71,7 @@ The quality gates of [`superpowers/specs/2026-10-17-quality-gates-design.md`](su
 - Prosecutor rounds on the design under `caps.design`, with every copy anchor resolved against the tree as plan citations are.
 - The stop screen, and `stop`, `retry`, `accept`, `edit`, `skip` and `eject` (§6), each recorded.
 
-**Done when:** a fixture brief with a planted out-of-scope change gets it cut or escalated, a round cap reached stops the job on one screen showing both sides, and each owner command appears on the land screen; and a design citing a copy anchor that does not resolve fails a round.
+**Done when:** a fixture brief with a planted out-of-scope change gets it cut or escalated, a round cap reached stops the job on one screen showing both sides, and each owner command appears on the land screen; a design citing a copy anchor that does not resolve fails a round; and a spec that drops a `keeps` line is rejected by the arbiter.
 
 ## M5. Tester isolation
 
@@ -88,9 +89,23 @@ The quality gates of [`superpowers/specs/2026-10-17-quality-gates-design.md`](su
 - Bailiff with `PIN` / `UNPINNED` per line and `HELD` / `ALTERED` per collateral row.
 - Full land screen: diff split into tests and code, red and green lines, open findings, amendments and bypasses, cost per role.
 
-**Done when:** the M3 fixture job runs every stage with no bypass, and a planted softened assertion is ruled `UNPINNED`; a planted copy of a design home's logic yields one COPY finding anchored at both places, one cause and one fix step whose diff removes the copy, and the next round holds no instance of it; and a job without a design that copies a function already in the tree yields one COPY finding and a fix step whose diff calls the existing function.
+**Done when:** the M3s fixture job runs every stage with no bypass, and a planted softened assertion is ruled `UNPINNED`; a planted copy of a design home's logic yields one COPY finding anchored at both places, one cause and one fix step whose diff removes the copy, and the next round holds no instance of it; and a job without a design that copies a function already in the tree yields one COPY finding and a fix step whose diff calls the existing function.
 
-## M7. First pilot
+## M7s. Structure pilot
+
+Run Gauntlet's audit and structure jobs on a real, established repository, for example `hqptuner`.
+
+**Done when:** an audit and three structure jobs land, and every stop, bypass and owner edit they needed is written up as a defect or a design change.
+
+## M3f. Thin feature job
+
+`gauntlet run <brief.md>` drives outline, design, plan, spec, stubs, tests, red run, juror, lock, build and land, each with a single agent and no review rounds, on the runner, screens and land of M3s. Prosecutor, arbiter, examiner, review and bailiff are skipped and shown as bypasses.
+
+- The planner's outline carries the shared-structure flag. Design runs between Outline and Plan with one architect and no rounds when the flag is set, and Stubs writes the design's stubs first.
+
+**Done when:** a small brief against a fixture repository with Python and JS tests lands a green change, and the land screen lists every skipped stage; a fixture brief whose outline flags shared structure shows a design screen and leaves `design.md`; and a bug-fix fixture brief whose outline leaves the flag unset shows Design skipped by rule on the land screen.
+
+## M7f. Feature pilot
 
 Run Gauntlet on a real, established repository with a small change, for example `hqptuner`.
 
@@ -100,7 +115,7 @@ Run Gauntlet on a real, established repository with a small change, for example 
 
 `core/reopen.py` and the reopen flow of §2: any role's `spec_defect`, `gauntlet reopen <id> <line>`, rerun of the Tests, Red run, Lock, Build, Review and Bailiff stages for the affected lines and steps only, `caps.reopen`.
 
-Reopen covers Design: a DesignChange amends the job's own design and reruns the touched steps. A CoreMissing on a `blocked` step opens a structure job, shows its reason, and holds only the steps `startable` withholds; one on a `complete` or `partial` step becomes an offer on the land screen. A structure job ports every copy and lands only when `uncovered` is empty at the end of its Review. Until M12, the structure job starts when the feature job has no startable step left. The surveyor also runs in a structure job's Review.
+Reopen covers Design: a DesignChange amends the job's own design and reruns the touched steps. A CoreMissing on a `blocked` step opens a structure job, shows its reason, and holds only the steps `startable` withholds; one on a `complete` or `partial` step becomes an offer on the land screen. Until M12, the structure job starts when the feature job has no startable step left.
 
 **Done when:** a reopen on one spec line reruns only that line's tests and the steps that serve it, and the amendment shows on the land screen; a DesignChange on one step reruns only the steps the amendment touches; a three-step fixture job whose second step is blocked on a CoreMissing builds its disjoint third step, opens one structure job, and after that job lands runs the second step from Stubs and lands; and a fixture job whose step offers a candidate lands with no structure job opened after the owner declines it.
 
@@ -114,9 +129,7 @@ Reopen covers Design: a DesignChange amends the job's own design and reruns the 
 
 `gauntlet audit <scope>`: the auditor per test file, selected rows becoming a job that starts at Spec and skips Stubs, Build and Review.
 
-`gauntlet audit <scope> --structure`: the surveyor, the grouper, the survey screen with candidates ranked by payoff and risk and what is sound listed, owner selection, and one structure job per selected candidate, run as separate jobs one after another.
-
-**Done when:** an audit of a fixture test file with a planted policy violation yields a `STRIKE` or `AMEND` row, and that row lands as a job; a fixture repository with one concern copied in three files and no core yields three anchors in one cause and one candidate with its payoff, risk and keeps; a design whose `uncovered` is empty at Design; spec lines for the keeps locked before any port step; a landed job that adds the home, ports every caller and leaves `uncovered` empty at the end of Review; and a fixture with two such concerns, both selected, yields two jobs, the second starting after the first ends.
+**Done when:** an audit of a fixture test file with a planted policy violation yields a `STRIKE` or `AMEND` row, and that row lands as a job.
 
 ## M11. Repo roles and skills
 
@@ -142,7 +155,7 @@ These are decided by evidence from the milestone named, not ahead of it.
 
 | Question | Settled by |
 |---|---|
-| Is a fresh container per launch fast enough, or is a warm pool needed, and does a pool break "removed when the launch ends"? | M0 timing, M3 wall clock |
-| What do round caps of 2 cost per job in tokens, and do real plans pass inside them? | M7 trace |
+| Is a fresh container per launch fast enough, or is a warm pool needed, and does a pool break "removed when the launch ends"? | M0 timing, M3s wall clock |
+| What do round caps of 2 cost per job in tokens, and do real plans pass inside them? | M7s trace |
 | Does the trimmed interface view give testers enough to write tests that collect? | M5, M7 |
 | Does `stubgen` handle the pilot repository's dynamic modules? | M5 |
