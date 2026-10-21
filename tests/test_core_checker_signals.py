@@ -41,12 +41,18 @@ HELD = b"held"
 
 ALIVE = b" alive"
 
+# SIGQUIT at the OS default dumps core, and macOS then shows a crash dialog for every run. So the driver answers it with a
+# Python handler that raises SystemExit with this code: `run` must kill the group, then let the handler take its course.
+QUIT_EXIT = 7
+
 DRIVER = (
     "import signal, sys\n"
     "from pathlib import Path\n"
     "sys.path.insert(0, sys.argv[1])\n"
     "from gates.core.checker import Command, run\n"
-    "signal.signal(int(sys.argv[2]), signal.SIG_DFL)\n"
+    "def quit_handler(signum, frame):\n"
+    "    raise SystemExit(7)\n"
+    "signal.signal(int(sys.argv[2]), quit_handler if int(sys.argv[2]) == signal.SIGQUIT else signal.SIG_DFL)\n"
     "output = Path(sys.argv[3])\n"
     "run(Command(argv=tuple(sys.argv[4:]), cwd=output.parent, outputs={'report': output}))\n"
 )
@@ -76,7 +82,9 @@ CHECKER = (
 MAKE_FIFO = "import os, sys\nos.mkfifo(sys.argv[1])\n"
 
 
-def _driver(request: pytest.FixtureRequest, signum: int, output: Path, *argv: str) -> subprocess.Popen[bytes]:
+def _driver(
+    request: pytest.FixtureRequest, signum: int, output: Path, *argv: str
+) -> subprocess.Popen[bytes]:
     """Start the driver, which runs argv through `run` with output as its output file and signum at the OS default."""
     root = str(request.config.rootpath)
     return subprocess.Popen(
@@ -131,22 +139,40 @@ def _ended(driver: subprocess.Popen[bytes]) -> int:
         return driver.wait()
 
 
-@pytest.mark.parametrize("signum", [signal.SIGHUP, signal.SIGQUIT, signal.SIGTERM], ids=["hup", "quit", "term"])
-def test_ending_signal_kills_group(request: pytest.FixtureRequest, tmp_path: Path, signum: signal.Signals) -> None:
-    """A signal at the OS default kills the checker's whole group, then ends the process that called `run` by itself."""
+@pytest.mark.parametrize(
+    ("signum", "status"),
+    [
+        (signal.SIGHUP, -signal.SIGHUP),
+        (signal.SIGQUIT, QUIT_EXIT),
+        (signal.SIGTERM, -signal.SIGTERM),
+    ],
+    ids=["hup", "quit", "term"],
+)
+def test_ending_signal_kills_group(
+    request: pytest.FixtureRequest, tmp_path: Path, signum: signal.Signals, status: int
+) -> None:
+    """A signal kills the checker's whole group, then takes its course: SIGHUP and SIGTERM end the caller by themselves, SIGQUIT runs the caller's handler."""
     path = tmp_path / "held.fifo"
     pids = tmp_path / "pids.txt"
     os.mkfifo(path)
     fifo = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
     try:
-        argv = (sys.executable, "-c", CHECKER, str(path), str(pids), str(int(signum)), GRANDCHILD)
+        argv = (
+            sys.executable,
+            "-c",
+            CHECKER,
+            str(path),
+            str(pids),
+            str(int(signum)),
+            GRANDCHILD,
+        )
         driver = _driver(request, signum, tmp_path / "report.txt", *argv)
         _await_pids(pids, driver)
         held = _drain(fifo, pids)
     finally:
         os.close(fifo)
 
-    assert (held, _ended(driver)) == (HELD, -signum)
+    assert (held, _ended(driver)) == (HELD, status)
 
 
 def _writer(path: Path, driver: subprocess.Popen[bytes]) -> int:
@@ -161,10 +187,14 @@ def _writer(path: Path, driver: subprocess.Popen[bytes]) -> int:
             time.sleep(POLL)
 
 
-def test_signal_while_reading_outputs_waits_for_run(request: pytest.FixtureRequest, tmp_path: Path) -> None:
+def test_signal_while_reading_outputs_waits_for_run(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
     """SIGTERM while `run` reads back an output leaves the driver alive until the read ends, then ends it by SIGTERM."""
     output = tmp_path / "report.fifo"
-    driver = _driver(request, signal.SIGTERM, output, sys.executable, "-c", MAKE_FIFO, str(output))
+    driver = _driver(
+        request, signal.SIGTERM, output, sys.executable, "-c", MAKE_FIFO, str(output)
+    )
     try:
         writer = _writer(output, driver)
         os.kill(driver.pid, signal.SIGTERM)

@@ -77,12 +77,18 @@ CHECKER = (
     "time.sleep(20)\n"
 )
 
+# SIGQUIT at the OS default dumps core, and macOS then shows a crash dialog for every run. So the driver answers it with a
+# Python handler that raises SystemExit with this code: `run` must kill the group, then let the handler take its course.
+QUIT_EXIT = 7
+
 DRIVER = (
     "import signal, sys\n"
     "sys.path.insert(0, sys.argv[1])\n"
     "from pathlib import Path\n"
     "from gates.core.checker import Command, run, run_all\n"
-    "signal.signal(int(sys.argv[2]), signal.SIG_DFL)\n"
+    "def quit_handler(signum, frame):\n"
+    "    raise SystemExit(7)\n"
+    "signal.signal(int(sys.argv[2]), quit_handler if int(sys.argv[2]) == signal.SIGQUIT else signal.SIG_DFL)\n"
     "argv = tuple(sys.argv[3:])\n"
     "commands = [Command(argv=(*argv, role), cwd=Path.cwd()) for role in ('first', 'second')]\n"
     "run_all(run, commands, 2)\n"
@@ -190,15 +196,30 @@ def _ended(driver: subprocess.Popen[bytes]) -> int:
         return driver.wait()
 
 
-@pytest.mark.parametrize("signum", [signal.SIGHUP, signal.SIGQUIT, signal.SIGTERM], ids=["hup", "quit", "term"])
+@pytest.mark.parametrize(
+    ("signum", "status"),
+    [
+        (signal.SIGHUP, -signal.SIGHUP),
+        (signal.SIGQUIT, QUIT_EXIT),
+        (signal.SIGTERM, -signal.SIGTERM),
+    ],
+    ids=["hup", "quit", "term"],
+)
 def test_ending_signal_kills_every_group(
-    request: pytest.FixtureRequest, tmp_path: Path, signum: signal.Signals
+    request: pytest.FixtureRequest, tmp_path: Path, signum: signal.Signals, status: int
 ) -> None:
-    """A signal at the OS default kills both checkers' groups, then ends the process that called run_all by itself."""
+    """A signal kills both checkers' groups, then takes its course: SIGHUP and SIGTERM end the caller, SIGQUIT runs its handler."""
     fifo = _open_fifo(tmp_path)
     try:
         driver = subprocess.Popen(
-            [sys.executable, "-c", DRIVER, str(request.config.rootpath), str(int(signum)), *_argv(tmp_path, signum)],
+            [
+                sys.executable,
+                "-c",
+                DRIVER,
+                str(request.config.rootpath),
+                str(int(signum)),
+                *_argv(tmp_path, signum),
+            ],
             cwd=tmp_path,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -209,7 +230,7 @@ def test_ending_signal_kills_every_group(
         os.close(fifo)
         _kill_leftovers(tmp_path / "pids.txt")
 
-    assert (held, _serial(tmp_path), _ended(driver)) == (HELD + HELD, False, -signum)
+    assert (held, _serial(tmp_path), _ended(driver)) == (HELD + HELD, False, status)
 
 
 class Held:
@@ -232,19 +253,31 @@ class Held:
     def expected_status(self, report: list[str]) -> int:
         return 0
 
-    def lines(self, report: list[str], batch: Sequence[Source], *, stopped: bool) -> list[Line]:
+    def lines(
+        self, report: list[str], batch: Sequence[Source], *, stopped: bool
+    ) -> list[Line]:
         return []
 
 
 def test_check_with_interrupt_kills_every_batch(tmp_path: Path) -> None:
     """A KeyboardInterrupt while a budgeted check runs two batches kills both their groups, then goes on."""
     project = scaffold(tmp_path / "project", {"first": "", "second": ""})
-    sources = tuple(Source(given=Path(name), absolute=project.root / name) for name in ("first", "second"))
+    sources = tuple(
+        Source(given=Path(name), absolute=project.root / name)
+        for name in ("first", "second")
+    )
     check = check_with(Held(tmp_path), budget=lambda: 2)
     fifo = _open_fifo(tmp_path)
     try:
         with pytest.raises(KeyboardInterrupt):
-            check(Run(project=project, sources=sources, scratch=Scratch(tmp_path), process=run))
+            check(
+                Run(
+                    project=project,
+                    sources=sources,
+                    scratch=Scratch(tmp_path),
+                    process=run,
+                )
+            )
         held = _drain(fifo, tmp_path / "pids.txt")
     finally:
         os.close(fifo)
