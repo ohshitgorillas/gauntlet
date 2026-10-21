@@ -139,3 +139,20 @@ def test_env(tmp_path: Path) -> None:
     completed = _run(tmp_path, _python(SEES, PROBE, PYTEST_VARIABLE), env={PROBE: PROBE_VALUE})
 
     assert completed.stdout == repr((PROBE_VALUE, None))
+
+
+def test_invalid_utf8(tmp_path: Path) -> None:
+    """A checker that writes bytes that are no UTF-8, to a stream and to an output file, does not make `run` raise."""
+    report = tmp_path / "report.bin"
+    code = (
+        "import sys\n"
+        "sys.stdout.buffer.write(b'a\\xff')\n"
+        "sys.stdout.flush()\n"
+        "sys.stderr.buffer.write(b'b\\xfe')\n"
+        "with open(sys.argv[1], 'wb') as out:\n"
+        "    out.write(b'c\\xfd')\n"
+    )
+
+    completed = _run(tmp_path, _python(code, str(report)), {"report": report})
+
+    assert (completed.stdout, completed.stderr, completed.outputs) == ("a�", "b�", {"report": "c�"})
