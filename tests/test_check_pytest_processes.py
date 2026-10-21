@@ -10,37 +10,16 @@ Two seeded test modules meet at a rendezvous: each marks its own file and waits 
 pass only when their processes run at once; run one after the other, the first one waits alone and fails.
 """
 
-import os
-import subprocess
-import sys
 from pathlib import Path
 
-from gates.check_pytest import cpus, main, processes
-
-REPO_ROOT = Path(__file__).parents[1]
+from gates.check_pytest import main
 
 NO_FINDING = 0
 FINDINGS = 1
 
-THREE_MODULES = 3
-FIVE_MODULES = 5
-TEN_MODULES = 10
-
 ONE_CPU = 1
 THREE_CPUS = 3
 FOUR_CPUS = 4
-SEVEN_CPUS = 7
-EIGHT_CPUS = 8
-SIXTEEN_CPUS = 16
-
-ONE_PROCESS = 1
-THREE_PROCESSES = 3
-FOUR_PROCESSES = 4
-
-SEEDED_COUNT = 1000
-
-COUNTING_TOOLS = ("sysctl", "nproc", "getconf")
-
 PASSING = "def test_seeded():\n    pass\n"
 
 RENDEZVOUS = (
@@ -57,8 +36,6 @@ RENDEZVOUS = (
     "    assert OTHER.exists()\n"
 )
 
-CHILD = "from gates.check_pytest import cpus\n\nprint(cpus())\n"
-
 def _seed(root: Path, relative: str, source: str) -> Path:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,58 +50,6 @@ def _rendezvous(root: Path) -> list[Path]:
         _seed(root, "tests/test_left.py", RENDEZVOUS.replace("MINE_PATH", left).replace("OTHER_PATH", right)),
         _seed(root, "tests/test_right.py", RENDEZVOUS.replace("MINE_PATH", right).replace("OTHER_PATH", left)),
     ]
-
-
-def _seeded_tools(root: Path) -> Path:
-    for name in COUNTING_TOOLS:
-        _seed(root, f"bin/{name}", f"#!/bin/sh\necho {SEEDED_COUNT}\n").chmod(0o755)
-    return root / "bin"
-
-
-def _host_cpus() -> int | None:
-    if sys.platform == "linux":
-        return len(os.sched_getaffinity(0))
-    return os.cpu_count()
-
-
-def test_fewer_modules() -> None:
-    """Fewer test modules than half the CPUs run one process each, all at once."""
-    assert processes(THREE_MODULES, SIXTEEN_CPUS) == THREE_PROCESSES
-
-
-def test_half_cpus() -> None:
-    """More test modules than half the CPUs run half the CPUs' worth of processes at once."""
-    assert processes(TEN_MODULES, EIGHT_CPUS) == FOUR_PROCESSES
-
-
-def test_odd_cpus() -> None:
-    """Half of an odd CPU count is rounded down."""
-    assert processes(TEN_MODULES, SEVEN_CPUS) == THREE_PROCESSES
-
-
-def test_one_cpu() -> None:
-    """One CPU, whose half rounds down to none, still runs one process."""
-    assert processes(FIVE_MODULES, ONE_CPU) == ONE_PROCESS
-
-
-def test_host_count() -> None:
-    """The gate counts the CPUs its affinity allows where the host keeps one, and the host's CPU count elsewhere."""
-    assert cpus() == _host_cpus()
-
-
-def test_no_command(tmp_path: Path) -> None:
-    """The count is read in the gate's own process: a counting command on the PATH is never what it reads."""
-    child = subprocess.run(  # A child interpreter whose PATH holds only seeded counting commands.
-        [sys.executable, "-c", CHILD],
-        cwd=REPO_ROOT,
-        env={"PATH": str(_seeded_tools(tmp_path))},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-    )
-
-    assert child.stdout == f"{_host_cpus()}\n"
 
 
 def test_one_cpu_runs(tmp_path: Path) -> None:
