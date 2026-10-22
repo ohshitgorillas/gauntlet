@@ -17,32 +17,26 @@ checker has written its line on a `Beacon`, after its child holds the FIFO and i
 to kill at teardown. The checker then sends the signal to the driver.
 
 A signal that arrives once the checker has exited, while `run` reads its output files back, takes its course only once
-`run` is done. The checker here makes a FIFO at its output path and exits; `run` then blocks reading it until the test
-writes to it. The test sends SIGTERM while `run` blocks: the driver lives on until the test writes, then ends by SIGTERM.
+`run` is done (the no-wall-clock design spec, decision 5, and its `checker.py` section). The checker here writes its two
+output files and exits. The driver hands `run` a reader that sends SIGTERM to its own process from inside the first read,
+which delivers the signal before `kill` returns, and writes a line on its stdout from the next read, which it reaches only
+when the signal was held past the first read and on through `run`'s reading. The test reads that line and the driver's
+end: the line, then death by SIGTERM once `run` has returned.
 """
 
-import contextlib
-import os
 import signal
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
 
 from tests.support.lifeline import WITNESS, Beacon, Lifeline, Pids, Witness
 
-# How long the test waits for the output FIFO to have its reader.
-WAIT = 10.0
-
-# How long the test sleeps between tries while it waits.
-POLL = 0.05
-
-# How long the driver must live on after SIGTERM while `run` reads its output.
-HOLD = 0.5
-
 HELD = b"held"
+
+# The line the reader writes once its own SIGTERM has been sent, reached only while `run` holds the signal.
+READ_UNDER_SIGTERM = b"read under SIGTERM\n"
 
 # SIGQUIT at the OS default dumps core, and macOS then shows a crash dialog for every run. So the driver answers it with a
 # Python handler that raises SystemExit with this code: `run` must kill the group, then let the handler take its course.
@@ -81,7 +75,35 @@ CHECKER = (
     "    pass\n"
 )
 
-MAKE_FIFO = "import os, sys\nos.mkfifo(sys.argv[1])\n"
+# Arguments: the repository root, the two output paths, then the checker's argv. SIGTERM is at the OS default. The reader
+# `run` is handed signals its own process with SIGTERM on its first read; on the next read, a later output read back
+# while that signal is still pending, it writes READ_UNDER_SIGTERM on fd 1. Each read then reads its output back.
+READING_DRIVER = (
+    "import os, signal, sys\n"
+    "from pathlib import Path\n"
+    "sys.path.insert(0, sys.argv[1])\n"
+    "from gates.core.checker import Command, read_output, run\n"
+    "signal.signal(signal.SIGTERM, signal.SIG_DFL)\n"
+    "reads = []\n"
+    "def reader(path):\n"
+    "    if reads:\n"
+    "        os.write(1, b'read under SIGTERM\\n')\n"
+    "    else:\n"
+    "        os.kill(os.getpid(), signal.SIGTERM)\n"
+    "    reads.append(path)\n"
+    "    return read_output(path)\n"
+    "report, notes = Path(sys.argv[2]), Path(sys.argv[3])\n"
+    "outputs = {'report': report, 'notes': notes}\n"
+    "run(Command(argv=tuple(sys.argv[4:]), cwd=report.parent, outputs=outputs), read=reader)\n"
+)
+
+# Arguments: the output paths. The checker writes a report at each and exits.
+WRITE_OUTPUT = (
+    "import sys\n"
+    "from pathlib import Path\n"
+    "for name in sys.argv[1:]:\n"
+    "    Path(name).write_text('report', encoding='utf-8')\n"
+)
 
 
 def _driver(
@@ -159,35 +181,30 @@ def test_ending_signal_kills_group(
     assert (held, _ended(driver)) == (HELD, status)
 
 
-def _writer(path: Path, driver: subprocess.Popen[bytes]) -> int:
-    """Open the FIFO at path for writing once the driver has it open for reading, within WAIT seconds."""
-    deadline = time.monotonic() + WAIT
-    while True:
-        try:
-            return os.open(path, os.O_WRONLY | os.O_NONBLOCK)
-        except OSError:
-            if time.monotonic() >= deadline or driver.poll() is not None:
-                raise
-            time.sleep(POLL)
-
-
 def test_signal_while_reading_outputs_waits_for_run(
     request: pytest.FixtureRequest, tmp_path: Path
 ) -> None:
-    """SIGTERM while `run` reads back an output leaves the driver alive until the read ends, then ends it by SIGTERM."""
-    output = tmp_path / "report.fifo"
-    driver = _driver(
-        request, signal.SIGTERM, output, sys.executable, "-c", MAKE_FIFO, str(output)
+    """SIGTERM sent from inside the first read of an output leaves the driver alive to write its line from the next read, then ends it once `run` returns."""
+    report = tmp_path / "report.txt"
+    notes = tmp_path / "notes.txt"
+    driver = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            READING_DRIVER,
+            str(request.config.rootpath),
+            str(report),
+            str(notes),
+            sys.executable,
+            "-c",
+            WRITE_OUTPUT,
+            str(report),
+            str(notes),
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
     )
-    try:
-        writer = _writer(output, driver)
-        os.kill(driver.pid, signal.SIGTERM)
-        time.sleep(HOLD)
-        alive = driver.poll() is None
-        with contextlib.suppress(BrokenPipeError):
-            os.write(writer, b"report")
-        os.close(writer)
-    finally:
-        status = _ended(driver)
+    written, _ = driver.communicate()
 
-    assert (alive, status) == (True, -signal.SIGTERM)
+    assert (written, driver.returncode) == (READ_UNDER_SIGTERM, -signal.SIGTERM)

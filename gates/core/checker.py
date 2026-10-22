@@ -62,7 +62,22 @@ class Completed:
 type Runner = Callable[[Command], Completed]
 
 
-def run(command: Command, *, clock: Clock = SYSTEM) -> Completed:
+def read_output(path: Path) -> str | None:
+    """Return the text of an output file the checker wrote, or None for one it did not write; run's default reader.
+
+    Raises GateError when the file exists and cannot be read.
+    """
+    try:
+        data = path.read_bytes()
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        message = f"cannot read the output file {path}: {error}"
+        raise GateError(message) from error
+    return _decode(data)
+
+
+def run(command: Command, *, read: Callable[[Path], str | None] = read_output, clock: Clock = SYSTEM) -> Completed:
     """Run the checker in a session of its own; kill its whole group at the timeout or on any interrupt.
 
     An interrupt is any signal of ENDING_SIGNALS that would end this process, from the moment the checker starts
@@ -70,6 +85,9 @@ def run(command: Command, *, clock: Clock = SYSTEM) -> Completed:
     at their paths are deleted before the checker starts, so each one read back was written by this checker.
 
     The wait on the checker's exit is the Ready handed to the clock, and the timeout passes on that clock.
+
+    Output files are read back through `read` while signals are held, so a signal that arrives during the read
+    takes its course only once `run` is done.
 
     Raises GateError when the program cannot start, when the wait on it cannot be set up, or when an output file cannot be deleted or read.
     """
@@ -103,7 +121,7 @@ def run(command: Command, *, clock: Clock = SYSTEM) -> Completed:
             stdout=_text(out),
             stderr=_text(err),
             timed_out=timed_out,
-            outputs={name: _written(output) for name, output in paths.items()},
+            outputs={name: read(output) for name, output in paths.items()},
         )
 
 
@@ -329,21 +347,6 @@ def _clear(path: Path) -> None:
     except OSError as error:
         message = f"cannot delete the output file {path}: {error}"
         raise GateError(message) from error
-
-
-def _written(path: Path) -> str | None:
-    """Return the text of an output file the checker wrote, or None for one it did not write.
-
-    Raises GateError when the file exists and cannot be read.
-    """
-    try:
-        data = path.read_bytes()
-    except FileNotFoundError:
-        return None
-    except OSError as error:
-        message = f"cannot read the output file {path}: {error}"
-        raise GateError(message) from error
-    return _decode(data)
 
 
 def _decode(data: bytes) -> str:
