@@ -155,8 +155,6 @@ def check_with[R](checker: Checker[R], *, budget: Callable[[], int] | None = Non
     """
 
     def check(run: Run) -> Outcome:
-        if run.next_done is not first_done:
-            raise NotImplementedError
         batches = checker.batches(run)
         try:
             cap = 1 if budget is None else max(1, budget())
@@ -170,7 +168,8 @@ def check_with[R](checker: Checker[R], *, budget: Callable[[], int] | None = Non
                 yield commands[-1]
 
         lines: list[Line] = []
-        for index, result in enumerate(run_all(run.process, made(), cap)):
+        results = run_all(run.process, made(), cap, next_done=run.next_done)
+        for index, result in enumerate(results):
             if isinstance(result, GateError | OSError):
                 lines.append(Unfinished(_report(result)))
                 break
