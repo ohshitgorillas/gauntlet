@@ -11,7 +11,9 @@ wrapper waits on.
 Every wrapped run here is given `--lock` with a path under the test's temporary directory and never takes the default:
 every documented heavy run, this suite's own among them, already holds the default lock, so a test that took it would
 wait on itself. Waiting is held by order, never by a clock: a run that must wait is given WAIT seconds to break the order
-it is held to, and the line it writes must come after the line written once the lock is released. On Linux the I/O
+it is held to, and the line it writes must come after the line written once the lock is released. A run that is not to
+wait is met by its end, and a held command is held by a pipe the test releases (`tests/support/lifeline.py` of the
+no-wall-clock design spec), with no timeout. On Linux the I/O
 priority is held to what the documented tool itself sets: the same probe, run under `ionice -c3`, gives the expected
 state. On macOS the line is "`nice -n <k> -- <command>`, with no `taskpolicy -b`", so the expected state is the one the
 probe gives with no tool. A child inherits its parent's I/O priority, and this suite's own wrapped run may already be
@@ -45,11 +47,11 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.lifeline import HOLD, ready
+
 REPO_ROOT = Path(__file__).parents[1]
 
 WAIT = 5
-
-END = 20
 
 NICENESS = "19"
 
@@ -63,17 +65,18 @@ ARGUMENTS = ["two words", "--lock", "other"]
 
 NOTE = "import sys\nwith open(sys.argv[1], 'a', encoding='utf-8') as log:\n    log.write(sys.argv[2] + '\\n')\n"
 
-HOLD = (
+# Notes HELD in the log named by its second argument, then HOLDs on the fd named by its first, and notes RELEASED once
+# that fd reaches its end.
+HELD_CODE = (
     "import sys\n"
     "def note(word):\n"
-    "    with open(sys.argv[1], 'a', encoding='utf-8') as log:\n"
+    "    with open(sys.argv[2], 'a', encoding='utf-8') as log:\n"
     "        log.write(word + '\\n')\n"
-    f"note({HELD!r})\n"
-    "sys.stdout.write('ready\\n')\n"
-    "sys.stdout.flush()\n"
-    "sys.stdin.read()\n"
-    f"note({RELEASED!r})\n"
+    f"note({HELD!r})\n" + HOLD + f"note({RELEASED!r})\n"
 )
+
+# The descriptor the held command reads: its standard input, the release pipe's read end.
+RELEASE_FD = "0"
 
 EXIT = "import sys\nsys.exit(int(sys.argv[1]))\n"
 
@@ -201,7 +204,7 @@ def _reporting(lock: Path, reported: int, command: list[str]) -> list[str]:
 
 def _launch(line: list[str], env: dict[str, str] | None = None) -> int:
     """Run one line to its end from the repository root and return its exit status."""
-    return subprocess.run(line, cwd=REPO_ROOT, check=False, timeout=END, env=env).returncode
+    return subprocess.run(line, cwd=REPO_ROOT, check=False, env=env).returncode
 
 
 def _run(lock: Path, command: list[str], env: dict[str, str] | None = None) -> int:
@@ -220,12 +223,8 @@ def _settle(process: subprocess.Popen[bytes]) -> None:
 
 
 def _end(process: subprocess.Popen[bytes]) -> None:
-    """Wait for a wrapped run to end, killing it if it outlasts END seconds."""
-    try:
-        process.wait(timeout=END)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait()
+    """Wait for a wrapped run to end."""
+    process.wait()
 
 
 def _hold(lock: Path, log: Path) -> tuple[subprocess.Popen[bytes], int]:
@@ -236,14 +235,14 @@ def _hold(lock: Path, log: Path) -> tuple[subprocess.Popen[bytes], int]:
     release_read, release_write = os.pipe()
     ready_read, ready_write = os.pipe()
     process = subprocess.Popen(
-        _wrapped(lock, _python(HOLD, str(log))),
+        _wrapped(lock, _python(HELD_CODE, RELEASE_FD, str(log))),
         cwd=REPO_ROOT,
         stdin=release_read,
         stdout=ready_write,
     )
     os.close(release_read)
     os.close(ready_write)
-    os.read(ready_read, 1)
+    ready(ready_read)
     os.close(ready_read)
     return process, release_write
 
@@ -276,10 +275,9 @@ def test_other_lock_runs_beside(tmp_path: Path) -> None:
     log = tmp_path / "log"
     first, release = _hold(tmp_path / "first.lock", log)
     second = _start(tmp_path / "second.lock", _python(NOTE, str(log), SECOND))
-    _settle(second)
+    _end(second)
     os.close(release)
     _end(first)
-    _end(second)
 
     assert _lines(log) == [HELD, SECOND, RELEASED]
 
@@ -341,8 +339,8 @@ def test_io_priority(tmp_path: Path) -> None:
     unwrapped = tmp_path / "unwrapped"
     probe = IO_PROBE[sys.platform]
     lift = IO_LIFT[sys.platform]
-    subprocess.run([*lift, *IO_LOWEST[sys.platform], *_python(probe, str(reference))], check=False, timeout=END)
-    subprocess.run([*lift, *_python(probe, str(unwrapped))], check=False, timeout=END)
+    subprocess.run([*lift, *IO_LOWEST[sys.platform], *_python(probe, str(reference))], check=False)
+    subprocess.run([*lift, *_python(probe, str(unwrapped))], check=False)
 
     _launch([*lift, *_wrapped(tmp_path / "heavy.lock", _python(probe, str(wrapped)))])
 

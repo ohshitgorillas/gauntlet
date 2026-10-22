@@ -21,8 +21,6 @@ from gates import heavy
 
 REPO_ROOT = Path(__file__).parents[1]
 
-END = 20
-
 SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 
 PROGRAM = "gauntlet-probe"
@@ -60,7 +58,7 @@ def _run(tmp_path: Path, name: str, after: list[str]) -> tuple[int, list[str]]:
     _program(tools, name, record)
     line = [sys.executable, "-m", heavy.__name__, "--lock", str(tmp_path / "heavy.lock"), *after]
     status = subprocess.run(
-        line, cwd=REPO_ROOT, check=False, timeout=END, env={"PATH": f"{tools}:{SYSTEM_PATH}"}
+        line, cwd=REPO_ROOT, check=False, env={"PATH": f"{tools}:{SYSTEM_PATH}"}
     ).returncode
     return status, _lines(record)
 

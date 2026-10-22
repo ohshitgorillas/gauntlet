@@ -18,8 +18,6 @@ from gates import heavy
 
 REPO_ROOT = Path(__file__).parents[1]
 
-END = 20
-
 SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 
 PROGRAM = "-gauntlet-probe"
@@ -50,7 +48,7 @@ def test_run_dash(tmp_path: Path) -> None:
     line = [sys.executable, "-m", heavy.__name__, "--lock", str(tmp_path / "heavy.lock"), PROGRAM, *ARGUMENTS]
 
     status = subprocess.run(
-        line, cwd=REPO_ROOT, check=False, timeout=END, env={"PATH": f"{tools}:{SYSTEM_PATH}"}
+        line, cwd=REPO_ROOT, check=False, env={"PATH": f"{tools}:{SYSTEM_PATH}"}
     ).returncode
 
     assert (status, _lines(record)) == (STATUS, ARGUMENTS)

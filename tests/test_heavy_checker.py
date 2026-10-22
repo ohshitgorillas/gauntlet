@@ -7,24 +7,22 @@ bullet: "where a tool of the line is not on `PATH`, the wrapper runs nothing and
 line has run nothing, and takes no lock to do so.
 
 Every run is given `--lock` with a path under the test's temporary directory and never takes the default, since this
-suite's own run already holds it. The command a signal test runs notes its process id in a file and sleeps for END
-seconds, longer than a test waits for it to end, and each such test kills the recorded id by its pid at the end.
+suite's own run already holds it. The command a signal test runs notes its process id in a file, writes a ready line and
+holds on a `Lifeline` the test never releases (`tests/support/lifeline.py` of the no-wall-clock design spec), and each
+such test's `Pids` kills the recorded id at the end. The test reads the ready line as the event that the command is
+running, and then its standard output to its end, which comes only when no process of the run holds it, with no timeout.
 """
 
-import contextlib
 import fcntl
 import os
 import signal
 import subprocess
 import sys
-import time
 from pathlib import Path
 
+from tests.support.lifeline import HOLD, Lifeline, Pids, ready
+
 REPO_ROOT = Path(__file__).parents[1]
-
-END = 20
-
-SETTLE = 5
 
 BLOCKED = 2
 
@@ -34,13 +32,19 @@ RAN = "ran"
 
 NOTE = "import sys\nwith open(sys.argv[1], 'a', encoding='utf-8') as log:\n    log.write(sys.argv[2] + '\\n')\n"
 
-# Notes the command's process id, then sleeps; the wrapper's stop signal must end it.
-SLEEP = (
-    "import os, sys, time\n"
-    "with open(sys.argv[1], 'w', encoding='utf-8') as out:\n"
-    "    out.write(str(os.getpid()))\n"
-    f"time.sleep({END})\n"
+# Notes the command's process id in the file named by its second argument, then HOLDs on the fd named by its first; the
+# wrapper's stop signal must end it.
+NOTE_PID = (
+    "import os, sys\n"
+    "with open(sys.argv[2], 'w', encoding='utf-8') as out:\n"
+    "    out.write(str(os.getpid()))\n" + HOLD
 )
+
+# The descriptor the command holds on: its standard input, the Lifeline's read end.
+LIFELINE_FD = "0"
+
+# The line HOLD writes once the command is running.
+RUNNING = b"ready\n"
 
 
 def _wrapper(options: list[str], command: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -51,27 +55,7 @@ def _wrapper(options: list[str], command: list[str], env: dict[str, str] | None 
     from gates import heavy
 
     line = [sys.executable, "-m", heavy.__name__, *options, *command]
-    return subprocess.run(line, cwd=REPO_ROOT, check=False, timeout=END, capture_output=True, text=True, env=env)
-
-
-def _alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    return True
-
-
-def _noted(path: Path) -> int:
-    """Wait for the command to note its process id in the file, and return it."""
-    deadline = time.monotonic() + END
-    while time.monotonic() < deadline:
-        text = path.read_text(encoding="utf-8") if path.exists() else ""
-        if text:
-            return int(text)
-        time.sleep(0.05)
-    message = f"the command never noted its process id in {path}"
-    raise AssertionError(message)
+    return subprocess.run(line, cwd=REPO_ROOT, check=False, capture_output=True, text=True, env=env)
 
 
 def test_refused_line_takes_no_lock(tmp_path: Path) -> None:
@@ -93,26 +77,38 @@ def test_stop_signal_ends_the_command(tmp_path: Path) -> None:
 
     note = tmp_path / "pid"
     env = {"PATH": SYSTEM_PATH}
-    wrapper = subprocess.Popen(
-        [sys.executable, "-m", heavy.__name__, "--lock", str(tmp_path / "heavy.lock"), sys.executable, "-c", SLEEP, str(note)],
-        cwd=REPO_ROOT,
-        env=env,
-    )
-    pid = 0
-    try:
-        pid = _noted(note)
-        wrapper.send_signal(signal.SIGTERM)
-        wrapper.wait(timeout=END)
-        deadline = time.monotonic() + SETTLE
-        while _alive(pid) and time.monotonic() < deadline:
-            time.sleep(0.05)
-        left = _alive(pid)
-    finally:
-        if wrapper.poll() is None:
-            wrapper.kill()
+    output_read, output_write = os.pipe()
+    with Lifeline() as lifeline, Pids(note):
+        wrapper = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                heavy.__name__,
+                "--lock",
+                str(tmp_path / "heavy.lock"),
+                sys.executable,
+                "-c",
+                NOTE_PID,
+                LIFELINE_FD,
+                str(note),
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            stdin=lifeline.read_fd,
+            stdout=output_write,
+        )
+        os.close(output_write)
+        try:
+            running = ready(output_read) == RUNNING
+            wrapper.send_signal(signal.SIGTERM)
             wrapper.wait()
-        if pid and _alive(pid):
-            with contextlib.suppress(ProcessLookupError):
-                os.kill(pid, signal.SIGKILL)
+            # End of file on the command's output comes only once no process of the run holds it. A command that never
+            # ran counts as left, so the test fails and does not pass on a wrapper that ran nothing.
+            left = not running or ready(output_read) != b""
+        finally:
+            if wrapper.poll() is None:
+                wrapper.kill()
+                wrapper.wait()
+            os.close(output_read)
 
     assert left is False

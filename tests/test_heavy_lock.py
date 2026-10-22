@@ -22,8 +22,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).parents[1]
 
-END = 20
-
 BLOCKED = 2
 
 RAN = "ran"
@@ -62,7 +60,7 @@ def _wrapper(options: list[str], log: Path) -> subprocess.CompletedProcess[str]:
     from gates import heavy
 
     line = [sys.executable, "-m", heavy.__name__, *options, sys.executable, "-c", NOTE, str(log), RAN]
-    return subprocess.run(line, cwd=REPO_ROOT, check=False, timeout=END, capture_output=True, text=True)
+    return subprocess.run(line, cwd=REPO_ROOT, check=False, capture_output=True, text=True)
 
 
 @pytest.mark.parametrize("unopenable", [_under_file, _too_long], ids=["under-file", "too-long"])
