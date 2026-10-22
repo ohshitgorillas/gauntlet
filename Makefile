@@ -5,6 +5,8 @@ SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c
 
 check:
+	uv lock --check
+	uv run deptry gauntlet
 	uv run ruff check .
 	uv run ruff format --check .
 	uv run lint-imports --no-cache
