@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 [build-system]
 requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
@@ -13,6 +14,7 @@ gauntlet = "gauntlet.seams.cli:main"
 [dependency-groups]
 dev = [
     "defusedxml==0.7.1",
+    "import-linter==2.15",
     "mypy",
     "pre-commit",
     "pyright[nodejs]",
@@ -83,3 +85,70 @@ ignore = [
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "typing.cast".msg = "narrow the type in the code instead"
 "typing_extensions.cast".msg = "narrow the type in the code instead"
+
+[tool.importlinter]
+root_packages = ["gauntlet", "gates"]
+include_external_packages = true
+exclude_type_checking_imports = false
+
+[[tool.importlinter.contracts]]
+name = "Gauntlet layers"
+type = "layers"
+containers = ["gauntlet"]
+layers = ["seams", "core"]
+exhaustive = true
+
+[[tool.importlinter.contracts]]
+name = "Gauntlet package imports neither layer"
+type = "forbidden"
+source_modules = ["gauntlet"]
+forbidden_modules = ["gauntlet.core", "gauntlet.core.**", "gauntlet.seams", "gauntlet.seams.**"]
+as_packages = false
+
+[[tool.importlinter.contracts]]
+name = "Pure core"
+type = "forbidden"
+source_modules = ["gauntlet.core"]
+forbidden_modules = [
+    "os",
+    "sys",
+    "io",
+    "pathlib",
+    "subprocess",
+    "socket",
+    "shutil",
+    "tempfile",
+    "time",
+    "datetime",
+    "random",
+    "asyncio",
+    "threading",
+    "multiprocessing",
+    "logging",
+]
+
+[[tool.importlinter.contracts]]
+name = "Real time enters gates only through clock"
+type = "forbidden"
+# Native forbidden contracts have no negative module selector. Extend this list
+# when adding gates modules; gates.core.clock is the specified clock boundary.
+source_modules = [
+    "gates",
+    "gates.check_cast",
+    "gates.check_mutation",
+    "gates.check_mypy",
+    "gates.check_pyright",
+    "gates.check_pytest",
+    "gates.check_suppressions",
+    "gates.heavy",
+    "gates.no_type_check",
+    "gates.core",
+    "gates.core.checker",
+    "gates.core.project",
+    "gates.core.report",
+    "gates.core.runner",
+    "gates.core.source",
+]
+forbidden_modules = ["time", "datetime"]
+as_packages = false
+allow_indirect_imports = true
