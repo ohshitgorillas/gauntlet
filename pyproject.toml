@@ -54,6 +54,9 @@ explicit_package_bases = true
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
 
+[tool.deptry]
+known_first_party = ["gauntlet"]
+
 [tool.pytest.ini_options]
 addopts = ["--strict-markers", "--strict-config"]
 filterwarnings = ["error"]
