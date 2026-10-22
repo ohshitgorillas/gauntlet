@@ -18,7 +18,9 @@ say, so a KeyboardInterrupt out of `run` is let through and nothing is claimed a
 
 The time cap passes on the clock `run` is handed (the no-wall-clock design spec, decision 6): a positive cap with
 `VirtualClock(passes=...)` at it, against a checker a `Lifeline` holds, which is certainly alive at the clock's first
-poll, so the cap passes at once in virtual time and `run` reports `timed_out`.
+poll, so the cap passes at once in virtual time and `run` reports `timed_out`. In the timeout's group test the clock's
+`after` is the checker's `Beacon` (decision 14): the checker writes its line there once its child holds the FIFO, so
+the cap passes only once the group is whole.
 """
 
 import contextlib
@@ -28,14 +30,17 @@ from pathlib import Path
 
 from gates.core.checker import Command, Completed, run
 from tests.support.clock import VirtualClock
-from tests.support.lifeline import HOLD, WITNESS, Lifeline, Pids, Witness
-
-# A timeout the checker's child opens the FIFO well inside.
-TIMEOUT = 3.0
+from tests.support.lifeline import HOLD, WITNESS, Beacon, Lifeline, Pids, Witness
 
 # A cap that passes only on the VirtualClock handed to run, which lets exactly this many seconds pass at its poll. It
 # lies far past pytest-timeout's 30-second bound, so a run that sits the cap out in real time fails at that bound.
 CAP = 3600.0
+
+# The cap of the in-time and group-kill tests: it too passes only on the VirtualClock handed to run.
+TIMEOUT = CAP
+
+# Seconds a VirtualClock lets pass, short of the cap, while a checker that exits on its own has not yet exited.
+SHORT = CAP / 2
 
 EXIT_CODE = 3
 
@@ -47,7 +52,8 @@ EXIT = "import sys\nsys.exit(int(sys.argv[1]))\n"
 
 SESSION = "import os, sys\nsys.stdout.write(str(os.getsid(0) == os.getpid()))\n"
 
-# Arguments: the FIFO, the pids file, the pid to interrupt or 0, the lifeline's read end, the child's code.
+# Arguments: the FIFO, the pids file, the pid to interrupt or 0, the lifeline's read end, the child's code and, when
+# given, a Beacon's write end, on which it writes a line once its child holds the FIFO and both pids are noted.
 CHECKER = (
     "import os, signal, subprocess, sys\n"
     "fifo, pids, target, line = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]\n"
@@ -58,6 +64,8 @@ CHECKER = (
     "child.stdout.readline()\n"
     "with open(pids, 'w', encoding='utf-8') as out:\n"
     "    out.write(f'{os.getpid()}\\n{child.pid}\\n')\n"
+    "if len(sys.argv) > 6:\n"
+    "    os.write(int(sys.argv[6]), b'whole\\n')\n"
     "if target:\n"
     "    os.kill(target, signal.SIGINT)\n"
     "while os.read(int(line), 65536):\n"
@@ -81,16 +89,36 @@ def _python(code: str, *arguments: str) -> tuple[str, ...]:
     return (sys.executable, "-c", code, *arguments)
 
 
-def _run(cwd: Path, argv: tuple[str, ...], timeout: float | None = None, pass_fds: tuple[int, ...] = ()) -> Completed:
-    return run(Command(argv=argv, cwd=cwd, timeout=timeout, pass_fds=pass_fds))
+def _run(cwd: Path, argv: tuple[str, ...], pass_fds: tuple[int, ...] = ()) -> Completed:
+    return run(Command(argv=argv, cwd=cwd, pass_fds=pass_fds))
+
+
+def _capped_run(cwd: Path, argv: tuple[str, ...], timeout: float, line: Lifeline, beacon: Beacon) -> Completed:
+    """Run the checker with a cap that passes on a VirtualClock at once, once the checker has written on its Beacon."""
+    clock = VirtualClock(passes=timeout, after=beacon.seen)
+    command = Command(
+        argv=(*argv, str(beacon.write_fd)),
+        cwd=cwd,
+        timeout=timeout,
+        pass_fds=(line.read_fd, beacon.write_fd),
+    )
+    return run(command, clock=clock)
 
 
 def _group_run(tmp_path: Path, target: str, timeout: float | None, checker: str = CHECKER) -> bytes:
     """Run the checker and its child through `run`, and read the FIFO the child held to its end."""
-    with Lifeline() as line, Pids(tmp_path / "pids.txt") as pids, Witness(tmp_path / "held.fifo") as witness:
+    with (
+        Lifeline() as line,
+        Pids(tmp_path / "pids.txt") as pids,
+        Witness(tmp_path / "held.fifo") as witness,
+        Beacon() as beacon,
+    ):
         argv = _python(checker, str(witness.path), str(pids.path), target, str(line.read_fd), WITNESS)
         with contextlib.suppress(KeyboardInterrupt):
-            _run(tmp_path, argv, timeout, (line.read_fd,))
+            if timeout is None:
+                _run(tmp_path, argv, (line.read_fd,))
+            else:
+                _capped_run(tmp_path, argv, timeout, line, beacon)
         return witness.ended()
 
 
@@ -115,7 +143,8 @@ def test_timed_out_on_the_clock_run_is_handed(tmp_path: Path) -> None:
 
 def test_in_time(tmp_path: Path) -> None:
     """A checker that exits inside the Command's timeout is not timed_out, and keeps its own exit status."""
-    completed = _run(tmp_path, _python(EXIT, str(EXIT_CODE)), TIMEOUT)
+    command = Command(argv=_python(EXIT, str(EXIT_CODE)), cwd=tmp_path, timeout=TIMEOUT)
+    completed = run(command, clock=VirtualClock(passes=SHORT))
 
     assert (completed.timed_out, completed.status) == (False, EXIT_CODE)
 

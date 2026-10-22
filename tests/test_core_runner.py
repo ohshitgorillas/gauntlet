@@ -45,6 +45,7 @@ from gates.core.report import (
 )
 from gates.core.runner import Gate, Run, Scratch, check_with, main, run_gate
 from tests.support.capture import Captured, captured
+from tests.support.clock import VirtualClock
 from tests.support.fake import FakeRunner, completed
 from tests.support.project import ScaffoldError, scaffold
 
@@ -912,7 +913,8 @@ def test_main_command_line(tmp_path: Path, name: str, status: int, lines: list[s
     """main runs over the paths of its command line and exits with the run's exit code."""
     project = scaffold(tmp_path, {name: "value = 1\n"})
     env = {**environment(), "PYTHONPATH": str(REPOSITORY)}
-    reply = checker.run(Command(argv=(sys.executable, "-c", MAIN, name), cwd=project.root, env=env, timeout=60.0))
+    command = Command(argv=(sys.executable, "-c", MAIN, name), cwd=project.root, env=env, timeout=60.0)
+    reply = checker.run(command, clock=VirtualClock())
 
     assert (reply.status, reply.stdout.splitlines()) == (status, lines)
 
