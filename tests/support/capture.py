@@ -213,8 +213,11 @@ class _Stream(io.RawIOBase):
 
 
 def _text_stream(fd: int, source: str, reader: _Reader) -> io.TextIOWrapper:
+    raw = _Stream(fd, source, reader)
+    if not raw.writable():
+        raise io.UnsupportedOperation
     return io.TextIOWrapper(
-        _Stream(fd, source, reader),
+        raw,
         encoding="utf-8",
         errors="backslashreplace",
         write_through=True,
@@ -345,7 +348,7 @@ class _Capture:
         self,
         kind: type[BaseException] | None,
         raised: BaseException | None,
-        traceback: TracebackType | None,
+        _traceback: TracebackType | None,
     ) -> None:
         try:
             self._reader.finish()

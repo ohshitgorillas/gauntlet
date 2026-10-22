@@ -172,9 +172,9 @@ class _Interrupts:
 
     def __exit__(
         self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        traceback: TracebackType | None,
+        _exc_type: type[BaseException] | None,
+        _exc_value: BaseException | None,
+        _traceback: TracebackType | None,
     ) -> None:
         """Put back every handler replaced, then raise each signal recorded, which its own handler now answers."""
         self.holding = True
