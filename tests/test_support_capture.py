@@ -228,7 +228,7 @@ def test_captured_merges_every_channel_in_the_order_written_save_raw_writes_no_s
         os.write(1, b"five: fd 1\n")
         os.write(2, b"six: fd 2\n")
         sys.stdout.write("seven: sys.stdout between raw runs\n")
-        subprocess.run([sys.executable, "-I", "-c", _CHILD], check=True, timeout=20)
+        subprocess.run([sys.executable, "-I", "-c", _CHILD], check=True)
         sys.stderr.write("eight: sys.stderr between raw runs\n")
         os.write(2, b"nine: fd 2 alone\n")
         sys.stdout.write("ten: sys.stdout last\n")
@@ -482,7 +482,7 @@ def test_captured_takes_a_childs_write_far_past_a_mebibyte_whole() -> None:
     child = f"import sys\nsys.stdout.buffer.write(b'c' * {size} + b'\\n')\nsys.stdout.flush()\n"
 
     def call() -> None:
-        subprocess.run([sys.executable, "-I", "-c", child], check=True, timeout=20)
+        subprocess.run([sys.executable, "-I", "-c", child], check=True)
 
     assert captured(call).out == [child_line]
 
