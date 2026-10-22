@@ -4,9 +4,9 @@ Source: the capture design spec under docs/superpowers/specs/, its Modules and D
 of fds 1 and 2 points at a pipe of its own for the length of the call, so a write blocks as it would on a pipe, is never
 cut and never fails for size; a call that raises propagates unchanged, as itself, and its `Output` is read as data
 through `output_of(exc)`, not through an attribute on the exception, while `output_of` on an exception `captured` never
-recorded raises `CaptureUnrecordedError` carrying that exception (decision 2); once the call has ended, a holder of fd 1
-or 2 past `timeout` seconds makes `captured` raise `CaptureError`, carrying `bound` and `output`, raised from the call's
-own exception when the call raised too.
+recorded raises `CaptureUnrecordedError` carrying that exception (decision 2). Once the call has ended, `captured`
+keeps no bound of its own on a holder of fd 1 or 2: pytest-timeout is the one bound (the capture design's "A holder left
+behind" bullet and decision 3), so no test here holds the fds past the call.
 
 Order, decision 1: `.out` and `.err` hold each fd's lines exactly in the order written, and `.merged` holds every line of
 both, each placed by the arrival of its first byte, so a line one stream interrupts mid-line is whole and placed where
@@ -48,12 +48,9 @@ import warnings
 from collections.abc import Callable
 from typing import TextIO
 
-from types import TracebackType
-
 import pytest
 
 from tests.support.capture import (
-    CaptureError,
     CaptureSetupError,
     CaptureUnrecordedError,
     captured,
@@ -148,65 +145,6 @@ _RAISED_OUT_ONE = "raised out one: sys.stdout\n"
 _RAISED_ERR_ONE = "raised err one: sys.stderr\n"
 _RAISED_OUT_TWO = "raised out two: sys.stdout again\n"
 _RAISED_ERR_TWO = "raised err two: sys.stderr again\n"
-
-# Lines a holding child writes before it signals it is ready.
-_HELD_OUT = "held: its fd 1\n"
-_HELD_ERR = "held: its fd 2\n"
-
-# A child that inherits fds 1 and 2, writes a line to each, writes one byte to the ready fd named by argv[1], then holds
-# fds 1 and 2 open until the hold fd named by argv[2] reaches end of file, which closing its write end, or this
-# process's exit, brings.
-_HOLDER = (
-    "import os, sys\n"
-    f"os.write(1, {_HELD_OUT.encode()!r})\n"
-    f"os.write(2, {_HELD_ERR.encode()!r})\n"
-    "ready, hold = int(sys.argv[1]), int(sys.argv[2])\n"
-    "os.write(ready, b'r')\n"
-    "os.close(ready)\n"
-    "os.read(hold, 1)\n"
-)
-
-
-class _Holder:
-    """Starts children that keep fds 1 and 2 open past the call, and owns them until the `with` block ends."""
-
-    def __init__(self) -> None:
-        self.processes: list[subprocess.Popen[bytes]] = []
-        self._hold_writers: list[int] = []
-
-    def start(self) -> subprocess.Popen[bytes]:
-        ready_read, ready_write = os.pipe()
-        hold_read, hold_write = os.pipe()
-        self._hold_writers.append(hold_write)
-        try:
-            process = subprocess.Popen(
-                [sys.executable, "-I", "-c", _HOLDER, str(ready_write), str(hold_read)],
-                pass_fds=(ready_write, hold_read),
-            )
-        finally:
-            os.close(ready_write)
-            os.close(hold_read)
-        self.processes.append(process)
-        try:
-            os.read(ready_read, 1)
-        finally:
-            os.close(ready_read)
-        return process
-
-    def __enter__(self) -> "_Holder":
-        return self
-
-    def __exit__(
-        self,
-        kind: type[BaseException] | None,
-        value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        for hold_write in self._hold_writers:
-            os.close(hold_write)
-        for process in self.processes:
-            process.kill()
-            process.wait(timeout=20)
 
 
 def _fd_identity(fd: int) -> tuple[int, int]:
@@ -684,74 +622,6 @@ def test_output_of_an_exception_captured_never_recorded_raises_its_own_error_car
     assert raised.value.exc is exc
 
 
-def test_a_child_left_holding_the_fds_makes_captured_raise_with_the_bound_and_what_it_read() -> (
-    None
-):
-    with _Holder() as holder:
-
-        def call() -> None:
-            holder.start()
-
-        with pytest.raises(CaptureError) as raised:
-            captured(call, timeout=0.5)
-        still_running = holder.processes[0].poll()
-    error = raised.value
-
-    assert (error.bound, error.output.out, error.output.err, still_running) == (
-        0.5,
-        [_HELD_OUT],
-        [_HELD_ERR],
-        None,
-    )
-
-
-def test_a_raising_call_that_leaves_a_child_holding_the_fds_raises_capture_error_from_its_exception() -> (
-    None
-):
-    thrown: list[Boom] = []
-    with _Holder() as holder:
-
-        def call() -> None:
-            holder.start()
-            thrown.append(Boom())
-            raise thrown[0]
-
-        with pytest.raises(CaptureError) as raised:
-            captured(call, timeout=0.5)
-
-    assert raised.value.__cause__ is thrown[0]
-
-
-def test_captured_restores_fds_streams_and_threads_before_it_raises_on_a_held_fd() -> (
-    None
-):
-    stdout_before, stderr_before = sys.stdout, sys.stderr
-    fd1_before, fd2_before = _fd_identity(1), _fd_identity(2)
-    threads_before = set(threading.enumerate())
-    with _Holder() as holder:
-
-        def call() -> None:
-            holder.start()
-
-        with pytest.raises(CaptureError):
-            captured(call, timeout=0.5)
-        after = (
-            set(threading.enumerate()),
-            sys.stdout,
-            sys.stderr,
-            _fd_identity(1),
-            _fd_identity(2),
-        )
-
-    assert after == (
-        threads_before,
-        stdout_before,
-        stderr_before,
-        fd1_before,
-        fd2_before,
-    )
-
-
 # Lines a call writes before it leaves `captured` one way or another, and a line a later capture writes.
 _PATH_OUT = "written to fd 1 before the call ends\n"
 _PATH_ERR = "written to fd 2 before the call ends\n"
@@ -820,21 +690,11 @@ def _interrupted() -> list[str]:
     return _NO_LINES
 
 
-def _held() -> list[str]:
-    with _Holder() as holder:
-        try:
-            captured(holder.start, timeout=0.5)
-        except CaptureError as error:
-            return error.output.out
-    return _NO_LINES
-
-
 # Each way out of `captured`, run to its end, and the fd 1 lines it hands back.
 _EXIT_PATHS = [
     pytest.param(_returned, [_PATH_OUT], id="the call returned"),
     pytest.param(_raised, [_PATH_OUT], id="the call raised"),
     pytest.param(_interrupted, [_PATH_OUT], id="the call was interrupted"),
-    pytest.param(_held, [_HELD_OUT], id="a child held the fds past the bound"),
 ]
 
 

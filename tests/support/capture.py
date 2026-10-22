@@ -5,8 +5,9 @@ write end of a pipe of their own, so a write to either fd, from this process or 
 would on any pipe whose reader is alive, and is never cut or failed for size. A reader thread drains both read ends
 while the call runs. sys.stdout and sys.stderr are text streams over fds 1 and 2 whose writes skip the pipes: each
 first drains both pipes, then records its own bytes, so it is placed after every write that finished before it. Once
-the call has ended, capture closes its write ends and the reader drains until both pipes reach end of file, for at most
-`timeout` seconds; past that bound, a holder of fd 1 or 2 makes `captured` raise `CaptureError`.
+the call has ended, capture closes its write ends and the reader drains until both pipes reach end of file, with no bound
+of its own: a holder of fd 1 or 2 is waited on until it closes them, and pytest-timeout is the one bound (capture design,
+"A holder left behind" and decision 3).
 """
 
 import bisect
@@ -18,15 +19,12 @@ import select
 import sys
 import threading
 from collections.abc import Buffer, Callable
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from types import TracebackType
 from typing import Literal, override
 
 _OUT, _ERR = "out", "err"
 _READ_SIZE = 1 << 16
-
-
-HOLD_BOUND: float = 5.0
 
 
 class Output:
@@ -60,18 +58,6 @@ class Captured[T](Output):
     @property
     def result(self) -> T:
         return self._result
-
-
-class CaptureError(Exception):
-    """Fd 1 or 2 was still held past the bound once the call had ended."""
-
-    bound: float
-    output: Output
-
-    def __init__(self, bound: float, output: Output) -> None:
-        super().__init__(f"captured: fd 1 or 2 was still held {bound} seconds after the call ended")
-        self.bound = bound
-        self.output = output
 
 
 class CaptureSetupError(Exception):
@@ -173,17 +159,14 @@ class _Reader:
             if data:
                 self.chunks.append((source, data))
 
-    def finish(self, timeout: float) -> bool:
-        """Wait up to `timeout` seconds for both pipes to reach end of file, then stop and join; true if they did not."""
+    def finish(self) -> None:
+        """Wait, with no bound, for both pipes to reach end of file, then join; a wait that is interrupted stops it first."""
         try:
-            wait([self._done], timeout)
+            self._done.result()
         finally:
-            held = not self._done.done()
-            if held:
+            if not self._done.done():
                 os.write(self._stop_write, b"\0")
             self._executor.shutdown(wait=True)
-        self._done.result()
-        return held
 
 
 class _Stream(io.RawIOBase):
@@ -297,11 +280,10 @@ class _Capture:
     """One capture, set up when made: its saved fds, its pipes and its reader, cleaned up as the `with` block ends.
 
     A failure while it sets up closes every fd it opened before it raises. The call's exception leaves the `with` block
-    as itself; the cleanup only records the Output against it, and raises CaptureError from it on a held fd.
+    as itself; the cleanup only records the Output against it.
     """
 
-    def __init__(self, timeout: float) -> None:
-        self._timeout = timeout
+    def __init__(self) -> None:
         self._owned: list[int] = []
         self.output = Output([], [], [])
         with contextlib.ExitStack() as undo:
@@ -344,25 +326,23 @@ class _Capture:
         traceback: TracebackType | None,
     ) -> None:
         try:
-            held = self._reader.finish(self._timeout)
+            self._reader.finish()
         finally:
             _close_all(self._owned)
         self.output = _output(self._reader.chunks)
         if raised is not None:
             _record(raised, self.output)
-        if held:
-            raise CaptureError(self._timeout, self.output) from raised
 
 
-def captured[T](call: Callable[[], T], *, timeout: float = HOLD_BOUND) -> Captured[T]:
+def captured[T](call: Callable[[], T]) -> Captured[T]:
     """Run `call` in this interpreter with fds 1 and 2 and sys.stdout and sys.stderr captured, restoring them afterwards.
 
-    A call that raised propagates as itself, and output_of reads its Output. Fd 1 or 2 still held `timeout` seconds
-    after the call ended raises CaptureError, from the call's exception when it raised too. A failure while capture sets
-    up raises CaptureSetupError, after the same cleanup, and the call never runs.
+    A call that raised propagates as itself, and output_of reads its Output. Once the call has ended, this blocks until
+    fds 1 and 2 reach end of file; pytest-timeout is the one bound. A failure while capture sets up raises
+    CaptureSetupError, after the same cleanup, and the call never runs.
     """
     _flush_streams()
-    with _Capture(timeout) as capture:
+    with _Capture() as capture:
         result = capture.run(call)
     return Captured(result, capture.output)
 
