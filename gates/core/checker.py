@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
+from collections.abc import Callable, Collection, Generator, Iterable, Iterator, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,9 +25,6 @@ LOWEST_PRIORITY = 19
 
 # The signals a closing terminal, the quit key, `kill` and the interrupt key send to end a process.
 ENDING_SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM)
-
-# How often `run_all`, cleaning up, kills again the groups of checkers started since, while it waits for its workers.
-REKILL = 0.05
 
 # The GateError's report when the count of CPUs cannot be read.
 UNREAD_CPUS = "cannot read the host's CPU count"
@@ -252,18 +249,35 @@ class _Live:
     """The checkers `run` has started, in any thread, and not yet reaped, so that `run_all` can kill their groups.
 
     A checker is reaped only under the lock and leaves the set there, so every checker the set holds is unreaped and
-    its pid still names its group.
+    its pid still names its group. While any `closing` lasts, each checker added is killed under the lock its add
+    takes, so a cleanup needs no poll to end the checkers started after its own kill.
     """
 
     def __init__(self) -> None:
-        """Hold no checker yet."""
+        """Hold no checker yet, with no cleanup under way."""
         self._lock = threading.Lock()
         self._processes: set[subprocess.Popen[bytes]] = set()
+        self._closings = 0
 
     def add(self, process: subprocess.Popen[bytes]) -> None:
-        """Hold a checker just started."""
+        """Hold a checker just started; kill its group at once while a cleanup lasts."""
         with self._lock:
             self._processes.add(process)
+            if self._closings:
+                _kill_unreaped(process)
+
+    @contextlib.contextmanager
+    def closing(self) -> Generator[None]:
+        """Kill once the group of every checker held, then kill each one added until the block ends."""
+        with self._lock:
+            self._closings += 1
+            for process in self._processes:
+                _kill_unreaped(process)
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._closings -= 1
 
     def reap(self, process: subprocess.Popen[bytes]) -> None:
         """Kill the checker's group unless the checker has been reaped, then reap it and let it go."""
@@ -271,12 +285,6 @@ class _Live:
             _kill_unreaped(process)
             process.wait()
             self._processes.discard(process)
-
-    def kill_all(self) -> None:
-        """Kill the group of every checker held."""
-        with self._lock:
-            for process in self._processes:
-                _kill_unreaped(process)
 
 
 _LIVE = _Live()
@@ -409,7 +417,9 @@ type NextDone = Callable[[Collection[Future[Completed]]], set[Future[Completed]]
 
 
 def first_done(running: Collection[Future[Completed]]) -> set[Future[Completed]]:
-    raise NotImplementedError
+    """Block, with no timeout, until at least one future in running is done; return the done ones."""
+    done, _ = wait(running, return_when=FIRST_COMPLETED)
+    return done
 
 
 def run_all(
@@ -425,20 +435,20 @@ def run_all(
     taking a Command or from the process is that Command's result and stops the run: no Command is taken after it is
     seen, the ones running are waited for, and the list ends at the first error in command order. While it runs, the
     main thread answers ENDING_SIGNALS as `run` does; on any exception there, a signal's included, it holds signals,
-    kills the group of every checker `run` has started and not yet reaped, waits for every worker, puts the handlers
-    back, and only then lets the exception and each signal recorded take their course.
+    kills once the group of every checker `run` has started and not yet reaped, waits until no worker is running, puts
+    the handlers back, and only then lets the exception and each signal recorded take their course. While it waits,
+    each checker `run` starts is killed as it is added. Every wait on the workers, the cleanup's included, is a call
+    to next_done, which only a test hands in.
     """
-    if next_done is not first_done:
-        raise NotImplementedError
     results: dict[int, Completed | GateError | OSError] = {}
     running: dict[Future[Completed], int] = {}
     with _Interrupts() as interrupts, ThreadPoolExecutor(max_workers=cap) as pool:
         try:
             interrupts.release()
-            _feed(process, iter(commands), cap, pool, running, results, interrupts)
+            _feed(process, iter(commands), cap, pool, running, results, interrupts, next_done)
         except BaseException:
             interrupts.holding = True
-            _drain(running)
+            _drain(running, next_done)
             raise
     return _in_order(results)
 
@@ -451,10 +461,12 @@ def _feed(
     running: dict[Future[Completed], int],
     results: dict[int, Completed | GateError | OSError],
     interrupts: _Interrupts,
+    next_done: NextDone,
 ) -> None:
     """Start Commands while fewer than cap run and none has failed, and gather each result until none is running.
 
     A worker is submitted while signals are held, so no signal lands between its start and its record in `running`.
+    Each wait for a worker to end is a call to next_done.
     """
     taken = 0
     taking = True
@@ -475,8 +487,7 @@ def _feed(
             taken += 1
         if not running:
             return
-        done, _ = wait(running, return_when=FIRST_COMPLETED)
-        for future in done:
+        for future in next_done(running.keys()):
             index = running.pop(future)
             try:
                 results[index] = future.result()
@@ -485,13 +496,15 @@ def _feed(
                 taking = False
 
 
-def _drain(running: dict[Future[Completed], int]) -> None:
-    """Kill the group of every unreaped checker, again and again, until every worker has ended."""
-    while True:
-        _LIVE.kill_all()
-        _, left = wait(running, timeout=REKILL)
-        if not left:
-            return
+def _drain(running: dict[Future[Completed], int], next_done: NextDone) -> None:
+    """Kill once the group of every unreaped checker, then wait through next_done until no worker is running.
+
+    While it waits, each checker `run` starts is killed as it is added, so no poll is needed.
+    """
+    with _LIVE.closing():
+        left = set(running)
+        while left:
+            left -= next_done(frozenset(left))
 
 
 def _in_order(results: Mapping[int, Completed | GateError | OSError]) -> list[Completed | GateError | OSError]:
