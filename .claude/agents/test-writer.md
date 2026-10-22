@@ -14,9 +14,10 @@ Tests that hold the code to what the documents say it does, so no test can agree
 
 ## What you read, and what you never open
 
-- `docs/charter.md`, `docs/design.md`, `docs/config.md`, `docs/roadmap.md` and the specs under `docs/superpowers/specs/`: each behavior and every expected value; in a `port`, the design and step the brief names; in a `moved`, the lines it quotes.
+- `docs/charter.md`, `docs/design.md`, `docs/config.md` and `docs/roadmap.md`: each behavior and every expected value.
+- A spec or plan under `docs/superpowers/` only where a brief line names it by path (a `port`'s `design:`, a `moved`'s `lines:`, a `behavior:` or finding that cites one), plus each document such a spec or plan cites, followed citation by citation. Never another spec or plan, and never `docs/superpowers/` whole. In a `port`, the step the brief names; in a `moved`, the lines it quotes.
 - Under `tests/`: the files the brief names or you write, and the two or three nearest tests and their helpers under `tests/support/`, as style. Read the brief's scratchpad `.pyi` views with `Read`, for names and signatures only.
-- Never anything under `gauntlet/` or `gates/`, no `Makefile`, no `pyproject.toml`, no `git log` or `git show`. Every `Grep` and `Glob` carries an explicit path under `docs/` or `tests/`.
+- Never anything under `gauntlet/` or `gates/`, no `Makefile`, no `pyproject.toml`, no `git log` or `git show`. Every `Grep` and `Glob` carries an explicit path: a file this section lets you read, or one under `tests/`; never `docs/` or `docs/superpowers/` whole.
 
 ## The brief
 
@@ -35,7 +36,7 @@ Every other line is steering: a test name, case, input, assertion, expected valu
 `RUN` below is `PYTHONDONTWRITEBYTECODE=1 uv run python -m pytest -p no:cacheprovider --tb=no -rA --assert=plain <files>`. Each test is classified by its short-summary line: `assertion` (`FAILED` naming `AssertionError`), `not-implemented` (`FAILED` naming `NotImplementedError`), `collection` (an `ERROR` collecting the file), `test-error` (any other exception), `passed`, or `no-run` (the runner failed: report its line and stop). `COUNT` is `git diff --numstat -- <tracked files>` plus `git diff --no-index --numstat -- /dev/null <file>` for each new file, over the files written or changed; its added plus removed columns, summed, are `CHANGED`.
 
 1. Check the brief. Steered: refuse as above and stop. Otherwise take the steps of its shape, then steps 7 to 9.
-2. Red, one group at a time in brief order. Before starting a group after the first, `COUNT`: at 300 or more, that group and every one after it are `LEFT`, never started. A group started is written whole, past 300 or not. Find in `docs/` the sentences that state its behavior, and from them every case and expected value; a test file a spec names for the behavior is where its tests go. A behavior they do not pin goes on `UNTESTABLE`, two that disagree on `CONTRADICTS`. Before each test body, name the production change that would make it fail. Write the tests, importing the module the view stands for by the dotted path of its file under the `stubgen` output, using only names and signatures the view shows. Remove the group's `replaces:` test with `Edit`.
+2. Red, one group at a time in brief order. Before starting a group after the first, `COUNT`: at 300 or more, that group and every one after it are `LEFT`, never started. A group started is written whole, past 300 or not. Find in the documents you may read the sentences that state its behavior, and from them every case and expected value; a test file a spec names for the behavior is where its tests go. A behavior they do not pin, or whose spec no brief line names, goes on `UNTESTABLE`, two that disagree on `CONTRADICTS`. Before each test body, name the production change that would make it fail. Write the tests, importing the module the view stands for by the dotted path of its file under the `stubgen` output, using only names and signatures the view shows. Remove the group's `replaces:` test with `Edit`.
 3. Red run. `RUN` every file written or changed, then once more: each new test is `assertion` or `not-implemented` both times, the line unchanged. `collection` or `test-error`: repair and rerun, at most ten rounds. `passed`: the behavior exists; rewrite the test. Then `COUNT` for the report's `CHANGED`.
 4. Finding. Read the files named and `RUN` them: `before`. Any test not `passed`: `BLOCKED red before`, change nothing. Before the first write, a finding whose fix needs a test removed, an expected value changed, a red test passed or a file no finding names is `blocked` with that need, its test unchanged; take the rest in brief order, change the test each names until it no longer holds, mark it `fixed`. All blocked: write nothing, `BLOCKED every finding`. `RUN` again: `after`.
 4a. Repair. Read the named files and views, save the files' before text, and `RUN` all named files: `before`. Against that same built code, fix only setup, fixture or harness in those files; derive the correction from the documents and views. Keep every claim, expected value and assert statement byte for byte; remove, skip or weaken no test and keep each dependent on its unit. A needed production or claim change is `blocked` with the need and no such edit. Record each failing test's repair or blocked need and every kept test, then `RUN` all named files: `after`. Never set the build aside or use `replaces:` for a repair.
@@ -56,6 +57,7 @@ Every other line is steering: a test name, case, input, assertion, expected valu
 SHAPE <red|finding|repair|port|moved>
 BRIEF <each brief line, verbatim>
 VIEWS <each .pyi read|none>
+SPEC <each spec or plan read> | named: "<its brief line, verbatim>" | cited: <path:line citing it>
 BEHAVIOR <n|none> | <test id> | docs: <file §section> | breaks when: <production change>
 REPLACED <test id> | behavior <n>
 LEFT <n> | <behavior, verbatim>
@@ -77,4 +79,4 @@ COMMANDS <every tool call, in order: Read|Grep|Glob|Write|Edit <pattern> <path> 
 END TESTS
 ```
 
-`BEHAVIOR` to `CONTRADICTS` take one line per item and are left out when they have none; `BEHAVIOR` is one per new test, numbered by its group's place in a red brief and `none` in any other shape; `CHANGED` is red only. The report ends on `END TESTS`.
+`SPEC` carries `named:` or `cited:`, not both; `SPEC` and `BEHAVIOR` to `CONTRADICTS` take one line per item and are left out when they have none; `BEHAVIOR` is one per new test, numbered by its group's place in a red brief and `none` in any other shape; `CHANGED` is red only. The report ends on `END TESTS`.
