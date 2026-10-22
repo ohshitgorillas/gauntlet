@@ -5,7 +5,7 @@ import os
 import sys
 from contextlib import ExitStack
 from pathlib import Path
-from typing import override
+from typing import IO, override
 
 from gates.core.checker import Command, run as run_command, throttle_line
 from gates.core.report import GateError, Outcome, Unfinished, exit_code, output_lines, write
@@ -16,27 +16,46 @@ LOCK_OPTION = "--lock"
 
 END_OPTIONS = "--"
 
+WAITING: str = "heavy: waiting for the lock {path}"
+
+
+def acquire(handle: IO[str], lock: Path, err: IO[str]) -> None:
+    """Take an exclusive `fcntl.flock` on `handle`, the open of `lock`, and return once it is held.
+
+    The lock is asked for without blocking first. When another holder has it, `WAITING` for `lock`
+    and a line end are written on `err` once, as one write, and flushed, so a reader of `err` sees
+    the wait as that line; then the lock is waited on, never polled. Any `OSError` from the lock
+    reaches the caller. `fcntl` is imported here, not with the module, because a host without it
+    gets no throttle line, which `main` reports with exit 2 before this runs.
+    """
+    import fcntl
+
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        err.write(f"{WAITING.format(path=lock)}\n")
+        err.flush()
+        fcntl.flock(handle, fcntl.LOCK_EX)
+
 
 def run(lock: Path, line: list[str]) -> int:
     """Hold an exclusive `fcntl.flock` on `lock` for the whole of `line`'s run and return its exit status.
 
-    The lock is waited on, never polled, so a second run on the same path starts once the first
-    ends. The locked descriptor is passed to `line`'s process, as `flock(1)` passes it, so the
+    The lock is taken through `acquire`, with `sys.stderr` as its stream, so a run that finds the
+    lock held writes `WAITING` for `lock` there once and then waits, never polls, and a second run
+    on the same path starts once the first ends. The locked descriptor is passed to `line`'s process, as `flock(1)` passes it, so the
     lock lasts as long as the command and every process that inherits the descriptor from it,
     not only as long as this wrapper. The line runs through `checker.run`, writing straight to this
     process's own output, in a session of its own whose whole group is killed if a signal ends the
     wrapper, so a wrapper that is stopped leaves no command holding the lock.
 
     Raises GateError where `lock` cannot be opened or locked, or the line's program cannot start;
-    `line` is then never run. `fcntl` is imported here, not with the module, because a host without
-    it gets no line, which `main` reports with exit 2 before this runs.
+    `line` is then never run.
     """
-    import fcntl
-
     with ExitStack() as stack:
         try:
             handle = stack.enter_context(lock.open("a", encoding="utf-8"))
-            fcntl.flock(handle, fcntl.LOCK_EX)
+            acquire(handle, lock, sys.stderr)
         except OSError as error:
             message = f"cannot lock {lock}: {error}"
             raise GateError(message) from error
