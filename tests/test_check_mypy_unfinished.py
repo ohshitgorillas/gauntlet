@@ -73,7 +73,11 @@ def _first_number(text: str) -> int | None:
 
 def _places(name: str, printed: str) -> set[int | None]:
     """For each printed line that names `name`, the first number printed after that name."""
-    return {_first_number(line.partition(name)[2]) for line in printed.splitlines() if name in line}
+    return {
+        _first_number(line.partition(name)[2])
+        for line in printed.splitlines()
+        if name in line
+    }
 
 
 def test_syntax_alone(tmp_path: Path) -> None:
@@ -85,56 +89,86 @@ def test_syntax_alone(tmp_path: Path) -> None:
 
 def test_syntax_beside_finding(tmp_path: Path) -> None:
     """A finding in another file does not turn an unparsed file into a run that finished."""
-    files = [_seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR), _seed(tmp_path, "typed.py", TYPE_ERROR)]
+    files = [
+        _seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR),
+        _seed(tmp_path, "typed.py", TYPE_ERROR),
+    ]
 
     assert main(files) == 2
 
 
 def test_syntax_before_clean(tmp_path: Path) -> None:
     """A clean file checked after an unparsed one does not clear the unfinished verdict."""
-    files = [_seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR), _seed(tmp_path, "clean.py", WELL_TYPED)]
+    files = [
+        _seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR),
+        _seed(tmp_path, "clean.py", WELL_TYPED),
+    ]
 
     assert main(files) == 2
 
 
 def test_syntax_after_finding(tmp_path: Path) -> None:
     """An unparsed file checked after a file with a finding still makes the run unfinished."""
-    files = [_seed(tmp_path, "typed.py", TYPE_ERROR), _seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR)]
+    files = [
+        _seed(tmp_path, "typed.py", TYPE_ERROR),
+        _seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR),
+    ]
 
     assert main(files) == 2
 
 
 def test_syntax_stub(tmp_path: Path) -> None:
     """A .pyi file is a Python file, so one the checker cannot parse leaves it unfinished."""
-    files = [_seed(tmp_path, "typed.py", TYPE_ERROR), _seed(tmp_path, STUB_NAME, STUB_SYNTAX_ERROR)]
+    files = [
+        _seed(tmp_path, "typed.py", TYPE_ERROR),
+        _seed(tmp_path, STUB_NAME, STUB_SYNTAX_ERROR),
+    ]
 
     assert main(files) == 2
 
 
 def test_syntax_stub_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """The checker's report on an unparsed .pyi file places the syntax error on its seeded line."""
-    main([_seed(tmp_path, "typed.py", TYPE_ERROR), _seed(tmp_path, STUB_NAME, STUB_SYNTAX_ERROR)])
+    main(
+        [
+            _seed(tmp_path, "typed.py", TYPE_ERROR),
+            _seed(tmp_path, STUB_NAME, STUB_SYNTAX_ERROR),
+        ]
+    )
 
     assert STUB_LINE in _places(STUB_NAME, _printed(capsys))
 
 
 def test_syntax_shebang(tmp_path: Path) -> None:
     """An extensionless file whose shebang names python is a Python file, so one the checker cannot parse leaves it unfinished."""
-    files = [_seed(tmp_path, "typed.py", TYPE_ERROR), _seed(tmp_path, SHEBANG_NAME, SHEBANG_SYNTAX_ERROR)]
+    files = [
+        _seed(tmp_path, "typed.py", TYPE_ERROR),
+        _seed(tmp_path, SHEBANG_NAME, SHEBANG_SYNTAX_ERROR),
+    ]
 
     assert main(files) == 2
 
 
-def test_syntax_shebang_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_syntax_shebang_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """The checker's report on an unparsed shebang file places the syntax error on its seeded line."""
-    main([_seed(tmp_path, "typed.py", TYPE_ERROR), _seed(tmp_path, SHEBANG_NAME, SHEBANG_SYNTAX_ERROR)])
+    main(
+        [
+            _seed(tmp_path, "typed.py", TYPE_ERROR),
+            _seed(tmp_path, SHEBANG_NAME, SHEBANG_SYNTAX_ERROR),
+        ]
+    )
 
     assert SHEBANG_LINE in _places(SHEBANG_NAME, _printed(capsys))
 
 
 def test_null_byte(tmp_path: Path) -> None:
     """A file holding a null byte is source the checker cannot parse."""
-    files = [_seed(tmp_path, "typed.py", TYPE_ERROR), _seed(tmp_path, "nulled.py", NULL_BYTE)]
+    files = [
+        _seed(tmp_path, "typed.py", TYPE_ERROR),
+        _seed(tmp_path, "nulled.py", NULL_BYTE),
+    ]
 
     assert main(files) == 2
 
@@ -168,17 +202,31 @@ def test_syntax_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> No
     assert SYNTAX_LINE in _places(SYNTAX_NAME, _printed(capsys))
 
 
-def test_syntax_report_beside_finding(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_syntax_report_beside_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """The checker's report on the unparsed file is printed even when another file holds a finding."""
-    main([_seed(tmp_path, "typed.py", TYPE_ERROR), _seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR)])
+    main(
+        [
+            _seed(tmp_path, "typed.py", TYPE_ERROR),
+            _seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR),
+        ]
+    )
 
     assert SYNTAX_LINE in _places(SYNTAX_NAME, _printed(capsys))
 
 
 def _checker_line(path: Path) -> str:
     """The first line mypy itself prints naming `path` when run on that file alone."""
-    run = subprocess.run([sys.executable, "-m", "mypy", str(path)], capture_output=True, text=True, check=False)
-    return next(line for line in (run.stdout + run.stderr).splitlines() if path.name in line)
+    run = subprocess.run(
+        [sys.executable, "-m", "mypy", str(path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return next(
+        line for line in (run.stdout + run.stderr).splitlines() if path.name in line
+    )
 
 
 def test_unreadable_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

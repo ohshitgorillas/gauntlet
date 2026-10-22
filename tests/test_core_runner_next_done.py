@@ -38,7 +38,9 @@ class Quiet:
     def expected_status(self, report: int) -> int:
         return 0
 
-    def lines(self, report: int, batch: Sequence[Source], *, stopped: bool) -> list[Line]:
+    def lines(
+        self, report: int, batch: Sequence[Source], *, stopped: bool
+    ) -> list[Line]:
         return []
 
 
@@ -62,7 +64,9 @@ class Noting:
         self.noted: list[int] = []
         self._entered = entered
 
-    def __call__(self, running: Collection[Future[Completed]]) -> set[Future[Completed]]:
+    def __call__(
+        self, running: Collection[Future[Completed]]
+    ) -> set[Future[Completed]]:
         self.noted.append(len(running))
         self._entered.set()
         return first_done(running)
@@ -77,8 +81,18 @@ def test_check_with_waits_through_run_next_done(tmp_path: Path) -> None:
     entered = threading.Event()
     process = Held([completed()], entered)
     next_done = Noting(entered)
-    run = Run(project=project, sources=sources, scratch=Scratch(tmp_path), process=process, next_done=next_done)
+    run = Run(
+        project=project,
+        sources=sources,
+        scratch=Scratch(tmp_path),
+        process=process,
+        next_done=next_done,
+    )
 
     outcome = check_with(Quiet())(run)
 
-    assert (next_done.noted, len(process.commands), outcome) == ([1], 1, Outcome(lines=()))
+    assert (next_done.noted, len(process.commands), outcome) == (
+        [1],
+        1,
+        Outcome(lines=()),
+    )

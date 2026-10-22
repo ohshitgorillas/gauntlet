@@ -36,7 +36,12 @@ class Step:
 class Scripted:
     """Hold calls until their paired next_done observes all workers under way."""
 
-    def __init__(self, steps: Mapping[str, Step], *, key: Callable[[Command], str] = last_argument) -> None:
+    def __init__(
+        self,
+        steps: Mapping[str, Step],
+        *,
+        key: Callable[[Command], str] = last_argument,
+    ) -> None:
         self.steps = dict(steps)
         self.key = key
         self.called: list[str] = []
@@ -85,7 +90,9 @@ class Scripted:
         with self._condition:
             self._condition.notify_all()
 
-    def next_done(self, running: Collection[Future[Completed]]) -> set[Future[Completed]]:
+    def next_done(
+        self, running: Collection[Future[Completed]]
+    ) -> set[Future[Completed]]:
         """Release the started calls together, then wait for a completed future."""
         try:
             with self._condition:

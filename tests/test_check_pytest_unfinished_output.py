@@ -52,7 +52,10 @@ def _seed(root: Path, relative: str, source: str) -> Path:
 
 def _printed(root: Path, source: str) -> tuple[list[str], str]:
     """The lines the gate printed over the seeded module and its speaking conftest, endings dropped, split off its last."""
-    paths = [_seed(root, "tests/test_seeded.py", source), _seed(root, "tests/conftest.py", SPEAKING_CONFTEST)]
+    paths = [
+        _seed(root, "tests/test_seeded.py", source),
+        _seed(root, "tests/conftest.py", SPEAKING_CONFTEST),
+    ]
     lines = [line.rstrip("\n") for line in captured(lambda: main(paths)).merged]
     return lines[:-1], "".join(lines[-1:])
 
@@ -61,11 +64,19 @@ def test_empty(tmp_path: Path) -> None:
     """Over a module that collected no test, pytest's stdout line and its stderr line both print before the count line."""
     before, last = _printed(tmp_path, NO_TESTS)
 
-    assert (OUT_TOKEN in before, ERR_TOKEN in before, COUNT_LINE.fullmatch(last) is not None) == (True, True, True)
+    assert (
+        OUT_TOKEN in before,
+        ERR_TOKEN in before,
+        COUNT_LINE.fullmatch(last) is not None,
+    ) == (True, True, True)
 
 
 def test_error(tmp_path: Path) -> None:
     """Over a module whose import fails, pytest's stdout line and its stderr line both print before the count line."""
     before, last = _printed(tmp_path, COLLECTION_ERROR)
 
-    assert (OUT_TOKEN in before, ERR_TOKEN in before, COUNT_LINE.fullmatch(last) is not None) == (True, True, True)
+    assert (
+        OUT_TOKEN in before,
+        ERR_TOKEN in before,
+        COUNT_LINE.fullmatch(last) is not None,
+    ) == (True, True, True)

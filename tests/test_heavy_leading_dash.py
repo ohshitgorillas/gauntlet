@@ -31,7 +31,10 @@ def _program(tools: Path, record: Path) -> None:
     """Put in tools a program named PROGRAM that notes its arguments in record and exits with STATUS."""
     tools.mkdir()
     program = tools / PROGRAM
-    program.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{record}'\nexit {STATUS}\n", encoding="utf-8")
+    program.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{record}'\nexit {STATUS}\n",
+        encoding="utf-8",
+    )
     program.chmod(0o755)
 
 
@@ -45,7 +48,15 @@ def test_run_dash(tmp_path: Path) -> None:
     tools = tmp_path / "tools"
     record = tmp_path / "record"
     _program(tools, record)
-    line = [sys.executable, "-m", heavy.__name__, "--lock", str(tmp_path / "heavy.lock"), PROGRAM, *ARGUMENTS]
+    line = [
+        sys.executable,
+        "-m",
+        heavy.__name__,
+        "--lock",
+        str(tmp_path / "heavy.lock"),
+        PROGRAM,
+        *ARGUMENTS,
+    ]
 
     status = subprocess.run(
         line, cwd=REPO_ROOT, check=False, env={"PATH": f"{tools}:{SYSTEM_PATH}"}

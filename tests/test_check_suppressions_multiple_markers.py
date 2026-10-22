@@ -40,22 +40,34 @@ def _letters(text: str) -> str:
 
 
 @pytest.mark.parametrize(("comment", "names"), SEVERAL_MARKER_COMMENTS)
-def test_comment_with_several_markers_is_one_finding_naming_every_marker(tmp_path: Path, comment: str, names: tuple[str, ...]) -> None:
+def test_comment_with_several_markers_is_one_finding_naming_every_marker(
+    tmp_path: Path, comment: str, names: tuple[str, ...]
+) -> None:
     """Report a comment carrying more than one marker as a single finding, on its line, that names every marker."""
     path = _seed(tmp_path, "first = 1\n" + comment + "\n")
     findings = find_suppressions(path)
 
-    assert [(finding.line, [name in _letters(finding.marker) for name in names]) for finding in findings] == [(2, [True] * len(names))]
+    assert [
+        (finding.line, [name in _letters(finding.marker) for name in names])
+        for finding in findings
+    ] == [(2, [True] * len(names))]
 
 
-def test_several_marker_comments_on_separate_lines_are_separate_findings(tmp_path: Path) -> None:
+def test_several_marker_comments_on_separate_lines_are_separate_findings(
+    tmp_path: Path,
+) -> None:
     """Report each several-marker comment as its own finding, one per comment."""
-    path = _seed(tmp_path, "value = 1  # noqa  type: ignore\nother = 2\n# pragma: no cover  fmt: off\n")
+    path = _seed(
+        tmp_path,
+        "value = 1  # noqa  type: ignore\nother = 2\n# pragma: no cover  fmt: off\n",
+    )
 
     assert [finding.line for finding in find_suppressions(path)] == [1, 3]
 
 
-def test_gate_counts_a_several_marker_comment_as_one_finding(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_gate_counts_a_several_marker_comment_as_one_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Count a comment carrying more than one marker as one finding in the gate's count line."""
     path = _seed(tmp_path, "value = 1  # noqa  type: ignore  fmt: skip\n")
     main([path])

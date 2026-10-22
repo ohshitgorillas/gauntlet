@@ -25,7 +25,9 @@ UNPARSEABLE_ON_FIVE = "VALUE = 1\n\n\n\ndef broken(:\n    pass\n"
 
 SYNTAX_LINE = 5
 
-UNPARSEABLE_WITH_CAST ="import typing\n\nvalue = typing.cast(int, 1)\n\ndef broken(:\n    pass\n"
+UNPARSEABLE_WITH_CAST = (
+    "import typing\n\nvalue = typing.cast(int, 1)\n\ndef broken(:\n    pass\n"
+)
 
 DIRTY = "import typing\n\nvalue = typing.cast(int, 1)\n"
 
@@ -57,7 +59,11 @@ def _first_number(text: str) -> int | None:
 
 def _lines_placing(name: str, line_number: int, lines: list[str]) -> int:
     """How many lines name `name` and carry `line_number` as the first number printed after that name."""
-    return sum(1 for line in lines if name in line and _first_number(line.partition(name)[2]) == line_number)
+    return sum(
+        1
+        for line in lines
+        if name in line and _first_number(line.partition(name)[2]) == line_number
+    )
 
 
 def test_broken_alone(tmp_path: Path) -> None:
@@ -107,4 +113,6 @@ def test_broken_shown(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> Non
     clean = _seed(tmp_path, "clean.py", CLEAN)
     broken = _seed(tmp_path, "broken.py", UNPARSEABLE_ON_FIVE)
 
-    assert _lines_placing("broken.py", SYNTAX_LINE, _lines([clean, broken], capsys)) >= 1
+    assert (
+        _lines_placing("broken.py", SYNTAX_LINE, _lines([clean, broken], capsys)) >= 1
+    )

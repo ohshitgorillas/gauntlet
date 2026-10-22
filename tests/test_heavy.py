@@ -123,7 +123,10 @@ DARWIN_LIFT = (
 
 # The host's default I/O priority, taken before the rest of the line runs: on Linux the best-effort class at its
 # default level.
-IO_LIFT = {"darwin": [sys.executable, "-c", DARWIN_LIFT], "linux": ["ionice", "-c2", "-n4"]}
+IO_LIFT = {
+    "darwin": [sys.executable, "-c", DARWIN_LIFT],
+    "linux": ["ionice", "-c2", "-n4"],
+}
 
 # Runs the module named after the niceness, with the arguments after it, in a process whose os.nice and os.getpriority
 # report that niceness.
@@ -158,7 +161,11 @@ DROPS = {"io": 1, "nice": 2}
 def _io_line(step: str, command: list[str]) -> list[str]:
     """The arguments the host's I/O tool is given, nice -n taking step: none on macOS, where the line is "`nice -n <k>
     -- <command>`, with no `taskpolicy -b`"."""
-    return [IO_OPTION, "nice", "-n", step, "--", *command] if IO_LOWERED[sys.platform] else []
+    return (
+        [IO_OPTION, "nice", "-n", step, "--", *command]
+        if IO_LOWERED[sys.platform]
+        else []
+    )
 
 
 def _python(code: str, *arguments: str) -> list[str]:
@@ -172,7 +179,10 @@ def _stand_in(tools: Path, name: str, record: Path, real: str) -> dict[str, str]
     """
     tools.mkdir(exist_ok=True)
     tool = tools / name
-    tool.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{record}'\nexec '{real}' \"$@\"\n", encoding="utf-8")
+    tool.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{record}'\nexec '{real}' \"$@\"\n",
+        encoding="utf-8",
+    )
     tool.chmod(0o755)
     return {"PATH": f"{tools}:{SYSTEM_PATH}"}
 
@@ -181,7 +191,10 @@ def _pass_on(tools: Path, name: str, record: Path, drop: int) -> None:
     """Put in tools a stand-in named name that notes its arguments in record, drops the first drop and runs the rest."""
     tools.mkdir(exist_ok=True)
     tool = tools / name
-    tool.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{record}'\nshift {drop}\nexec \"$@\"\n", encoding="utf-8")
+    tool.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{record}'\nshift {drop}\nexec \"$@\"\n",
+        encoding="utf-8",
+    )
     tool.chmod(0o755)
 
 
@@ -196,7 +209,16 @@ def _reporting(lock: Path, reported: int, command: list[str]) -> list[str]:
     """The wrapper's command line, run in a process that reports its niceness as reported."""
     from gates import heavy
 
-    return [sys.executable, "-c", REPORTS, str(reported), heavy.__name__, "--lock", str(lock), *command]
+    return [
+        sys.executable,
+        "-c",
+        REPORTS,
+        str(reported),
+        heavy.__name__,
+        "--lock",
+        str(lock),
+        *command,
+    ]
 
 
 def _launch(line: list[str], env: dict[str, str] | None = None) -> int:
@@ -219,7 +241,9 @@ def _start_waiting(lock: Path, command: list[str]) -> subprocess.Popen[bytes]:
     The line is the event that the wrapper waits for the lock (the no-wall-clock design spec, `gates/heavy.py`); the read
     ends on that line or, when the wrapper ends without writing it, at once on end of file.
     """
-    process = subprocess.Popen(_wrapped(lock, command), cwd=REPO_ROOT, stderr=subprocess.PIPE)
+    process = subprocess.Popen(
+        _wrapped(lock, command), cwd=REPO_ROOT, stderr=subprocess.PIPE
+    )
     assert process.stderr is not None
     ready(process.stderr.fileno())
     return process
@@ -322,10 +346,14 @@ def test_niceness(tmp_path: Path, reported: int, step: str) -> None:
     record = tmp_path / "nice"
     reported_record = tmp_path / "reported"
     env = _stand_in(tmp_path / "tools", "nice", record, REAL_NICE)
-    reported_env = _stand_in(tmp_path / "reported_tools", "nice", reported_record, REAL_NICE)
+    reported_env = _stand_in(
+        tmp_path / "reported_tools", "nice", reported_record, REAL_NICE
+    )
 
     _run(tmp_path / "heavy.lock", _python(NICE, str(out)), env)
-    _launch(_reporting(tmp_path / "heavy.lock", reported, _python("pass")), reported_env)
+    _launch(
+        _reporting(tmp_path / "heavy.lock", reported, _python("pass")), reported_env
+    )
 
     assert (_lines(record)[:2], _lines(out), _lines(reported_record)[:2]) == (
         ["-n", str(max(0, int(NICENESS) - os.getpriority(os.PRIO_PROCESS, 0)))],
@@ -342,12 +370,17 @@ def test_io_priority(tmp_path: Path) -> None:
     unwrapped = tmp_path / "unwrapped"
     probe = IO_PROBE[sys.platform]
     lift = IO_LIFT[sys.platform]
-    subprocess.run([*lift, *IO_LOWEST[sys.platform], *_python(probe, str(reference))], check=False)
+    subprocess.run(
+        [*lift, *IO_LOWEST[sys.platform], *_python(probe, str(reference))], check=False
+    )
     subprocess.run([*lift, *_python(probe, str(unwrapped))], check=False)
 
     _launch([*lift, *_wrapped(tmp_path / "heavy.lock", _python(probe, str(wrapped)))])
 
-    assert (_lines(wrapped), _lines(unwrapped) != _lines(reference)) == (_lines(reference), IO_LOWERED[sys.platform])
+    assert (_lines(wrapped), _lines(unwrapped) != _lines(reference)) == (
+        _lines(reference),
+        IO_LOWERED[sys.platform],
+    )
 
 
 @pytest.mark.parametrize(("reported", "step"), REPORTED, ids=REPORTED_IDS)
@@ -364,10 +397,15 @@ def test_io_tool_on_path(tmp_path: Path, reported: int, step: str) -> None:
     _pass_on(reported_tools, IO_TOOL[sys.platform], reported_record, DROPS["io"])
 
     _run(tmp_path / "heavy.lock", command, {"PATH": f"{tools}:{SYSTEM_PATH}"})
-    _launch(_reporting(tmp_path / "heavy.lock", reported, command), {"PATH": f"{reported_tools}:{SYSTEM_PATH}"})
+    _launch(
+        _reporting(tmp_path / "heavy.lock", reported, command),
+        {"PATH": f"{reported_tools}:{SYSTEM_PATH}"},
+    )
 
     assert (_lines(record), _lines(reported_record)) == (
-        _io_line(str(max(0, int(NICENESS) - os.getpriority(os.PRIO_PROCESS, 0))), command),
+        _io_line(
+            str(max(0, int(NICENESS) - os.getpriority(os.PRIO_PROCESS, 0))), command
+        ),
         _io_line(step, command),
     )
 
@@ -380,7 +418,9 @@ MISSING = {
 }
 
 
-@pytest.mark.parametrize("present", MISSING[sys.platform][0], ids=MISSING[sys.platform][1])
+@pytest.mark.parametrize(
+    "present", MISSING[sys.platform][0], ids=MISSING[sys.platform][1]
+)
 def test_tool_missing(tmp_path: Path, present: list[str]) -> None:
     """Where a tool of the line is not on PATH, the wrapper runs nothing and exits 2."""
     log = tmp_path / "log"
@@ -390,6 +430,8 @@ def test_tool_missing(tmp_path: Path, present: list[str]) -> None:
         name = IO_TOOL[sys.platform] if stand_in == "io" else stand_in
         _pass_on(tools, name, tmp_path / stand_in, DROPS[stand_in])
 
-    status = _run(tmp_path / "heavy.lock", _python(NOTE, str(log), SECOND), {"PATH": str(tools)})
+    status = _run(
+        tmp_path / "heavy.lock", _python(NOTE, str(log), SECOND), {"PATH": str(tools)}
+    )
 
     assert (status, _lines(log)) == (BLOCKED, [])

@@ -205,30 +205,54 @@ This is check_mypy in full, except `Record`, `record`, `describe` and `shown`, w
 
 ```python
 class Mypy:
-    stopped = frozenset({2})                                  # a blocking error stops mypy; its records still stand
+    stopped = frozenset({2})  # a blocking error stops mypy; its records still stand
 
     def batches(self, run: Run) -> list[list[Source]]:
-        return [[source] for source in run.sources]           # one mypy per file: no verdict depends on another file
+        return [
+            [source] for source in run.sources
+        ]  # one mypy per file: no verdict depends on another file
 
     def command(self, run: Run, batch: list[Source]) -> Command:
-        warm = run.scratch.once("warm", partial(warm_cache, run))   # one warm cache per run, one copy per file
-        return python_module("mypy", "--config-file", run.project.config, "--cache-dir", run.scratch.copy(warm, "cache"),
-                             "--show-absolute-path", "--no-error-summary", "--output", "json", batch[0].absolute,
-                             cwd=run.project.root)
+        warm = run.scratch.once(
+            "warm", partial(warm_cache, run)
+        )  # one warm cache per run, one copy per file
+        return python_module(
+            "mypy",
+            "--config-file",
+            run.project.config,
+            "--cache-dir",
+            run.scratch.copy(warm, "cache"),
+            "--show-absolute-path",
+            "--no-error-summary",
+            "--output",
+            "json",
+            batch[0].absolute,
+            cwd=run.project.root,
+        )
 
     def read(self, completed: Completed) -> list[Record]:
-        return [record(line) for line in completed.stdout.splitlines()]   # record() raises GateError
+        return [
+            record(line) for line in completed.stdout.splitlines()
+        ]  # record() raises GateError
 
     def expected_status(self, records: list[Record]) -> int:
-        return 1 if records else 0                            # exit 1 with no record is a refusal, not a pass
+        return 1 if records else 0  # exit 1 with no record is a refusal, not a pass
 
-    def lines(self, records: list[Record], batch: list[Source], *, stopped: bool) -> list[Line]:
+    def lines(
+        self, records: list[Record], batch: list[Source], *, stopped: bool
+    ) -> list[Line]:
         if stopped:
-            return [Unfinished(describe(r)) for r in records] # every record, wherever it lies, once per run
+            return [
+                Unfinished(describe(r)) for r in records
+            ]  # every record, wherever it lies, once per run
         here = str(batch[0].absolute)
-        return [line for r in records if r["file"] == here for line in shown(r)]  # a Finding per error, a Remark per note
+        return [
+            line for r in records if r["file"] == here for line in shown(r)
+        ]  # a Finding per error, a Remark per note
+
 
 GATE = Gate(name="check_mypy", check=check_with(Mypy()))
+
 
 def main(paths: list[Path]) -> int:
     return run_gate(GATE, paths)

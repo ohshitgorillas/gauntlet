@@ -25,6 +25,7 @@ THREE_CPUS = 3
 FOUR_CPUS = 4
 PASSING = "def test_seeded():\n    pass\n"
 
+
 def _seed(root: Path, relative: str, source: str) -> Path:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -40,7 +41,9 @@ def test_one_cpu_runs(tmp_path: Path) -> None:
 
 
 def _module(command: Command) -> str:
-    return next(word for word in command.argv if word.endswith(".py") and "=" not in word)
+    return next(
+        word for word in command.argv if word.endswith(".py") and "=" not in word
+    )
 
 
 def _pair(root: Path, cpus: int) -> tuple[int, int, int]:
@@ -48,16 +51,26 @@ def _pair(root: Path, cpus: int) -> tuple[int, int, int]:
     project = scaffold(root, dict.fromkeys(names, PASSING))
     modules = [project.root / name for name in names]
     steps = {
-        str(module): Step(completed(outputs={"junit": (
-            f'<testsuites><testsuite name="{module}" tests="1">'
-            f'<testcase classname="tests.{module.stem}" name="test_seeded"/>'
-            '</testsuite></testsuites>'
-        )})) for module in modules
+        str(module): Step(
+            completed(
+                outputs={
+                    "junit": (
+                        f'<testsuites><testsuite name="{module}" tests="1">'
+                        f'<testcase classname="tests.{module.stem}" name="test_seeded"/>'
+                        "</testsuite></testsuites>"
+                    )
+                }
+            )
+        )
+        for module in modules
     }
     process = Scripted(steps, key=_module)
     status = run_gate(
-        gate(lambda: read_budget(lambda: cpus)), modules,
-        project=project, process=process, next_done=process.next_done,
+        gate(lambda: read_budget(lambda: cpus)),
+        modules,
+        project=project,
+        process=process,
+        next_done=process.next_done,
     )
     return status, process.peak, len(process.finished)
 

@@ -55,7 +55,9 @@ def _printed_lines(paths: list[Path]) -> list[str]:
         pytest.param(_two_files, id="two-files"),
     ],
 )
-def test_each_finding_on_own_line(tmp_path: Path, layout: Callable[[Path], list[Path]]) -> None:
+def test_each_finding_on_own_line(
+    tmp_path: Path, layout: Callable[[Path], list[Path]]
+) -> None:
     """Two findings print on two lines, one finding to a line."""
     lines = _printed_lines(layout(tmp_path))
     carrying = [line for line in lines if any(word in line for word in SEEDED)]

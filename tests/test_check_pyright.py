@@ -35,7 +35,9 @@ TYPE_COMMENT = "value = 1  # type: int\n"
 
 UNNECESSARY_ISINSTANCE = "def pick(value: int) -> int:\n    if isinstance(value, int):\n        return value\n    return 0\n"
 
-UNNECESSARY_COMPARISON = "def same(left: int, right: str) -> bool:\n    return left == right\n"
+UNNECESSARY_COMPARISON = (
+    "def same(left: int, right: str) -> bool:\n    return left == right\n"
+)
 
 UNNECESSARY_CONTAINS = 'def has(value: int) -> bool:\n    return value in ("a", "b")\n'
 

@@ -23,7 +23,9 @@ PADDED_ERR = "\n  \n"
 
 def _completed(stdout: str, stderr: str) -> Completed:
     """A finished checker run with exit 0 and no output files, holding the two streams given."""
-    return Completed(status=0, stdout=stdout, stderr=stderr, timed_out=False, outputs={})
+    return Completed(
+        status=0, stdout=stdout, stderr=stderr, timed_out=False, outputs={}
+    )
 
 
 def test_output_stdout_then_stderr() -> None:

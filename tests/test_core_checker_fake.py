@@ -39,15 +39,25 @@ LEFTOVER = "leftover-checker-4c1e"
 
 OUTPUTS: dict[str, str | None] = {"junit": "<testsuites/>", "record": None}
 
-LATE = Completed(status=4, stdout="third", stderr="late warning", timed_out=True, outputs=OUTPUTS)
+LATE = Completed(
+    status=4, stdout="third", stderr="late warning", timed_out=True, outputs=OUTPUTS
+)
 
 
 def _reply(status: int, stdout: str) -> Completed:
-    return Completed(status=status, stdout=stdout, stderr="warned", timed_out=False, outputs={})
+    return Completed(
+        status=status, stdout=stdout, stderr="warned", timed_out=False, outputs={}
+    )
 
 
 def _fields(reply: Completed) -> tuple[int, str, str, bool, dict[str, str | None]]:
-    return (reply.status, reply.stdout, reply.stderr, reply.timed_out, dict(reply.outputs))
+    return (
+        reply.status,
+        reply.stdout,
+        reply.stderr,
+        reply.timed_out,
+        dict(reply.outputs),
+    )
 
 
 def test_in_order() -> None:
@@ -92,7 +102,13 @@ def test_defaults() -> None:
 
 def test_positional() -> None:
     """`completed` takes status, stdout, stderr and outputs by position, in that order, each set as given."""
-    assert _fields(completed(3, "out", "err", OUTPUTS)) == (3, "out", "err", False, OUTPUTS)
+    assert _fields(completed(3, "out", "err", OUTPUTS)) == (
+        3,
+        "out",
+        "err",
+        False,
+        OUTPUTS,
+    )
 
 
 def test_timed_out() -> None:

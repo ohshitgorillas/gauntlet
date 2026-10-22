@@ -44,9 +44,15 @@ STRICT = '[tool.pyright]\ntypeCheckingMode = "strict"\n'
 
 UNPINNED = [
     pytest.param(STRICT, id="nokey"),
-    pytest.param('[project]\nname = "seeded"\nrequires-python = ">=3.12"\n', id="table"),
+    pytest.param(
+        '[project]\nname = "seeded"\nrequires-python = ">=3.12"\n', id="table"
+    ),
     pytest.param("", id="blank"),
-    pytest.param(STRICT + '\n[tool.mypy]\npython_version = "3.12"\n\n[tool.ruff]\ntarget-version = "py312"\n', id="other"),
+    pytest.param(
+        STRICT
+        + '\n[tool.mypy]\npython_version = "3.12"\n\n[tool.ruff]\ntarget-version = "py312"\n',
+        id="other",
+    ),
     pytest.param(STRICT + 'pythonversion = "3.12"\n', id="case"),
     pytest.param(STRICT + 'pythonVersion = "3"\n', id="major"),
     pytest.param(STRICT + 'pythonVersion = "3.12.1"\n', id="micro"),
@@ -115,4 +121,7 @@ def test_last(tmp_path: Path, pyproject: str) -> None:
     """The last line the unfinished run prints is its count line."""
     status, lines = _run(tmp_path, pyproject, CLEAN)
 
-    assert (status, [COUNT_LINE_SHAPE.fullmatch(line) is not None for line in lines[-1:]]) == (UNFINISHED, [True])
+    assert (
+        status,
+        [COUNT_LINE_SHAPE.fullmatch(line) is not None for line in lines[-1:]],
+    ) == (UNFINISHED, [True])

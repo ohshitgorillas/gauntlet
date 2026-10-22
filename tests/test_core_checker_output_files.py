@@ -29,7 +29,11 @@ MARK = "import pathlib, sys\npathlib.Path(sys.argv[1]).with_suffix('.started').w
 
 def _run(tmp_path: Path, code: str, report: Path) -> dict[str, str | None]:
     """Run code with report as its argument, naming report as the output `junit`; return what run read back."""
-    command = Command(argv=(sys.executable, "-c", code, str(report)), cwd=tmp_path, outputs={"junit": report})
+    command = Command(
+        argv=(sys.executable, "-c", code, str(report)),
+        cwd=tmp_path,
+        outputs={"junit": report},
+    )
     return dict(run(command).outputs)
 
 

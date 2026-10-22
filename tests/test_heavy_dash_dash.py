@@ -40,7 +40,10 @@ def _program(tools: Path, name: str, record: Path) -> None:
     """Put in tools a program named name that notes its arguments in record and exits with STATUS."""
     tools.mkdir(exist_ok=True)
     program = tools / name
-    program.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{record}'\nexit {STATUS}\n", encoding="utf-8")
+    program.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{record}'\nexit {STATUS}\n",
+        encoding="utf-8",
+    )
     program.chmod(0o755)
 
 
@@ -56,7 +59,14 @@ def _run(tmp_path: Path, name: str, after: list[str]) -> tuple[int, list[str]]:
     tools = tmp_path / "tools"
     record = tmp_path / "record"
     _program(tools, name, record)
-    line = [sys.executable, "-m", heavy.__name__, "--lock", str(tmp_path / "heavy.lock"), *after]
+    line = [
+        sys.executable,
+        "-m",
+        heavy.__name__,
+        "--lock",
+        str(tmp_path / "heavy.lock"),
+        *after,
+    ]
     status = subprocess.run(
         line, cwd=REPO_ROOT, check=False, env={"PATH": f"{tools}:{SYSTEM_PATH}"}
     ).returncode
@@ -71,17 +81,26 @@ def _command(arguments: list[str]) -> list[str]:
 def test_ends_options(tmp_path: Path) -> None:
     """A -- right after --lock and its path is not passed on: the command after it runs as given, and the wrapper exits
     with its status."""
-    assert _run(tmp_path, PROGRAM, [DOUBLE_DASH, PROGRAM, *ARGUMENTS]) == (STATUS, ARGUMENTS)
+    assert _run(tmp_path, PROGRAM, [DOUBLE_DASH, PROGRAM, *ARGUMENTS]) == (
+        STATUS,
+        ARGUMENTS,
+    )
 
 
 def test_dash_program(tmp_path: Path) -> None:
     """After the --, a command whose first word begins with - is the command, not an option of the wrapper."""
-    assert _run(tmp_path, DASH_PROGRAM, [DOUBLE_DASH, DASH_PROGRAM, *ARGUMENTS]) == (STATUS, ARGUMENTS)
+    assert _run(tmp_path, DASH_PROGRAM, [DOUBLE_DASH, DASH_PROGRAM, *ARGUMENTS]) == (
+        STATUS,
+        ARGUMENTS,
+    )
 
 
 def test_one_taken(tmp_path: Path) -> None:
     """Only one -- is taken: a second -- right after it is the command's program, run with the arguments after it."""
-    assert _run(tmp_path, DOUBLE_DASH, [DOUBLE_DASH, DOUBLE_DASH, *ARGUMENTS]) == (STATUS, ARGUMENTS)
+    assert _run(tmp_path, DOUBLE_DASH, [DOUBLE_DASH, DOUBLE_DASH, *ARGUMENTS]) == (
+        STATUS,
+        ARGUMENTS,
+    )
 
 
 def test_later_kept(tmp_path: Path) -> None:
@@ -97,4 +116,8 @@ def test_no_options() -> None:
 
 def test_lock_after() -> None:
     """A --lock after the -- is part of the command, not the wrapper's option."""
-    assert _command([DOUBLE_DASH, "--lock", "other", "make"]) == ["--lock", "other", "make"]
+    assert _command([DOUBLE_DASH, "--lock", "other", "make"]) == [
+        "--lock",
+        "other",
+        "make",
+    ]

@@ -26,29 +26,41 @@ Core imports run `verdicts` ← `red` ← `decide`; `red` imports nothing else o
 
 ```python
 class Category(StrEnum):
-    ...                                # the five values of the structure-first spec
-    MISPLACED = "misplaced"            # code a request moves to a new home, with every caller in `also` (decision 5)
+    ...  # the five values of the structure-first spec
+    MISPLACED = "misplaced"  # code a request moves to a new home, with every caller in `also` (decision 5)
 
-class RedVerdict(StrEnum):             # the juror's verdict per spec line (docs/design.md:44)
-    RED = "red"; ERROR = "error"; GREEN = "green"; INVALID = "invalid"; COULD_NOT_JUDGE = "could-not-judge"
 
-@dataclass(frozen=True)
-class SpecLine:                        # M1's spec line record; its other fields are M1's
-    id: str                            # "S1", stable across amendments (docs/design.md:90)
-    keeps: str | None = None           # the Candidate.keeps line it carries, verbatim; None on any other line
+class RedVerdict(StrEnum):  # the juror's verdict per spec line (docs/design.md:44)
+    RED = "red"
+    ERROR = "error"
+    GREEN = "green"
+    INVALID = "invalid"
+    COULD_NOT_JUDGE = "could-not-judge"
 
-@dataclass(frozen=True)
-class Outline:                         # M1's outline answer; its steps, implementers, areas and shared-structure flag are M1's
-    structure_only: bool = False       # the planner's choice of path: True when the brief asks to restructure without changing behavior (decision 1)
 
 @dataclass(frozen=True)
-class Candidate:                       # the structure-first record with one field more
+class SpecLine:  # M1's spec line record; its other fields are M1's
+    id: str  # "S1", stable across amendments (docs/design.md:90)
+    keeps: str | None = (
+        None  # the Candidate.keeps line it carries, verbatim; None on any other line
+    )
+
+
+@dataclass(frozen=True)
+class Outline:  # M1's outline answer; its steps, implementers, areas and shared-structure flag are M1's
+    structure_only: bool = False  # the planner's choice of path: True when the brief asks to restructure without changing behavior (decision 1)
+
+
+@dataclass(frozen=True)
+class Candidate:  # the structure-first record with one field more
     concern: str
     payoff: str
     risk: str
     keeps: tuple[str, ...]
     why: str | None = None
-    asked: str | None = None           # the owner's request verbatim; set only by `cli.run`'s hand-off, from the JOB's brief (decision 6)
+    asked: str | None = (
+        None  # the owner's request verbatim; set only by `cli.run`'s hand-off, from the JOB's brief (decision 6)
+    )
 ```
 
 `finding_problems` checks MISPLACED as it checks MISSING: it needs an `also`, a concern and `blocking` (decision 5).

@@ -62,7 +62,9 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
     return path
 
 
-def _layout(tmp_path: Path, broken: Path, companion: str | None, *, broken_first: bool) -> list[Path]:
+def _layout(
+    tmp_path: Path, broken: Path, companion: str | None, *, broken_first: bool
+) -> list[Path]:
     """The unfinished file alone, or beside a companion file placed before or after it."""
     if companion is None:
         return [broken]
@@ -78,12 +80,16 @@ def _run(paths: list[Path]) -> tuple[int, list[str]]:
     return status, buffer.getvalue().splitlines()
 
 
-def _unparsed(tmp_path: Path, companion: str | None, *, broken_first: bool) -> tuple[int, list[str]]:
+def _unparsed(
+    tmp_path: Path, companion: str | None, *, broken_first: bool
+) -> tuple[int, list[str]]:
     broken = _seed(tmp_path, UNPARSEABLE_NAME, UNPARSEABLE)
     return _run(_layout(tmp_path, broken, companion, broken_first=broken_first))
 
 
-def _unread(tmp_path: Path, companion: str | None, *, broken_first: bool) -> tuple[int, list[str]]:
+def _unread(
+    tmp_path: Path, companion: str | None, *, broken_first: bool
+) -> tuple[int, list[str]]:
     broken = _seed(tmp_path, UNREADABLE_NAME, CLEAN)
     broken.chmod(0o000)
     return _run(_layout(tmp_path, broken, companion, broken_first=broken_first))
@@ -141,13 +147,19 @@ def test_report(tmp_path: Path, companion: str | None, *, broken_first: bool) ->
     """What pyright reported on the unparsed file comes before the count line the run ends on."""
     status, lines = _unparsed(tmp_path, companion, broken_first=broken_first)
     reported = _pyright_messages(tmp_path / UNPARSEABLE_NAME)
-    report = (len(reported) > 0, _named(UNPARSEABLE_NAME, lines), _missing(reported, lines))
+    report = (
+        len(reported) > 0,
+        _named(UNPARSEABLE_NAME, lines),
+        _missing(reported, lines),
+    )
 
     assert (status, report, _shapes(lines)) == (UNFINISHED, (True, True, []), [True])
 
 
 @pytest.mark.parametrize(("companion", "broken_first"), LAYOUTS)
-def test_unread_report(tmp_path: Path, companion: str | None, *, broken_first: bool) -> None:
+def test_unread_report(
+    tmp_path: Path, companion: str | None, *, broken_first: bool
+) -> None:
     """What pyright reported on the unread file comes before the count line the run ends on."""
     status, lines = _unread(tmp_path, companion, broken_first=broken_first)
     reported = _pyright_messages(tmp_path / UNREADABLE_NAME)

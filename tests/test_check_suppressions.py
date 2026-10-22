@@ -7,7 +7,13 @@ import pytest
 from gates.check_suppressions import main
 from tests.support.suppressions import find_suppressions
 
-MARKERS = ["noqa", "type: ignore", "pyright: ignore", "pragma: no cover", "pragma: no mutate"]
+MARKERS = [
+    "noqa",
+    "type: ignore",
+    "pyright: ignore",
+    "pragma: no cover",
+    "pragma: no mutate",
+]
 
 
 def _seed(tmp_path: Path, name: str, source: str) -> Path:
@@ -23,8 +29,13 @@ def test_gate_fails_on_marker_comment(tmp_path: Path, marker: str) -> None:
     assert main([path]) == 1
 
 
-@pytest.mark.parametrize("comment", ["noqa: E501", "type: ignore[misc]", "pyright: ignore[reportUnknownMemberType]"])
-def test_gate_fails_on_marker_comment_with_rule_code(tmp_path: Path, comment: str) -> None:
+@pytest.mark.parametrize(
+    "comment",
+    ["noqa: E501", "type: ignore[misc]", "pyright: ignore[reportUnknownMemberType]"],
+)
+def test_gate_fails_on_marker_comment_with_rule_code(
+    tmp_path: Path, comment: str
+) -> None:
     path = _seed(tmp_path, "seeded.py", f"value = 1  # {comment}\n")
 
     assert main([path]) == 1

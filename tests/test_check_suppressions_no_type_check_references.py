@@ -22,14 +22,29 @@ ASSIGNMENT_LINE = 2
 REFERENCE_SOURCES = [
     ("from typing import no_type_check\n", [1]),
     ("from typing_extensions import no_type_check_decorator as nocheck\n", [1]),
-    ("from typing import Any, no_type_check\n\n\ndef seeded(value: Any) -> Any:\n    return value\n", [1]),
+    (
+        "from typing import Any, no_type_check\n\n\ndef seeded(value: Any) -> Any:\n    return value\n",
+        [1],
+    ),
     ("from typing import no_type_check\nloose = no_type_check\n", [1, 2]),
     ("from typing import no_type_check\n\nloose: object = no_type_check\n", [1, 3]),
     ("from typing_extensions import no_type_check\nloose = no_type_check\n", [1, 2]),
-    ("from typing import no_type_check\nloose = no_type_check\n\n\n@loose\ndef seeded() -> None:\n    pass\n", [1, 2, 5]),
-    ("from typing import no_type_check_decorator\nchecks = [no_type_check_decorator]\n", [1, 2]),
-    ("from typing import no_type_check\n\n\ndef register(func):\n    return func\n\n\nregister(no_type_check)\n", [1, 8]),
-    ("from typing import no_type_check\n\n\ndef build():\n    return no_type_check\n", [1, 5]),
+    (
+        "from typing import no_type_check\nloose = no_type_check\n\n\n@loose\ndef seeded() -> None:\n    pass\n",
+        [1, 2, 5],
+    ),
+    (
+        "from typing import no_type_check_decorator\nchecks = [no_type_check_decorator]\n",
+        [1, 2],
+    ),
+    (
+        "from typing import no_type_check\n\n\ndef register(func):\n    return func\n\n\nregister(no_type_check)\n",
+        [1, 8],
+    ),
+    (
+        "from typing import no_type_check\n\n\ndef build():\n    return no_type_check\n",
+        [1, 5],
+    ),
 ]
 
 MODULE_ATTRIBUTE_SOURCES = [
@@ -39,7 +54,9 @@ MODULE_ATTRIBUTE_SOURCES = [
 ]
 
 IMPORT_ONLY_SOURCE = "from typing import no_type_check\n"
-IMPORT_AND_ASSIGNMENT_SOURCE = "from typing import no_type_check\nloose = no_type_check\n"
+IMPORT_AND_ASSIGNMENT_SOURCE = (
+    "from typing import no_type_check\nloose = no_type_check\n"
+)
 ONE_FINDING_COUNT_LINE = "check_suppressions: 1 finding(s) in 1 Python file(s)"
 TWO_FINDINGS_COUNT_LINE = "check_suppressions: 2 finding(s) in 1 Python file(s)"
 
@@ -51,7 +68,9 @@ def _seed(tmp_path: Path, source: str) -> Path:
 
 
 @pytest.mark.parametrize(("source", "lines"), REFERENCE_SOURCES)
-def test_every_line_referencing_no_type_check_is_a_finding(tmp_path: Path, source: str, lines: list[int]) -> None:
+def test_every_line_referencing_no_type_check_is_a_finding(
+    tmp_path: Path, source: str, lines: list[int]
+) -> None:
     """Report the import line, the assignment line and every other line that references the function."""
     path = _seed(tmp_path, source)
 
@@ -59,11 +78,15 @@ def test_every_line_referencing_no_type_check_is_a_finding(tmp_path: Path, sourc
 
 
 @pytest.mark.parametrize("source", MODULE_ATTRIBUTE_SOURCES)
-def test_assignment_of_the_module_attribute_is_a_finding(tmp_path: Path, source: str) -> None:
+def test_assignment_of_the_module_attribute_is_a_finding(
+    tmp_path: Path, source: str
+) -> None:
     """Report the line that binds the function, reached as a module attribute, to another name, and not the line that imports the module."""
     path = _seed(tmp_path, source)
 
-    assert sorted(finding.line for finding in find_suppressions(path)) == [ASSIGNMENT_LINE]
+    assert sorted(finding.line for finding in find_suppressions(path)) == [
+        ASSIGNMENT_LINE
+    ]
 
 
 def test_gate_exits_with_findings_status_on_a_bare_import(tmp_path: Path) -> None:
@@ -74,14 +97,18 @@ def test_gate_exits_with_findings_status_on_a_bare_import(tmp_path: Path) -> Non
 
 
 @pytest.mark.parametrize("source", MODULE_ATTRIBUTE_SOURCES)
-def test_gate_exits_with_findings_status_on_an_attribute_assignment(tmp_path: Path, source: str) -> None:
+def test_gate_exits_with_findings_status_on_an_attribute_assignment(
+    tmp_path: Path, source: str
+) -> None:
     """Exit with the findings status on a file that binds the function to another name."""
     path = _seed(tmp_path, source)
 
     assert main([path]) == FINDINGS_STATUS
 
 
-def test_gate_counts_a_bare_import_as_one_finding(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_gate_counts_a_bare_import_as_one_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Count the import line of the function as one finding in the gate's count line."""
     path = _seed(tmp_path, IMPORT_ONLY_SOURCE)
     main([path])
@@ -89,7 +116,9 @@ def test_gate_counts_a_bare_import_as_one_finding(tmp_path: Path, capsys: pytest
     assert capsys.readouterr().out.splitlines()[-1] == ONE_FINDING_COUNT_LINE
 
 
-def test_gate_counts_import_and_assignment_lines_as_two_findings(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_gate_counts_import_and_assignment_lines_as_two_findings(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Count the import line and the assignment line each as a finding in the gate's count line."""
     path = _seed(tmp_path, IMPORT_AND_ASSIGNMENT_SOURCE)
     main([path])

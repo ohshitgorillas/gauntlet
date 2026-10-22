@@ -64,7 +64,9 @@ def one_line(text: str) -> str:
     """Make every str.splitlines break in the text a space, and change nothing else."""
     return "".join(
         line if line == whole else line + " "
-        for line, whole in zip(text.splitlines(), text.splitlines(keepends=True), strict=True)
+        for line, whole in zip(
+            text.splitlines(), text.splitlines(keepends=True), strict=True
+        )
     )
 
 
@@ -89,7 +91,10 @@ def render(gate: str, outcome: Outcome, files: int) -> list[str]:
 
 def nothing_checked(gate: str, selects: str, given: int) -> list[str]:
     """Give an empty run's lines: one saying nothing was checked, then the count line for no file."""
-    return [f"{gate}: nothing checked: no {selects} among the {given} file(s) given", count_line(gate, 0, 0)]
+    return [
+        f"{gate}: nothing checked: no {selects} among the {given} file(s) given",
+        count_line(gate, 0, 0),
+    ]
 
 
 def time_cap(checker: str, seconds: float) -> str:
@@ -97,7 +102,9 @@ def time_cap(checker: str, seconds: float) -> str:
     return f"the checker {checker} ran past its time cap of {seconds} seconds"
 
 
-def timed_out(output: str, checker: str, seconds: float) -> tuple[Unfinished, Unfinished]:
+def timed_out(
+    output: str, checker: str, seconds: float
+) -> tuple[Unfinished, Unfinished]:
     """Give a capped checker's lines: an Unfinished of its whole output as given, then one of its time_cap line."""
     return Unfinished(output), Unfinished(time_cap(checker, seconds))
 

@@ -43,7 +43,9 @@ def test_clean_run_ends_with_zero_finding_count_line(tmp_path: Path) -> None:
 
 
 def test_run_with_findings_ends_with_count_line_after_findings(tmp_path: Path) -> None:
-    dirty = _seed(tmp_path, "dirty.py", "first = 1  # noqa\nsecond = 2  # pragma: no cover\n")
+    dirty = _seed(
+        tmp_path, "dirty.py", "first = 1  # noqa\nsecond = 2  # pragma: no cover\n"
+    )
     clean = _seed(tmp_path, "clean.py", "value = 1\n")
     expected = _count_line(2, 2)
 

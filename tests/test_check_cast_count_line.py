@@ -23,7 +23,9 @@ from gates.check_cast import main
 
 GATE = "check_cast"
 
-DIRTY_TWICE = "import typing\n\nvalue = typing.cast(int, 1)\nother = typing.cast(int, 2)\n"
+DIRTY_TWICE = (
+    "import typing\n\nvalue = typing.cast(int, 1)\nother = typing.cast(int, 2)\n"
+)
 
 CLEAN = "VALUE = 1\n"
 

@@ -66,8 +66,12 @@ class CaptureSetupError(Exception):
     errno: int | None
     step: Literal["pipe", "dup", "reader"]
 
-    def __init__(self, errno: int | None, step: Literal["pipe", "dup", "reader"]) -> None:
-        super().__init__(f"captured: could not set up: the {step} step failed, errno {errno}")
+    def __init__(
+        self, errno: int | None, step: Literal["pipe", "dup", "reader"]
+    ) -> None:
+        super().__init__(
+            f"captured: could not set up: the {step} step failed, errno {errno}"
+        )
         self.errno = errno
         self.step = step
 
@@ -113,7 +117,9 @@ class _Reader:
         self._stop_read, self._stop_write = stop
         self._lock = threading.RLock()
         self.chunks: list[tuple[str, bytes]] = []
-        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="captured-reader")
+        self._executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="captured-reader"
+        )
         try:
             self._done = self._executor.submit(self._run)
         except RuntimeError as error:
@@ -199,7 +205,10 @@ class _Stream(io.RawIOBase):
 
 def _text_stream(fd: int, source: str, reader: _Reader) -> io.TextIOWrapper:
     return io.TextIOWrapper(
-        _Stream(fd, source, reader), encoding="utf-8", errors="backslashreplace", write_through=True
+        _Stream(fd, source, reader),
+        encoding="utf-8",
+        errors="backslashreplace",
+        write_through=True,
     )
 
 
@@ -301,7 +310,10 @@ class _Capture:
 
     def run[T](self, call: Callable[[], T]) -> T:
         """Run `call` with fds 1 and 2 on the pipes' write ends and the sys streams over them, all restored afterwards."""
-        out_stream, err_stream = _text_stream(1, _OUT, self._reader), _text_stream(2, _ERR, self._reader)
+        out_stream, err_stream = (
+            _text_stream(1, _OUT, self._reader),
+            _text_stream(2, _ERR, self._reader),
+        )
         stdout_before, stderr_before = sys.stdout, sys.stderr
         try:
             for fd, write_end in zip((1, 2), self._writes, strict=True):

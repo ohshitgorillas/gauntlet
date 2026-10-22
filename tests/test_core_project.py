@@ -38,7 +38,14 @@ import pytest
 
 from gates.core.checker import environment
 from gates.core import project as core
-from gates.core.project import KeyRule, Project, Source, key_findings, non_test_files, python_files
+from gates.core.project import (
+    KeyRule,
+    Project,
+    Source,
+    key_findings,
+    non_test_files,
+    python_files,
+)
 from gates.core.report import Finding, GateError
 from tests.support.fake import FakeRunner, completed
 
@@ -91,7 +98,9 @@ def test_shebang(tmp_path: Path, shebang: str) -> None:
         pytest.param("a.pyw", "value = 1\n", id="pyw"),
         pytest.param("a.txt", "#!/usr/bin/env python3\n", id="other-suffix"),
         pytest.param("tool", "#!/bin/sh\n", id="shell-shebang"),
-        pytest.param("tool", "value = 1\n#!/usr/bin/env python3\n", id="shebang-not-first"),
+        pytest.param(
+            "tool", "value = 1\n#!/usr/bin/env python3\n", id="shebang-not-first"
+        ),
         pytest.param("tool", "", id="empty"),
     ],
 )
@@ -125,7 +134,9 @@ def test_order(tmp_path: Path) -> None:
     """The Python files keep the order they were given in; the others are dropped from among them."""
     paths = [_seed(tmp_path / name) for name in ["b.py", "notes.txt", "a.pyi", "c.py"]]
 
-    assert python_files(paths) == [Source(given=path, absolute=path) for path in [paths[0], paths[2], paths[3]]]
+    assert python_files(paths) == [
+        Source(given=path, absolute=path) for path in [paths[0], paths[2], paths[3]]
+    ]
 
 
 def test_twice(tmp_path: Path) -> None:
@@ -158,7 +169,13 @@ def test_absolute_is_lexical(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "given",
-    ["tests/test_x.py", "tests/x_test.py", "tmp/tests/test_x.py", "tests/unit/test_x.py", "/r/tests/test_x.py"],
+    [
+        "tests/test_x.py",
+        "tests/x_test.py",
+        "tmp/tests/test_x.py",
+        "tests/unit/test_x.py",
+        "/r/tests/test_x.py",
+    ],
 )
 def test_test_module(given: str) -> None:
     """A path as given with a `tests` directory component and a name pytest collects by default is a test file."""
@@ -167,7 +184,14 @@ def test_test_module(given: str) -> None:
 
 @pytest.mark.parametrize(
     "given",
-    ["test_x.py", "src/test_x.py", "tests/helper.py", "tests/test_x.pyi", "tests_a/test_x.py", "tests/testx.py"],
+    [
+        "test_x.py",
+        "src/test_x.py",
+        "tests/helper.py",
+        "tests/test_x.pyi",
+        "tests_a/test_x.py",
+        "tests/testx.py",
+    ],
 )
 def test_not_test_module(given: str) -> None:
     """A path with no `tests` directory component, or a name pytest does not collect by default, is no test file."""
@@ -206,21 +230,44 @@ def test_conftest_beside_spelling() -> None:
 )
 def test_conftest_not_beside(sources: list[str]) -> None:
     """A conftest.py with no test module given in its own directory is no test file."""
-    assert [source for source in _given(core.test_files([_source(given) for given in sources])) if "conftest" in source] == []
+    assert [
+        source
+        for source in _given(core.test_files([_source(given) for given in sources]))
+        if "conftest" in source
+    ] == []
 
 
 def test_test_order() -> None:
     """Test files keep the order the sources came in."""
-    sources = [_source(given) for given in ["tests/test_b.py", "tests/conftest.py", "a.py", "tests/a_test.py"]]
+    sources = [
+        _source(given)
+        for given in ["tests/test_b.py", "tests/conftest.py", "a.py", "tests/a_test.py"]
+    ]
 
-    assert _given(core.test_files(sources)) == ["tests/test_b.py", "tests/conftest.py", "tests/a_test.py"]
+    assert _given(core.test_files(sources)) == [
+        "tests/test_b.py",
+        "tests/conftest.py",
+        "tests/a_test.py",
+    ]
 
 
 def test_non_test_files() -> None:
     """Every source that is not a test file, in order; a conftest.py with no test module beside it among them."""
-    sources = [_source(given) for given in ["b.py", "tests/test_x.py", "tests/unit/conftest.py", "tests/helper.py"]]
+    sources = [
+        _source(given)
+        for given in [
+            "b.py",
+            "tests/test_x.py",
+            "tests/unit/conftest.py",
+            "tests/helper.py",
+        ]
+    ]
 
-    assert _given(non_test_files(sources)) == ["b.py", "tests/unit/conftest.py", "tests/helper.py"]
+    assert _given(non_test_files(sources)) == [
+        "b.py",
+        "tests/unit/conftest.py",
+        "tests/helper.py",
+    ]
 
 
 # Project
@@ -379,7 +426,11 @@ def test_git_command(tmp_path: Path) -> None:
     result = Project(tmp_path).git("diff", "HEAD", process=runner)
     command = runner.commands[0]
 
-    assert (result, command.argv, command.cwd) == (reply, ("git", "diff", "HEAD"), tmp_path)
+    assert (result, command.argv, command.cwd) == (
+        reply,
+        ("git", "diff", "HEAD"),
+        tmp_path,
+    )
 
 
 def test_git_environment(tmp_path: Path) -> None:
@@ -389,12 +440,19 @@ def test_git_environment(tmp_path: Path) -> None:
     env = runner.commands[0].env
     assert env is not None
 
-    assert ([name for name in env if name.startswith("GIT_")], env.get("PYTEST_VERSION")) == ([], pytest.__version__)
+    assert (
+        [name for name in env if name.startswith("GIT_")],
+        env.get("PYTEST_VERSION"),
+    ) == ([], pytest.__version__)
 
 
 def _init(root: Path) -> None:
     """Make the root a git repository, free of the GIT_ variables a hook running this suite exports."""
-    env = {name: value for name, value in environment().items() if not name.startswith("GIT_")}
+    env = {
+        name: value
+        for name, value in environment().items()
+        if not name.startswith("GIT_")
+    }
     subprocess.run(["git", "init", "--quiet", str(root)], env=env, check=True)
 
 
@@ -403,13 +461,19 @@ def test_git_runs(tmp_path: Path) -> None:
     _init(tmp_path)
     result = Project(tmp_path).git("rev-parse", "--show-toplevel")
 
-    assert (result.status, Path(result.stdout.strip()).resolve()) == (0, tmp_path.resolve())
+    assert (result.status, Path(result.stdout.strip()).resolve()) == (
+        0,
+        tmp_path.resolve(),
+    )
 
 
 @pytest.mark.parametrize(
     "variables",
     [
-        pytest.param({"GIT_DIR": "{elsewhere}", "GIT_WORK_TREE": "{elsewhere}"}, id="git-dir-and-work-tree"),
+        pytest.param(
+            {"GIT_DIR": "{elsewhere}", "GIT_WORK_TREE": "{elsewhere}"},
+            id="git-dir-and-work-tree",
+        ),
         pytest.param({"GIT_DIR": "{elsewhere}"}, id="git-dir"),
         pytest.param({"GIT_WORK_TREE": "{elsewhere}"}, id="work-tree"),
         pytest.param({"GIT_COMMON_DIR": "{elsewhere}"}, id="common-dir"),
@@ -430,12 +494,24 @@ def test_git_ignores_hook_variables(tmp_path: Path, variables: dict[str, str]) -
         "print(Project(Path(sys.argv[1])).git('rev-parse', '--show-toplevel').stdout, end='')\n"
     )
     elsewhere = tmp_path / "elsewhere"
-    env = {**environment(), **{name: value.format(elsewhere=elsewhere) for name, value in variables.items()}}
+    env = {
+        **environment(),
+        **{
+            name: value.format(elsewhere=elsewhere) for name, value in variables.items()
+        },
+    }
     child = subprocess.run(
-        [sys.executable, "-c", program, str(tmp_path)], env=env, capture_output=True, text=True, check=False
+        [sys.executable, "-c", program, str(tmp_path)],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
-    assert (child.returncode, Path(child.stdout.strip()).resolve()) == (0, tmp_path.resolve())
+    assert (child.returncode, Path(child.stdout.strip()).resolve()) == (
+        0,
+        tmp_path.resolve(),
+    )
 
 
 REPO_ROOT = Path(__file__).parents[1]
@@ -468,7 +544,11 @@ def test_git_drops_every_git_variable(tmp_path: Path) -> None:
         "print(' '.join(sorted(n for n in env if n.startswith('GIT_'))))\n"
         "print(' '.join(f'{n}={env[n]}' for n in sorted(env) if n.startswith('GIT') and not n.startswith('GIT_')))\n"
     )
-    clean = {name: value for name, value in environment().items() if not name.startswith("GIT")}
+    clean = {
+        name: value
+        for name, value in environment().items()
+        if not name.startswith("GIT")
+    }
     child = subprocess.run(
         [sys.executable, "-c", program, str(tmp_path)],
         env={**clean, **HOOK_VARIABLES, **LOOKALIKES},
@@ -504,16 +584,24 @@ MUTMUT = '[tool.mutmut]\npaths_to_mutate = ["src"]\ndo_not_mutate = []\n'
 
 def test_key_finding(tmp_path: Path) -> None:
     """A key whose value breaks its rule is one Finding naming the file, the dotted keys and what the rule says."""
-    rule = KeyRule(keys=("tool", "mutmut", "paths_to_mutate"), breaks=_breaks_src, says="narrows the mutated files")
+    rule = KeyRule(
+        keys=("tool", "mutmut", "paths_to_mutate"),
+        breaks=_breaks_src,
+        says="narrows the mutated files",
+    )
 
     assert key_findings(_project(tmp_path, MUTMUT), [rule]) == [
-        Finding("pyproject.toml: tool.mutmut.paths_to_mutate: narrows the mutated files")
+        Finding(
+            "pyproject.toml: tool.mutmut.paths_to_mutate: narrows the mutated files"
+        )
     ]
 
 
 def test_key_kept(tmp_path: Path) -> None:
     """A key whose value keeps its rule is no finding."""
-    rule = KeyRule(keys=("tool", "mutmut", "do_not_mutate"), breaks=_breaks_src, says="ignores")
+    rule = KeyRule(
+        keys=("tool", "mutmut", "do_not_mutate"), breaks=_breaks_src, says="ignores"
+    )
 
     assert key_findings(_project(tmp_path, MUTMUT), [rule]) == []
 
@@ -521,7 +609,13 @@ def test_key_kept(tmp_path: Path) -> None:
 def test_key_absent(tmp_path: Path) -> None:
     """An absent key is no finding, and its rule is never asked (decision 13)."""
     asked: list[object] = []
-    rules = [KeyRule(keys=("tool", "coverage", "run", "omit"), breaks=_recorder(asked), says="omits")]
+    rules = [
+        KeyRule(
+            keys=("tool", "coverage", "run", "omit"),
+            breaks=_recorder(asked),
+            says="omits",
+        )
+    ]
 
     assert (key_findings(_project(tmp_path, MUTMUT), rules), asked) == ([], [])
 
@@ -529,9 +623,19 @@ def test_key_absent(tmp_path: Path) -> None:
 def test_key_findings_order(tmp_path: Path) -> None:
     """Findings come in the order of the rules, one for each rule broken."""
     rules = [
-        KeyRule(keys=("tool", "mutmut", "paths_to_mutate"), breaks=_breaks_src, says="second"),
-        KeyRule(keys=("tool", "mutmut", "do_not_mutate"), breaks=lambda value: value == [], says="first"),
-        KeyRule(keys=("tool", "mutmut", "do_not_mutate"), breaks=_breaks_src, says="kept"),
+        KeyRule(
+            keys=("tool", "mutmut", "paths_to_mutate"),
+            breaks=_breaks_src,
+            says="second",
+        ),
+        KeyRule(
+            keys=("tool", "mutmut", "do_not_mutate"),
+            breaks=lambda value: value == [],
+            says="first",
+        ),
+        KeyRule(
+            keys=("tool", "mutmut", "do_not_mutate"), breaks=_breaks_src, says="kept"
+        ),
     ]
 
     assert key_findings(_project(tmp_path, MUTMUT), rules) == [
@@ -548,4 +652,3 @@ def test_key_findings_unreadable(tmp_path: Path) -> None:
         key_findings(project, [rule])
 
     assert str(project.config) in raised.value.report
-

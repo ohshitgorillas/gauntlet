@@ -28,7 +28,16 @@ from pathlib import Path
 
 import pytest
 
-from tests.support.lifeline import HOLD, MEET, WITNESS, Beacon, Lifeline, Pids, Witness, ready
+from tests.support.lifeline import (
+    HOLD,
+    MEET,
+    WITNESS,
+    Beacon,
+    Lifeline,
+    Pids,
+    Witness,
+    ready,
+)
 
 READY = b"ready\n"
 
@@ -54,7 +63,9 @@ SIGNALLER = "import os, sys\nos.write(int(sys.argv[1]), b'ready\\n')\nwhile os.r
 
 
 @contextlib.contextmanager
-def _child(code: str, *arguments: str, fds: tuple[int, ...] = ()) -> Generator[subprocess.Popen[bytes]]:
+def _child(
+    code: str, *arguments: str, fds: tuple[int, ...] = ()
+) -> Generator[subprocess.Popen[bytes]]:
     """Run child code with its stdout on a pipe and the given fds passed to it; killed at teardown."""
     child = subprocess.Popen(
         [sys.executable, "-c", code, *arguments],
@@ -87,7 +98,10 @@ def _taken(fd: int, data: bytes) -> int:
 
 
 def test_a_held_child_writes_its_ready_line_and_exits_0_once_released() -> None:
-    with Lifeline() as line, _child(HOLD, str(line.read_fd), fds=(line.read_fd,)) as child:
+    with (
+        Lifeline() as line,
+        _child(HOLD, str(line.read_fd), fds=(line.read_fd,)) as child,
+    ):
         first = _ready(child)
         line.release()
         status = child.wait()
@@ -95,7 +109,9 @@ def test_a_held_child_writes_its_ready_line_and_exits_0_once_released() -> None:
     assert (first, status) == (READY, 0)
 
 
-def test_a_held_child_reads_its_fd_until_the_writer_closes_it_and_then_exits_0() -> None:
+def test_a_held_child_reads_its_fd_until_the_writer_closes_it_and_then_exits_0() -> (
+    None
+):
     read_fd, write_fd = os.pipe()
     with _child(HOLD, str(read_fd), fds=(read_fd,)) as child:
         os.close(read_fd)
@@ -151,12 +167,18 @@ def test_a_witness_is_a_fifo_at_its_path(tmp_path: Path) -> None:
     assert (witness.path, stat.S_ISFIFO(mode)) == (path, True)
 
 
-def test_ended_gives_back_what_every_holder_wrote_once_each_has_closed(tmp_path: Path) -> None:
+def test_ended_gives_back_what_every_holder_wrote_once_each_has_closed(
+    tmp_path: Path,
+) -> None:
     with (
         Lifeline() as line,
         Witness(tmp_path / "witness.fifo") as witness,
-        _child(WITNESS, str(witness.path), str(line.read_fd), fds=(line.read_fd,)) as first,
-        _child(WITNESS, str(witness.path), str(line.read_fd), fds=(line.read_fd,)) as second,
+        _child(
+            WITNESS, str(witness.path), str(line.read_fd), fds=(line.read_fd,)
+        ) as first,
+        _child(
+            WITNESS, str(witness.path), str(line.read_fd), fds=(line.read_fd,)
+        ) as second,
     ):
         lines = (_ready(first), _ready(second))
         line.release()
@@ -166,11 +188,15 @@ def test_ended_gives_back_what_every_holder_wrote_once_each_has_closed(tmp_path:
     assert (lines, written, statuses) == ((READY, READY), MARK + MARK, (0, 0))
 
 
-def test_ended_reads_on_until_a_holder_writing_after_its_release_has_closed(tmp_path: Path) -> None:
+def test_ended_reads_on_until_a_holder_writing_after_its_release_has_closed(
+    tmp_path: Path,
+) -> None:
     with (
         Lifeline() as line,
         Witness(tmp_path / "witness.fifo") as witness,
-        _child(LATE_HOLDER, str(witness.path), str(line.read_fd), fds=(line.read_fd,)) as holder,
+        _child(
+            LATE_HOLDER, str(witness.path), str(line.read_fd), fds=(line.read_fd,)
+        ) as holder,
     ):
         first = _ready(holder)
         line.release()
@@ -212,7 +238,12 @@ def test_seen_gives_back_the_line_a_child_still_holding_the_beacon_wrote() -> No
     with (
         Lifeline() as line,
         Beacon() as beacon,
-        _child(SIGNALLER, str(beacon.write_fd), str(line.read_fd), fds=(beacon.write_fd, line.read_fd)) as child,
+        _child(
+            SIGNALLER,
+            str(beacon.write_fd),
+            str(line.read_fd),
+            fds=(beacon.write_fd, line.read_fd),
+        ) as child,
     ):
         seen = beacon.seen()
         line.release()
@@ -221,7 +252,9 @@ def test_seen_gives_back_the_line_a_child_still_holding_the_beacon_wrote() -> No
     assert (seen, status) == (READY, 0)
 
 
-def test_seen_gives_back_nothing_when_every_child_holding_the_beacon_closed_it_first() -> None:
+def test_seen_gives_back_nothing_when_every_child_holding_the_beacon_closed_it_first() -> (
+    None
+):
     with Beacon() as beacon, _child("pass\n", fds=(beacon.write_fd,)) as child:
         seen = beacon.seen()
         status = child.wait()
@@ -238,7 +271,9 @@ def test_leaving_a_beacon_closes_both_its_ends() -> None:
     assert after == before
 
 
-def test_leaving_a_beacon_after_seen_closes_nothing_a_second_time(tmp_path: Path) -> None:
+def test_leaving_a_beacon_after_seen_closes_nothing_a_second_time(
+    tmp_path: Path,
+) -> None:
     other = tmp_path / "other.txt"
     other.write_text("other", encoding="utf-8")
     with Beacon() as beacon:
@@ -267,11 +302,16 @@ def test_pids_gives_back_the_pids_noted_in_its_file(tmp_path: Path) -> None:
     assert (pids.path, pids.noted()) == (path, [1, 2])
 
 
-def test_pids_kills_each_noted_pid_passing_over_one_already_gone(tmp_path: Path) -> None:
+def test_pids_kills_each_noted_pid_passing_over_one_already_gone(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "pids.txt"
     with _child("pass\n") as gone:
         gone.wait()
-    with Lifeline() as line, _child(HOLD, str(line.read_fd), fds=(line.read_fd,)) as held:
+    with (
+        Lifeline() as line,
+        _child(HOLD, str(line.read_fd), fds=(line.read_fd,)) as held,
+    ):
         first = _ready(held)
         with Pids(path):
             path.write_text(f"{gone.pid}\n{held.pid}\n", encoding="utf-8")
@@ -288,7 +328,9 @@ def test_pids_kills_each_noted_pid_passing_over_one_already_gone(tmp_path: Path)
         pytest.param("write", os.O_RDONLY, id="child writes"),
     ],
 )
-def test_meet_returns_once_the_other_side_has_opened_the_fifo(tmp_path: Path, side: str, flags: int) -> None:
+def test_meet_returns_once_the_other_side_has_opened_the_fifo(
+    tmp_path: Path, side: str, flags: int
+) -> None:
     path = tmp_path / "meet.fifo"
     os.mkfifo(path)
     with _child(MEET, str(path), side) as child:

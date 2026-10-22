@@ -22,7 +22,18 @@ NARROWED = 3
 
 @pytest.mark.parametrize(
     ("cpus", "budget"),
-    [(0, 0), (1, 0), (2, 1), (3, 1), (4, 2), (5, 2), (6, 3), (7, 3), (64, 32), (65, 32)],
+    [
+        (0, 0),
+        (1, 0),
+        (2, 1),
+        (3, 1),
+        (4, 2),
+        (5, 2),
+        (6, 3),
+        (7, 3),
+        (64, 32),
+        (65, 32),
+    ],
 )
 def test_given_count_is_halved_and_rounded_down(cpus: int, budget: int) -> None:
     """A CPU count given gives floor(count / 2): an odd count rounds down, and 0 and 1 give 0, whatever the host has."""

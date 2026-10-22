@@ -41,7 +41,13 @@ PROBE = (
 )
 
 
-def _open(stack: contextlib.ExitStack[bool | None],tmp_path: Path, name: str, *, inheritable: bool) -> int:
+def _open(
+    stack: contextlib.ExitStack[bool | None],
+    tmp_path: Path,
+    name: str,
+    *,
+    inheritable: bool,
+) -> int:
     """Open a file of the test's own read-only, closed again when the stack closes."""
     path = tmp_path / name
     path.write_text(name, encoding="utf-8")
@@ -57,10 +63,16 @@ def _identity(fd: int) -> tuple[str, str, str]:
     return (str(fd), str(status.st_dev), str(status.st_ino))
 
 
-def _verdicts(tmp_path: Path, probed: tuple[int, ...], named: tuple[int, ...]) -> list[str]:
+def _verdicts(
+    tmp_path: Path, probed: tuple[int, ...], named: tuple[int, ...]
+) -> list[str]:
     """Run the probe through `run` with `pass_fds=named`, and give back its verdict on each probed descriptor."""
     arguments = [word for fd in probed for word in _identity(fd)]
-    command = Command(argv=(sys.executable, "-I", "-c", PROBE, *arguments), cwd=tmp_path, pass_fds=named)
+    command = Command(
+        argv=(sys.executable, "-I", "-c", PROBE, *arguments),
+        cwd=tmp_path,
+        pass_fds=named,
+    )
     return run(command).stdout.split()
 
 

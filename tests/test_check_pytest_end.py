@@ -93,7 +93,9 @@ def _seed(root: Path, relative: str, source: str) -> Path:
     return path
 
 
-def _paths(root: Path, source: str, companion: str | None, *, locked: bool, broken_first: bool) -> list[Path]:
+def _paths(
+    root: Path, source: str, companion: str | None, *, locked: bool, broken_first: bool
+) -> list[Path]:
     """The unfinished test file alone, or beside a companion test file given before or after it."""
     broken = _seed(root, f"tests/{BROKEN_NAME}", source)
     if locked:
@@ -106,7 +108,14 @@ def _paths(root: Path, source: str, companion: str | None, *, locked: bool, brok
 
 def _run(paths: list[Path]) -> tuple[int, list[str]]:
     """Run the gate in a child with stdout and stderr in one pipe; return its exit status and every line it printed."""
-    command = ["/usr/bin/env", "PYTHONUNBUFFERED=1", sys.executable, "-c", CHILD, *map(str, paths)]
+    command = [
+        "/usr/bin/env",
+        "PYTHONUNBUFFERED=1",
+        sys.executable,
+        "-c",
+        CHILD,
+        *map(str, paths),
+    ]
     result = subprocess.run(  # A child interpreter keeps the gate's stdout and stderr in one ordered buffer.
         command,
         cwd=REPO_ROOT,
@@ -130,9 +139,18 @@ def _shapes(lines: list[str]) -> list[bool]:
 
 @pytest.mark.parametrize(("source", "locked"), KINDS)
 @pytest.mark.parametrize(("companion", "broken_first"), LAYOUTS)
-def test_one(tmp_path: Path, source: str, companion: str | None, *, locked: bool, broken_first: bool) -> None:
+def test_one(
+    tmp_path: Path,
+    source: str,
+    companion: str | None,
+    *,
+    locked: bool,
+    broken_first: bool,
+) -> None:
     """An unfinished run exits 2 and counts files on one line only, the count line in its shape it ends on."""
-    paths = _paths(tmp_path, source, companion, locked=locked, broken_first=broken_first)
+    paths = _paths(
+        tmp_path, source, companion, locked=locked, broken_first=broken_first
+    )
 
     status, lines = _run(paths)
 
@@ -148,14 +166,28 @@ def _evidence(source: str, *, locked: bool) -> str:
 
 @pytest.mark.parametrize(("source", "locked"), KINDS)
 @pytest.mark.parametrize(("companion", "broken_first"), LAYOUTS)
-def test_report(tmp_path: Path, source: str, companion: str | None, *, locked: bool, broken_first: bool) -> None:
+def test_report(
+    tmp_path: Path,
+    source: str,
+    companion: str | None,
+    *,
+    locked: bool,
+    broken_first: bool,
+) -> None:
     """What pytest reported on the unfinished test file, which names it and carries its error, comes before the count line the run ends on."""
-    paths = _paths(tmp_path, source, companion, locked=locked, broken_first=broken_first)
+    paths = _paths(
+        tmp_path, source, companion, locked=locked, broken_first=broken_first
+    )
 
     status, lines = _run(paths)
 
     before = "\n".join(lines[:-1])
-    assert (status, BROKEN_NAME in before, _evidence(source, locked=locked) in before, _shapes(lines)) == (
+    assert (
+        status,
+        BROKEN_NAME in before,
+        _evidence(source, locked=locked) in before,
+        _shapes(lines),
+    ) == (
         UNFINISHED,
         True,
         True,

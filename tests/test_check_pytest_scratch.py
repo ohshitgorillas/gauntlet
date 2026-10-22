@@ -205,16 +205,26 @@ def _scratch(root: Path) -> Path:
 def _snapshot(root: Path) -> dict[str, bytes]:
     """Every entry under the root by relative path, a directory with a trailing slash, a file with its bytes."""
     return {
-        path.relative_to(root).as_posix() + ("/" if path.is_dir() else ""): b"" if path.is_dir() else path.read_bytes()
+        path.relative_to(root).as_posix() + ("/" if path.is_dir() else ""): b""
+        if path.is_dir()
+        else path.read_bytes()
         for path in root.rglob("*")
     }
 
 
 def _fill(
-    source: str, scratch: Path, record: Path | None = None, pid: Path | None = None, lock: Path | None = None
+    source: str,
+    scratch: Path,
+    record: Path | None = None,
+    pid: Path | None = None,
+    lock: Path | None = None,
 ) -> str:
     filled = source.replace("SCRATCH_PATH", repr(str(scratch)))
-    for marker, path in (("RECORD_PATH", record), ("PID_PATH", pid), ("LOCK_PATH", lock)):
+    for marker, path in (
+        ("RECORD_PATH", record),
+        ("PID_PATH", pid),
+        ("LOCK_PATH", lock),
+    ):
         if path is not None:
             filled = filled.replace(marker, repr(str(path)))
     return filled if record is None else filled.replace("RECORD_STEM", record.stem)
@@ -235,10 +245,17 @@ def _recording_run(root: Path) -> tuple[Path, list[list[str]], list[list[str]]]:
     records = [root / "records" / "alpha.txt", root / "records" / "zulu.txt"]
     records[0].parent.mkdir()
     modules = [
-        _seed(root, f"tree/tests/test_{record.stem}.py", _fill(RECORDING, scratch, record)) for record in records
+        _seed(
+            root, f"tree/tests/test_{record.stem}.py", _fill(RECORDING, scratch, record)
+        )
+        for record in records
     ]
     main(modules, scratch_root=scratch)
-    return scratch, [_record_lines(record) for record in records], [_reports_of(record) for record in records]
+    return (
+        scratch,
+        [_record_lines(record) for record in records],
+        [_reports_of(record) for record in records],
+    )
 
 
 def _base(lines: list[str]) -> Path | None:
@@ -282,7 +299,9 @@ def _nested_run(root: Path) -> tuple[Path, list[str], list[str], bool]:
     record = root / "records" / "outer.txt"
     inner = root / "records" / "inner.txt"
     record.parent.mkdir()
-    inner_module = _seed(root, "nested/tests/test_inner.py", _fill(RECORDING, scratch, inner))
+    inner_module = _seed(
+        root, "nested/tests/test_inner.py", _fill(RECORDING, scratch, inner)
+    )
     source = (
         _fill(NESTING, scratch, record)
         .replace("INNER_MODULE_PATH", repr(str(inner_module)))
@@ -294,7 +313,12 @@ def _nested_run(root: Path) -> tuple[Path, list[str], list[str], bool]:
     main([outer], scratch_root=scratch)
     before = _record_lines(record.with_name(f"{record.stem}-before.txt"))
     after = _record_lines(record.with_name(f"{record.stem}-after.txt"))
-    return scratch, _record_lines(record), _record_lines(inner), bool(before) and before == after
+    return (
+        scratch,
+        _record_lines(record),
+        _record_lines(inner),
+        bool(before) and before == after,
+    )
 
 
 def test_one_per_run(tmp_path: Path) -> None:
@@ -309,7 +333,14 @@ def test_one_per_run(tmp_path: Path) -> None:
     own = sorted({entry for entry in inner_lines[1:] if entry not in outer_seen})
     inner_top = _top(_base(inner_lines), shared)
 
-    assert (len(seen), seen == tops, placed == [seen, seen], len(own), own == [inner_top], untouched) == (
+    assert (
+        len(seen),
+        seen == tops,
+        placed == [seen, seen],
+        len(own),
+        own == [inner_top],
+        untouched,
+    ) == (
         ONE_RUN_DIRECTORY,
         True,
         True,
@@ -336,7 +367,9 @@ def test_deleted(tmp_path: Path, companion: str) -> None:
     before = _snapshot(scratch)
     record = tmp_path / "record.txt"
     paths = [
-        _seed(tmp_path, "tree/tests/test_recording.py", _fill(RECORDING, scratch, record)),
+        _seed(
+            tmp_path, "tree/tests/test_recording.py", _fill(RECORDING, scratch, record)
+        ),
         _seed(tmp_path, "tree/tests/test_companion.py", companion),
     ]
 
@@ -355,7 +388,9 @@ def _await_release(lock: Path) -> None:
         os.close(descriptor)
 
 
-def _interrupted_run(root: Path, scratch: Path) -> tuple[list[str], dict[str, bytes], dict[str, bytes]]:
+def _interrupted_run(
+    root: Path, scratch: Path
+) -> tuple[list[str], dict[str, bytes], dict[str, bytes]]:
     """Run the gate in a child interpreter the seeded module sends SIGINT to; return the module's record, the scratch root where `main` left, and the scratch root after the child exited.
 
     The child holds where `main` leaves, its exception still alive, until the parent has seen the scratch root there, once the module's pytest process has ended.
@@ -363,11 +398,24 @@ def _interrupted_run(root: Path, scratch: Path) -> tuple[list[str], dict[str, by
     record = root / "record.txt"
     pid = root / "gate.pid"
     lock = _seed(root, "gate.lock", "")
-    module = _seed(root, "tree/tests/test_interrupting.py", _fill(INTERRUPTING, scratch, record, pid, lock))
+    module = _seed(
+        root,
+        "tree/tests/test_interrupting.py",
+        _fill(INTERRUPTING, scratch, record, pid, lock),
+    )
     left_read, left_write = os.pipe()
     hold_read, hold_write = os.pipe()
     child = subprocess.Popen(
-        [sys.executable, "-c", CHILD, str(pid), str(left_write), str(hold_read), str(scratch), str(module)],
+        [
+            sys.executable,
+            "-c",
+            CHILD,
+            str(pid),
+            str(left_write),
+            str(hold_read),
+            str(scratch),
+            str(module),
+        ],
         cwd=REPO_ROOT,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -393,7 +441,11 @@ def test_interrupt(tmp_path: Path) -> None:
 
     record, where_left, after = _interrupted_run(tmp_path, scratch)
 
-    assert (len(_new(record)), where_left == before, after == before) == (ONE_RUN_DIRECTORY, True, True)
+    assert (len(_new(record)), where_left == before, after == before) == (
+        ONE_RUN_DIRECTORY,
+        True,
+        True,
+    )
 
 
 def _under(root: Path) -> re.Pattern[str]:
@@ -450,7 +502,10 @@ def test_unmade(tmp_path: Path, kind: str, code: int) -> None:
         output = captured(lambda: main(paths, scratch_root=scratch))
     finally:
         _restore(scratch)
-    shapes = [_shape(line.rstrip("\n"), _under(scratch), os.strerror(code)) for line in output.merged]
+    shapes = [
+        _shape(line.rstrip("\n"), _under(scratch), os.strerror(code))
+        for line in output.merged
+    ]
 
     assert (output.result, shapes) == (UNFINISHED, [ERROR, COUNT_NO_FINDING])
 
@@ -461,15 +516,24 @@ def test_undeleted(tmp_path: Path, companion: str, *, finds: bool) -> None:
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     record = tmp_path / "record.txt"
-    locker = _seed(tmp_path, "tree/tests/test_locker.py", _fill(LOCKING, scratch, record))
+    locker = _seed(
+        tmp_path, "tree/tests/test_locker.py", _fill(LOCKING, scratch, record)
+    )
     other = _seed(tmp_path, "tree/tests/test_other.py", companion)
     try:
         output = captured(lambda: main([locker, other], scratch_root=scratch))
     finally:
         _restore(scratch)
     run = _run_directory(scratch, _record_lines(record))
-    shapes = [_shape(line.rstrip("\n"), _exactly(run), os.strerror(errno.EACCES)) for line in output.merged]
+    shapes = [
+        _shape(line.rstrip("\n"), _exactly(run), os.strerror(errno.EACCES))
+        for line in output.merged
+    ]
     finding = f"{other}::test_seeded: ValueError: SeededFailure"
-    expected = [SEED, finding, ERROR, COUNT_ONE_FINDING] if finds else [SEED, ERROR, COUNT_NO_FINDING]
+    expected = (
+        [SEED, finding, ERROR, COUNT_ONE_FINDING]
+        if finds
+        else [SEED, ERROR, COUNT_NO_FINDING]
+    )
 
     assert (output.result, shapes) == (UNFINISHED, expected)

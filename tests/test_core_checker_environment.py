@@ -82,7 +82,9 @@ def test_whole() -> None:
 
 def _inherited() -> dict[str, str]:
     """The running process's variables as a child it starts with no env of its own sees them, through POSIX env."""
-    printed = subprocess.run(["env", "-0"], capture_output=True, check=True).stdout.decode()
+    printed = subprocess.run(
+        ["env", "-0"], capture_output=True, check=True
+    ).stdout.decode()
     return dict(entry.split("=", 1) for entry in printed.split("\0") if entry)
 
 
@@ -95,6 +97,10 @@ def test_inherited() -> None:
 
 def test_both() -> None:
     """Given both, exactly the prefixed and the named variables are dropped, and every other one is kept."""
-    kept = {name: value for name, value in environment().items() if name not in {CURRENT, VERSION}}
+    kept = {
+        name: value
+        for name, value in environment().items()
+        if name not in {CURRENT, VERSION}
+    }
 
     assert environment(drop_prefixes=("PYTEST_CUR",), drop=frozenset({VERSION})) == kept

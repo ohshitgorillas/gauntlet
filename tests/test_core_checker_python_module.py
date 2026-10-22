@@ -26,10 +26,20 @@ CAP = 600.0
 def test_argv_order(tmp_path: Path) -> None:
     """After the interpreter, argv is -m, the module, then each argument in order, a Path as its own text."""
     command = python_module(
-        "mypy", "--config-file", Path("conf") / "pyproject.toml", "--no-error-summary", cwd=tmp_path
+        "mypy",
+        "--config-file",
+        Path("conf") / "pyproject.toml",
+        "--no-error-summary",
+        cwd=tmp_path,
     )
 
-    assert command.argv[1:] == ("-m", "mypy", "--config-file", "conf/pyproject.toml", "--no-error-summary")
+    assert command.argv[1:] == (
+        "-m",
+        "mypy",
+        "--config-file",
+        "conf/pyproject.toml",
+        "--no-error-summary",
+    )
 
 
 def test_argv_no_arguments(tmp_path: Path) -> None:

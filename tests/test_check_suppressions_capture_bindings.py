@@ -113,6 +113,7 @@ FOR_SOURCES = [
     ),
 ]
 
+
 def _seed(tmp_path: Path, source: str) -> Path:
     path = tmp_path / "captured.py"
     path.write_text(source, encoding="utf-8")

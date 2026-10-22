@@ -21,7 +21,9 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 
 def test_gate_fails_on_cast_through_aliased_typing_module(tmp_path: Path) -> None:
     """`typing` imported under another name still reaches `typing.cast`, so its call is a finding."""
-    path = _seed(tmp_path, "aliased.py", "import typing as t\n\nvalue = t.cast(int, 1)\n")
+    path = _seed(
+        tmp_path, "aliased.py", "import typing as t\n\nvalue = t.cast(int, 1)\n"
+    )
 
     assert main([path]) == 1
 
@@ -36,7 +38,9 @@ def test_gate_fails_on_cast_inside_method_body(tmp_path: Path) -> None:
 
 def test_gate_fails_on_cast_under_type_checking_guard(tmp_path: Path) -> None:
     """Code read only by type checkers is still code, so a call under `TYPE_CHECKING` is a finding."""
-    source = "import typing\n\nif typing.TYPE_CHECKING:\n    VALUE = typing.cast(int, 1)\n"
+    source = (
+        "import typing\n\nif typing.TYPE_CHECKING:\n    VALUE = typing.cast(int, 1)\n"
+    )
     path = _seed(tmp_path, "guarded.py", source)
 
     assert main([path]) == 1

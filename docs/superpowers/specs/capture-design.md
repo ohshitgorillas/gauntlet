@@ -25,30 +25,51 @@ One module, `tests/support/capture.py`. Its job is to run a call in this interpr
 class Output:  # lines written to fd 1, to fd 2, and to both in the order of decision 1; each line keeps its line end
     def __init__(self, out: list[str], err: list[str], merged: list[str]) -> None: ...
     @property
-    def out(self) -> list[str]: ...     # a copy, as each view is
+    def out(self) -> list[str]: ...  # a copy, as each view is
     @property
     def err(self) -> list[str]: ...
     @property
     def merged(self) -> list[str]: ...
+
 
 class Captured[T](Output):  # a call that returned: its result and its Output
     def __init__(self, result: T, output: Output) -> None: ...
     @property
     def result(self) -> T: ...
 
-class CaptureSetupError(Exception):  # capture could not set up, so the call never ran
-    errno: int | None                # the errno of the failure; None where the step raised no OSError
-    step: Literal["pipe", "dup", "reader"]  # making a pipe, a dup, or starting the reader thread
-    def __init__(self, errno: int | None, step: Literal["pipe", "dup", "reader"]) -> None: ...
 
-class CaptureUnrecordedError(Exception):  # output_of was asked for an exception captured never recorded
-    exc: BaseException                    # that exception
+class CaptureSetupError(Exception):  # capture could not set up, so the call never ran
+    errno: int | None  # the errno of the failure; None where the step raised no OSError
+    step: Literal[
+        "pipe", "dup", "reader"
+    ]  # making a pipe, a dup, or starting the reader thread
+
+    def __init__(
+        self, errno: int | None, step: Literal["pipe", "dup", "reader"]
+    ) -> None: ...
+
+
+class CaptureUnrecordedError(
+    Exception
+):  # output_of was asked for an exception captured never recorded
+    exc: BaseException  # that exception
+
     def __init__(self, exc: BaseException) -> None: ...
 
-def captured[T](call: Callable[[], T]) -> Captured[T]: ...  # blocks until fds 1 and 2 reach EOF once the call has ended; pytest-timeout is the one bound
+
+def captured[T](
+    call: Callable[[], T],
+) -> Captured[
+    T
+]: ...  # blocks until fds 1 and 2 reach EOF once the call has ended; pytest-timeout is the one bound
+
+
 # A call that raised: its exception propagates as itself, and output_of reads its Output (decision 2).
 
-def output_of(exc: BaseException) -> Output: ...  # the Output read while the call that raised exc ran; raises CaptureUnrecordedError for an exc captured never recorded
+
+def output_of(
+    exc: BaseException,
+) -> Output: ...  # the Output read while the call that raised exc ran; raises CaptureUnrecordedError for an exc captured never recorded
 ```
 
 How `captured` behaves:

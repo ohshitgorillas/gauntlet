@@ -43,7 +43,9 @@ def _printed(capfd: pytest.CaptureFixture[str]) -> str:
     return captured.out + captured.err
 
 
-def test_report_names_the_given_file_and_not_its_import(tmp_path: Path, capfd: pytest.CaptureFixture[str]) -> None:
+def test_report_names_the_given_file_and_not_its_import(
+    tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
     """A finding in the given file is printed; a finding in a module it imports is not."""
     _seed(tmp_path, "dependency.py", DEPENDENCY)
     first = _seed(tmp_path, "first.py", FIRST)
@@ -51,10 +53,14 @@ def test_report_names_the_given_file_and_not_its_import(tmp_path: Path, capfd: p
     main([first])
     printed = _printed(capfd)
 
-    assert {marker for marker in (DEPENDENCY_MARKER, FIRST_MARKER) if marker in printed} == {FIRST_MARKER}
+    assert {
+        marker for marker in (DEPENDENCY_MARKER, FIRST_MARKER) if marker in printed
+    } == {FIRST_MARKER}
 
 
-def test_report_names_every_given_file_and_not_their_import(tmp_path: Path, capfd: pytest.CaptureFixture[str]) -> None:
+def test_report_names_every_given_file_and_not_their_import(
+    tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
     """Findings in each of several given files are printed; the shared import's are not."""
     _seed(tmp_path, "dependency.py", DEPENDENCY)
     first = _seed(tmp_path, "first.py", FIRST)
@@ -63,4 +69,8 @@ def test_report_names_every_given_file_and_not_their_import(tmp_path: Path, capf
     main([first, second])
     printed = _printed(capfd)
 
-    assert {marker for marker in (DEPENDENCY_MARKER, FIRST_MARKER, SECOND_MARKER) if marker in printed} == {FIRST_MARKER, SECOND_MARKER}
+    assert {
+        marker
+        for marker in (DEPENDENCY_MARKER, FIRST_MARKER, SECOND_MARKER)
+        if marker in printed
+    } == {FIRST_MARKER, SECOND_MARKER}

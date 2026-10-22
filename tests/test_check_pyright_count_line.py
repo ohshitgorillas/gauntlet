@@ -50,7 +50,9 @@ def test_count_line_counts_files(tmp_path: Path) -> None:
     first = _seed(tmp_path, "first.py", CLEAN)
     second = _seed(tmp_path, "second.py", CLEAN)
 
-    assert _last_line([first, second]) == "check_pyright: 0 finding(s) in 2 Python file(s)"
+    assert (
+        _last_line([first, second]) == "check_pyright: 0 finding(s) in 2 Python file(s)"
+    )
 
 
 def test_count_line_after_finding(tmp_path: Path) -> None:

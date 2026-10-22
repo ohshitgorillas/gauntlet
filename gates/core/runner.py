@@ -10,9 +10,27 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn, Protocol
 
-from gates.core.checker import Command, Completed, NextDone, Runner, first_done, run, run_all
+from gates.core.checker import (
+    Command,
+    Completed,
+    NextDone,
+    Runner,
+    first_done,
+    run,
+    run_all,
+)
 from gates.core.project import Project, Source, python_files
-from gates.core.report import GateError, Line, Outcome, Unfinished, exit_code, nothing_checked, render, timed_out, write
+from gates.core.report import (
+    GateError,
+    Line,
+    Outcome,
+    Unfinished,
+    exit_code,
+    nothing_checked,
+    render,
+    timed_out,
+    write,
+)
 
 # The mode every directory of the run's temp dir is given before it is deleted, so that a read-only one is deleted too.
 DELETABLE = stat.S_IRWXU
@@ -141,10 +159,14 @@ class Checker[R](Protocol):
 
     def expected_status(self, report: R) -> int: ...
 
-    def lines(self, report: R, batch: Sequence[Source], *, stopped: bool) -> Sequence[Line]: ...
+    def lines(
+        self, report: R, batch: Sequence[Source], *, stopped: bool
+    ) -> Sequence[Line]: ...
 
 
-def check_with[R](checker: Checker[R], *, budget: Callable[[], int] | None = None) -> Callable[[Run], Outcome]:
+def check_with[R](
+    checker: Checker[R], *, budget: Callable[[], int] | None = None
+) -> Callable[[Run], Outcome]:
     """Return the check that runs the checker's batches, the budget's number at once, and gives their lines in order.
 
     The budget is called once per check, after `batches` and before the first `command`; the cap is `max(1, budget())`,
@@ -179,7 +201,9 @@ def check_with[R](checker: Checker[R], *, budget: Callable[[], int] | None = Non
     return check
 
 
-def _batch_lines[R](checker: Checker[R], batch: Sequence[Source], command: Command, completed: Completed) -> list[Line]:
+def _batch_lines[R](
+    checker: Checker[R], batch: Sequence[Source], command: Command, completed: Completed
+) -> list[Line]:
     """Return one batch's lines: its report's, or the checker's whole output when the batch did not finish.
 
     A timeout reads no report and adds the gate's line naming the cap. A stop is read before the expected status, so a
@@ -247,7 +271,9 @@ def run_gate(
     finally:
         failure = scratch.close()
     if failure is not None:
-        outcome = Outcome(lines=(*outcome.lines, Unfinished(failure)), notes=outcome.notes)
+        outcome = Outcome(
+            lines=(*outcome.lines, Unfinished(failure)), notes=outcome.notes
+        )
     write(render(gate.name, outcome, len(sources)))
     return exit_code(outcome)
 

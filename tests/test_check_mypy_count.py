@@ -19,7 +19,9 @@ WELL_TYPED = "def double(value: int) -> int:\n    return value * 2\n"
 
 TYPED_STUB = "def ping() -> int: ...\n"
 
-SHEBANG_SCRIPT = "#!/usr/bin/env python3\ndef triple(value: int) -> int:\n    return value * 3\n"
+SHEBANG_SCRIPT = (
+    "#!/usr/bin/env python3\ndef triple(value: int) -> int:\n    return value * 3\n"
+)
 
 FINDING_WORD = "finding(s)"
 
@@ -60,7 +62,10 @@ def _count(line: str) -> tuple[str, int, int] | None:
 
 def test_count_clean(tmp_path: Path) -> None:
     """A run over two well-typed files ends on the count line naming zero findings in two files."""
-    files = [_seed(tmp_path, "first.py", WELL_TYPED), _seed(tmp_path, "second.py", WELL_TYPED)]
+    files = [
+        _seed(tmp_path, "first.py", WELL_TYPED),
+        _seed(tmp_path, "second.py", WELL_TYPED),
+    ]
 
     assert _count(_last_line(files)) == ("check_mypy", 0, 2)
 

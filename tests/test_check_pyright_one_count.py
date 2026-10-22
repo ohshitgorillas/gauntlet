@@ -54,7 +54,9 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
     return path
 
 
-def _layout(tmp_path: Path, broken: Path, companion: str | None, *, broken_first: bool) -> list[Path]:
+def _layout(
+    tmp_path: Path, broken: Path, companion: str | None, *, broken_first: bool
+) -> list[Path]:
     """The unfinished file alone, or beside a companion file placed before or after it."""
     if companion is None:
         return [broken]
@@ -84,7 +86,9 @@ def _shapes(lines: list[str]) -> list[bool]:
 def test_unparsed(tmp_path: Path, companion: str | None, *, broken_first: bool) -> None:
     """A run with a file pyright cannot parse counts files on one line only, the count line it ends on."""
     broken = _seed(tmp_path, "broken.py", UNPARSEABLE)
-    status, lines = _run(_layout(tmp_path, broken, companion, broken_first=broken_first))
+    status, lines = _run(
+        _layout(tmp_path, broken, companion, broken_first=broken_first)
+    )
 
     assert (status, _counts(lines), _shapes(lines)) == (UNFINISHED, 1, [True])
 
@@ -94,6 +98,8 @@ def test_unread(tmp_path: Path, companion: str | None, *, broken_first: bool) ->
     """A run with a file pyright cannot read counts files on one line only, the count line it ends on."""
     broken = _seed(tmp_path, "locked.py", CLEAN)
     broken.chmod(0o000)
-    status, lines = _run(_layout(tmp_path, broken, companion, broken_first=broken_first))
+    status, lines = _run(
+        _layout(tmp_path, broken, companion, broken_first=broken_first)
+    )
 
     assert (status, _counts(lines), _shapes(lines)) == (UNFINISHED, 1, [True])

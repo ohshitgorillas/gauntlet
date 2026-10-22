@@ -68,7 +68,9 @@ def _caches(_directory: str, names: list[str]) -> set[str]:
 def _tree(tmp_path: Path, pyproject: str) -> Path:
     """A tree holding a copy of the `gates` package and the seeded `pyproject.toml`."""
     root = tmp_path / "tree"
-    shutil.copytree(Path(check_suppressions.__file__).parent, root / "gates", ignore=_caches)
+    shutil.copytree(
+        Path(check_suppressions.__file__).parent, root / "gates", ignore=_caches
+    )
     (root / "pyproject.toml").write_text(pyproject, encoding="utf-8")
     return root
 
@@ -111,4 +113,7 @@ def test_last(tmp_path: Path, pyproject: str) -> None:
     """The last line the unfinished run prints is its count line."""
     status, lines = _run(tmp_path, pyproject, CLEAN)
 
-    assert (status, [COUNT_LINE_SHAPE.fullmatch(line) is not None for line in lines[-1:]]) == (UNFINISHED, [True])
+    assert (
+        status,
+        [COUNT_LINE_SHAPE.fullmatch(line) is not None for line in lines[-1:]],
+    ) == (UNFINISHED, [True])

@@ -15,7 +15,13 @@ import pytest
 
 from gates.check_suppressions import main
 
-MARKERS = ["noqa", "type: ignore", "pyright: ignore", "pragma: no cover", "pragma: no mutate"]
+MARKERS = [
+    "noqa",
+    "type: ignore",
+    "pyright: ignore",
+    "pragma: no cover",
+    "pragma: no mutate",
+]
 
 
 def _seed(tmp_path: Path, name: str, source: str) -> Path:

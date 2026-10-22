@@ -55,7 +55,9 @@ class Scope:
     global_names: set[str] = field(default_factory=set[str])
     nonlocal_names: set[str] = field(default_factory=set[str])
 
-    def bind(self, name: str, *values: Value, reader: "Scope | None" = None) -> list[Binding]:
+    def bind(
+        self, name: str, *values: Value, reader: "Scope | None" = None
+    ) -> list[Binding]:
         """Record a binding of `name` made in this scope, which can make it refer to each of `values`, read in `reader`, this scope unless given, and to nothing else, and return the bindings recorded."""
         bindings = [Binding(value, reader or self) for value in values]
         self.bound.setdefault(name, []).extend(bindings)
@@ -110,7 +112,11 @@ class Scope:
         local, else from the module, and an annotation scope inside a class body reads the
         class's namespace first.
         """
-        if self.parent is None or name in self.global_names or name in self.nonlocal_names:
+        if (
+            self.parent is None
+            or name in self.global_names
+            or name in self.nonlocal_names
+        ):
             return [self.home(name)]
         if name in self.bound:
             return [self, self.module()] if self.kind == "class" else [self]
@@ -128,7 +134,11 @@ class Scope:
 
 def held(scope: Scope, name: str, referents: dict[Key, set[Referent]]) -> set[Referent]:
     """Return everything a use of `name` in `scope` can refer to: every referent of every binding of it in each scope the use reads."""
-    return {referent for home in scope.homes(name) for referent in referents.get((home, name), set[Referent]())}
+    return {
+        referent
+        for home in scope.homes(name)
+        for referent in referents.get((home, name), set[Referent]())
+    }
 
 
 def read_name(expression: ast.Name | ast.Attribute) -> str | None:
@@ -140,13 +150,23 @@ def read_name(expression: ast.Name | ast.Attribute) -> str | None:
             return None
 
 
-def evaluate(expression: ast.Name | ast.Attribute, scope: Scope, referents: dict[Key, set[Referent]]) -> set[Referent]:
+def evaluate(
+    expression: ast.Name | ast.Attribute,
+    scope: Scope,
+    referents: dict[Key, set[Referent]],
+) -> set[Referent]:
     """Return what `expression` can refer to in `scope`: what a name can, or the `no_type_check` function an attribute names of a typing module its name can be."""
     match expression:
         case ast.Name(id=name):
             return held(scope, name, referents)
-        case ast.Attribute(value=ast.Name(id=name), attr=attribute) if attribute in NO_TYPE_CHECK:
-            return {Referent(function=f"{referent.module}.{attribute}") for referent in held(scope, name, referents) if referent.module is not None}
+        case ast.Attribute(value=ast.Name(id=name), attr=attribute) if (
+            attribute in NO_TYPE_CHECK
+        ):
+            return {
+                Referent(function=f"{referent.module}.{attribute}")
+                for referent in held(scope, name, referents)
+                if referent.module is not None
+            }
         case _:
             return set()
 
@@ -165,7 +185,9 @@ def places(count: int, starred: list[int]) -> tuple[int, int]:
     return (starred[0], count - 1 - starred[-1]) if starred else (count, count)
 
 
-def unpacked(target: ast.Tuple | ast.List | ast.MatchSequence, value: ast.expr) -> list[tuple[ast.expr | ast.pattern, ast.expr]]:
+def unpacked(
+    target: ast.Tuple | ast.List | ast.MatchSequence, value: ast.expr
+) -> list[tuple[ast.expr | ast.pattern, ast.expr]]:
     """Return each part of `target`, a tuple or list target or a sequence pattern, with each item of `value` unpacking can reach it with.
 
     Only a list, tuple or set display written in place is followed; a value reached through
@@ -176,22 +198,54 @@ def unpacked(target: ast.Tuple | ast.List | ast.MatchSequence, value: ast.expr) 
     any part of a tuple or list target; a set never matches a sequence pattern, so no item of
     one reaches a part of a sequence pattern.
     """
-    parts: Sequence[ast.expr | ast.pattern] = target.patterns if isinstance(target, ast.MatchSequence) else target.elts
+    parts: Sequence[ast.expr | ast.pattern] = (
+        target.patterns if isinstance(target, ast.MatchSequence) else target.elts
+    )
     match value:
         case ast.Set(elts=items) if not isinstance(target, ast.MatchSequence):
-            return [(part, item) for part in parts if not isinstance(part, ast.Starred) for item in items if not isinstance(item, ast.Starred)]
+            return [
+                (part, item)
+                for part in parts
+                if not isinstance(part, ast.Starred)
+                for item in items
+                if not isinstance(item, ast.Starred)
+            ]
         case ast.List(elts=items) | ast.Tuple(elts=items):
-            part_front, part_back = places(len(parts), [index for index, part in enumerate(parts) if isinstance(part, ast.Starred | ast.MatchStar)])
-            item_front, item_back = places(len(items), [index for index, item in enumerate(items) if isinstance(item, ast.Starred)])
-            front = [(parts[index], items[index]) for index in range(min(part_front, item_front))]
-            return front + [(parts[-offset], items[-offset]) for offset in range(1, min(part_back, item_back) + 1)]
+            part_front, part_back = places(
+                len(parts),
+                [
+                    index
+                    for index, part in enumerate(parts)
+                    if isinstance(part, ast.Starred | ast.MatchStar)
+                ],
+            )
+            item_front, item_back = places(
+                len(items),
+                [
+                    index
+                    for index, item in enumerate(items)
+                    if isinstance(item, ast.Starred)
+                ],
+            )
+            front = [
+                (parts[index], items[index])
+                for index in range(min(part_front, item_front))
+            ]
+            return front + [
+                (parts[-offset], items[-offset])
+                for offset in range(1, min(part_back, item_back) + 1)
+            ]
         case _:
             return []
 
 
 def parameters(arguments: ast.arguments) -> list[ast.arg]:
     """Return every parameter `arguments` declares, positional-only, positional, keyword-only, `*` and `**` alike."""
-    optional = [parameter for parameter in (arguments.vararg, arguments.kwarg) if parameter is not None]
+    optional = [
+        parameter
+        for parameter in (arguments.vararg, arguments.kwarg)
+        if parameter is not None
+    ]
     return [*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs, *optional]
 
 
@@ -223,7 +277,11 @@ class Resolver:
         search: the list is built here, from the tokens themselves, so its order and its
         character columns are the ones `case_line` relies on.
         """
-        self.case_keywords: list[Position] = [token.start for token in tokens if token.type == tokenize.NAME and token.string == "case"]
+        self.case_keywords: list[Position] = [
+            token.start
+            for token in tokens
+            if token.type == tokenize.NAME and token.string == "case"
+        ]
         self.references: list[Reference] = []
         self.stack: list[tuple[ast.AST, Scope]] = []
         self.scopes: list[Scope] = []
@@ -240,7 +298,14 @@ class Resolver:
         for node, scope in self.uses:
             self.refer(node.lineno, evaluate(node, scope, referents))
         for line, captures in self.cases:
-            self.refer(line, {referent for capture in captures for referent in taken(capture, referents)})
+            self.refer(
+                line,
+                {
+                    referent
+                    for capture in captures
+                    for referent in taken(capture, referents)
+                },
+            )
         return self.references
 
     def scope(self, kind: ScopeKind, parent: Scope | None) -> Scope:
@@ -259,7 +324,9 @@ class Resolver:
         bytes and a token's counts characters, but only whitespace, parentheses and the keyword
         itself precede the pattern on its line, so the two agree there.
         """
-        before = bisect.bisect_left(self.case_keywords, (pattern.lineno, pattern.col_offset))
+        before = bisect.bisect_left(
+            self.case_keywords, (pattern.lineno, pattern.col_offset)
+        )
         return self.case_keywords[before - 1][0]
 
     def later(self, scope: Scope, *nodes: ast.AST | None) -> None:
@@ -284,7 +351,9 @@ class Resolver:
                             if read is None:
                                 continue
                             for home in binding.scope.homes(read):
-                                readers.setdefault((home, read), []).append((key, expression, binding.scope))
+                                readers.setdefault((home, read), []).append(
+                                    (key, expression, binding.scope)
+                                )
         while grown:
             for key, expression, scope in readers.get(grown.pop(), []):
                 found = evaluate(expression, scope, referents)
@@ -296,7 +365,13 @@ class Resolver:
 
     def refer(self, line: int, referents: set[Referent]) -> None:
         """Record a reference on `line` naming each `no_type_check` function among `referents`, when there is one."""
-        functions = sorted({referent.function for referent in referents if referent.function is not None})
+        functions = sorted(
+            {
+                referent.function
+                for referent in referents
+                if referent.function is not None
+            }
+        )
         if functions:
             self.references.append(Reference(line=line, functions=", ".join(functions)))
 
@@ -318,7 +393,13 @@ class Resolver:
         """Return `value` as what a binding to it can refer to when it is a name or an attribute, or nothing when it is any other expression."""
         return [value] if isinstance(value, ast.Name | ast.Attribute) else []
 
-    def reach(self, scope: Scope, reader: Scope, target: ast.expr | ast.pattern, value: ast.expr) -> list[Binding]:
+    def reach(
+        self,
+        scope: Scope,
+        reader: Scope,
+        target: ast.expr | ast.pattern,
+        value: ast.expr,
+    ) -> list[Binding]:
         """Bind in `scope` each name that `target`, a `for` target or a `match` pattern, takes from `value`, to what it takes, read in `reader`, and return the bindings made.
 
         A plain name or a capture pattern takes `value` whole, as each alternative of an
@@ -347,7 +428,9 @@ class Resolver:
                     pass
         return made
 
-    def iterate(self, scope: Scope, reader: Scope, target: ast.expr, iterable: ast.expr) -> None:
+    def iterate(
+        self, scope: Scope, reader: Scope, target: ast.expr, iterable: ast.expr
+    ) -> None:
         """Bind in `scope` the names of a `for` target to what each item of `iterable`, read in `reader`, reaches them with, when it is a list, tuple or set display written in place; a container reached through another name is not followed."""
         match iterable:
             case ast.List(elts=items) | ast.Tuple(elts=items) | ast.Set(elts=items):
@@ -371,14 +454,23 @@ class Resolver:
                 for alias in aliases:
                     bound = alias.asname or alias.name.partition(".")[0]
                     module = alias.name if alias.asname else bound
-                    scope.bind(bound, *([Referent(module=module)] if module in TYPING_MODULES else []))
+                    scope.bind(
+                        bound,
+                        *(
+                            [Referent(module=module)]
+                            if module in TYPING_MODULES
+                            else []
+                        ),
+                    )
             case ast.ImportFrom():
                 self.import_from(node, scope)
             case ast.Assign(targets=targets, value=value):
                 self.later(scope, value)
                 for target in targets:
                     self.assign(scope, target, value)
-            case ast.AnnAssign(target=target, annotation=annotation, value=ast.expr() as value):
+            case ast.AnnAssign(
+                target=target, annotation=annotation, value=ast.expr() as value
+            ):
                 self.later(scope, annotation, value)
                 self.assign(scope, target, value)
             case ast.AnnAssign(target=ast.Name(id=name), annotation=annotation):
@@ -388,19 +480,39 @@ class Resolver:
             case ast.NamedExpr(target=ast.Name(id=name), value=value):
                 self.later(scope, value)
                 scope.assignment_scope().bind(name, *self.values(value), reader=scope)
-            case ast.For(target=target, iter=iterable) | ast.AsyncFor(target=target, iter=iterable):
+            case (
+                ast.For(target=target, iter=iterable)
+                | ast.AsyncFor(target=target, iter=iterable)
+            ):
                 self.later(scope, *ast.iter_child_nodes(node))
                 self.iterate(scope, scope, target, iterable)
             case ast.Match(subject=subject, cases=cases):
                 self.later(scope, *ast.iter_child_nodes(node))
                 for case in cases:
-                    self.cases.append((self.case_line(case.pattern), self.reach(scope, scope, case.pattern, subject)))
-            case ast.ListComp(elt=element, generators=generators) | ast.SetComp(elt=element, generators=generators) | ast.GeneratorExp(elt=element, generators=generators):
+                    self.cases.append(
+                        (
+                            self.case_line(case.pattern),
+                            self.reach(scope, scope, case.pattern, subject),
+                        )
+                    )
+            case (
+                ast.ListComp(elt=element, generators=generators)
+                | ast.SetComp(elt=element, generators=generators)
+                | ast.GeneratorExp(elt=element, generators=generators)
+            ):
                 self.comprehend(scope, generators, element)
             case ast.DictComp(key=key, value=value, generators=generators):
                 self.comprehend(scope, generators, key, value)
-            case ast.FunctionDef(name=name, args=arguments) | ast.AsyncFunctionDef(name=name, args=arguments):
-                self.later(scope, *node.decorator_list, *arguments.defaults, *arguments.kw_defaults)
+            case (
+                ast.FunctionDef(name=name, args=arguments)
+                | ast.AsyncFunctionDef(name=name, args=arguments)
+            ):
+                self.later(
+                    scope,
+                    *node.decorator_list,
+                    *arguments.defaults,
+                    *arguments.kw_defaults,
+                )
                 scope.bind(name)
                 signature = self.generic(scope, node.type_params)
                 self.later(signature, *parameters(arguments), node.returns)
@@ -416,7 +528,9 @@ class Resolver:
                 scope.bind(name)
             case ast.TypeAlias(name=target, type_params=type_params, value=value):
                 self.later(scope, target)
-                self.later(self.scope("annotation", self.generic(scope, type_params)), value)
+                self.later(
+                    self.scope("annotation", self.generic(scope, type_params)), value
+                )
             case ast.Global(names=names) if scope.parent is not None:
                 scope.global_names.update(names)
             case ast.Nonlocal(names=names):
@@ -440,26 +554,43 @@ class Resolver:
         A star import from a typing module binds both functions; one from any other module
         binds names it does not list, so it binds nothing the gate can name.
         """
-        typing = node.module if node.level == 0 and node.module in TYPING_MODULES else None
+        typing = (
+            node.module if node.level == 0 and node.module in TYPING_MODULES else None
+        )
         for alias in node.names:
             if alias.name == "*":
                 if typing is not None:
                     for name in NO_TYPE_CHECK:
                         scope.bind(name, Referent(function=f"{typing}.{name}"))
                 continue
-            function = f"{typing}.{alias.name}" if typing is not None and alias.name in NO_TYPE_CHECK else None
+            function = (
+                f"{typing}.{alias.name}"
+                if typing is not None and alias.name in NO_TYPE_CHECK
+                else None
+            )
             if function is not None:
                 self.references.append(Reference(line=alias.lineno, functions=function))
-            scope.bind(alias.asname or alias.name, *([] if function is None else [Referent(function=function)]))
+            scope.bind(
+                alias.asname or alias.name,
+                *([] if function is None else [Referent(function=function)]),
+            )
 
-    def comprehend(self, scope: Scope, generators: list[ast.comprehension], *results: ast.expr) -> None:
+    def comprehend(
+        self, scope: Scope, generators: list[ast.comprehension], *results: ast.expr
+    ) -> None:
         """Read a comprehension in a scope of its own: its first iterable in `scope`, then each target, condition, later iterable and result inside, each target bound inside to what the items of its iterable reach it with."""
         inner = self.scope("comprehension", scope)
-        nodes = [part for generator in generators for part in (generator.iter, generator.target, *generator.ifs)]
+        nodes = [
+            part
+            for generator in generators
+            for part in (generator.iter, generator.target, *generator.ifs)
+        ]
         self.later(scope, nodes[0])
         self.later(inner, *nodes[1:], *results)
         for index, generator in enumerate(generators):
-            self.iterate(inner, inner if index else scope, generator.target, generator.iter)
+            self.iterate(
+                inner, inner if index else scope, generator.target, generator.iter
+            )
 
     def generic(self, scope: Scope, type_params: list[ast.type_param]) -> Scope:
         """Return the scope the header of a definition in `scope` is read in: `scope` itself when it declares no type parameter, else an annotation scope of its own where each type parameter binds to neither and its bound is read."""
@@ -468,14 +599,20 @@ class Resolver:
         inner = self.scope("annotation", scope)
         for type_param in type_params:
             match type_param:
-                case ast.TypeVar(name=name) | ast.ParamSpec(name=name) | ast.TypeVarTuple(name=name):
+                case (
+                    ast.TypeVar(name=name)
+                    | ast.ParamSpec(name=name)
+                    | ast.TypeVarTuple(name=name)
+                ):
                     inner.bind(name)
                 case _:
                     pass
         self.later(inner, *type_params)
         return inner
 
-    def function_body(self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda, scope: Scope) -> None:
+    def function_body(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda, scope: Scope
+    ) -> None:
         """Schedule the body of a function or lambda to be read in a scope of its own inside `scope`, where each parameter binds to neither."""
         inner = self.scope("function", scope)
         for parameter in parameters(node.args):

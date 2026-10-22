@@ -54,15 +54,18 @@ class Project:  # gains
 Its job, C7b's, gains the gate-side knowledge of where mutmut wants its files and which functions it mutates. Every function here is pure but `MUTMUT.mangle`, and each runs in the gate's own process.
 
 ```python
-MUTANTS: str = "mutants"                                    # the directory of the copy where mutmut runs the tests, and every file it does not mutate goes
-SOURCE_PATHS: str = "source_paths"                          # mutmut's [tool.mutmut] keys this module writes;
-PYTEST_ARGUMENTS: str = "pytest_add_cli_args"               # check_mutation.SCOPE_KEYS names them through these (decision 9)
+MUTANTS: str = "mutants"  # the directory of the copy where mutmut runs the tests, and every file it does not mutate goes
+SOURCE_PATHS: str = "source_paths"  # mutmut's [tool.mutmut] keys this module writes;
+PYTEST_ARGUMENTS: str = "pytest_add_cli_args"  # check_mutation.SCOPE_KEYS names them through these (decision 9)
 TEST_SELECTION: str = "pytest_add_cli_args_test_selection"
 
+
 class Mutmut(Protocol):  # C7b's protocol (mutmut run design, decision 4), gaining:
-    def mangle(self, name: str, class_name: str | None) -> str: ...
+    def mangle(self, name: str, class_name: str | None) -> str:
+        ...
         # mutmut's mangled name of a function, a method's with its class (decision 2): the name changed_mutants matches it by,
         # so changed_mutants(self, {path: frozenset({self.mangle(name, class_name)})}) keeps that function's mutants and no other's (decision 8)
+
 
 MUTMUT: Mutmut  # C7b's, gaining mangle: mutmut 3.8.0's mangle_function_name
 ```

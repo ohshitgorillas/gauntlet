@@ -24,45 +24,60 @@ Core imports run in one chain: `verdicts` ← `design` ← `causes` ← `decide`
 
 ```python
 @dataclass(frozen=True)
-class Anchor:                      # one place in the job tree
-    path: str                      # relative to the tree root
-    line: int                      # 1-based
+class Anchor:  # one place in the job tree
+    path: str  # relative to the tree root
+    line: int  # 1-based
+
 
 class Category(StrEnum):
-    DEFECT = "defect"              # wrong behavior, no design concern
-    COPY = "copy"                  # the same logic in two or more places
-    OWN_CORE = "own-core"          # a piece writes what a design home holds
-    DRIFT = "drift"                # code departs from a design stub or home
-    MISSING = "missing"            # audit only: a shared concern with no home
+    DEFECT = "defect"  # wrong behavior, no design concern
+    COPY = "copy"  # the same logic in two or more places
+    OWN_CORE = "own-core"  # a piece writes what a design home holds
+    DRIFT = "drift"  # code departs from a design stub or home
+    MISSING = "missing"  # audit only: a shared concern with no home
+
 
 @dataclass(frozen=True)
 class Finding:
     anchor: Anchor
-    scenario: str                  # the failure scenario
+    scenario: str  # the failure scenario
     category: Category
     blocking: bool
-    concern: str | None            # the shared concern it breaks; None only for DEFECT
-    also: tuple[Anchor, ...] = ()  # every other place the logic sits, for COPY and MISSING
+    concern: str | None  # the shared concern it breaks; None only for DEFECT
+    also: tuple[
+        Anchor, ...
+    ] = ()  # every other place the logic sits, for COPY and MISSING
+
 
 @dataclass(frozen=True)
-class Candidate:                   # one structure job put to the owner
+class Candidate:  # one structure job put to the owner
     concern: str
-    payoff: str                    # what the core saves, one sentence
-    risk: str                      # what porting the copies could break, one sentence
-    keeps: tuple[str, ...]         # hard-won behaviors the copies carry, one line each, for the spec (decision 9)
-    why: str | None = None         # set only when the request cannot be done correctly without it (decision 8)
+    payoff: str  # what the core saves, one sentence
+    risk: str  # what porting the copies could break, one sentence
+    keeps: tuple[
+        str, ...
+    ]  # hard-won behaviors the copies carry, one line each, for the spec (decision 9)
+    why: str | None = (
+        None  # set only when the request cannot be done correctly without it (decision 8)
+    )
+
 
 @dataclass(frozen=True)
-class CoreMissing:                 # carried by an implementer's `blocked`, `complete` or `partial`
-    need: str                      # what the step needs from the core, one sentence
-    candidate: Candidate           # its why set on `blocked` and only there
-    also: tuple[Anchor, ...]       # every copy or caller of the concern the implementer found
+class CoreMissing:  # carried by an implementer's `blocked`, `complete` or `partial`
+    need: str  # what the step needs from the core, one sentence
+    candidate: Candidate  # its why set on `blocked` and only there
+    also: tuple[
+        Anchor, ...
+    ]  # every copy or caller of the concern the implementer found
+
 
 @dataclass(frozen=True)
-class Survey:                      # the surveyor's answer
+class Survey:  # the surveyor's answer
     findings: tuple[Finding, ...]  # categories COPY and MISSING
-    candidates: tuple[Candidate, ...]  # one per concern, ranked best payoff for its risk first (decision 9)
-    sound: tuple[str, ...]         # what is sound enough to keep as it is, one line each
+    candidates: tuple[
+        Candidate, ...
+    ]  # one per concern, ranked best payoff for its risk first (decision 9)
+    sound: tuple[str, ...]  # what is sound enough to keep as it is, one line each
 ```
 
 **`gauntlet/core/design.py`.** The design record and its validity checks: one home per concern, every home in a module, steps of at most five paths, a home landing before the copies it replaces are purged, and no copy left unported. It also reads whether a job needs a design from the planner's flag on the outline (decision 1). It replaces nothing. Records:
@@ -70,41 +85,46 @@ class Survey:                      # the surveyor's answer
 ```python
 @dataclass(frozen=True)
 class Stub:
-    name: str                      # the public name, e.g. "Clock.now"
-    text: str                      # signature and a body that only raises
+    name: str  # the public name, e.g. "Clock.now"
+    text: str  # signature and a body that only raises
+
 
 @dataclass(frozen=True)
 class Module:
     path: str
-    job: str                       # one line
+    job: str  # one line
     stubs: tuple[Stub, ...]
-    replaces: tuple[Anchor, ...]   # each copy this module's arrival purges
+    replaces: tuple[Anchor, ...]  # each copy this module's arrival purges
+
 
 @dataclass(frozen=True)
 class Home:
-    concern: str                   # e.g. "process running"
-    module: str                    # a Module.path of this design
-    forbids: str                   # what no other module writes
+    concern: str  # e.g. "process running"
+    module: str  # a Module.path of this design
+    forbids: str  # what no other module writes
+
 
 @dataclass(frozen=True)
 class Step:
     name: str
-    paths: tuple[str, ...]         # at most five
-    implementer: str               # a role name
+    paths: tuple[str, ...]  # at most five
+    implementer: str  # a role name
+
 
 @dataclass(frozen=True)
 class Choice:
     question: str
     recommend: str
     alternative: str
-    cost: str                      # each side's cost; "unmeasured" where nobody measured it
+    cost: str  # each side's cost; "unmeasured" where nobody measured it
+
 
 @dataclass(frozen=True)
 class Design:
     modules: tuple[Module, ...]
     homes: tuple[Home, ...]
     order: tuple[Step, ...]
-    choices: tuple[Choice, ...]    # at most five; the owner rules each before approval
+    choices: tuple[Choice, ...]  # at most five; the owner rules each before approval
 ```
 
 Its functions:

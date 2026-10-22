@@ -27,18 +27,26 @@ Its job is to run mutmut once over a plan through the run's process runner and h
 ```python
 DRIVER: Path = Path(__file__).with_name("mutmut_driver.py")
 
+
 @dataclass(frozen=True)
 class Plan:  # what the copy, git and parse steps (C7c) hand the mutmut run
-    settings: Path                         # the directory of the pyproject.toml mutmut reads, in the run's scratch;
-                                           # its pytest_add_cli_args carry "-o", f"pythonpath={work / 'mutants'}" (decision 12)
-    work: Path                             # the copy mutmut works in, in the run's scratch
-    changed: Mapping[str, frozenset[str]]  # each file mutmut mutates, by its path in the copy: its changed functions' mangled names
-    given: Mapping[str, Source]            # the same files: the Source each was given as
+    settings: (
+        Path  # the directory of the pyproject.toml mutmut reads, in the run's scratch;
+    )
+    # its pytest_add_cli_args carry "-o", f"pythonpath={work / 'mutants'}" (decision 12)
+    work: Path  # the copy mutmut works in, in the run's scratch
+    changed: Mapping[
+        str, frozenset[str]
+    ]  # each file mutmut mutates, by its path in the copy: its changed functions' mangled names
+    given: Mapping[str, Source]  # the same files: the Source each was given as
+
 
 @dataclass(frozen=True)
 class Mutated:  # what one mutmut run left
-    mutants: tuple[Mutant, ...] = ()         # every mutant not killed
-    unfinished: tuple[Unfinished, ...] = ()  # what the checker did not finish, printed before every finding
+    mutants: tuple[Mutant, ...] = ()  # every mutant not killed
+    unfinished: tuple[
+        Unfinished, ...
+    ] = ()  # what the checker did not finish, printed before every finding
 ```
 
 ```python

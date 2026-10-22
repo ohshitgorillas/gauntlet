@@ -34,9 +34,13 @@ LOW_PRIORITY = "19"
 
 ARGUMENTS = ("-q", "report")
 
-SKIP_TO_COMMAND = 'while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n'
+SKIP_TO_COMMAND = (
+    'while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n'
+)
 
-SKIP_OPTIONS = 'while [ $# -gt 0 ]; do case "$1" in -*) shift;; *) break;; esac; done\nexec "$@"\n'
+SKIP_OPTIONS = (
+    'while [ $# -gt 0 ]; do case "$1" in -*) shift;; *) break;; esac; done\nexec "$@"\n'
+)
 
 FINISH = "exit 0\n"
 
@@ -75,7 +79,10 @@ def _run(tmp_path: Path, throttled: bool) -> tuple[int, list[str], Path]:
     checker = tmp_path / "checker"
     _recorder(checker, log, FINISH)
     command = Command(
-        argv=(str(checker), *ARGUMENTS), cwd=tmp_path, env={"PATH": str(tools)}, throttled=throttled
+        argv=(str(checker), *ARGUMENTS),
+        cwd=tmp_path,
+        env={"PATH": str(tools)},
+        throttled=throttled,
     )
     completed = run(command)
     lines = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
@@ -91,7 +98,11 @@ def test_throttled_line(tmp_path: Path) -> None:
     started = _logged("checker", *ARGUMENTS)
     expected = {
         "darwin": [nice, started],
-        "linux": [_logged("ionice", "-c3", "nice", "-n", step, "--", *argv), nice, started],
+        "linux": [
+            _logged("ionice", "-c3", "nice", "-n", step, "--", *argv),
+            nice,
+            started,
+        ],
     }
 
     assert (status, lines) == (0, expected[sys.platform])
@@ -113,9 +124,14 @@ def test_throttled_low_priority(tmp_path: Path) -> None:
     _recorder(tools / "nice", log, HOST_NICE)
     _recorder(tools / "ionice", log, SKIP_OPTIONS)
     argv = (sys.executable, "-c", NICENESS)
-    completed = run(Command(argv=argv, cwd=tmp_path, env={"PATH": str(tools)}, throttled=True))
+    completed = run(
+        Command(argv=argv, cwd=tmp_path, env={"PATH": str(tools)}, throttled=True)
+    )
     lines = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
     nice = _logged("nice", "-n", step, "--", *argv)
-    expected = {"darwin": [nice], "linux": [_logged("ionice", "-c3", "nice", "-n", step, "--", *argv), nice]}
+    expected = {
+        "darwin": [nice],
+        "linux": [_logged("ionice", "-c3", "nice", "-n", step, "--", *argv), nice],
+    }
 
     assert (completed.stdout, lines) == (LOW_PRIORITY, expected[sys.platform])

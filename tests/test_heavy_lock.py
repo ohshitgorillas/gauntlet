@@ -59,11 +59,25 @@ def _wrapper(options: list[str], log: Path) -> subprocess.CompletedProcess[str]:
     """
     from gates import heavy
 
-    line = [sys.executable, "-m", heavy.__name__, *options, sys.executable, "-c", NOTE, str(log), RAN]
-    return subprocess.run(line, cwd=REPO_ROOT, check=False, capture_output=True, text=True)
+    line = [
+        sys.executable,
+        "-m",
+        heavy.__name__,
+        *options,
+        sys.executable,
+        "-c",
+        NOTE,
+        str(log),
+        RAN,
+    ]
+    return subprocess.run(
+        line, cwd=REPO_ROOT, check=False, capture_output=True, text=True
+    )
 
 
-@pytest.mark.parametrize("unopenable", [_under_file, _too_long], ids=["under-file", "too-long"])
+@pytest.mark.parametrize(
+    "unopenable", [_under_file, _too_long], ids=["under-file", "too-long"]
+)
 def test_unopenable_lock(tmp_path: Path, unopenable: Callable[[Path], Path]) -> None:
     """Where the path given by --lock cannot be opened, the wrapper never runs its command and exits 2."""
     log = tmp_path / "log"
@@ -78,4 +92,7 @@ def test_empty_lock(tmp_path: Path, options: list[str]) -> None:
     """Given --lock with an empty path, the wrapper prints its usage and exits 2."""
     result = _wrapper(options, tmp_path / "log")
 
-    assert (result.returncode, USAGE in result.stdout + result.stderr) == (BLOCKED, True)
+    assert (result.returncode, USAGE in result.stdout + result.stderr) == (
+        BLOCKED,
+        True,
+    )

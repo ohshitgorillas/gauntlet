@@ -15,13 +15,19 @@ UNREACHABLE = "def pick(value: int) -> int:\n    if isinstance(value, int):\n   
 
 EXPLICIT_ANY = "from typing import Any\n\n\ndef keep(value: Any) -> None:\n    pass\n"
 
-ANY_EXPRESSION = "import json\n\n\ndef show(text: str) -> None:\n    print(json.loads(text))\n"
+ANY_EXPRESSION = (
+    "import json\n\n\ndef show(text: str) -> None:\n    print(json.loads(text))\n"
+)
 
 EXPLICIT_OVERRIDE = "class Base:\n    def run(self) -> int:\n        return 1\n\n\nclass Child(Base):\n    def run(self) -> int:\n        return 2\n"
 
-POSSIBLY_UNDEFINED = "def pick(flag: bool) -> int:\n    if flag:\n        value = 1\n    return value\n"
+POSSIBLY_UNDEFINED = (
+    "def pick(flag: bool) -> int:\n    if flag:\n        value = 1\n    return value\n"
+)
 
-MUTABLE_OVERRIDE = "class Base:\n    value: float = 0.0\n\n\nclass Child(Base):\n    value: int = 0\n"
+MUTABLE_OVERRIDE = (
+    "class Base:\n    value: float = 0.0\n\n\nclass Child(Base):\n    value: int = 0\n"
+)
 
 UNUSED_AWAITABLE = "import asyncio\n\n\nasync def work() -> int:\n    return 1\n\n\nasync def start() -> None:\n    asyncio.ensure_future(work())\n"
 
@@ -35,7 +41,9 @@ PEP_695_ALIAS = "type Pair = tuple[int, int]\n\n\ndef first(pair: Pair) -> int:\
 
 BARE_GENERIC = "def count(items: list) -> int:\n    return 0\n"
 
-NON_OVERLAPPING_EQUALITY = "def same(left: int, right: str) -> bool:\n    return left == right\n"
+NON_OVERLAPPING_EQUALITY = (
+    "def same(left: int, right: str) -> bool:\n    return left == right\n"
+)
 
 REDUNDANT_CAST = "from typing import cast\n\nvalue = cast(int, 1)\n"
 
@@ -59,7 +67,7 @@ REEXPORT_SOURCE = "from json import JSONDecodeError\n"
 
 REEXPORT_USER = "from helper import JSONDecodeError\n"
 
-CLEAN ="def double(value: int) -> int:\n    return value * 2\n"
+CLEAN = "def double(value: int) -> int:\n    return value * 2\n"
 
 
 def _seed(tmp_path: Path, source: str) -> Path:

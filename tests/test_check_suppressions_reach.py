@@ -18,19 +18,35 @@ MARKED_BODY = "value = 1  # noqa\n"
 
 PYTHON_SOURCES = [
     pytest.param("module.py", CLEAN_BODY, id="py-suffix"),
-    pytest.param("module.py", "#!/bin/sh\n" + CLEAN_BODY, id="py-suffix-with-shell-shebang"),
+    pytest.param(
+        "module.py", "#!/bin/sh\n" + CLEAN_BODY, id="py-suffix-with-shell-shebang"
+    ),
     pytest.param("script", PYTHON_SHEBANG + CLEAN_BODY, id="extensionless-env-python3"),
-    pytest.param("script", "#!/usr/bin/python\n" + CLEAN_BODY, id="extensionless-python"),
-    pytest.param("script", "#!/usr/bin/python3.12\n" + CLEAN_BODY, id="extensionless-python3.12"),
+    pytest.param(
+        "script", "#!/usr/bin/python\n" + CLEAN_BODY, id="extensionless-python"
+    ),
+    pytest.param(
+        "script", "#!/usr/bin/python3.12\n" + CLEAN_BODY, id="extensionless-python3.12"
+    ),
 ]
 
 NOT_PYTHON_SOURCES = [
     pytest.param("module.py.bak", CLEAN_BODY, id="py-then-other-suffix"),
     pytest.param("script", "#!/bin/sh\necho one\n", id="extensionless-sh"),
-    pytest.param("script", "#!/usr/bin/env bash\necho one\n", id="extensionless-env-bash"),
+    pytest.param(
+        "script", "#!/usr/bin/env bash\necho one\n", id="extensionless-env-bash"
+    ),
     pytest.param("script", "import os\n", id="extensionless-no-shebang"),
-    pytest.param("script", "# python helper\nimport os\n", id="extensionless-python-comment-not-shebang"),
-    pytest.param("script", "\n" + PYTHON_SHEBANG + "import os\n", id="extensionless-shebang-on-second-line"),
+    pytest.param(
+        "script",
+        "# python helper\nimport os\n",
+        id="extensionless-python-comment-not-shebang",
+    ),
+    pytest.param(
+        "script",
+        "\n" + PYTHON_SHEBANG + "import os\n",
+        id="extensionless-shebang-on-second-line",
+    ),
     pytest.param("script", "", id="extensionless-empty"),
 ]
 
@@ -65,7 +81,14 @@ def _tree_source(relative: str, body: str) -> str:
 
 
 def _seed_tree(root: Path, marked: str) -> list[Path]:
-    return [_seed(root, relative, _tree_source(relative, MARKED_BODY if relative == marked else CLEAN_BODY)) for relative in TREE_FILES]
+    return [
+        _seed(
+            root,
+            relative,
+            _tree_source(relative, MARKED_BODY if relative == marked else CLEAN_BODY),
+        )
+        for relative in TREE_FILES
+    ]
 
 
 def _gate_with_marked(root: Path, name: str, source: str) -> int:

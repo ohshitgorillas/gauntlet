@@ -34,7 +34,9 @@ class ScaffoldError(Exception):
     completed: Completed
 
     def __init__(self, completed: Completed) -> None:
-        super().__init__(f"scaffold: git exited {completed.status}: {completed.output()}")
+        super().__init__(
+            f"scaffold: git exited {completed.status}: {completed.output()}"
+        )
         self.completed = completed
 
 
@@ -52,7 +54,10 @@ def scaffold(
     """
     root.mkdir(parents=True, exist_ok=True)
     project = Project(root)
-    project.config.write_text(OWN_CONFIG.read_text(encoding="utf-8") if pyproject is None else pyproject, encoding="utf-8")
+    project.config.write_text(
+        OWN_CONFIG.read_text(encoding="utf-8") if pyproject is None else pyproject,
+        encoding="utf-8",
+    )
     for name, content in files.items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,7 +66,11 @@ def scaffold(
         else:
             path.write_text(content, encoding="utf-8")
     if git:
-        for arguments in (("init", "--quiet"), ("add", "--all"), ("commit", "--quiet", "--allow-empty", "-m", "scaffold")):
+        for arguments in (
+            ("init", "--quiet"),
+            ("add", "--all"),
+            ("commit", "--quiet", "--allow-empty", "-m", "scaffold"),
+        ):
             completed = project.git(*GIT_SETTINGS, *arguments)
             if completed.status != 0:
                 raise ScaffoldError(completed)

@@ -71,10 +71,15 @@ def _parsed(tmp_path: Path, text: str) -> Parsed | None:
 # pinned_version
 
 
-@pytest.mark.parametrize(("version", "pin"), [("3.12", (3, 12)), ("3.10", (3, 10)), ("3.7", (3, 7))])
+@pytest.mark.parametrize(
+    ("version", "pin"), [("3.12", (3, 12)), ("3.10", (3, 10)), ("3.7", (3, 7))]
+)
 def test_pin(tmp_path: Path, version: str, pin: tuple[int, int]) -> None:
     """The pin is pyright's pythonVersion as (major, minor)."""
-    assert pinned_version(_project(tmp_path, STRICT + f'pythonVersion = "{version}"\n')) == pin
+    assert (
+        pinned_version(_project(tmp_path, STRICT + f'pythonVersion = "{version}"\n'))
+        == pin
+    )
 
 
 @pytest.mark.parametrize(
@@ -82,7 +87,9 @@ def test_pin(tmp_path: Path, version: str, pin: tuple[int, int]) -> None:
     [
         pytest.param('[tool.mypy]\npython_version = "3.12"\n', id="no-table"),
         pytest.param(STRICT, id="no-key"),
-        pytest.param(STRICT + '\n[tool.mypy]\npythonVersion = "3.12"\n', id="other-table"),
+        pytest.param(
+            STRICT + '\n[tool.mypy]\npythonVersion = "3.12"\n', id="other-table"
+        ),
         pytest.param(STRICT + 'pythonVersion = "3"\n', id="major"),
         pytest.param(STRICT + 'pythonVersion = "3.12.0"\n', id="micro"),
         pytest.param(STRICT + 'pythonVersion = "py312"\n', id="py312"),
@@ -129,7 +136,11 @@ def test_parsed(tmp_path: Path) -> None:
     result = parse(source, PIN)
     assert isinstance(result, Parsed)
 
-    assert (result.source, result.text, ast.dump(result.tree)) == (source, text, ast.dump(ast.parse(text)))
+    assert (result.source, result.text, ast.dump(result.tree)) == (
+        source,
+        text,
+        ast.dump(ast.parse(text)),
+    )
 
 
 def test_tokens(tmp_path: Path) -> None:
@@ -137,7 +148,11 @@ def test_tokens(tmp_path: Path) -> None:
     parsed = _parsed(tmp_path, "value = 1  # one\n# two\n")
     assert parsed is not None
 
-    assert [(token.type, token.string, token.start[0]) for token in parsed.tokens if token.type == tokenize.COMMENT] == [
+    assert [
+        (token.type, token.string, token.start[0])
+        for token in parsed.tokens
+        if token.type == tokenize.COMMENT
+    ] == [
         (tokenize.COMMENT, "# one", 1),
         (tokenize.COMMENT, "# two", 2),
     ]
@@ -164,7 +179,10 @@ def test_pinned_grammar(tmp_path: Path) -> None:
     """A file is parsed with the grammar of the version given, not the interpreter's: `type` needs 3.12."""
     source = _source(tmp_path / "a.py", "type Alias = int\n")
 
-    assert (isinstance(parse(source, (3, 11)), Unfinished), isinstance(parse(source, (3, 12)), Parsed)) == (True, True)
+    assert (
+        isinstance(parse(source, (3, 11)), Unfinished),
+        isinstance(parse(source, (3, 12)), Parsed),
+    ) == (True, True)
 
 
 def test_older_grammar(tmp_path: Path) -> None:
@@ -278,7 +296,9 @@ def test_warning(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("action", ["ignore", "error", "default"])
-def test_warning_whatever_filters(tmp_path: Path, action: Literal["ignore", "error", "default"]) -> None:
+def test_warning_whatever_filters(
+    tmp_path: Path, action: Literal["ignore", "error", "default"]
+) -> None:
     """A parse warning is reported as a warning whatever the warning filters of the caller say."""
     source = _source(tmp_path / "a.py", 'pattern = "\\d"\n')
     with warnings.catch_warnings(action=action):
@@ -301,10 +321,15 @@ def test_warning_leaves_filters(tmp_path: Path) -> None:
 
 def test_markers(tmp_path: Path) -> None:
     """Each line whose comment carries a marker, with the names of its markers in the order of the table."""
-    parsed = _parsed(tmp_path, "a = 1  # noqa\nb = 2  # plain\nc = 3  # TYPE: ignore and NOQA\n")
+    parsed = _parsed(
+        tmp_path, "a = 1  # noqa\nb = 2  # plain\nc = 3  # TYPE: ignore and NOQA\n"
+    )
     assert parsed is not None
 
-    assert comment_markers(parsed, MARKERS) == [(1, ("noqa",)), (3, ("noqa", "type: ignore"))]
+    assert comment_markers(parsed, MARKERS) == [
+        (1, ("noqa",)),
+        (3, ("noqa", "type: ignore")),
+    ]
 
 
 def test_markers_in_strings(tmp_path: Path) -> None:

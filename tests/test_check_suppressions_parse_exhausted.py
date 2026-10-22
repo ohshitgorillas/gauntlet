@@ -43,15 +43,21 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 
 
 @pytest.mark.parametrize("source", EXHAUSTING.values(), ids=EXHAUSTING.keys())
-def test_gate_exits_unfinished_on_a_parse_past_any_depth(tmp_path: Path, source: str) -> None:
+def test_gate_exits_unfinished_on_a_parse_past_any_depth(
+    tmp_path: Path, source: str
+) -> None:
     """Exit with the unfinished status on a file whose parse runs out of depth."""
     deep = _seed(tmp_path, "deep.py", source)
 
     assert main([deep]) == UNFINISHED_STATUS
 
 
-@pytest.mark.parametrize("deep_first", [True, False], ids=["deep-first", "marker-first"])
-def test_gate_exits_unfinished_on_a_deep_parse_beside_a_finding(tmp_path: Path, *, deep_first: bool) -> None:
+@pytest.mark.parametrize(
+    "deep_first", [True, False], ids=["deep-first", "marker-first"]
+)
+def test_gate_exits_unfinished_on_a_deep_parse_beside_a_finding(
+    tmp_path: Path, *, deep_first: bool
+) -> None:
     """Exit with the unfinished status when one file's parse runs out of depth and another carries a marker."""
     deep = _seed(tmp_path, "deep.py", EXHAUSTING["unary minus"])
     dirty = _seed(tmp_path, "dirty.py", MARKER_SOURCE)
@@ -61,7 +67,9 @@ def test_gate_exits_unfinished_on_a_deep_parse_beside_a_finding(tmp_path: Path, 
 
 
 @pytest.mark.parametrize("source", EXHAUSTING.values(), ids=EXHAUSTING.keys())
-def test_parse_names_the_file_whose_parse_ran_out_of_depth(tmp_path: Path, source: str) -> None:
+def test_parse_names_the_file_whose_parse_ran_out_of_depth(
+    tmp_path: Path, source: str
+) -> None:
     """Return the file whose parse runs out of depth as unfinished, naming its path."""
     deep = _seed(tmp_path, "deep.py", source)
     result = parse(Source(given=deep, absolute=deep), PINNED)

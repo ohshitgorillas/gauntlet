@@ -35,25 +35,49 @@ Every block in the test's thread while `run_all` runs a `Scripted`'s calls is a 
 A test that hands a `Scripted` as its process without its `next_done` holds every call for good: `run_all` then waits through `first_done`, nothing releases a held call, and the cleanup's wait outlasts pytest-timeout's one signal, so `make check` hangs. G6's Scripted rule fails every test file that could make that slip, so the pairing is checked mechanically (decision 12). The rule is built with G6 (decision 13); until G6 lands, `test-reviewer` holds the pairing. In a test file that imports `tests.support.scripted`, every Runner handed to `run_all`, `Run`, `run_gate` or `dataclasses.replace` is a plain name `p` with `next_done=p.next_done` in the same call, so every Runner such a file hands those calls has a `next_done`. A `FakeRunner` (`tests/support/fake.py:16`) has none, so such a file hands it to none of them, where `tests/test_core_runner_budget.py:120` hands one to `Run` through `_checked` (`:73`); and a `Scripted` built inside the call, as at `tests/test_core_checker_run_all.py:61`, is bound to a name first.
 
 ```python
-class Released(Exception):  # a call or a next_done still blocked when its Scripted closed
-    name: str                 # the call's name, or "next_done"
+class Released(
+    Exception
+):  # a call or a next_done still blocked when its Scripted closed
+    name: str  # the call's name, or "next_done"
+
     def __init__(self, name: str) -> None: ...
 
-def last_argument(command: Command) -> str: ...  # the default key: the Command's last argv word
+
+def last_argument(
+    command: Command,
+) -> str: ...  # the default key: the Command's last argv word
+
 
 @dataclass(frozen=True)
 class Step:
     reply: Completed | BaseException
-    after: tuple[str, ...] = ()   # names whose calls have finished before this call returns
+    after: tuple[
+        str, ...
+    ] = ()  # names whose calls have finished before this call returns
+
 
 class Scripted:  # a Runner whose next_done a test hands run_all beside it, safe across threads; every wait blocks on an event and has no timeout
     called: list[str]
     finished: list[str]
-    peak: int                     # the most calls seen running at once
-    def __init__(self, steps: Mapping[str, Step], *, key: Callable[[Command], str] = last_argument) -> None: ...
-    def __call__(self, command: Command) -> Completed: ...  # held until next_done releases it, then blocks on `after`, then replies; once closed, raises Released
-    def next_done(self, running: Collection[Future[Completed]]) -> set[Future[Completed]]: ...  # blocks until each future in running has its call under way or is done, releases every held call, then returns first_done(running); any exception inside it, pytest-timeout's included, closes first and goes on; once closed, first_done(running) alone
-    def close(self) -> None: ...  # every call and next_done still blocked raises Released, and every later call raises it at once
+    peak: int  # the most calls seen running at once
+
+    def __init__(
+        self,
+        steps: Mapping[str, Step],
+        *,
+        key: Callable[[Command], str] = last_argument,
+    ) -> None: ...
+    def __call__(
+        self, command: Command
+    ) -> Completed: ...  # held until next_done releases it, then blocks on `after`, then replies; once closed, raises Released
+    def next_done(
+        self, running: Collection[Future[Completed]]
+    ) -> set[
+        Future[Completed]
+    ]: ...  # blocks until each future in running has its call under way or is done, releases every held call, then returns first_done(running); any exception inside it, pytest-timeout's included, closes first and goes on; once closed, first_done(running) alone
+    def close(
+        self,
+    ) -> None: ...  # every call and next_done still blocked raises Released, and every later call raises it at once
 ```
 
 ### `tests/support/lifeline.py`: child processes held, met and ended by pipes
@@ -63,37 +87,56 @@ Its job is every wait a test makes on a real process: ready, held, met and ended
 ```python
 class Lifeline:  # a pipe whose write end only the test holds; a child reading its read end to EOF lives until release
     read_fd: int
+
     def __init__(self) -> None: ...
-    def release(self) -> None: ...                 # close the write end; a second call does nothing
+    def release(self) -> None: ...  # close the write end; a second call does nothing
     def __enter__(self) -> Self: ...
     def __exit__(self, *exc: object) -> None: ...  # release, then close the read end
 
+
 class Witness:  # a FIFO the test reads; every process that opens it to write is a holder
     path: Path
-    def __init__(self, path: Path) -> None: ...    # makes the FIFO and opens its read end without blocking
-    def ended(self) -> bytes: ...                  # called after every holder's ready line: blocks, with no deadline, until every holder has closed it; returns what they wrote
+
+    def __init__(
+        self, path: Path
+    ) -> None: ...  # makes the FIFO and opens its read end without blocking
+    def ended(
+        self,
+    ) -> bytes: ...  # called after every holder's ready line: blocks, with no deadline, until every holder has closed it; returns what they wrote
     def __enter__(self) -> Self: ...
     def __exit__(self, *exc: object) -> None: ...
 
-def ready(fd: int) -> bytes: ...  # block until a child writes one line on fd and return it; b"" when every writer closed first
+
+def ready(
+    fd: int,
+) -> bytes: ...  # block until a child writes one line on fd and return it; b"" when every writer closed first
+
 
 class Beacon:  # a pipe a child writes one ready line on; the test reads it once the child has started
     write_fd: int  # handed to the child through Command.pass_fds and its argv
+
     def __init__(self) -> None: ...
-    def seen(self) -> bytes: ...                   # close the test's write end, then ready() on the read end: the line, or b"" when every child holding the write end closed it first
+    def seen(
+        self,
+    ) -> bytes: ...  # close the test's write end, then ready() on the read end: the line, or b"" when every child holding the write end closed it first
     def __enter__(self) -> Self: ...
     def __exit__(self, *exc: object) -> None: ...  # close each end still open
 
+
 class Pids:  # the pids children note in a file, killed by pid at teardown
     path: Path
+
     def __init__(self, path: Path) -> None: ...
     def noted(self) -> list[int]: ...
     def __enter__(self) -> Self: ...
-    def __exit__(self, *exc: object) -> None: ...  # SIGKILL each noted pid; ProcessLookupError passed over
+    def __exit__(
+        self, *exc: object
+    ) -> None: ...  # SIGKILL each noted pid; ProcessLookupError passed over
 
-HOLD: str     # child code: write a ready line to fd 1, then read fd int(sys.argv[1]) to EOF and exit 0
+
+HOLD: str  # child code: write a ready line to fd 1, then read fd int(sys.argv[1]) to EOF and exit 0
 WITNESS: str  # child code: open the FIFO at sys.argv[1] to write, write a mark, write a ready line, then HOLD on fd int(sys.argv[2])
-MEET: str     # child code: open the FIFO at sys.argv[1] for reading or writing as sys.argv[2] says; returns once the other side has opened it
+MEET: str  # child code: open the FIFO at sys.argv[1] for reading or writing as sys.argv[2] says; returns once the other side has opened it
 ```
 
 `MEET` is a two-process rendezvous: a FIFO's open blocks until both ends are open. A seeded test module that must end after another one opens such a FIFO and reads it to its end, which comes when the other module's process has exited. That replaces the timed waits at `tests/test_check_pytest_parallel.py:30` and `:43`.
@@ -105,7 +148,11 @@ A `Beacon` is the event a group test waits on before a virtual cap passes (decis
 Once the call has ended it blocks until both pipes reach end of file, and pytest-timeout is its one bound (decision 4). `HOLD_BOUND` (`tests/support/capture.py:29`), the `timeout` keyword (`:357`), the timed wait (`:179`) and `CaptureError` (`:65`), whose one raise is the held-fd raise (`:354`), all go. So do the held-fd tests (`tests/test_support_capture.py:687`, `:708`, `:725`) and the held-fd case of the exit-path test (`:837`, run by `_held` at `:823`). A leaked fd holder fails as pytest-timeout's 30-second timeout, with no `CaptureError` output. Step 1 rewrites the capture design to match: its holder constraint, its stubs, where `captured` takes no `timeout` (`:48`) and neither `HOLD_BOUND` nor `CaptureError` stands, the holder behaviour (`:60`), its homes rows for the errors and the wait (`:71`, `:72`) and its decision 3 (`:86`–`:89`). Step 29, a `moved` step on those lines, changes `capture.py` with its own tests and removes the held-fd tests, which no document line holds; step 30, a `port`, drops the timeouts at `tests/test_support_capture.py:209`, `:293` and `:547`, which no moved line reaches.
 
 ```python
-def captured[T](call: Callable[[], T]) -> Captured[T]: ...  # blocks until fds 1 and 2 reach EOF once the call has ended; pytest-timeout is the one bound
+def captured[T](
+    call: Callable[[], T],
+) -> Captured[
+    T
+]: ...  # blocks until fds 1 and 2 reach EOF once the call has ended; pytest-timeout is the one bound
 ```
 
 ### `gates/heavy.py`: a wait the test can see (decisions 3, 18)
@@ -116,8 +163,14 @@ def captured[T](call: Callable[[], T]) -> Captured[T]: ...  # blocks until fds 1
 
 ```python
 WAITING: str  # "heavy: waiting for the lock {path}", written once when another process holds the lock
-def acquire(handle: IO[str], lock: Path, err: IO[str]) -> None: ...  # LOCK_EX | LOCK_NB on handle first; when refused, writes WAITING for lock and a line end on err, then blocks on LOCK_EX
-def run(lock: Path, line: list[str]) -> int: ...  # opens lock and takes it through acquire, err sys.stderr, then runs line
+
+
+def acquire(
+    handle: IO[str], lock: Path, err: IO[str]
+) -> None: ...  # LOCK_EX | LOCK_NB on handle first; when refused, writes WAITING for lock and a line end on err, then blocks on LOCK_EX
+def run(
+    lock: Path, line: list[str]
+) -> int: ...  # opens lock and takes it through acquire, err sys.stderr, then runs line
 ```
 
 ### `gates/core/clock.py`: the one home of real time (decisions 6, 16, 18)
@@ -125,13 +178,20 @@ def run(lock: Path, line: list[str]) -> int: ...  # opens lock and takes it thro
 Its job is to carry every wait in `gates/` that can end on time as well as on an event, so that real time lives in `SystemClock` alone and a test turns the time through a `Clock` it hands in. The caller keeps its own wait on the event, as `Ready`; the clock decides what time that wait is given. It replaces the bare cap handed to the exit wait at `gates/core/checker.py:226` and `:242`, which becomes the `Ready` `run` hands its clock. Its block in the gates core design, which step 2 writes, is `docs/superpowers/specs/gates-core-design.md:48`.
 
 ```python
-type Ready = Callable[[float | None], bool]  # the caller's own wait on an event, for up to the seconds given (None: without end); True when the event came
+type Ready = Callable[
+    [float | None], bool
+]  # the caller's own wait on an event, for up to the seconds given (None: without end); True when the event came
+
 
 class Clock(Protocol):
-    def wait(self, ready: Ready, seconds: float | None) -> bool: ...  # True when the event came before `seconds` passed on this clock; None: no cap
+    def wait(
+        self, ready: Ready, seconds: float | None
+    ) -> bool: ...  # True when the event came before `seconds` passed on this clock; None: no cap
+
 
 class SystemClock:  # real time, the only real time in gates/: hands `seconds` to ready as they are
     def wait(self, ready: Ready, seconds: float | None) -> bool: ...
+
 
 SYSTEM: Clock  # a SystemClock; the default of every clock parameter in gates/
 ```
@@ -145,8 +205,13 @@ Its job is to be the one clock a test hands to code that waits on time. Its time
 ```python
 class VirtualClock:  # a Clock whose time moves only as the test sets it
     now: float  # virtual seconds passed, from 0
-    def __init__(self, *, passes: float | None = None, after: Callable[[], object] | None = None) -> None: ...  # passes: the seconds that pass in a wait whose event has not come at its poll, None: time stands still; after: blocks, with no timeout, until the event the test proves against has come, None: nothing to wait for
-    def wait(self, ready: Ready, seconds: float | None) -> bool: ...  # ready(0) first, True when it comes; when False and passes is None, ready(None); when False and passes reaches seconds, after(), then ready(0) again, True when it comes, otherwise now += seconds and False; otherwise now += passes, then ready(None)
+
+    def __init__(
+        self, *, passes: float | None = None, after: Callable[[], object] | None = None
+    ) -> None: ...  # passes: the seconds that pass in a wait whose event has not come at its poll, None: time stands still; after: blocks, with no timeout, until the event the test proves against has come, None: nothing to wait for
+    def wait(
+        self, ready: Ready, seconds: float | None
+    ) -> bool: ...  # ready(0) first, True when it comes; when False and passes is None, ready(None); when False and passes reaches seconds, after(), then ready(0) again, True when it comes, otherwise now += seconds and False; otherwise now += passes, then ready(None)
 ```
 
 A still `VirtualClock()` never lets a cap pass, so a wait on it ends on its event alone. `VirtualClock(passes=p)` with `p` at or past the cap lets the cap pass at once, in virtual time, when the event has not come at the clock's first poll. `after` holds that moment back until an event of the test's own has come (decision 14). `run` makes its one wait as soon as the checker has started (`gates/core/checker.py:99`), so the clock's first poll can come before the checker has started anything of its own, and a test that proves what the cap's kill reaches hands an `after` that blocks until the checker's whole group is up. `after` runs in the test's thread, inside `run`, once the checker has started, so it blocks on a pipe a live child holds, and that pipe's end of file comes at once when the child dies first.
@@ -166,18 +231,51 @@ Whatever ends `run`'s wait on the checker, the time cap, an interrupt or the che
 `run_all` makes every wait on its workers, the wait for one to end (`gates/core/checker.py:459`) and the cleanup's wait for all of them, through its `next_done` keyword, `first_done` by default (decisions 9, 10). `next_done` is an explicit input: `run_all` never looks at its Runner to find a wait, so the Runner it is handed, `run` (`gates/core/checker.py:66`), a `functools.partial` of it, `FakeRunner` (`tests/support/fake.py:16`) or a `Scripted`, knows nothing of pacing, and only a test hands in a `next_done` other than `first_done`. `run_all` (`gates/core/checker.py:404`) grows that one keyword with a default, so every caller in `gates/` keeps its call. `gates/core/runner.py` carries it to `run_all` from `Run` and `run_gate` (decision 10). Step 2 adds `NextDone` and `first_done` to the gates core design's `checker.py` block beside `run_all`, and the keyword to `run_all`'s line there, and writes the waits through it into decision 26 (`:428`).
 
 ```python
-def read_output(path: Path) -> str | None: ...  # run's default reader of an output file; GateError when it exists and cannot be read
-def run(command: Command, *, read: Callable[[Path], str | None] = read_output, clock: Clock = SYSTEM) -> Completed: ...  # the time cap passes on clock; whatever ends the wait, the checker's own exit included, the whole group is killed (decision 15)
+def read_output(
+    path: Path,
+) -> (
+    str | None
+): ...  # run's default reader of an output file; GateError when it exists and cannot be read
+def run(
+    command: Command,
+    *,
+    read: Callable[[Path], str | None] = read_output,
+    clock: Clock = SYSTEM,
+) -> Completed: ...  # the time cap passes on clock; whatever ends the wait, the checker's own exit included, the whole group is killed (decision 15)
 
-type NextDone = Callable[[Collection[Future[Completed]]], set[Future[Completed]]]  # blocks until at least one future in running is done; the done ones
 
-def first_done(running: Collection[Future[Completed]]) -> set[Future[Completed]]: ...  # concurrent.futures.wait(running, return_when=FIRST_COMPLETED), no timeout; the done ones
+type NextDone = Callable[
+    [Collection[Future[Completed]]], set[Future[Completed]]
+]  # blocks until at least one future in running is done; the done ones
 
-def run_all(process: Runner, commands: Iterable[Command], cap: int, *, next_done: NextDone = first_done) -> list[Completed | GateError | OSError]: ...  # every wait on its workers, the cleanup's included, through next_done
+
+def first_done(
+    running: Collection[Future[Completed]],
+) -> set[
+    Future[Completed]
+]: ...  # concurrent.futures.wait(running, return_when=FIRST_COMPLETED), no timeout; the done ones
+
+
+def run_all(
+    process: Runner,
+    commands: Iterable[Command],
+    cap: int,
+    *,
+    next_done: NextDone = first_done,
+) -> list[
+    Completed | GateError | OSError
+]: ...  # every wait on its workers, the cleanup's included, through next_done
+
 
 class _Live:  # the checkers run has started and not yet reaped
-    def add(self, process: subprocess.Popen[bytes]) -> None: ...  # holds it; while closing, kills its group at once
-    def closing(self) -> AbstractContextManager[None]: ...  # kills every group held; until it exits, every add kills at once (decision 7)
+    def add(
+        self, process: subprocess.Popen[bytes]
+    ) -> None: ...  # holds it; while closing, kills its group at once
+    def closing(
+        self,
+    ) -> AbstractContextManager[
+        None
+    ]: ...  # kills every group held; until it exits, every add kills at once (decision 7)
 ```
 
 ### `gates/core/runner.py`: a test's wait on `run_all`'s workers, carried explicitly (decision 10)
@@ -194,9 +292,21 @@ class Run:
     given: tuple[Source, ...] = ()
     next_done: NextDone = first_done  # the wait run_all makes on its workers; only a test hands in another
 
-def check_with[R](checker: Checker[R], *, budget: Callable[[], int] | None = None) -> Callable[[Run], Outcome]: ...  # hands run.process and run.next_done to run_all
 
-def run_gate(gate: Gate, paths: Sequence[Path], *, project: Project | None = None, process: Runner = run, next_done: NextDone = first_done, scratch_root: Path | None = None) -> int: ...  # puts process and next_done in the Run it builds
+def check_with[R](
+    checker: Checker[R], *, budget: Callable[[], int] | None = None
+) -> Callable[[Run], Outcome]: ...  # hands run.process and run.next_done to run_all
+
+
+def run_gate(
+    gate: Gate,
+    paths: Sequence[Path],
+    *,
+    project: Project | None = None,
+    process: Runner = run,
+    next_done: NextDone = first_done,
+    scratch_root: Path | None = None,
+) -> int: ...  # puts process and next_done in the Run it builds
 ```
 
 ## Homes

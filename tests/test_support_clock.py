@@ -25,7 +25,9 @@ from tests.support.clock import VirtualClock
 class _Event:
     """A Ready that answers each call from its script in order and records the seconds it was handed."""
 
-    def __init__(self, answers: Sequence[bool], log: list[tuple[str, float | None]] | None = None) -> None:
+    def __init__(
+        self, answers: Sequence[bool], log: list[tuple[str, float | None]] | None = None
+    ) -> None:
         self.handed: list[float | None] = []
         self._answers = deque(answers)
         self._log = log
@@ -35,7 +37,9 @@ class _Event:
         if self._log is not None:
             self._log.append(("ready", seconds))
         if not self._answers:
-            raise AssertionError(f"the Ready was called past its script, with {seconds!r}")
+            raise AssertionError(
+                f"the Ready was called past its script, with {seconds!r}"
+            )
         return self._answers.popleft()
 
 
@@ -98,14 +102,20 @@ def test_passes_at_or_past_the_cap_lets_the_cap_pass_at_once_when_the_event_has_
         pytest.param(10.0, 3.0, id="passes past the cap"),
     ],
 )
-def test_after_runs_between_the_first_poll_and_a_second_and_before_the_cap_passes(passes: float, seconds: float) -> None:
+def test_after_runs_between_the_first_poll_and_a_second_and_before_the_cap_passes(
+    passes: float, seconds: float
+) -> None:
     log: list[tuple[str, float | None]] = []
     ready = _Event([False, False], log)
     clock = VirtualClock(passes=passes, after=lambda: log.append(("after", clock.now)))
 
     came = clock.wait(ready, seconds)
 
-    assert (came, log, clock.now) == (False, [("ready", 0), ("after", 0), ("ready", 0)], seconds)
+    assert (came, log, clock.now) == (
+        False,
+        [("ready", 0), ("after", 0), ("ready", 0)],
+        seconds,
+    )
 
 
 @pytest.mark.parametrize(
@@ -136,7 +146,10 @@ def test_an_event_come_at_the_second_poll_ends_the_wait_true_with_no_time_passed
     ],
 )
 def test_after_is_not_called_when_the_cap_is_not_about_to_pass(
-    passes: float | None, seconds: float | None, answers: list[bool], handed: list[float | None]
+    passes: float | None,
+    seconds: float | None,
+    answers: list[bool],
+    handed: list[float | None],
 ) -> None:
     calls: list[str] = []
     clock = VirtualClock(passes=passes, after=lambda: calls.append("after"))
@@ -224,4 +237,6 @@ def test_a_virtual_clock_is_a_clock_that_hands_its_ready_no_positive_number(
 
     clock.wait(ready, 20.0)
 
-    assert [seconds for seconds in ready.handed if seconds is not None and seconds > 0] == []
+    assert [
+        seconds for seconds in ready.handed if seconds is not None and seconds > 0
+    ] == []

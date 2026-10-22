@@ -29,7 +29,9 @@ MISSING_PARAMETER_TYPE = "def double(value) -> int:\n    return value * 2\n"
 
 PINNED = (3, 12)
 
-ONE_FILE_COUNT_LINE = re.compile(r"check_pyright: \d+ finding\(s\) in 1 Python file\(s\)")
+ONE_FILE_COUNT_LINE = re.compile(
+    r"check_pyright: \d+ finding\(s\) in 1 Python file\(s\)"
+)
 
 SOURCES = [
     pytest.param(INVALID_ESCAPE, id="invalid-escape"),
@@ -52,7 +54,9 @@ def _run(paths: list[Path]) -> int:
 def _parse_warnings(path: Path) -> list[str]:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        ast.parse(path.read_text(encoding="utf-8"), filename=str(path), feature_version=PINNED)
+        ast.parse(
+            path.read_text(encoding="utf-8"), filename=str(path), feature_version=PINNED
+        )
     return [str(warning.message) for warning in caught]
 
 
@@ -92,7 +96,10 @@ def test_parse_warning_count_line_last(
     before = "\n".join(lines[:-1])
     counts = [line for line in lines if ONE_FILE_COUNT_LINE.fullmatch(line)]
 
-    assert ([message in before for message in expected], counts) == ([True], [lines[-1]])
+    assert ([message in before for message in expected], counts) == (
+        [True],
+        [lines[-1]],
+    )
 
 
 @pytest.mark.parametrize("source", SOURCES)
@@ -109,4 +116,9 @@ def test_parse_warning_exits_two_beside_finding(
     mixed_lines = capsys.readouterr().out.rstrip("\n").split("\n")
     printed = [line in mixed_lines for line in alone_findings]
 
-    assert (alone_code, len(printed) > 0, all(printed), mixed_code) == (1, True, True, 2)
+    assert (alone_code, len(printed) > 0, all(printed), mixed_code) == (
+        1,
+        True,
+        True,
+        2,
+    )

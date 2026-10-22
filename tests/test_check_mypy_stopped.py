@@ -133,7 +133,11 @@ def test_a_note_in_a_stop_is_unfinished_too(tmp_path: Path) -> None:
         tmp_path, _mypy_json(here, NOTE_MESSAGE, severity="note", code=None)
     )
 
-    assert (status, [_carried(line, [(here, NOTE_MESSAGE)]) for line in lines], lines[-1]) == (
+    assert (
+        status,
+        [_carried(line, [(here, NOTE_MESSAGE)]) for line in lines],
+        lines[-1],
+    ) == (
         2,
         [NOTE_MESSAGE, None],
         COUNT_ONE,

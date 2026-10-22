@@ -20,7 +20,9 @@ LIBRARY_SOURCE = (
     f"broken: {LIBRARY_MARKER} = 1\n"
 )
 
-TEST_SOURCE = "from seededlib.helper import accept\n\n\ndef check() -> None:\n    accept(1)\n"
+TEST_SOURCE = (
+    "from seededlib.helper import accept\n\n\ndef check() -> None:\n    accept(1)\n"
+)
 
 
 def _seed(root: Path, relative: str, source: str) -> Path:
@@ -46,4 +48,6 @@ def test_report_scope(tmp_path: Path, capfd: pytest.CaptureFixture[str]) -> None
     captured = capfd.readouterr()
     report = captured.out + captured.err
 
-    assert {marker for marker in (TEST_MARKER, LIBRARY_MARKER) if marker in report} == {TEST_MARKER}
+    assert {marker for marker in (TEST_MARKER, LIBRARY_MARKER) if marker in report} == {
+        TEST_MARKER
+    }

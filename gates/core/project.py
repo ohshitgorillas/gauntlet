@@ -85,7 +85,8 @@ def test_files(sources: Sequence[Source]) -> list[Source]:
     return [
         source
         for source in sources
-        if is_test_module(source) or (source.given.name == CONFTEST and source.absolute.parent in beside)
+        if is_test_module(source)
+        or (source.given.name == CONFTEST and source.absolute.parent in beside)
     ]
 
 
@@ -167,7 +168,11 @@ class Project:
 
     def git(self, *arguments: str, process: Runner = run) -> Completed:
         """Run git with the arguments in the root, without any GIT_ variable, as those a hook exports."""
-        command = Command(argv=("git", *arguments), cwd=self.root, env=environment(drop_prefixes=("GIT_",)))
+        command = Command(
+            argv=("git", *arguments),
+            cwd=self.root,
+            env=environment(drop_prefixes=("GIT_",)),
+        )
         return process(command)
 
 

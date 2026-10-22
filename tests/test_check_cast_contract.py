@@ -22,7 +22,9 @@ from gates.check_cast import main
 
 DIRTY = "import typing\n\nvalue = typing.cast(int, 1)\n"
 
-TWICE_DIRTY = "import typing\n\nvalue = typing.cast(int, 1)\nother = typing.cast(int, 2)\n"
+TWICE_DIRTY = (
+    "import typing\n\nvalue = typing.cast(int, 1)\nother = typing.cast(int, 2)\n"
+)
 
 CLEAN = "VALUE = 1\n"
 
@@ -48,19 +50,29 @@ def _names_cast_in(name: str, lines: list[str]) -> bool:
 
     The rule code comes from "Types", third bullet; a line that drops it has cut the checker's message down.
     """
-    return any(name in line and "TID251" in line and "typing.cast" in line for line in lines)
+    return any(
+        name in line and "TID251" in line and "typing.cast" in line for line in lines
+    )
 
 
 def _count_cast_lines(name: str, lines: list[str]) -> int:
     """Count the lines that each carry the file's name, ruff's rule code `TID251` and the banned name `typing.cast`."""
-    return sum(1 for line in lines if name in line and "TID251" in line and "typing.cast" in line)
+    return sum(
+        1
+        for line in lines
+        if name in line and "TID251" in line and "typing.cast" in line
+    )
 
 
 PUNCTUATION_TO_SPACE = str.maketrans(string.punctuation, " " * len(string.punctuation))
 
 
 def _lines_stating(
-    count: int, paths: list[Path], root: Path, capsys: pytest.CaptureFixture[str], finding_names: tuple[str, ...] = ()
+    count: int,
+    paths: list[Path],
+    root: Path,
+    capsys: pytest.CaptureFixture[str],
+    finding_names: tuple[str, ...] = (),
 ) -> list[bool]:
     """Run the gate and tell, line by line, whether the line states `count` as a word of its own.
 
@@ -78,7 +90,9 @@ def _lines_stating(
     ]
 
 
-def test_count_line_states_the_number_of_findings(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_count_line_states_the_number_of_findings(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """With no finding, a line, the count line, states 0; with one finding, a line states 1; with two findings, a line states 2.
 
     The documents ask for a count line and do not forbid other output beside the findings and the count line, so each run
@@ -91,13 +105,23 @@ def test_count_line_states_the_number_of_findings(tmp_path: Path, capsys: pytest
     dirty = _seed(tmp_path, "dirty.py", DIRTY)
     twice = _seed(tmp_path, "twice.py", TWICE_DIRTY)
     clean_run = _lines_stating(0, [clean], tmp_path, capsys)
-    one_finding_run = _lines_stating(1, [clean, dirty], tmp_path, capsys, finding_names=("dirty.py",))
-    two_finding_run = _lines_stating(2, [clean, twice], tmp_path, capsys, finding_names=("twice.py",))
+    one_finding_run = _lines_stating(
+        1, [clean, dirty], tmp_path, capsys, finding_names=("dirty.py",)
+    )
+    two_finding_run = _lines_stating(
+        2, [clean, twice], tmp_path, capsys, finding_names=("twice.py",)
+    )
 
-    assert (clean_run.count(True) >= 1, one_finding_run.count(True) >= 1, two_finding_run.count(True) >= 1) == (True, True, True)
+    assert (
+        clean_run.count(True) >= 1,
+        one_finding_run.count(True) >= 1,
+        two_finding_run.count(True) >= 1,
+    ) == (True, True, True)
 
 
-def test_one_finding_adds_one_line(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_one_finding_adds_one_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """A finding is printed on its own line and carries the checker's whole message, so one finding adds exactly one line carrying it: one line names the file, the rule code `TID251` and `typing.cast`.
 
     The documents do not forbid output that appears only when findings exist, such as a header line, so the run is not
@@ -108,10 +132,15 @@ def test_one_finding_adds_one_line(tmp_path: Path, capsys: pytest.CaptureFixture
     dirty = _seed(tmp_path, "dirty.py", DIRTY)
     with_one = _lines([clean, dirty], capsys)
 
-    assert (_count_cast_lines("dirty.py", with_one), _names_cast_in("dirty.py", with_one)) == (1, True)
+    assert (
+        _count_cast_lines("dirty.py", with_one),
+        _names_cast_in("dirty.py", with_one),
+    ) == (1, True)
 
 
-def test_second_finding_adds_one_line(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_second_finding_adds_one_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Each finding gets its own line and carries the checker's whole message, so a second finding adds exactly one more finding line, and a line names the second file, the rule code `TID251` and `typing.cast`.
 
     The documents do not forbid other output beside the findings and the count line, such as a line per checked file or
@@ -122,13 +151,22 @@ def test_second_finding_adds_one_line(tmp_path: Path, capsys: pytest.CaptureFixt
     second = _seed(tmp_path, "second.py", DIRTY)
     with_one = _lines([first], capsys)
     with_two = _lines([first, second], capsys)
-    finding_lines_one = _count_cast_lines("first.py", with_one) + _count_cast_lines("second.py", with_one)
-    finding_lines_two = _count_cast_lines("first.py", with_two) + _count_cast_lines("second.py", with_two)
+    finding_lines_one = _count_cast_lines("first.py", with_one) + _count_cast_lines(
+        "second.py", with_one
+    )
+    finding_lines_two = _count_cast_lines("first.py", with_two) + _count_cast_lines(
+        "second.py", with_two
+    )
 
-    assert (finding_lines_two - finding_lines_one, _names_cast_in("second.py", with_two)) == (1, True)
+    assert (
+        finding_lines_two - finding_lines_one,
+        _names_cast_in("second.py", with_two),
+    ) == (1, True)
 
 
-def test_settings_beside_checked_file_do_not_apply(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_settings_beside_checked_file_do_not_apply(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Only the tree's pyproject.toml holds the settings, so a nearer one that drops the ban changes nothing.
 
     The exit status 1 alone cannot tell the checker's finding from a gate that ran the checker under the nearer settings
@@ -144,7 +182,9 @@ def test_settings_beside_checked_file_do_not_apply(tmp_path: Path, capsys: pytes
     assert (status, _names_cast_in("dirty.py", lines)) == (1, True)
 
 
-def test_stub_file_is_checked(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_stub_file_is_checked(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """A `.pyi` file is a Python file, so a cast in it is a finding.
 
     The exit status 1 alone cannot tell a finding from a checker that refused the `.pyi` file, so a line must also
@@ -158,7 +198,9 @@ def test_stub_file_is_checked(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     assert (status, _names_cast_in("dirty.pyi", lines)) == (1, True)
 
 
-def test_python_shebang_file_is_checked(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_python_shebang_file_is_checked(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """An extensionless file with a python shebang is a Python file, so a cast in it is a finding.
 
     The exit status 1 alone cannot tell a finding from a checker that refused the extensionless file, so a line must also

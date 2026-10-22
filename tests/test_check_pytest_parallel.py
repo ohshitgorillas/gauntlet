@@ -59,6 +59,7 @@ SECOND_FAILS_EARLY = (
     "    raise ValueError('SeededAlpha')\n"
 )
 
+
 def _seed(root: Path, relative: str, source: str) -> Path:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,7 +104,9 @@ def _ordered(root: Path, first_source: str) -> tuple[Path, Path]:
     os.mkfifo(root / "done")
     done = repr(str(root / "done"))
     first = _seed(root, "tests/test_zulu.py", first_source.replace("DONE_PATH", done))
-    second = _seed(root, "tests/test_alpha.py", SECOND_FAILS_EARLY.replace("DONE_PATH", done))
+    second = _seed(
+        root, "tests/test_alpha.py", SECOND_FAILS_EARLY.replace("DONE_PATH", done)
+    )
     return first, second
 
 
@@ -137,4 +140,7 @@ def test_error_whole(tmp_path: Path) -> None:
     finding = f"{second}::test_seeded: ValueError: SeededAlpha"
     finding_at = _position(lines, finding)
 
-    assert (finding_at > max(error_lines, default=len(lines)), finding_at) == (True, len(lines) - 2)
+    assert (finding_at > max(error_lines, default=len(lines)), finding_at) == (
+        True,
+        len(lines) - 2,
+    )

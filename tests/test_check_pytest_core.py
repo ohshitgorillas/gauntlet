@@ -53,7 +53,9 @@ NOTHING_LEAKED: tuple[bool, list[str]] = (True, [])
 
 PASSING = "def test_seeded():\n    pass\n"
 
-COLLECTED_NOTHING = "collected 0 items\n\n============ no tests ran in 0.01s ============\n"
+COLLECTED_NOTHING = (
+    "collected 0 items\n\n============ no tests ran in 0.01s ============\n"
+)
 
 # The JUnit XML of a run over MODULE that collected no test: one suite holding no case.
 EMPTY_JUNIT = '<?xml version="1.0"?><testsuites><testsuite name="MODULE" tests="0"></testsuite></testsuites>'
@@ -68,7 +70,9 @@ def _junit(module: Path, *, classname: str, message: str | None) -> str:
     )
 
 
-def _run(tmp_path: Path, status: int, stdout: str, junit: str | None) -> tuple[int, list[str], FakeRunner]:
+def _run(
+    tmp_path: Path, status: int, stdout: str, junit: str | None
+) -> tuple[int, list[str], FakeRunner]:
     """Run the gate over the one test module of a scaffolded project, its pytest answered by the seeded reply."""
     project = scaffold(tmp_path / "project", {"tests/test_seeded.py": PASSING})
     scratch = tmp_path / "scratch"
@@ -76,20 +80,34 @@ def _run(tmp_path: Path, status: int, stdout: str, junit: str | None) -> tuple[i
     module = project.root / "tests/test_seeded.py"
     seeded = junit if junit is None else junit.replace("MODULE", str(module))
     runner = FakeRunner([completed(status, stdout, outputs={"junit": seeded})])
-    output = captured(lambda: run_gate(GATE, [module], project=project, process=runner, scratch_root=scratch))
+    output = captured(
+        lambda: run_gate(
+            GATE, [module], project=project, process=runner, scratch_root=scratch
+        )
+    )
     return output.result, [line.rstrip("\n") for line in output.merged], runner
 
 
 def test_seed_then_finding(tmp_path: Path) -> None:
     """A failing test is one finding after the seed line: its given path, `::`, its name, a colon and the message, one line."""
-    junit = _junit(Path("MODULE"), classname="tests.test_seeded", message="First&#10;Second")
+    junit = _junit(
+        Path("MODULE"), classname="tests.test_seeded", message="First&#10;Second"
+    )
     status, lines, _ = _run(tmp_path, 1, "", junit)
 
-    assert (status, len(lines), SEED_LINE.fullmatch(lines[0]) is not None, lines[1:]) == (
+    assert (
+        status,
+        len(lines),
+        SEED_LINE.fullmatch(lines[0]) is not None,
+        lines[1:],
+    ) == (
         1,
         3,
         True,
-        [f"{tmp_path / 'project/tests/test_seeded.py'}::test_seeded: First Second", "check_pytest: 1 finding(s) in 1 Python file(s)"],
+        [
+            f"{tmp_path / 'project/tests/test_seeded.py'}::test_seeded: First Second",
+            "check_pytest: 1 finding(s) in 1 Python file(s)",
+        ],
     )
 
 
@@ -106,7 +124,12 @@ def test_one_pytest_per_module(tmp_path: Path) -> None:
     module = tmp_path / "project/tests/test_seeded.py"
 
     (command,) = runner.commands
-    assert (status, "pytest" in {Path(argument).name for argument in command.argv}, _named(command, [module]), set(command.outputs)) == (
+    assert (
+        status,
+        "pytest" in {Path(argument).name for argument in command.argv},
+        _named(command, [module]),
+        set(command.outputs),
+    ) == (
         0,
         True,
         [str(module)],
@@ -116,17 +139,37 @@ def test_one_pytest_per_module(tmp_path: Path) -> None:
 
 def test_each_module_gets_its_own_pytest(tmp_path: Path) -> None:
     """Two test modules are two pytest processes, each naming its own module and not the other."""
-    project = scaffold(tmp_path / "project", {"tests/test_first.py": PASSING, "tests/test_second.py": PASSING})
+    project = scaffold(
+        tmp_path / "project",
+        {"tests/test_first.py": PASSING, "tests/test_second.py": PASSING},
+    )
     scratch = tmp_path / "scratch"
     scratch.mkdir()
-    modules = [project.root / "tests/test_first.py", project.root / "tests/test_second.py"]
+    modules = [
+        project.root / "tests/test_first.py",
+        project.root / "tests/test_second.py",
+    ]
     replies = [
-        completed(0, "", outputs={"junit": _junit(module, classname=f"tests.{module.stem}", message=None)}) for module in modules
+        completed(
+            0,
+            "",
+            outputs={
+                "junit": _junit(module, classname=f"tests.{module.stem}", message=None)
+            },
+        )
+        for module in modules
     ]
     runner = FakeRunner(replies)
-    captured(lambda: run_gate(GATE, modules, project=project, process=runner, scratch_root=scratch))
+    captured(
+        lambda: run_gate(
+            GATE, modules, project=project, process=runner, scratch_root=scratch
+        )
+    )
 
-    assert sorted(_named(command, modules) for command in runner.commands) == [[str(modules[0])], [str(modules[1])]]
+    assert sorted(_named(command, modules) for command in runner.commands) == [
+        [str(modules[0])],
+        [str(modules[1])],
+    ]
 
 
 def test_environment_drops_pytest_variables(tmp_path: Path) -> None:
@@ -147,7 +190,11 @@ def test_exit_five_is_unfinished(tmp_path: Path) -> None:
     """Exit 5 with the empty report of a run that collected no test is no finish: pytest's whole output prints, exit 2, no finding."""
     status, lines, _ = _run(tmp_path, 5, COLLECTED_NOTHING, EMPTY_JUNIT)
 
-    assert (status, lines[1:-1], lines[-1]) == (2, COLLECTED_NOTHING.splitlines(), "check_pytest: 0 finding(s) in 1 Python file(s)")
+    assert (status, lines[1:-1], lines[-1]) == (
+        2,
+        COLLECTED_NOTHING.splitlines(),
+        "check_pytest: 0 finding(s) in 1 Python file(s)",
+    )
 
 
 def test_exit_zero_with_a_failure_is_unfinished(tmp_path: Path) -> None:
@@ -193,7 +240,15 @@ def test_no_seed_when_no_temp_space(tmp_path: Path) -> None:
     project = scaffold(tmp_path / "project", {"tests/test_seeded.py": PASSING})
     runner = FakeRunner([])
     absent = tmp_path / "absent"
-    output = captured(lambda: run_gate(GATE, [project.root / "tests/test_seeded.py"], project=project, process=runner, scratch_root=absent))
+    output = captured(
+        lambda: run_gate(
+            GATE,
+            [project.root / "tests/test_seeded.py"],
+            project=project,
+            process=runner,
+            scratch_root=absent,
+        )
+    )
     lines = [line.rstrip("\n") for line in output.merged]
 
     assert (

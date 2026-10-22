@@ -83,15 +83,15 @@ SHUFFLED = "RUN_ORDER = []\n" + "".join(
     for index in range(SHUFFLED_TESTS)
 )
 
-TIMEOUT_CONFTEST = (
-    "def pytest_timeout_set_timer(item, settings):\n    item.user_properties.append(('timeout', settings.timeout))\n"
-)
+TIMEOUT_CONFTEST = "def pytest_timeout_set_timer(item, settings):\n    item.user_properties.append(('timeout', settings.timeout))\n"
 
 TIMED = "def test_seeded(request):\n    assert request.node.user_properties == [('timeout', 30)]\n"
 
 UNKNOWN_OPTION = "--seededunknownoption"
 
-FAILING_PLUGIN = "def pytest_runtest_call(item):\n    raise RuntimeError('SeededPlugin')\n"
+FAILING_PLUGIN = (
+    "def pytest_runtest_call(item):\n    raise RuntimeError('SeededPlugin')\n"
+)
 
 MISSING_MODULE = "seededmissingmodule"
 
@@ -103,7 +103,9 @@ INTERNAL_TOKEN = "SeededInternal"
 
 COLLECTION_ERROR = f"import {MISSING_MODULE}\n\n\ndef test_seeded():\n    pass\n"
 
-MARKED_UNKNOWN = f"import pytest\n\n\n@pytest.mark.{UNKNOWN_MARKER}\ndef test_seeded():\n    pass\n"
+MARKED_UNKNOWN = (
+    f"import pytest\n\n\n@pytest.mark.{UNKNOWN_MARKER}\ndef test_seeded():\n    pass\n"
+)
 
 COLLECTION_WARNING = (
     "import warnings\n\n"
@@ -158,7 +160,11 @@ BESIDE_SETTINGS = [
     pytest.param(".pytest.ini", f"[pytest]\n{LAX_XFAIL}{INI_REQUIRES}", id="dotini"),
     pytest.param("tox.ini", f"[pytest]\n{LAX_XFAIL}{INI_REQUIRES}", id="tox"),
     pytest.param("setup.cfg", f"[tool:pytest]\n{LAX_XFAIL}{INI_REQUIRES}", id="cfg"),
-    pytest.param("pyproject.toml", f"[tool.pytest.ini_options]\n{LAX_XFAIL}{TOML_REQUIRES}", id="toml"),
+    pytest.param(
+        "pyproject.toml",
+        f"[tool.pytest.ini_options]\n{LAX_XFAIL}{TOML_REQUIRES}",
+        id="toml",
+    ),
 ]
 
 UNFINISHED = [
@@ -186,7 +192,15 @@ def _seed(root: Path, relative: str, source: str) -> Path:
 
 
 def _child(paths: list[Path], *assignments: str) -> subprocess.CompletedProcess[str]:
-    command = ["/usr/bin/env", "PYTHONUNBUFFERED=1", *assignments, sys.executable, "-c", CHILD, *map(str, paths)]
+    command = [
+        "/usr/bin/env",
+        "PYTHONUNBUFFERED=1",
+        *assignments,
+        sys.executable,
+        "-c",
+        CHILD,
+        *map(str, paths),
+    ]
     return subprocess.run(  # A child interpreter keeps the gate's stdout and stderr in one ordered buffer.
         command,
         cwd=REPO_ROOT,
@@ -258,7 +272,10 @@ def test_seed_line(tmp_path: Path) -> None:
 
     output = _child([test_file]).stdout
     pattern = (
-        re.escape("check_pytest: seed ") + "([0-9]+)\n" + _finding_pattern(f"{test_file}::test_seeded") + " \\1\n"
+        re.escape("check_pytest: seed ")
+        + "([0-9]+)\n"
+        + _finding_pattern(f"{test_file}::test_seeded")
+        + " \\1\n"
     )
 
     assert re.match(pattern, output)
@@ -280,7 +297,9 @@ def test_class_id(tmp_path: Path) -> None:
 
     finding = _second_line([test_file])
 
-    assert re.fullmatch(_finding_pattern(f"{test_file}::TestGroup::test_inner"), finding)
+    assert re.fullmatch(
+        _finding_pattern(f"{test_file}::TestGroup::test_inner"), finding
+    )
 
 
 def test_given_path(tmp_path: Path) -> None:
@@ -395,7 +414,9 @@ def test_plugins_env(tmp_path: Path) -> None:
     test_file = _seed(tmp_path, "tests/test_seeded.py", PASSING)
     plugin = _seed(tmp_path, "plugins/seededplugin.py", FAILING_PLUGIN)
 
-    result = _child([test_file], f"PYTHONPATH={plugin.parent}", "PYTEST_PLUGINS=seededplugin")
+    result = _child(
+        [test_file], f"PYTHONPATH={plugin.parent}", "PYTEST_PLUGINS=seededplugin"
+    )
 
     assert result.returncode == 0
 

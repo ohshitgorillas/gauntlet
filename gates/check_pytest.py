@@ -8,7 +8,14 @@ from functools import partial
 from pathlib import Path
 from xml.etree import ElementTree
 
-from gates.core.checker import UNREAD_CPUS, Command, Completed, cpu_budget, environment, python_module
+from gates.core.checker import (
+    UNREAD_CPUS,
+    Command,
+    Completed,
+    cpu_budget,
+    environment,
+    python_module,
+)
 from gates.core.project import Project, Source, is_test_module, test_files
 from gates.core.report import Finding, GateError, Line, Outcome
 from gates.core.runner import Gate, Run, check_with, run_gate
@@ -113,7 +120,12 @@ def parse_report(text: str) -> Report | None:
         classname = element.get("classname")
         name = element.get("name")
         message = failed[0].get("message")
-        if classname is None or name is None or message is None or any(child.get("message") is None for child in failed):
+        if (
+            classname is None
+            or name is None
+            or message is None
+            or any(child.get("message") is None for child in failed)
+        ):
             return None
         cases.append(Case(classname=classname, name=name, message=message))
     return Report(module=module, cases=cases)
@@ -191,7 +203,9 @@ class Pytest:
         """pytest exits 1 when its report holds a failed test and 0 when it holds none; exit 5, no test collected, is no finish."""
         return 1 if report else 0
 
-    def lines(self, report: list[Failure], batch: Sequence[Source], *, stopped: bool) -> list[Line]:
+    def lines(
+        self, report: list[Failure], batch: Sequence[Source], *, stopped: bool
+    ) -> list[Line]:
         """Each failing test as one finding: the module's path as given, the test's id, a colon, a space and the message of its first failure.
 
         A test whose call fails and whose teardown fails too is one failing test.
@@ -199,7 +213,9 @@ class Pytest:
         found: dict[str, str] = {}
         for failure in report:
             found.setdefault(f"{batch[0].given}::{failure.identity}", failure.message)
-        return [Finding(f"{identity}: {message}") for identity, message in found.items()]
+        return [
+            Finding(f"{identity}: {message}") for identity, message in found.items()
+        ]
 
 
 def check(budget: Callable[[], int], run: Run) -> Outcome:
@@ -209,7 +225,10 @@ def check(budget: Callable[[], int], run: Run) -> Outcome:
     `check_pytest: seed N`. Each module's directory is made before the seed line, so a run whose temp space cannot be made
     prints no seed line and starts no pytest; nor does a run whose budget cannot be read.
     """
-    spaces = {source.absolute: run.scratch.directory(str(index)) for index, source in enumerate(test_modules(run.sources))}
+    spaces = {
+        source.absolute: run.scratch.directory(str(index))
+        for index, source in enumerate(test_modules(run.sources))
+    }
     seed = secrets.randbits(SEED_BITS)
     read: list[int] = []
 
@@ -223,7 +242,12 @@ def check(budget: Callable[[], int], run: Run) -> Outcome:
 
 def gate(budget: Callable[[], int] = cpu_budget) -> Gate:
     """The gate over the test files among the given Python files, running as many pytest processes at once as `budget` gives."""
-    return Gate(name=GATE_NAME, check=partial(check, budget), select=test_files, selects="test file")
+    return Gate(
+        name=GATE_NAME,
+        check=partial(check, budget),
+        select=test_files,
+        selects="test file",
+    )
 
 
 GATE: Gate = gate()

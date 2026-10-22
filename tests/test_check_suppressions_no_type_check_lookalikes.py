@@ -46,7 +46,9 @@ def _seed(tmp_path: Path, source: str) -> Path:
 
 
 @pytest.mark.parametrize(("source", "lines"), SHADOWED_LINES)
-def test_name_that_shadows_the_typing_function_is_no_finding(tmp_path: Path, source: str, lines: list[int]) -> None:
+def test_name_that_shadows_the_typing_function_is_no_finding(
+    tmp_path: Path, source: str, lines: list[int]
+) -> None:
     """Report the seeded comment and the typing import, not a reference to a name a parameter, a local assignment in a function or a comprehension target has taken from the typing function."""
     path = _seed(tmp_path, source)
 
@@ -54,7 +56,9 @@ def test_name_that_shadows_the_typing_function_is_no_finding(tmp_path: Path, sou
 
 
 @pytest.mark.parametrize(("source", "count_line"), SHADOWED_COUNT_LINES)
-def test_gate_does_not_count_a_name_that_shadows_the_typing_function(tmp_path: Path, source: str, count_line: str, capsys: pytest.CaptureFixture[str]) -> None:
+def test_gate_does_not_count_a_name_that_shadows_the_typing_function(
+    tmp_path: Path, source: str, count_line: str, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Count the seeded comment and the typing import as the findings, not the shadowing name's references."""
     path = _seed(tmp_path, source)
     main([path])

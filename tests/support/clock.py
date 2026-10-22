@@ -20,7 +20,9 @@ class VirtualClock:
 
     now: float
 
-    def __init__(self, *, passes: float | None = None, after: Callable[[], object] | None = None) -> None:
+    def __init__(
+        self, *, passes: float | None = None, after: Callable[[], object] | None = None
+    ) -> None:
         self.now = 0.0
         self._passes = passes
         self._after = after

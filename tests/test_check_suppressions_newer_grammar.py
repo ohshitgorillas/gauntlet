@@ -39,7 +39,9 @@ PINNED_SOURCES = [
 
 MARKER_LINE = "value = 1  # fmt: skip\n"
 
-FINDING_SOURCE = "import typing\n\n\n@typing.no_type_check\ndef seeded() -> None:\n    pass\n"
+FINDING_SOURCE = (
+    "import typing\n\n\n@typing.no_type_check\ndef seeded() -> None:\n    pass\n"
+)
 
 
 def _seed(tmp_path: Path, name: str, source: str) -> Path:
@@ -49,7 +51,9 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 
 
 @pytest.mark.parametrize("source", NEWER_SOURCES)
-def test_gate_exits_unfinished_on_syntax_added_after_3_12(tmp_path: Path, source: str) -> None:
+def test_gate_exits_unfinished_on_syntax_added_after_3_12(
+    tmp_path: Path, source: str
+) -> None:
     """Exit with the unfinished status on a file using syntax added in 3.13 or later."""
     path = _seed(tmp_path, "newer.py", source)
 
@@ -57,7 +61,9 @@ def test_gate_exits_unfinished_on_syntax_added_after_3_12(tmp_path: Path, source
 
 
 @pytest.mark.parametrize("source", NEWER_SOURCES)
-def test_gate_exits_unfinished_on_newer_syntax_carrying_a_marker(tmp_path: Path, source: str) -> None:
+def test_gate_exits_unfinished_on_newer_syntax_carrying_a_marker(
+    tmp_path: Path, source: str
+) -> None:
     """Exit with the unfinished status on newer syntax even when the same file carries a comment marker."""
     path = _seed(tmp_path, "newer.py", MARKER_LINE + source)
 
@@ -65,7 +71,9 @@ def test_gate_exits_unfinished_on_newer_syntax_carrying_a_marker(tmp_path: Path,
 
 
 @pytest.mark.parametrize("source", NEWER_SOURCES)
-def test_parse_names_the_file_with_newer_syntax_as_unfinished(tmp_path: Path, source: str) -> None:
+def test_parse_names_the_file_with_newer_syntax_as_unfinished(
+    tmp_path: Path, source: str
+) -> None:
     """Return the file using syntax added in 3.13 or later as unfinished, naming its path."""
     path = _seed(tmp_path, "newer.py", source)
     result = parse(Source(given=path, absolute=path), PINNED)
@@ -75,7 +83,9 @@ def test_parse_names_the_file_with_newer_syntax_as_unfinished(tmp_path: Path, so
 
 
 @pytest.mark.parametrize("newer_first", [True, False])
-def test_gate_exits_unfinished_on_newer_syntax_whatever_other_files_hold(tmp_path: Path, newer_first: bool) -> None:
+def test_gate_exits_unfinished_on_newer_syntax_whatever_other_files_hold(
+    tmp_path: Path, newer_first: bool
+) -> None:
     """Exit with the unfinished status when one file uses newer syntax and another carries a finding."""
     newer = _seed(tmp_path, "newer.py", NEWER_SOURCES[0])
     flagged = _seed(tmp_path, "flagged.py", FINDING_SOURCE)
@@ -85,7 +95,9 @@ def test_gate_exits_unfinished_on_newer_syntax_whatever_other_files_hold(tmp_pat
 
 
 @pytest.mark.parametrize("source", PINNED_SOURCES)
-def test_gate_finishes_on_syntax_the_3_12_grammar_parses(tmp_path: Path, source: str) -> None:
+def test_gate_finishes_on_syntax_the_3_12_grammar_parses(
+    tmp_path: Path, source: str
+) -> None:
     """Exit with the findings status, not the unfinished one, on 3.12 type-parameter syntax carrying a marker."""
     path = _seed(tmp_path, "pinned.py", MARKER_LINE + source)
 

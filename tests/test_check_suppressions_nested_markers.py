@@ -33,9 +33,18 @@ def _letters(text: str) -> str:
 
 
 @pytest.mark.parametrize("comment", NESTED_MARKER_COMMENTS)
-def test_pyright_ignore_comment_is_one_finding_naming_both_markers(tmp_path: Path, comment: str) -> None:
+def test_pyright_ignore_comment_is_one_finding_naming_both_markers(
+    tmp_path: Path, comment: str
+) -> None:
     """Report a `pyright: ignore` comment as one finding, on its line, naming both `pyright: ignore` and the `# pyright:` it contains."""
     path = _seed(tmp_path, "first = 1\n" + comment + "\n")
     findings = find_suppressions(path)
 
-    assert [(finding.line, _letters(finding.marker).count("pyright") >= 2, "ignore" in _letters(finding.marker)) for finding in findings] == [(2, True, True)]
+    assert [
+        (
+            finding.line,
+            _letters(finding.marker).count("pyright") >= 2,
+            "ignore" in _letters(finding.marker),
+        )
+        for finding in findings
+    ] == [(2, True, True)]

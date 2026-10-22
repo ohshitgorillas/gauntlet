@@ -40,7 +40,9 @@ ERR = "check: on stderr\nsecond stderr line\n"
 
 BOTH = "import sys\nsys.stdout.write(sys.argv[1])\nsys.stdout.flush()\nsys.stderr.write(sys.argv[2])\n"
 
-REPORT = '<?xml version="1.0"?>\n<testsuites><testsuite name="t" tests="1"/></testsuites>\n'
+REPORT = (
+    '<?xml version="1.0"?>\n<testsuites><testsuite name="t" tests="1"/></testsuites>\n'
+)
 
 OTHER_REPORT = '{"mutants": ["a.x__mutmut_1"]}\n'
 
@@ -121,9 +123,17 @@ def test_outputs_by_name(tmp_path: Path) -> None:
     )
     outputs = {"junit": junit, "record": record, "missing": tmp_path / "missing.txt"}
 
-    completed = _run(tmp_path, _python(write_both, str(junit), REPORT, str(record), OTHER_REPORT), outputs)
+    completed = _run(
+        tmp_path,
+        _python(write_both, str(junit), REPORT, str(record), OTHER_REPORT),
+        outputs,
+    )
 
-    assert completed.outputs == {"junit": REPORT, "record": OTHER_REPORT, "missing": None}
+    assert completed.outputs == {
+        "junit": REPORT,
+        "record": OTHER_REPORT,
+        "missing": None,
+    }
 
 
 def test_cwd(tmp_path: Path) -> None:
@@ -136,7 +146,9 @@ def test_cwd(tmp_path: Path) -> None:
 
 def test_env(tmp_path: Path) -> None:
     """A checker run with an env sees what that env sets and no variable of this process it leaves out."""
-    completed = _run(tmp_path, _python(SEES, PROBE, PYTEST_VARIABLE), env={PROBE: PROBE_VALUE})
+    completed = _run(
+        tmp_path, _python(SEES, PROBE, PYTEST_VARIABLE), env={PROBE: PROBE_VALUE}
+    )
 
     assert completed.stdout == repr((PROBE_VALUE, None))
 
@@ -155,4 +167,8 @@ def test_invalid_utf8(tmp_path: Path) -> None:
 
     completed = _run(tmp_path, _python(code, str(report)), {"report": report})
 
-    assert (completed.stdout, completed.stderr, completed.outputs) == ("a�", "b�", {"report": "c�"})
+    assert (completed.stdout, completed.stderr, completed.outputs) == (
+        "a�",
+        "b�",
+        {"report": "c�"},
+    )

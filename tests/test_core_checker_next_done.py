@@ -53,7 +53,9 @@ class Noting:
         self.noted = []
         self._lines = list(lines)
 
-    def __call__(self, running: Collection[Future[Completed]]) -> set[Future[Completed]]:
+    def __call__(
+        self, running: Collection[Future[Completed]]
+    ) -> set[Future[Completed]]:
         self.noted.append(len(running))
         if self._lines:
             self._lines.pop(0).release()
@@ -91,7 +93,9 @@ class Stalling:
         self._line = line
         self._process = process
 
-    def __call__(self, running: Collection[Future[Completed]]) -> set[Future[Completed]]:
+    def __call__(
+        self, running: Collection[Future[Completed]]
+    ) -> set[Future[Completed]]:
         self.handed.append(frozenset(running))
         if len(self.handed) == 1:
             self._line.release()
@@ -106,14 +110,18 @@ class Adding:
 
     completed: list[Completed]
 
-    def __init__(self, cwd: Path, lines: tuple[Lifeline, Lifeline], process: Lingering) -> None:
+    def __init__(
+        self, cwd: Path, lines: tuple[Lifeline, Lifeline], process: Lingering
+    ) -> None:
         self.completed = []
         self._calls = 0
         self._cwd = cwd
         self._first, self._second = lines
         self._process = process
 
-    def __call__(self, running: Collection[Future[Completed]]) -> set[Future[Completed]]:
+    def __call__(
+        self, running: Collection[Future[Completed]]
+    ) -> set[Future[Completed]]:
         self._calls += 1
         if self._calls == 1:
             raise Stalled
@@ -132,7 +140,11 @@ SIGNAL_FLOOR = 128
 
 def _held(cwd: Path, line: Lifeline) -> Command:
     """A checker that lives until its Lifeline is let go."""
-    return Command(argv=(sys.executable, "-c", HOLD, str(line.read_fd)), cwd=cwd, pass_fds=(line.read_fd,))
+    return Command(
+        argv=(sys.executable, "-c", HOLD, str(line.read_fd)),
+        cwd=cwd,
+        pass_fds=(line.read_fd,),
+    )
 
 
 def test_waits_for_a_worker_through_next_done(tmp_path: Path) -> None:
@@ -140,7 +152,12 @@ def test_waits_for_a_worker_through_next_done(tmp_path: Path) -> None:
     with Lifeline() as first, Lifeline() as second:
         next_done = Noting([first, second])
 
-        results = run_all(run, [_held(tmp_path, first), _held(tmp_path, second)], 1, next_done=next_done)
+        results = run_all(
+            run,
+            [_held(tmp_path, first), _held(tmp_path, second)],
+            1,
+            next_done=next_done,
+        )
 
     assert (next_done.noted, len(results)) == ([1, 1], 2)
 
@@ -178,5 +195,8 @@ def test_kill_add(tmp_path: Path) -> None:
         finally:
             process.release()
 
-    killed = [(completed.status > SIGNAL_FLOOR, completed.timed_out) for completed in next_done.completed]
+    killed = [
+        (completed.status > SIGNAL_FLOOR, completed.timed_out)
+        for completed in next_done.completed
+    ]
     assert killed == [(True, False)]

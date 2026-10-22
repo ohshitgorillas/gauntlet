@@ -8,7 +8,14 @@ from pathlib import Path
 from typing import IO, override
 
 from gates.core.checker import Command, run as run_command, throttle_line
-from gates.core.report import GateError, Outcome, Unfinished, exit_code, output_lines, write
+from gates.core.report import (
+    GateError,
+    Outcome,
+    Unfinished,
+    exit_code,
+    output_lines,
+    write,
+)
 
 LOCK = Path("/tmp/gauntlet-heavy.lock")
 
@@ -59,7 +66,9 @@ def run(lock: Path, line: list[str]) -> int:
         except OSError as error:
             message = f"cannot lock {lock}: {error}"
             raise GateError(message) from error
-        command = Command(argv=tuple(line), cwd=Path.cwd(), capture=False, pass_fds=(handle.fileno(),))
+        command = Command(
+            argv=tuple(line), cwd=Path.cwd(), capture=False, pass_fds=(handle.fileno(),)
+        )
         return run_command(command).status
 
 
@@ -80,7 +89,9 @@ class Parser(argparse.ArgumentParser):
     """
 
     @override
-    def _parse_optional(self, arg_string: str) -> list[tuple[argparse.Action | None, str, str | None, str | None]] | None:
+    def _parse_optional(
+        self, arg_string: str
+    ) -> list[tuple[argparse.Action | None, str, str | None, str | None]] | None:
         """Return what `argparse` makes of `arg_string` where the text before any `=` names an option, else None, an argument."""
         if arg_string.partition("=")[0] in self._option_string_actions:
             return super()._parse_optional(arg_string)
@@ -140,6 +151,7 @@ def main(arguments: list[str]) -> int:
     except GateError as error:
         write(output_lines(f"heavy: {error.report}; nothing was run"), error=True)
         return exit_code(Outcome(lines=(Unfinished(error.report),)))
+
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))

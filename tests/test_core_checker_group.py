@@ -93,7 +93,9 @@ def _run(cwd: Path, argv: tuple[str, ...], pass_fds: tuple[int, ...] = ()) -> Co
     return run(Command(argv=argv, cwd=cwd, pass_fds=pass_fds))
 
 
-def _capped_run(cwd: Path, argv: tuple[str, ...], timeout: float, line: Lifeline, beacon: Beacon) -> Completed:
+def _capped_run(
+    cwd: Path, argv: tuple[str, ...], timeout: float, line: Lifeline, beacon: Beacon
+) -> Completed:
     """Run the checker with a cap that passes on a VirtualClock at once, once the checker has written on its Beacon."""
     clock = VirtualClock(passes=timeout, after=beacon.seen)
     command = Command(
@@ -105,7 +107,9 @@ def _capped_run(cwd: Path, argv: tuple[str, ...], timeout: float, line: Lifeline
     return run(command, clock=clock)
 
 
-def _group_run(tmp_path: Path, target: str, timeout: float | None, checker: str = CHECKER) -> bytes:
+def _group_run(
+    tmp_path: Path, target: str, timeout: float | None, checker: str = CHECKER
+) -> bytes:
     """Run the checker and its child through `run`, and read the FIFO the child held to its end."""
     with (
         Lifeline() as line,
@@ -113,7 +117,14 @@ def _group_run(tmp_path: Path, target: str, timeout: float | None, checker: str 
         Witness(tmp_path / "held.fifo") as witness,
         Beacon() as beacon,
     ):
-        argv = _python(checker, str(witness.path), str(pids.path), target, str(line.read_fd), WITNESS)
+        argv = _python(
+            checker,
+            str(witness.path),
+            str(pids.path),
+            target,
+            str(line.read_fd),
+            WITNESS,
+        )
         with contextlib.suppress(KeyboardInterrupt):
             if timeout is None:
                 _run(tmp_path, argv, (line.read_fd,))
@@ -135,7 +146,12 @@ def test_timed_out_on_the_clock_run_is_handed(tmp_path: Path) -> None:
     """
     clock = VirtualClock(passes=CAP)
     with Lifeline() as line:
-        command = Command(argv=_python(HOLD, str(line.read_fd)), cwd=tmp_path, timeout=CAP, pass_fds=(line.read_fd,))
+        command = Command(
+            argv=_python(HOLD, str(line.read_fd)),
+            cwd=tmp_path,
+            timeout=CAP,
+            pass_fds=(line.read_fd,),
+        )
         completed = run(command, clock=clock)
 
     assert (completed.timed_out, clock.now) == (True, CAP)

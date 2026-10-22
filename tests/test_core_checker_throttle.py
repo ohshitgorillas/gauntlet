@@ -66,7 +66,14 @@ def test_linux_line(tmp_path: Path, niceness: int, step: str) -> None:
     """With ionice and nice on the path, the Linux line is ionice -c3, then nice -n k, then --."""
     path = _tools(tmp_path, ("ionice", "nice"))
 
-    assert throttle_line("linux", niceness, path=path) == ["ionice", "-c3", "nice", "-n", step, "--"]
+    assert throttle_line("linux", niceness, path=path) == [
+        "ionice",
+        "-c3",
+        "nice",
+        "-n",
+        step,
+        "--",
+    ]
 
 
 def test_darwin_needs_no_ionice(tmp_path: Path) -> None:
@@ -78,7 +85,13 @@ def test_darwin_needs_no_ionice(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("platform", "tools"),
-    [("linux", ("nice",)), ("linux", ("ionice",)), ("linux", ()), ("darwin", ("ionice",)), ("darwin", ())],
+    [
+        ("linux", ("nice",)),
+        ("linux", ("ionice",)),
+        ("linux", ()),
+        ("darwin", ("ionice",)),
+        ("darwin", ()),
+    ],
     ids=["linux-ionice", "linux-nice", "linux-both", "darwin-nice", "darwin-both"],
 )
 def test_absent(tmp_path: Path, platform: str, tools: tuple[str, ...]) -> None:

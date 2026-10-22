@@ -76,22 +76,36 @@ def parse(source: Source, version: tuple[int, int]) -> Parsed | Unfinished:
             text = data.decode(encoding)
             tree = ast.parse(text, filename=str(given), feature_version=version)
             tokens = tuple(tokenize.generate_tokens(io.StringIO(text).readline))
-        except (OSError, SyntaxError, UnicodeDecodeError, tokenize.TokenError, MemoryError, RecursionError) as error:
+        except (
+            OSError,
+            SyntaxError,
+            UnicodeDecodeError,
+            tokenize.TokenError,
+            MemoryError,
+            RecursionError,
+        ) as error:
             return Unfinished(f"{given}: {type(error).__name__}: {error}")
     if caught:
         return Unfinished(
-            "\n".join(f"{given}:{warning.lineno}: {warning.category.__name__}: {warning.message}" for warning in caught)
+            "\n".join(
+                f"{given}:{warning.lineno}: {warning.category.__name__}: {warning.message}"
+                for warning in caught
+            )
         )
     return Parsed(source=source, text=text, tokens=tokens, tree=tree)
 
 
-def comment_markers(parsed: Parsed, markers: Mapping[str, re.Pattern[str]]) -> list[tuple[int, tuple[str, ...]]]:
+def comment_markers(
+    parsed: Parsed, markers: Mapping[str, re.Pattern[str]]
+) -> list[tuple[int, tuple[str, ...]]]:
     """Return each comment that carries a marker: its line, and the names of its markers in the order of `markers`."""
     carried: list[tuple[int, tuple[str, ...]]] = []
     for token in parsed.tokens:
         if token.type != tokenize.COMMENT:
             continue
-        names = tuple(name for name, pattern in markers.items() if pattern.search(token.string))
+        names = tuple(
+            name for name, pattern in markers.items() if pattern.search(token.string)
+        )
         if names:
             carried.append((token.start[0], names))
     return carried

@@ -181,7 +181,11 @@ def test_one(tmp_path: Path, seed: Seed, name: str, line_number: int | None) -> 
     paths = seed(tmp_path)
     status, lines = _run(paths)
 
-    assert (status, _counts(lines), _shapes(lines, len(paths))) == (UNFINISHED, 1, [True])
+    assert (status, _counts(lines), _shapes(lines, len(paths))) == (
+        UNFINISHED,
+        1,
+        [True],
+    )
 
 
 @pytest.mark.parametrize(("seed", "name", "line_number"), SEEDS)
@@ -190,7 +194,11 @@ def test_before(tmp_path: Path, seed: Seed, name: str, line_number: int | None) 
     paths = seed(tmp_path)
     status, lines = _run(paths)
 
-    assert (status, _reports(name, line_number, lines[:-1]) >= 1, _shapes(lines, len(paths))) == (
+    assert (
+        status,
+        _reports(name, line_number, lines[:-1]) >= 1,
+        _shapes(lines, len(paths)),
+    ) == (
         UNFINISHED,
         True,
         [True],

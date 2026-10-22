@@ -121,7 +121,11 @@ def test_last(tmp_path: Path, seed: Callable[[Path], list[Path]]) -> None:
     status, lines = _run(seed(tmp_path))
     counting = [line for line in lines if "file(s)" in line]
 
-    assert (status, counting, [_is_count_line(line) for line in lines[-1:]]) == (UNFINISHED, lines[-1:], [True])
+    assert (status, counting, [_is_count_line(line) for line in lines[-1:]]) == (
+        UNFINISHED,
+        lines[-1:],
+        [True],
+    )
 
 
 @pytest.mark.parametrize("seed", SEEDS)
@@ -134,4 +138,8 @@ def test_after(tmp_path: Path, seed: Callable[[Path], list[Path]]) -> None:
     status, lines = _run(paths)
     reported = paths[-1].name in "\n".join(lines[:-1])
 
-    assert (status, reported, [_is_count_line(line) for line in lines[-1:]]) == (UNFINISHED, True, [True])
+    assert (status, reported, [_is_count_line(line) for line in lines[-1:]]) == (
+        UNFINISHED,
+        True,
+        [True],
+    )

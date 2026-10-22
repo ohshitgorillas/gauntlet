@@ -39,7 +39,9 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
     return path
 
 
-def _layout(tmp_path: Path, broken: Path, companion: str | None, *, broken_first: bool) -> list[Path]:
+def _layout(
+    tmp_path: Path, broken: Path, companion: str | None, *, broken_first: bool
+) -> list[Path]:
     if companion is None:
         return [broken]
     other = _seed(tmp_path, "companion.py", companion)

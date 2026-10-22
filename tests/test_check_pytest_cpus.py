@@ -29,8 +29,11 @@ SIX_CPUS = 6
 
 PASSING = "def test_seeded():\n    pass\n"
 
+
 def _module(command: Command) -> str:
-    return next(word for word in command.argv if word.endswith(".py") and "=" not in word)
+    return next(
+        word for word in command.argv if word.endswith(".py") and "=" not in word
+    )
 
 
 def _peak(root: Path, count: int, cpus: int | None) -> tuple[int, int, int]:
@@ -38,15 +41,24 @@ def _peak(root: Path, count: int, cpus: int | None) -> tuple[int, int, int]:
     project = scaffold(root, dict.fromkeys(names, PASSING))
     modules = [project.root / name for name in names]
     steps = {
-        str(module): Step(completed(outputs={"junit": (
-            f'<testsuites><testsuite name="{module}" tests="1">'
-            f'<testcase classname="tests.{module.stem}" name="test_seeded"/>'
-            '</testsuite></testsuites>'
-        )})) for module in modules
+        str(module): Step(
+            completed(
+                outputs={
+                    "junit": (
+                        f'<testsuites><testsuite name="{module}" tests="1">'
+                        f'<testcase classname="tests.{module.stem}" name="test_seeded"/>'
+                        "</testsuite></testsuites>"
+                    )
+                }
+            )
+        )
+        for module in modules
     }
     process = Scripted(steps, key=_module)
     selected = gate() if cpus is None else gate(lambda: read_budget(lambda: cpus))
-    status = run_gate(selected, modules, project=project, process=process, next_done=process.next_done)
+    status = run_gate(
+        selected, modules, project=project, process=process, next_done=process.next_done
+    )
     return status, process.peak, len(process.finished)
 
 

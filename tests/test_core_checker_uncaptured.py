@@ -48,13 +48,19 @@ def _uncaptured(tmp_path: Path, *argv: str) -> Completed:
 
 def _writer(tmp_path: Path) -> Completed:
     """Run, with capture off, a checker that writes OUT to its stdout and ERR to its stderr and exits STATUS."""
-    return _uncaptured(tmp_path, sys.executable, "-I", "-c", BOTH, OUT, ERR, str(STATUS))
+    return _uncaptured(
+        tmp_path, sys.executable, "-I", "-c", BOTH, OUT, ERR, str(STATUS)
+    )
 
 
 def _held(tmp_path: Path) -> tuple[list[str], list[str]]:
     """The device and inode of fds 1 and 2, as the run holds them and as the checker it starts with capture off does."""
     report = tmp_path / "held.txt"
-    own = [str(value) for fd in (1, 2) for value in (os.fstat(fd).st_dev, os.fstat(fd).st_ino)]
+    own = [
+        str(value)
+        for fd in (1, 2)
+        for value in (os.fstat(fd).st_dev, os.fstat(fd).st_ino)
+    ]
     _uncaptured(tmp_path, sys.executable, "-I", "-c", HOLDS, str(report))
     return own, report.read_text(encoding="utf-8").split()
 

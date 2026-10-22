@@ -63,7 +63,13 @@ def _not_on_path(tmp_path: Path) -> Command:
 @pytest.mark.parametrize(
     "build",
     [_missing, _not_executable, _directory, _missing_interpreter, _not_on_path],
-    ids=["missing", "not-executable", "directory", "missing-interpreter", "not-on-path"],
+    ids=[
+        "missing",
+        "not-executable",
+        "directory",
+        "missing-interpreter",
+        "not-on-path",
+    ],
 )
 def test_cannot_start(tmp_path: Path, build: Callable[[Path], Command]) -> None:
     """A Command whose program cannot start makes `run` raise a GateError whose report names that program."""

@@ -40,7 +40,9 @@ def test_reply_identity_and_records(tmp_path: Path) -> None:
     reply = completed()
     process = Scripted({"last": Step(reply)})
 
-    result = run_all(process, [_command(tmp_path, "first")], 1, next_done=process.next_done)
+    result = run_all(
+        process, [_command(tmp_path, "first")], 1, next_done=process.next_done
+    )
 
     assert result[0] is reply
     assert (process.called, process.finished, process.peak) == (["last"], ["last"], 1)
@@ -51,7 +53,9 @@ def test_custom_key(tmp_path: Path) -> None:
     reply = completed(1, "chosen\n")
     process = Scripted({"first": Step(reply)}, key=lambda command: command.argv[0])
 
-    result = run_all(process, [_command(tmp_path, "first")], 1, next_done=process.next_done)
+    result = run_all(
+        process, [_command(tmp_path, "first")], 1, next_done=process.next_done
+    )
 
     assert result == [reply]
     assert process.called == ["first"]
@@ -60,9 +64,16 @@ def test_custom_key(tmp_path: Path) -> None:
 # Releasing each call as it starts would permit a peak below the whole batch.
 def test_all_started_calls_overlap(tmp_path: Path) -> None:
     names = ("a", "b", "c", "d")
-    process = Scripted({name: Step(completed()) for name in names}, key=lambda command: command.argv[0])
+    process = Scripted(
+        {name: Step(completed()) for name in names}, key=lambda command: command.argv[0]
+    )
 
-    result = run_all(process, [_command(tmp_path, name) for name in names], 4, next_done=process.next_done)
+    result = run_all(
+        process,
+        [_command(tmp_path, name) for name in names],
+        4,
+        next_done=process.next_done,
+    )
 
     assert (len(result), process.peak) == (4, 4)
     assert sorted(process.called) == list(names)
@@ -104,7 +115,11 @@ def test_after_waits_for_every_named_call(tmp_path: Path) -> None:
             process.close()
 
     assert result == replies
-    assert [name for name in process.finished if name in ("a", "b", "c")] == ["c", "b", "a"]
+    assert [name for name in process.finished if name in ("a", "b", "c")] == [
+        "c",
+        "b",
+        "a",
+    ]
 
 
 # Treating an exception as a return value would leave this future successful.

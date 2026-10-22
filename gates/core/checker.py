@@ -77,7 +77,12 @@ def read_output(path: Path) -> str | None:
     return _decode(data)
 
 
-def run(command: Command, *, read: Callable[[Path], str | None] = read_output, clock: Clock = SYSTEM) -> Completed:
+def run(
+    command: Command,
+    *,
+    read: Callable[[Path], str | None] = read_output,
+    clock: Clock = SYSTEM,
+) -> Completed:
     """Run the checker in a session of its own; kill its whole group at the timeout or on any interrupt.
 
     An interrupt is any signal of ENDING_SIGNALS that would end this process, from the moment the checker starts
@@ -94,7 +99,10 @@ def run(command: Command, *, read: Callable[[Path], str | None] = read_output, c
     argv = command.argv
     if command.throttled:
         path = os.pathsep.join(os.get_exec_path(command.env))
-        argv = (*throttle_line(sys.platform, os.getpriority(os.PRIO_PROCESS, 0), path), *argv)
+        argv = (
+            *throttle_line(sys.platform, os.getpriority(os.PRIO_PROCESS, 0), path),
+            *argv,
+        )
     paths = {name: command.cwd / path for name, path in command.outputs.items()}
     for output in paths.values():
         _clear(output)
@@ -142,7 +150,9 @@ class _Interrupts:
     def __init__(self) -> None:
         """Hold every signal that arrives, and replace no handler yet."""
         self.holding = True
-        self.replaced: dict[int, Callable[[int, FrameType | None], object] | signal.Handlers] = {}
+        self.replaced: dict[
+            int, Callable[[int, FrameType | None], object] | signal.Handlers
+        ] = {}
         self.pending: list[int] = []
 
     def __enter__(self) -> Self:
@@ -202,14 +212,23 @@ class _Interrupts:
             signal.raise_signal(self.pending.pop(0))
 
 
-def _streams(command: Command, stack: contextlib.ExitStack[bool | None]) -> tuple[IO[bytes] | None, IO[bytes] | None]:
+def _streams(
+    command: Command, stack: contextlib.ExitStack[bool | None]
+) -> tuple[IO[bytes] | None, IO[bytes] | None]:
     """Open the files the checker's stdout and stderr go to, or none when it writes straight to the run's own fds."""
     if not command.capture:
         return None, None
-    return stack.enter_context(tempfile.TemporaryFile()), stack.enter_context(tempfile.TemporaryFile())
+    return stack.enter_context(tempfile.TemporaryFile()), stack.enter_context(
+        tempfile.TemporaryFile()
+    )
 
 
-def _settle(process: subprocess.Popen[bytes], timeout: float | None, interrupts: _Interrupts, clock: Clock) -> bool:
+def _settle(
+    process: subprocess.Popen[bytes],
+    timeout: float | None,
+    interrupts: _Interrupts,
+    clock: Clock,
+) -> bool:
     """Wait through the clock for the checker to end; return whether the timeout passed first on that clock.
 
     Whatever ends the wait, the checker's whole process group is then killed, so no process still in that group
@@ -354,13 +373,17 @@ def _decode(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def python_module(module: str, *arguments: str | Path, cwd: Path, timeout: float | None = None) -> Command:
+def python_module(
+    module: str, *arguments: str | Path, cwd: Path, timeout: float | None = None
+) -> Command:
     """Return the Command that runs the module with this interpreter, each argument as its text."""
     argv = (sys.executable, "-m", module, *(str(argument) for argument in arguments))
     return Command(argv=argv, cwd=cwd, timeout=timeout)
 
 
-def environment(*, drop_prefixes: tuple[str, ...] = (), drop: frozenset[str] = frozenset()) -> dict[str, str]:
+def environment(
+    *, drop_prefixes: tuple[str, ...] = (), drop: frozenset[str] = frozenset()
+) -> dict[str, str]:
     """Return this process's variables now, less each whose name starts with a prefix or is in the drop set."""
     return {
         name: value
@@ -384,7 +407,9 @@ def throttle_line(platform: str, niceness: int, path: str | None = None) -> list
             line = nice
             tools = ("nice",)
         case _:
-            message = f"cannot throttle the checker: no throttle line for host {platform}"
+            message = (
+                f"cannot throttle the checker: no throttle line for host {platform}"
+            )
             raise GateError(message)
     missing = [tool for tool in tools if shutil.which(tool, path=path) is None]
     if missing:
@@ -410,7 +435,9 @@ def cpu_budget(cpus: int | None = None) -> int:
 
     host: object = os
     if cpus is None:
-        cpus = len(host.sched_getaffinity(0)) if keeps_affinity(host) else os.cpu_count()
+        cpus = (
+            len(host.sched_getaffinity(0)) if keeps_affinity(host) else os.cpu_count()
+        )
     if cpus is None:
         raise GateError(UNREAD_CPUS)
     return cpus // 2
@@ -448,7 +475,16 @@ def run_all(
     with _Interrupts() as interrupts, ThreadPoolExecutor(max_workers=cap) as pool:
         try:
             interrupts.release()
-            _feed(process, iter(commands), cap, pool, running, results, interrupts, next_done)
+            _feed(
+                process,
+                iter(commands),
+                cap,
+                pool,
+                running,
+                results,
+                interrupts,
+                next_done,
+            )
         except BaseException:
             interrupts.holding = True
             _drain(running, next_done)
@@ -510,7 +546,9 @@ def _drain(running: dict[Future[Completed], int], next_done: NextDone) -> None:
             left -= next_done(frozenset(left))
 
 
-def _in_order(results: Mapping[int, Completed | GateError | OSError]) -> list[Completed | GateError | OSError]:
+def _in_order(
+    results: Mapping[int, Completed | GateError | OSError],
+) -> list[Completed | GateError | OSError]:
     """Return the results in command order, ending at the first error."""
     ordered: list[Completed | GateError | OSError] = []
     for index in sorted(results):

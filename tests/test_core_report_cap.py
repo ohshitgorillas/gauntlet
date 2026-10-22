@@ -44,13 +44,37 @@ def test_time_cap(checker: str, seconds: float, expected: str) -> None:
 @pytest.mark.parametrize(
     ("output", "checker", "seconds", "expected"),
     [
-        pytest.param(GENERATING, "mutmut", 600, (Unfinished(GENERATING), Unfinished(MUTMUT_CAP)), id="mut"),
-        pytest.param(COLLECTING, "pytest", 30, (Unfinished(COLLECTING), Unfinished(PYTEST_CAP)), id="crlf"),
-        pytest.param(NO_BREAK, "/opt/venv/bin/mypy", 1, (Unfinished(NO_BREAK), Unfinished(PATH_CAP)), id="path"),
-        pytest.param(BLANKS, "ruff", 86400, (Unfinished(BLANKS), Unfinished(LONG_CAP)), id="blnk"),
-        pytest.param("", "mutmut", 600, (Unfinished(""), Unfinished(MUTMUT_CAP)), id="none"),
+        pytest.param(
+            GENERATING,
+            "mutmut",
+            600,
+            (Unfinished(GENERATING), Unfinished(MUTMUT_CAP)),
+            id="mut",
+        ),
+        pytest.param(
+            COLLECTING,
+            "pytest",
+            30,
+            (Unfinished(COLLECTING), Unfinished(PYTEST_CAP)),
+            id="crlf",
+        ),
+        pytest.param(
+            NO_BREAK,
+            "/opt/venv/bin/mypy",
+            1,
+            (Unfinished(NO_BREAK), Unfinished(PATH_CAP)),
+            id="path",
+        ),
+        pytest.param(
+            BLANKS, "ruff", 86400, (Unfinished(BLANKS), Unfinished(LONG_CAP)), id="blnk"
+        ),
+        pytest.param(
+            "", "mutmut", 600, (Unfinished(""), Unfinished(MUTMUT_CAP)), id="none"
+        ),
     ],
 )
-def test_timed_out(output: str, checker: str, seconds: float, expected: tuple[Unfinished, Unfinished]) -> None:
+def test_timed_out(
+    output: str, checker: str, seconds: float, expected: tuple[Unfinished, Unfinished]
+) -> None:
     """timed_out: an Unfinished of the checker's whole output as given, then an Unfinished of its cap line."""
     assert timed_out(output, checker, seconds) == expected

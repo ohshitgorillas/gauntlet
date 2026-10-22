@@ -47,7 +47,9 @@ LIFELINE_FD = "0"
 RUNNING = b"ready\n"
 
 
-def _wrapper(options: list[str], command: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def _wrapper(
+    options: list[str], command: list[str], env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """Run the wrapper with options before the command, from the repository root, to its end.
 
     The module is imported here, at each run, so a test and not collection meets it.
@@ -55,7 +57,9 @@ def _wrapper(options: list[str], command: list[str], env: dict[str, str] | None 
     from gates import heavy
 
     line = [sys.executable, "-m", heavy.__name__, *options, *command]
-    return subprocess.run(line, cwd=REPO_ROOT, check=False, capture_output=True, text=True, env=env)
+    return subprocess.run(
+        line, cwd=REPO_ROOT, check=False, capture_output=True, text=True, env=env
+    )
 
 
 def test_refused_line_takes_no_lock(tmp_path: Path) -> None:
@@ -66,7 +70,11 @@ def test_refused_line_takes_no_lock(tmp_path: Path) -> None:
     empty.mkdir()
     with lock.open("w", encoding="utf-8") as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
-        result = _wrapper(["--lock", str(lock)], [sys.executable, "-c", NOTE, str(log), RAN], {"PATH": str(empty)})
+        result = _wrapper(
+            ["--lock", str(lock)],
+            [sys.executable, "-c", NOTE, str(log), RAN],
+            {"PATH": str(empty)},
+        )
 
     assert (result.returncode, log.exists()) == (BLOCKED, False)
 

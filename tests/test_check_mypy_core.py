@@ -26,7 +26,9 @@ CLEAN = "def double(value: int) -> int:\n    return value * 2\n"
 
 COUNT_NONE = "check_mypy: 0 finding(s) in 1 Python file(s)\n"
 
-REFUSAL = "/opt/python/lib/python3.12/site-packages is in the MYPYPATH. Please remove it.\n"
+REFUSAL = (
+    "/opt/python/lib/python3.12/site-packages is in the MYPYPATH. Please remove it.\n"
+)
 
 SEE_ALSO = "See https://mypy.readthedocs.io/en/stable/running_mypy.html#how-mypy-handles-imports for more info\n"
 

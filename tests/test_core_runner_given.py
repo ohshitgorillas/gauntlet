@@ -32,8 +32,15 @@ class Seen:
 def test_given_every_python_file(tmp_path: Path) -> None:
     """The run's given holds every Python file given, test files included, once each as first spelled; its sources are
     those the gate selects from it."""
-    project = scaffold(tmp_path / "project", {"a.py": "value = 1\n", "b.py": "value = 1\n", "a.txt": "text\n",
-                                              "tests/test_a.py": "value = 1\n"})
+    project = scaffold(
+        tmp_path / "project",
+        {
+            "a.py": "value = 1\n",
+            "b.py": "value = 1\n",
+            "a.txt": "text\n",
+            "tests/test_a.py": "value = 1\n",
+        },
+    )
     first = project.root / "b.py"
     text = project.root / "a.txt"
     test = project.root / "tests" / "test_a.py"
@@ -44,10 +51,21 @@ def test_given_every_python_file(tmp_path: Path) -> None:
     root = tmp_path / "scratch"
     root.mkdir()
 
-    captured(lambda: run_gate(gate, [first, text, test, other, again], project=project, process=FakeRunner([]),
-                              scratch_root=root))
+    captured(
+        lambda: run_gate(
+            gate,
+            [first, text, test, other, again],
+            project=project,
+            process=FakeRunner([]),
+            scratch_root=root,
+        )
+    )
 
     assert (seen.runs[0].given, seen.runs[0].sources) == (
-        (Source(given=first, absolute=first), Source(given=test, absolute=test), Source(given=other, absolute=other)),
+        (
+            Source(given=first, absolute=first),
+            Source(given=test, absolute=test),
+            Source(given=other, absolute=other),
+        ),
         (Source(given=first, absolute=first), Source(given=other, absolute=other)),
     )

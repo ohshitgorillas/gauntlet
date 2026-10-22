@@ -36,7 +36,9 @@ def _output(capsys: pytest.CaptureFixture[str]) -> str:
     return captured.out + captured.err
 
 
-def test_carries_deprecation_reason(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_carries_deprecation_reason(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """The reason pyright appends below its deprecation line is part of the whole message."""
     path = _seed(tmp_path, DEPRECATED_CALL)
     main([path])
@@ -51,7 +53,9 @@ def test_carries_deprecation_reason(tmp_path: Path, capsys: pytest.CaptureFixtur
         pytest.param(SECOND_MISSING, id="second"),
     ],
 )
-def test_carries_each_finding(tmp_path: Path, capsys: pytest.CaptureFixture[str], name: str) -> None:
+def test_carries_each_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], name: str
+) -> None:
     """Every undefined name pyright reports appears in the gate's output, not only the first."""
     path = _seed(tmp_path, TWO_UNDEFINED)
     main([path])

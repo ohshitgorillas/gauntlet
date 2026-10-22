@@ -33,16 +33,24 @@ def test_unparseable_file_alone_exits_2(tmp_path: Path, source: str) -> None:
 
 
 @pytest.mark.parametrize("source", UNPARSEABLE.values(), ids=UNPARSEABLE.keys())
-def test_unparseable_file_beside_clean_file_exits_2(tmp_path: Path, source: str) -> None:
+def test_unparseable_file_beside_clean_file_exits_2(
+    tmp_path: Path, source: str
+) -> None:
     broken = _seed(tmp_path, "broken.py", source)
     clean = _seed(tmp_path, "clean.py", "value = 1\n")
 
     assert main([clean, broken]) == 2
 
 
-@pytest.mark.parametrize("broken_first", [True, False], ids=["broken-first", "marker-first"])
-def test_unparseable_file_beside_file_with_marker_exits_2(tmp_path: Path, *, broken_first: bool) -> None:
-    broken = _seed(tmp_path, "broken.py", UNPARSEABLE["unterminated triple-quoted string"])
+@pytest.mark.parametrize(
+    "broken_first", [True, False], ids=["broken-first", "marker-first"]
+)
+def test_unparseable_file_beside_file_with_marker_exits_2(
+    tmp_path: Path, *, broken_first: bool
+) -> None:
+    broken = _seed(
+        tmp_path, "broken.py", UNPARSEABLE["unterminated triple-quoted string"]
+    )
     dirty = _seed(tmp_path, "dirty.py", "value = 1  # noqa\n")
     paths = [broken, dirty] if broken_first else [dirty, broken]
 

@@ -53,7 +53,9 @@ class Logged:
     def expected_status(self, report: list[str]) -> int:
         return 1 if report else 0
 
-    def lines(self, report: list[str], batch: Sequence[Source], *, stopped: bool) -> list[Line]:
+    def lines(
+        self, report: list[str], batch: Sequence[Source], *, stopped: bool
+    ) -> list[Line]:
         return [Finding(text) for text in report]
 
 
@@ -66,9 +68,19 @@ def _checked(
     refuse: str | None = None,
 ) -> Outcome:
     project = scaffold(tmp_path / "project", {name: "value = 1\n" for name in names})
-    sources = tuple(Source(given=Path(name), absolute=project.root / name) for name in names)
-    run = Run(project=project, sources=sources, scratch=Scratch(tmp_path), process=process, next_done=process.next_done)
-    return check_with(Logged([] if log is None else log, refuse=refuse), budget=budget)(run)
+    sources = tuple(
+        Source(given=Path(name), absolute=project.root / name) for name in names
+    )
+    run = Run(
+        project=project,
+        sources=sources,
+        scratch=Scratch(tmp_path),
+        process=process,
+        next_done=process.next_done,
+    )
+    return check_with(Logged([] if log is None else log, refuse=refuse), budget=budget)(
+        run
+    )
 
 
 def _held(*names: str) -> Scripted:
@@ -84,7 +96,9 @@ def test_budget_sizes_the_cap(tmp_path: Path) -> None:
     assert process.peak == 2
 
 
-@pytest.mark.parametrize("budget", [None, lambda: 0, lambda: 1], ids=["none", "zero", "one"])
+@pytest.mark.parametrize(
+    "budget", [None, lambda: 0, lambda: 1], ids=["none", "zero", "one"]
+)
 def test_one_at_a_time(tmp_path: Path, budget: Callable[[], int] | None) -> None:
     """No budget, or a budget of 0 or 1, runs one batch at a time."""
     process = _held("a", "b", "c")
@@ -123,32 +137,50 @@ def test_budget_error(tmp_path: Path, error: Exception) -> None:
 
     outcome = _checked(tmp_path, process, budget, "a", log=log)
 
-    assert (outcome, process.called, log) == (Outcome(lines=(Unfinished(str(error)),)), [], ["batches"])
+    assert (outcome, process.called, log) == (
+        Outcome(lines=(Unfinished(str(error)),)),
+        [],
+        ["batches"],
+    )
 
 
 def test_lines_in_batch_order(tmp_path: Path) -> None:
     """Each batch's lines follow the batch before it, though the later batch finished first."""
-    process = Scripted({"a": Step(completed(1, "a\n"), after=("b",)), "b": Step(completed(1, "b\n"))})
+    process = Scripted(
+        {"a": Step(completed(1, "a\n"), after=("b",)), "b": Step(completed(1, "b\n"))}
+    )
 
     outcome = _checked(tmp_path, process, lambda: 2, "a", "b")
 
-    assert (outcome, process.finished) == (Outcome(lines=(Finding("a"), Finding("b"))), ["b", "a"])
+    assert (outcome, process.finished) == (
+        Outcome(lines=(Finding("a"), Finding("b"))),
+        ["b", "a"],
+    )
 
 
 def test_error_after_earlier_batch(tmp_path: Path) -> None:
     """A later batch's error ends the check after the lines of the batch before it, though that one finished last."""
     process = Scripted(
-        {"a": Step(completed(1, "a\n"), after=("b",)), "b": Step(GateError(REFUSAL)), "c": Step(completed(1, "c\n"))}
+        {
+            "a": Step(completed(1, "a\n"), after=("b",)),
+            "b": Step(GateError(REFUSAL)),
+            "c": Step(completed(1, "c\n")),
+        }
     )
 
     outcome = _checked(tmp_path, process, lambda: 2, "a", "b", "c")
 
-    assert (outcome, process.called) == (Outcome(lines=(Finding("a"), Unfinished(REFUSAL))), ["a", "b"])
+    assert (outcome, process.called) == (
+        Outcome(lines=(Finding("a"), Unfinished(REFUSAL))),
+        ["a", "b"],
+    )
 
 
 def test_no_line_after_first_error(tmp_path: Path) -> None:
     """An earlier batch's error ends the check there, and a later batch that finished gives no line."""
-    process = Scripted({"a": Step(GateError(REFUSAL), after=("b",)), "b": Step(completed(1, "b\n"))})
+    process = Scripted(
+        {"a": Step(GateError(REFUSAL), after=("b",)), "b": Step(completed(1, "b\n"))}
+    )
 
     outcome = _checked(tmp_path, process, lambda: 2, "a", "b")
 

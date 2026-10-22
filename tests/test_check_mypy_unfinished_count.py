@@ -65,7 +65,9 @@ def _unfinished(tmp_path: Path, name: str) -> Path:
     return path
 
 
-def _layout(tmp_path: Path, unfinished: Path, companion: str | None, *, unfinished_first: bool) -> list[Path]:
+def _layout(
+    tmp_path: Path, unfinished: Path, companion: str | None, *, unfinished_first: bool
+) -> list[Path]:
     """The unfinished file alone, or beside a companion file placed before or after it."""
     if companion is None:
         return [unfinished]
@@ -101,7 +103,9 @@ def _is_report(line: str, name: str) -> bool:
     return PERMISSION_DENIED in line
 
 
-def _outcome(status: int, lines: list[str], name: str, files: int) -> tuple[int, bool, list[bool]]:
+def _outcome(
+    status: int, lines: list[str], name: str, files: int
+) -> tuple[int, bool, list[bool]]:
     """The exit status; whether mypy's report on `name` is on a line printed before the last; and, for the last line, as a list of at most one, whether it is the count line with any N and M as `files`."""
     reported = any(_is_report(line, name) for line in lines[:-1])
     count_line = re.compile(rf"{GATE}: \d+ finding\(s\) in {files} Python file\(s\)")
@@ -110,7 +114,9 @@ def _outcome(status: int, lines: list[str], name: str, files: int) -> tuple[int,
 
 
 @pytest.mark.parametrize(("name", "companion", "unfinished_first"), CASES)
-def test_end(tmp_path: Path, name: str, companion: str | None, *, unfinished_first: bool) -> None:
+def test_end(
+    tmp_path: Path, name: str, companion: str | None, *, unfinished_first: bool
+) -> None:
     """A run with a file mypy cannot parse or read prints mypy's report on it, then ends on the finished run's count line, M counting every Python file given, and exits 2."""
     unfinished = _unfinished(tmp_path, name)
     paths = _layout(tmp_path, unfinished, companion, unfinished_first=unfinished_first)

@@ -38,4 +38,10 @@ def completed(
     timed_out: bool = False,
 ) -> Completed:
     """A reply: the status, the streams, whether the cap was hit, and the output files' text, None for one not written."""
-    return Completed(status=status, stdout=stdout, stderr=stderr, timed_out=timed_out, outputs=outputs)
+    return Completed(
+        status=status,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        outputs=outputs,
+    )

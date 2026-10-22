@@ -25,7 +25,9 @@ LINE_NOQA_WITH_CODE = "import typing\n\nvalue = typing.cast(int, 1)  # noqa: TID
 
 LINE_NOQA_BARE = "import typing\n\nvalue = typing.cast(int, 1)  # noqa\n"
 
-FILE_NOQA_WITH_CODE = "# ruff: noqa: TID251\nimport typing\n\nvalue = typing.cast(int, 1)\n"
+FILE_NOQA_WITH_CODE = (
+    "# ruff: noqa: TID251\nimport typing\n\nvalue = typing.cast(int, 1)\n"
+)
 
 FILE_NOQA_BARE = "# ruff: noqa\nimport typing\n\nvalue = typing.cast(int, 1)\n"
 
@@ -47,38 +49,51 @@ def _run(path: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, bool]:
     status = main([path])
     captured = capsys.readouterr()
     lines = (captured.out + captured.err).splitlines()
-    return status, any(path.name in line and "TID251" in line and "typing.cast" in line for line in lines)
+    return status, any(
+        path.name in line and "TID251" in line and "typing.cast" in line
+        for line in lines
+    )
 
 
-def test_line_noqa_naming_the_rule_does_not_drop_the_finding(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_line_noqa_naming_the_rule_does_not_drop_the_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """A `# noqa: TID251` on the call's line is not `pyproject.toml`, so the cast is still a finding."""
     path = _seed(tmp_path, "line_code.py", LINE_NOQA_WITH_CODE)
 
     assert _run(path, capsys) == (1, True)
 
 
-def test_bare_line_noqa_does_not_drop_the_finding(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_bare_line_noqa_does_not_drop_the_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """A bare `# noqa` on the call's line is not `pyproject.toml`, so the cast is still a finding."""
     path = _seed(tmp_path, "line_bare.py", LINE_NOQA_BARE)
 
     assert _run(path, capsys) == (1, True)
 
 
-def test_file_noqa_naming_the_rule_does_not_drop_the_finding(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_file_noqa_naming_the_rule_does_not_drop_the_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """A file-level `# ruff: noqa: TID251` is not `pyproject.toml`, so the cast is still a finding."""
     path = _seed(tmp_path, "file_code.py", FILE_NOQA_WITH_CODE)
 
     assert _run(path, capsys) == (1, True)
 
 
-def test_bare_file_noqa_does_not_drop_the_finding(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_bare_file_noqa_does_not_drop_the_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """A file-level `# ruff: noqa` is not `pyproject.toml`, so the cast is still a finding."""
     path = _seed(tmp_path, "file_bare.py", FILE_NOQA_BARE)
 
     assert _run(path, capsys) == (1, True)
 
 
-def test_flake8_file_noqa_does_not_drop_the_finding(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_flake8_file_noqa_does_not_drop_the_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """A file-level `# flake8: noqa` is not `pyproject.toml`, so the cast is still a finding."""
     path = _seed(tmp_path, "file_flake8.py", FILE_FLAKE8_NOQA)
 

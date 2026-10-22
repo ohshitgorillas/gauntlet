@@ -79,25 +79,70 @@ def test_gate_error_is_an_exception_that_carries_its_report() -> None:
         pytest.param(Outcome(), 0, id="no-lines-is-0"),
         pytest.param(Outcome(notes=(SEED,)), 0, id="notes-only-is-0"),
         pytest.param(Outcome(lines=(Remark(REMARK),)), 0, id="remark-only-is-0"),
-        pytest.param(Outcome(lines=(Remark(REMARK), Remark(REMARK))), 0, id="remarks-only-is-0"),
-        pytest.param(Outcome(lines=(Finding(FINDING),)), 1, id="one-finding-is-1"),
-        pytest.param(Outcome(lines=(Finding(FINDING), Finding(FINDING))), 1, id="two-findings-is-1"),
-        pytest.param(Outcome(lines=(Remark(REMARK), Finding(FINDING))), 1, id="remark-then-finding-is-1"),
-        pytest.param(Outcome(lines=(Finding(FINDING), Remark(REMARK))), 1, id="finding-then-remark-is-1"),
-        pytest.param(Outcome(lines=(Finding(FINDING),), notes=(SEED,)), 1, id="finding-with-note-is-1"),
-        pytest.param(Outcome(lines=(Unfinished(UNFINISHED),)), 2, id="one-unfinished-is-2"),
-        pytest.param(Outcome(lines=(Unfinished(UNFINISHED),), notes=(SEED,)), 2, id="unfinished-with-note-is-2"),
-        pytest.param(Outcome(lines=(Remark(REMARK), Unfinished(UNFINISHED))), 2, id="remark-then-unfinished-is-2"),
-        pytest.param(Outcome(lines=(Finding(FINDING), Unfinished(UNFINISHED))), 2, id="finding-then-unfinished-is-2"),
-        pytest.param(Outcome(lines=(Unfinished(UNFINISHED), Finding(FINDING))), 2, id="unfinished-then-finding-is-2"),
         pytest.param(
-            Outcome(lines=(Finding(FINDING), Remark(REMARK), Unfinished(UNFINISHED), Finding(FINDING))),
+            Outcome(lines=(Remark(REMARK), Remark(REMARK))), 0, id="remarks-only-is-0"
+        ),
+        pytest.param(Outcome(lines=(Finding(FINDING),)), 1, id="one-finding-is-1"),
+        pytest.param(
+            Outcome(lines=(Finding(FINDING), Finding(FINDING))),
+            1,
+            id="two-findings-is-1",
+        ),
+        pytest.param(
+            Outcome(lines=(Remark(REMARK), Finding(FINDING))),
+            1,
+            id="remark-then-finding-is-1",
+        ),
+        pytest.param(
+            Outcome(lines=(Finding(FINDING), Remark(REMARK))),
+            1,
+            id="finding-then-remark-is-1",
+        ),
+        pytest.param(
+            Outcome(lines=(Finding(FINDING),), notes=(SEED,)),
+            1,
+            id="finding-with-note-is-1",
+        ),
+        pytest.param(
+            Outcome(lines=(Unfinished(UNFINISHED),)), 2, id="one-unfinished-is-2"
+        ),
+        pytest.param(
+            Outcome(lines=(Unfinished(UNFINISHED),), notes=(SEED,)),
+            2,
+            id="unfinished-with-note-is-2",
+        ),
+        pytest.param(
+            Outcome(lines=(Remark(REMARK), Unfinished(UNFINISHED))),
+            2,
+            id="remark-then-unfinished-is-2",
+        ),
+        pytest.param(
+            Outcome(lines=(Finding(FINDING), Unfinished(UNFINISHED))),
+            2,
+            id="finding-then-unfinished-is-2",
+        ),
+        pytest.param(
+            Outcome(lines=(Unfinished(UNFINISHED), Finding(FINDING))),
+            2,
+            id="unfinished-then-finding-is-2",
+        ),
+        pytest.param(
+            Outcome(
+                lines=(
+                    Finding(FINDING),
+                    Remark(REMARK),
+                    Unfinished(UNFINISHED),
+                    Finding(FINDING),
+                )
+            ),
             2,
             id="unfinished-among-findings-is-2",
         ),
     ],
 )
-def test_exit_code_is_2_on_any_unfinished_else_1_on_any_finding_else_0(outcome: Outcome, expected: int) -> None:
+def test_exit_code_is_2_on_any_unfinished_else_1_on_any_finding_else_0(
+    outcome: Outcome, expected: int
+) -> None:
     """Take the exit code each outcome calls for."""
     assert exit_code(outcome) == expected
 
@@ -108,13 +153,39 @@ COUNT_SHAPE = re.compile(r".*: \d+ finding\(s\) in \d+ Python file\(s\)")
 @pytest.mark.parametrize(
     ("gate", "findings", "files", "expected"),
     [
-        pytest.param("check_mypy", 0, 1, "check_mypy: 0 finding(s) in 1 Python file(s)", id="0-1"),
-        pytest.param("check_cast", 1, 1, "check_cast: 1 finding(s) in 1 Python file(s)", id="1-1"),
-        pytest.param("check_pyright", 2, 3, "check_pyright: 2 finding(s) in 3 Python file(s)", id="2-3"),
-        pytest.param("check_pytest", 3, 2, "check_pytest: 3 finding(s) in 2 Python file(s)", id="3-2"),
-        pytest.param("check_mutation", 0, 0, "check_mutation: 0 finding(s) in 0 Python file(s)", id="0-0"),
         pytest.param(
-            "check_suppressions", 12, 107, "check_suppressions: 12 finding(s) in 107 Python file(s)", id="12-107"
+            "check_mypy", 0, 1, "check_mypy: 0 finding(s) in 1 Python file(s)", id="0-1"
+        ),
+        pytest.param(
+            "check_cast", 1, 1, "check_cast: 1 finding(s) in 1 Python file(s)", id="1-1"
+        ),
+        pytest.param(
+            "check_pyright",
+            2,
+            3,
+            "check_pyright: 2 finding(s) in 3 Python file(s)",
+            id="2-3",
+        ),
+        pytest.param(
+            "check_pytest",
+            3,
+            2,
+            "check_pytest: 3 finding(s) in 2 Python file(s)",
+            id="3-2",
+        ),
+        pytest.param(
+            "check_mutation",
+            0,
+            0,
+            "check_mutation: 0 finding(s) in 0 Python file(s)",
+            id="0-0",
+        ),
+        pytest.param(
+            "check_suppressions",
+            12,
+            107,
+            "check_suppressions: 12 finding(s) in 107 Python file(s)",
+            id="12-107",
         ),
     ],
 )
@@ -124,9 +195,27 @@ def test_count_line(gate: str, findings: int, files: int, expected: str) -> None
 
 
 EMPTY_RUNS = [
-    pytest.param("check_mypy", "Python file", 0, "check_mypy: 0 finding(s) in 0 Python file(s)", id="none"),
-    pytest.param("check_cast", "Python file", 1, "check_cast: 0 finding(s) in 0 Python file(s)", id="one"),
-    pytest.param("check_pytest", "test file", 3, "check_pytest: 0 finding(s) in 0 Python file(s)", id="test"),
+    pytest.param(
+        "check_mypy",
+        "Python file",
+        0,
+        "check_mypy: 0 finding(s) in 0 Python file(s)",
+        id="none",
+    ),
+    pytest.param(
+        "check_cast",
+        "Python file",
+        1,
+        "check_cast: 0 finding(s) in 0 Python file(s)",
+        id="one",
+    ),
+    pytest.param(
+        "check_pytest",
+        "test file",
+        3,
+        "check_pytest: 0 finding(s) in 0 Python file(s)",
+        id="test",
+    ),
     pytest.param(
         "check_mutation",
         "Python file that is not a test file",
@@ -146,14 +235,21 @@ def test_empty_lines(gate: str, selects: str, given: int, count: str) -> None:
 @pytest.mark.parametrize(("gate", "selects", "given", "count"), EMPTY_RUNS)
 def test_empty_count(gate: str, selects: str, given: int, count: str) -> None:
     """The line saying nothing was checked is no count line: of what an empty run prints, one line counts files."""
-    assert [line for line in nothing_checked(gate, selects, given) if COUNT_SHAPE.fullmatch(line)] == [count]
+    assert [
+        line
+        for line in nothing_checked(gate, selects, given)
+        if COUNT_SHAPE.fullmatch(line)
+    ] == [count]
 
 
 @pytest.mark.parametrize(("gate", "selects", "given", "count"), EMPTY_RUNS)
 def test_empty_whole(gate: str, selects: str, given: int, count: str) -> None:
     """Each of an empty run's lines is one whole printed line: none is empty and none holds a line break."""
     lines = nothing_checked(gate, selects, given)
-    assert [piece for line in lines for piece in line.splitlines()] == [*lines[:1], count]
+    assert [piece for line in lines for piece in line.splitlines()] == [
+        *lines[:1],
+        count,
+    ]
 
 
 FIRST = 'a.py:3: error: Name "x" is not defined  [name-defined]'
@@ -192,7 +288,9 @@ def test_split_at(brk: str) -> None:
         pytest.param(FIRST + "\n", [FIRST], id="trailing"),
         pytest.param(FIRST + "\n" + SECOND + "\n", [FIRST, SECOND], id="two"),
         pytest.param(FIRST + "\n\n" + SECOND, [FIRST, BLANK, SECOND], id="blank"),
-        pytest.param(FIRST + "\r\n\r\n" + SECOND, [FIRST, BLANK, SECOND], id="crlf-blank"),
+        pytest.param(
+            FIRST + "\r\n\r\n" + SECOND, [FIRST, BLANK, SECOND], id="crlf-blank"
+        ),
         pytest.param("\n", [BLANK], id="lone"),
         pytest.param("\n" + FIRST, [BLANK, FIRST], id="leading"),
         pytest.param(INDENTED + "\n" + FIRST + "\n", [INDENTED, FIRST], id="indent"),
@@ -222,12 +320,16 @@ def test_join_at(brk: str) -> None:
         pytest.param(INDENTED, INDENTED, id="tab"),
         pytest.param(FIRST + "\n\n" + SECOND, FIRST + "  " + SECOND, id="two"),
         pytest.param(FIRST + "\r\n\r\n" + SECOND, FIRST + "  " + SECOND, id="crlf-two"),
-        pytest.param(FIRST + "\n" + SECOND + "\n", FIRST + " " + SECOND + " ", id="trailing"),
+        pytest.param(
+            FIRST + "\n" + SECOND + "\n", FIRST + " " + SECOND + " ", id="trailing"
+        ),
         pytest.param("\n" + FIRST, " " + FIRST, id="leading"),
         pytest.param("\n", " ", id="lone"),
         pytest.param(INDENTED + "\n" + FIRST, INDENTED + " " + FIRST, id="indent"),
         pytest.param(
-            FIRST + "\r" + SECOND + "\N{LINE SEPARATOR}" + FIRST, FIRST + " " + SECOND + " " + FIRST, id="mixed"
+            FIRST + "\r" + SECOND + "\N{LINE SEPARATOR}" + FIRST,
+            FIRST + " " + SECOND + " " + FIRST,
+            id="mixed",
         ),
     ],
 )
@@ -251,7 +353,11 @@ OTHER = "tests/test_d.py: SyntaxWarning: invalid escape sequence"
     ("gate", "outcome", "files", "expected"),
     [
         pytest.param(
-            "check_pytest", Outcome(), 3, ["check_pytest: 0 finding(s) in 3 Python file(s)"], id="empty"
+            "check_pytest",
+            Outcome(),
+            3,
+            ["check_pytest: 0 finding(s) in 3 Python file(s)"],
+            id="empty",
         ),
         pytest.param(
             "check_pytest",
@@ -297,9 +403,18 @@ OTHER = "tests/test_d.py: SyntaxWarning: invalid escape sequence"
         ),
         pytest.param(
             "check_pytest",
-            Outcome(lines=(Finding(FAILED), Unfinished(UNFINISHED), Remark(REMARK)), notes=(SEED,)),
+            Outcome(
+                lines=(Finding(FAILED), Unfinished(UNFINISHED), Remark(REMARK)),
+                notes=(SEED,),
+            ),
             2,
-            [SEED, FAILED, UNFINISHED, REMARK, "check_pytest: 1 finding(s) in 2 Python file(s)"],
+            [
+                SEED,
+                FAILED,
+                UNFINISHED,
+                REMARK,
+                "check_pytest: 1 finding(s) in 2 Python file(s)",
+            ],
             id="between",
         ),
         pytest.param(
@@ -344,8 +459,19 @@ def test_order(gate: str, outcome: Outcome, files: int, expected: list[str]) -> 
             id="ls",
         ),
         pytest.param(
-            Outcome(lines=(Finding(FAILED + "\n" + TIMEOUT), Remark(REMARK + "\n" + REMARK)), notes=(SEED,)),
-            [SEED, FAILED + " " + TIMEOUT, REMARK + " " + REMARK, "check_pytest: 1 finding(s) in 1 Python file(s)"],
+            Outcome(
+                lines=(
+                    Finding(FAILED + "\n" + TIMEOUT),
+                    Remark(REMARK + "\n" + REMARK),
+                ),
+                notes=(SEED,),
+            ),
+            [
+                SEED,
+                FAILED + " " + TIMEOUT,
+                REMARK + " " + REMARK,
+                "check_pytest: 1 finding(s) in 1 Python file(s)",
+            ],
             id="both",
         ),
     ],
@@ -378,8 +504,22 @@ def test_one_line(outcome: Outcome, expected: list[str]) -> None:
             id="crlf",
         ),
         pytest.param(
-            Outcome(lines=(Finding(FAILED), Unfinished(CRASH + "\n" + CAUSE), Finding(TIMEOUT)), notes=(SEED,)),
-            [SEED, FAILED, CRASH, CAUSE, TIMEOUT, "check_pytest: 2 finding(s) in 3 Python file(s)"],
+            Outcome(
+                lines=(
+                    Finding(FAILED),
+                    Unfinished(CRASH + "\n" + CAUSE),
+                    Finding(TIMEOUT),
+                ),
+                notes=(SEED,),
+            ),
+            [
+                SEED,
+                FAILED,
+                CRASH,
+                CAUSE,
+                TIMEOUT,
+                "check_pytest: 2 finding(s) in 3 Python file(s)",
+            ],
             id="between",
         ),
     ],
@@ -398,17 +538,31 @@ def test_whole(outcome: Outcome, expected: list[str]) -> None:
             id="twice",
         ),
         pytest.param(
-            Outcome(lines=(Unfinished(CRASH + "\n" + CAUSE), Unfinished(CRASH + "\n" + CAUSE))),
+            Outcome(
+                lines=(
+                    Unfinished(CRASH + "\n" + CAUSE),
+                    Unfinished(CRASH + "\n" + CAUSE),
+                )
+            ),
             [CRASH, CAUSE, "check_pytest: 0 finding(s) in 1 Python file(s)"],
             id="lines-twice",
         ),
         pytest.param(
-            Outcome(lines=(Unfinished(UNFINISHED), Unfinished(UNFINISHED), Unfinished(UNFINISHED), Finding(FAILED))),
+            Outcome(
+                lines=(
+                    Unfinished(UNFINISHED),
+                    Unfinished(UNFINISHED),
+                    Unfinished(UNFINISHED),
+                    Finding(FAILED),
+                )
+            ),
             [UNFINISHED, FAILED, "check_pytest: 1 finding(s) in 1 Python file(s)"],
             id="thrice-first",
         ),
         pytest.param(
-            Outcome(lines=(Finding(FAILED), Unfinished(UNFINISHED), Unfinished(UNFINISHED))),
+            Outcome(
+                lines=(Finding(FAILED), Unfinished(UNFINISHED), Unfinished(UNFINISHED))
+            ),
             [FAILED, UNFINISHED, "check_pytest: 1 finding(s) in 1 Python file(s)"],
             id="twice-last",
         ),

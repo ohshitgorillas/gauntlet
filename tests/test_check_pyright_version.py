@@ -20,7 +20,9 @@ WARNINGS_DEPRECATED = 'from warnings import deprecated\n\n\n@deprecated("use ano
 
 TYPING_TYPEIS = "from typing import TypeIs\n\n\ndef is_int(value: object) -> TypeIs[int]:\n    return isinstance(value, int)\n"
 
-TYPE_PARAMETER_DEFAULT = "def first[T = int](items: list[T]) -> T:\n    return items[0]\n"
+TYPE_PARAMETER_DEFAULT = (
+    "def first[T = int](items: list[T]) -> T:\n    return items[0]\n"
+)
 
 
 def _seed(tmp_path: Path, source: str) -> Path:

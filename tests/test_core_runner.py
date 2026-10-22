@@ -104,7 +104,9 @@ def _project(tmp_path: Path, *names: str) -> Project:
 
 
 def _sources(project: Project, *names: str) -> tuple[Source, ...]:
-    return tuple(Source(given=Path(name), absolute=project.root / name) for name in names)
+    return tuple(
+        Source(given=Path(name), absolute=project.root / name) for name in names
+    )
 
 
 def _printed(*lines: str) -> list[str]:
@@ -136,7 +138,9 @@ class Echo:
     def expected_status(self, report: list[str]) -> int:
         return 1 if report else 0
 
-    def lines(self, report: list[str], batch: Sequence[Source], *, stopped: bool) -> list[Line]:
+    def lines(
+        self, report: list[str], batch: Sequence[Source], *, stopped: bool
+    ) -> list[Line]:
         return [Unfinished(text) if stopped else Finding(text) for text in report]
 
 
@@ -156,7 +160,9 @@ class Refusing:
         return self.replies(command)
 
 
-def _checked(tmp_path: Path, process: Runner, *names: str, refuse: str | None = None) -> Outcome:
+def _checked(
+    tmp_path: Path, process: Runner, *names: str, refuse: str | None = None
+) -> Outcome:
     project = _project(tmp_path, *names)
     run = Run(
         project=project,
@@ -495,14 +501,18 @@ def test_commands(tmp_path: Path) -> None:
 
 def test_timeout(tmp_path: Path) -> None:
     """A batch its time cap ended gives the checker's whole output, then the gate's line naming the cap."""
-    outcome = _checked(tmp_path, FakeRunner([completed(1, "out\n", "err\n", timed_out=True)]), "a.py")
+    outcome = _checked(
+        tmp_path, FakeRunner([completed(1, "out\n", "err\n", timed_out=True)]), "a.py"
+    )
 
     assert outcome == Outcome(lines=(Unfinished("out\nerr\n"), Unfinished(CAP)))
 
 
 def test_timeout_report_not_read(tmp_path: Path) -> None:
     """A batch its time cap ended reads no report, so even an output with no report the gate can read is passed on."""
-    outcome = _checked(tmp_path, FakeRunner([completed(1, GARBAGE, timed_out=True)]), "a.py")
+    outcome = _checked(
+        tmp_path, FakeRunner([completed(1, GARBAGE, timed_out=True)]), "a.py"
+    )
 
     assert outcome == Outcome(lines=(Unfinished(GARBAGE), Unfinished(CAP)))
 
@@ -521,14 +531,18 @@ def test_unreadable_report(tmp_path: Path) -> None:
 )
 def test_unexpected_status(tmp_path: Path, status: int, stdout: str) -> None:
     """A status that is neither the one the report calls for nor a stop gives the checker's whole output."""
-    outcome = _checked(tmp_path, FakeRunner([completed(status, stdout, "err\n")]), "a.py")
+    outcome = _checked(
+        tmp_path, FakeRunner([completed(status, stdout, "err\n")]), "a.py"
+    )
 
     assert outcome == Outcome(lines=(Unfinished(stdout + "err\n"),))
 
 
 def test_stopped(tmp_path: Path) -> None:
     """A stop gives the lines of the report it read, as stopped."""
-    outcome = _checked(tmp_path, FakeRunner([completed(STOP, "one\n", "err\n")]), "a.py")
+    outcome = _checked(
+        tmp_path, FakeRunner([completed(STOP, "one\n", "err\n")]), "a.py"
+    )
 
     assert outcome == Outcome(lines=(Unfinished("one"),))
 
@@ -668,7 +682,9 @@ def test_finding_run(tmp_path: Path) -> None:
 
     assert (output.result, output.out) == (
         1,
-        _printed("seed", "a.py:1: one", "a.py:1: note", "a.py:2: two", count_line(NAME, 2, 1)),
+        _printed(
+            "seed", "a.py:1: one", "a.py:1: note", "a.py:2: two", count_line(NAME, 2, 1)
+        ),
     )
 
 
@@ -689,7 +705,9 @@ def test_unfinished_run(tmp_path: Path) -> None:
 
 def test_stdout_only(tmp_path: Path) -> None:
     """Every line goes to stdout."""
-    gate = Gate(name=NAME, check=Seen(Outcome(lines=(Finding("one"), Unfinished("err\n")))))
+    gate = Gate(
+        name=NAME, check=Seen(Outcome(lines=(Finding("one"), Unfinished("err\n"))))
+    )
 
     output = _run(tmp_path, gate, "a.py")
 
@@ -709,7 +727,11 @@ def test_sources(tmp_path: Path) -> None:
         project.root / "a.py",
         project.root / "." / "b.py",
     ]
-    captured(lambda: run_gate(Gate(name=NAME, check=seen), paths, project=project, scratch_root=tmp_path))
+    captured(
+        lambda: run_gate(
+            Gate(name=NAME, check=seen), paths, project=project, scratch_root=tmp_path
+        )
+    )
 
     assert seen.runs[0].sources == tuple(python_files(paths[:3]))
 
@@ -736,7 +758,9 @@ def test_files_counted(tmp_path: Path) -> None:
         project.root / "tests/test_a.py",
     ]
     gate = Gate(name=NAME, check=Seen(), select=non_test_files)
-    output = captured(lambda: run_gate(gate, paths, project=project, scratch_root=tmp_path))
+    output = captured(
+        lambda: run_gate(gate, paths, project=project, scratch_root=tmp_path)
+    )
 
     assert output.out == _printed(count_line(NAME, 0, 1))
 
@@ -755,7 +779,11 @@ def test_project_current(tmp_path: Path) -> None:
     seen = Seen()
     project = _project(tmp_path, "a.py")
     with contextlib.chdir(project.root):
-        captured(lambda: run_gate(Gate(name=NAME, check=seen), [Path("a.py")], scratch_root=tmp_path))
+        captured(
+            lambda: run_gate(
+                Gate(name=NAME, check=seen), [Path("a.py")], scratch_root=tmp_path
+            )
+        )
 
     assert seen.runs[0].project.root.resolve() == project.root.resolve()
 
@@ -764,9 +792,17 @@ def test_project_missing(tmp_path: Path) -> None:
     """A working directory with no pyproject.toml is an Unfinished line with its report, and the run exits 2."""
     (tmp_path / "a.py").write_text("value = 1\n", encoding="utf-8")
     with contextlib.chdir(tmp_path):
-        output = captured(lambda: run_gate(Gate(name=NAME, check=Seen()), [Path("a.py")], scratch_root=tmp_path))
+        output = captured(
+            lambda: run_gate(
+                Gate(name=NAME, check=Seen()), [Path("a.py")], scratch_root=tmp_path
+            )
+        )
 
-    assert (output.result, CONFIG in output.out[0], output.out[1:]) == (2, True, _printed(count_line(NAME, 0, 1)))
+    assert (output.result, CONFIG in output.out[0], output.out[1:]) == (
+        2,
+        True,
+        _printed(count_line(NAME, 0, 1)),
+    )
 
 
 def test_process_given(tmp_path: Path) -> None:
@@ -824,7 +860,9 @@ class Uncapped(Echo):
 
     @override
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
-        return Command(argv=(ECHO, *(str(source.given) for source in batch)), cwd=run.project.root)
+        return Command(
+            argv=(ECHO, *(str(source.given) for source in batch)), cwd=run.project.root
+        )
 
 
 def test_timeout_without_cap(tmp_path: Path) -> None:
@@ -836,7 +874,9 @@ def test_timeout_without_cap(tmp_path: Path) -> None:
 
     assert (output.result, output.out) == (
         2,
-        _printed(f"the checker {ECHO} timed out with no time cap", count_line(NAME, 0, 1)),
+        _printed(
+            f"the checker {ECHO} timed out with no time cap", count_line(NAME, 0, 1)
+        ),
     )
 
 
@@ -876,7 +916,9 @@ def test_scratch_closed_on_interrupt(tmp_path: Path) -> None:
 def test_close_failure(tmp_path: Path) -> None:
     """A failed deletion of the run's scratch prints after the run's lines, before the count line, and exits 2."""
     root = _scratch_root(tmp_path)
-    gate = Gate(name=NAME, check=_locking(root, Outcome(lines=(Finding("a.py:1: one"),))))
+    gate = Gate(
+        name=NAME, check=_locking(root, Outcome(lines=(Finding("a.py:1: one"),)))
+    )
     output = _run(tmp_path, gate, "a.py")
     status, out = output.result, output.out
     root.chmod(stat.S_IRWXU)
@@ -909,11 +951,15 @@ def test_main_exits(tmp_path: Path) -> None:
         ("broken.py", 2, ["broken.py", count_line(NAME, 0, 1)]),
     ],
 )
-def test_main_command_line(tmp_path: Path, name: str, status: int, lines: list[str]) -> None:
+def test_main_command_line(
+    tmp_path: Path, name: str, status: int, lines: list[str]
+) -> None:
     """main runs over the paths of its command line and exits with the run's exit code."""
     project = scaffold(tmp_path, {name: "value = 1\n"})
     env = {**environment(), "PYTHONPATH": str(REPOSITORY)}
-    command = Command(argv=(sys.executable, "-c", MAIN, name), cwd=project.root, env=env, timeout=60.0)
+    command = Command(
+        argv=(sys.executable, "-c", MAIN, name), cwd=project.root, env=env, timeout=60.0
+    )
     reply = checker.run(command, clock=VirtualClock())
 
     assert (reply.status, reply.stdout.splitlines()) == (status, lines)
@@ -970,7 +1016,9 @@ def test_scaffold_unreadable(tmp_path: Path) -> None:
 
 def test_scaffold_git(tmp_path: Path) -> None:
     """With git, the root is a repository whose commit holds every file."""
-    project = scaffold(tmp_path, {"a.py": "value = 1\n", "pkg/b.py": "value = 2\n"}, git=True)
+    project = scaffold(
+        tmp_path, {"a.py": "value = 1\n", "pkg/b.py": "value = 2\n"}, git=True
+    )
 
     assert project.git("ls-tree", "-r", "--name-only", "HEAD").stdout.splitlines() == [
         "a.py",
@@ -981,7 +1029,9 @@ def test_scaffold_git(tmp_path: Path) -> None:
 
 def test_scaffold_git_unreadable(tmp_path: Path) -> None:
     """With git, an unreadable path is committed before it loses its permissions."""
-    project = scaffold(tmp_path, {"a.py": "value = 1\n"}, unreadable=("a.py",), git=True)
+    project = scaffold(
+        tmp_path, {"a.py": "value = 1\n"}, unreadable=("a.py",), git=True
+    )
     names = project.git("ls-tree", "--name-only", "HEAD").stdout.splitlines()
     (project.root / "a.py").chmod(stat.S_IRWXU)
 
@@ -993,4 +1043,7 @@ def test_scaffold_git_failure(tmp_path: Path) -> None:
     with pytest.raises(ScaffoldError) as raised:
         scaffold(tmp_path, {".git": "not a repository\n"}, git=True)
 
-    assert (raised.value.completed.status, raised.value.completed.stderr.startswith("fatal: ")) == (128, True)
+    assert (
+        raised.value.completed.status,
+        raised.value.completed.stderr.startswith("fatal: "),
+    ) == (128, True)

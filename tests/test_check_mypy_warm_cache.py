@@ -53,7 +53,9 @@ SUCCESS = "Success: no issues found in 1 source file\n"
 
 UNRECOGNIZED = "pyproject.toml: [mypy]: Unrecognized option: bogus = True\n"
 
-WARM_REFUSAL = "/opt/python/lib/python3.12/site-packages is in the MYPYPATH. Please remove it.\n"
+WARM_REFUSAL = (
+    "/opt/python/lib/python3.12/site-packages is in the MYPYPATH. Please remove it.\n"
+)
 
 DELETE_FAILURE = "cannot delete the temp space "
 
@@ -146,7 +148,9 @@ def _scratch_root(tmp_path: Path) -> Path:
     return root
 
 
-def _gate(tmp_path: Path, names: Sequence[str], runner: MypyStandIn, scratch: Path) -> tuple[int, list[str]]:
+def _gate(
+    tmp_path: Path, names: Sequence[str], runner: MypyStandIn, scratch: Path
+) -> tuple[int, list[str]]:
     """Run the gate over clean files of a scaffolded project, with the stand-in as its process and the given root."""
     project = scaffold(tmp_path / "project", dict.fromkeys(names, CLEAN))
     try:
@@ -178,13 +182,17 @@ def _warm_run(tmp_path: Path, runner: MypyStandIn) -> tuple[Run, Path]:
     return run, directory
 
 
-def test_warm_runs_mypy_as_a_module_on_the_directory_as_its_cache(tmp_path: Path) -> None:
+def test_warm_runs_mypy_as_a_module_on_the_directory_as_its_cache(
+    tmp_path: Path,
+) -> None:
     """The warm runs `python -m mypy` through the run's process, with the directory it is given as mypy's cache."""
     runner = MypyStandIn()
     run, directory = _warm_run(tmp_path, runner)
     warm_cache(run, directory)
 
-    assert [(command.argv[1:3], _cache_dir(command)) for command in runner.commands] == [(("-m", "mypy"), directory)]
+    assert [
+        (command.argv[1:3], _cache_dir(command)) for command in runner.commands
+    ] == [(("-m", "mypy"), directory)]
 
 
 def test_warm_names_no_file_of_the_run(tmp_path: Path) -> None:
@@ -193,7 +201,10 @@ def test_warm_names_no_file_of_the_run(tmp_path: Path) -> None:
     run, directory = _warm_run(tmp_path, runner)
     warm_cache(run, directory)
 
-    assert [[argument for argument in command.argv if SOURCE in argument] for command in runner.commands] == [[]]
+    assert [
+        [argument for argument in command.argv if SOURCE in argument]
+        for command in runner.commands
+    ] == [[]]
 
 
 def test_warm_that_exits_nonzero_is_a_gate_error(tmp_path: Path) -> None:
@@ -214,7 +225,9 @@ def test_warm_that_prints_on_stdout_is_a_gate_error(tmp_path: Path) -> None:
 
 def test_warm_that_prints_on_stderr_is_a_gate_error(tmp_path: Path) -> None:
     """A warm whose mypy exits 0 and leaves a file but prints on stderr raises GateError."""
-    run, directory = _warm_run(tmp_path, MypyStandIn(warm_reply=completed(0, "", UNRECOGNIZED)))
+    run, directory = _warm_run(
+        tmp_path, MypyStandIn(warm_reply=completed(0, "", UNRECOGNIZED))
+    )
 
     with pytest.raises(GateError):
         warm_cache(run, directory)
@@ -241,7 +254,10 @@ def test_one_warm_per_run_and_a_cache_of_its_own_per_file(tmp_path: Path) -> Non
     runner = MypyStandIn()
     _gate(tmp_path, NAMES, runner, _scratch_root(tmp_path))
 
-    assert (len(runner.commands), len({_cache_dir(command) for command in runner.commands})) == (4, 4)
+    assert (
+        len(runner.commands),
+        len({_cache_dir(command) for command in runner.commands}),
+    ) == (4, 4)
 
 
 def test_each_file_run_starts_from_a_copy_of_the_warm_cache(tmp_path: Path) -> None:
@@ -249,16 +265,27 @@ def test_each_file_run_starts_from_a_copy_of_the_warm_cache(tmp_path: Path) -> N
     runner = MypyStandIn()
     _gate(tmp_path, NAMES, runner, _scratch_root(tmp_path))
 
-    assert runner.seen == [{WARM_FILE: WARM_TEXT}, {WARM_FILE: WARM_TEXT}, {WARM_FILE: WARM_TEXT}]
+    assert runner.seen == [
+        {WARM_FILE: WARM_TEXT},
+        {WARM_FILE: WARM_TEXT},
+        {WARM_FILE: WARM_TEXT},
+    ]
 
 
-def test_the_warm_cache_and_every_copy_lie_under_the_scratch_root(tmp_path: Path) -> None:
+def test_the_warm_cache_and_every_copy_lie_under_the_scratch_root(
+    tmp_path: Path,
+) -> None:
     """The cache directory of the warm and of each per-file run lies under the scratch root the run is handed."""
     runner = MypyStandIn()
     scratch = _scratch_root(tmp_path)
     _gate(tmp_path, NAMES, runner, scratch)
 
-    assert [_under(_cache_dir(command), scratch) for command in runner.commands] == [True, True, True, True]
+    assert [_under(_cache_dir(command), scratch) for command in runner.commands] == [
+        True,
+        True,
+        True,
+        True,
+    ]
 
 
 def test_a_finished_run_leaves_the_scratch_root_as_it_was(tmp_path: Path) -> None:
@@ -266,7 +293,11 @@ def test_a_finished_run_leaves_the_scratch_root_as_it_was(tmp_path: Path) -> Non
     scratch = _scratch_root(tmp_path)
     status, lines = _gate(tmp_path, NAMES, MypyStandIn(), scratch)
 
-    assert (status, lines, sorted(entry.name for entry in scratch.iterdir())) == (0, [COUNT_THREE], [KEEP])
+    assert (status, lines, sorted(entry.name for entry in scratch.iterdir())) == (
+        0,
+        [COUNT_THREE],
+        [KEEP],
+    )
 
 
 def test_a_failed_warm_is_unfinished_and_runs_no_file(tmp_path: Path) -> None:
@@ -281,7 +312,12 @@ def test_a_failed_warm_is_unfinished_and_runs_no_file(tmp_path: Path) -> None:
 def test_a_failed_warm_leaves_the_scratch_root_as_it_was(tmp_path: Path) -> None:
     """The warm cache a failed warm left is deleted too: the scratch root holds only what it held."""
     scratch = _scratch_root(tmp_path)
-    _gate(tmp_path, TWO_NAMES, MypyStandIn(warm_reply=completed(1, "", WARM_REFUSAL)), scratch)
+    _gate(
+        tmp_path,
+        TWO_NAMES,
+        MypyStandIn(warm_reply=completed(1, "", WARM_REFUSAL)),
+        scratch,
+    )
 
     assert sorted(entry.name for entry in scratch.iterdir()) == [KEEP]
 
@@ -296,7 +332,10 @@ def test_a_failed_copy_is_one_error_then_the_count_line(tmp_path: Path) -> None:
     warm = _cache_dir(runner.commands[0])
 
     assert (status, len(lines), lines[-1], len(runner.commands)) == (2, 2, COUNT_ONE, 1)
-    assert (str(warm) in lines[0], os.strerror(errno.EACCES) in lines[0]) == (True, True)
+    assert (str(warm) in lines[0], os.strerror(errno.EACCES) in lines[0]) == (
+        True,
+        True,
+    )
 
 
 def test_a_failed_copy_leaves_the_scratch_root_as_it_was(tmp_path: Path) -> None:
@@ -312,4 +351,8 @@ def test_a_failed_deletion_is_one_error_then_the_count_line(tmp_path: Path) -> N
     scratch = _scratch_root(tmp_path)
     status, lines = _gate(tmp_path, ONE_NAME, MypyStandIn(lock=scratch), scratch)
 
-    assert (status, [line.startswith(DELETE_FAILURE) for line in lines], lines[-1]) == (2, [True, False], COUNT_ONE)
+    assert (status, [line.startswith(DELETE_FAILURE) for line in lines], lines[-1]) == (
+        2,
+        [True, False],
+        COUNT_ONE,
+    )
