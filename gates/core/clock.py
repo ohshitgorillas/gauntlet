@@ -7,13 +7,22 @@ type Ready = Callable[[float | None], bool]
 
 
 class Clock(Protocol):
+    """A clock a wait that can end on time as well as on an event goes through."""
+
     def wait(self, ready: Ready, seconds: float | None) -> bool:
-        raise NotImplementedError
+        """Wait through `ready` until the event comes or `seconds` pass on this clock, with no cap when None.
+
+        True when the event came before `seconds` passed.
+        """
+        ...
 
 
 class SystemClock:
+    """Real time, the only real time in gates/."""
+
     def wait(self, ready: Ready, seconds: float | None) -> bool:
-        raise NotImplementedError
+        """Hand `seconds` to `ready` as they are, and give its answer: True when the event came in time."""
+        return ready(seconds)
 
 
 SYSTEM: Clock = SystemClock()
