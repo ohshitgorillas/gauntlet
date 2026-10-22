@@ -6,13 +6,17 @@ process group of every checker `run` has started, in any thread, and not yet rea
 handlers back, and only then do the exception and each signal take their course. `check_with` with a budget runs its
 batches through `run_all`, so on an interrupt every running batch's process group is killed before it goes on.
 
-Two checkers run at once. Each starts a child of its own that holds a FIFO the test reads to its end; the end comes
-promptly only when both children are dead. The first checker marks a file once its child holds the FIFO; the second
-marks that it started, waits for the first's mark, starts its child, then sends the signal to the process that called
-`run_all`. A first checker that does not see the second start within 5 seconds marks the run serial. SIGINT is a
-KeyboardInterrupt in pytest's own process. A signal that ends the process at the OS default would end pytest too, so
-it is sent to a driver: a Python child that imports the core from the rootdir, sets the signal to the OS default, and
-calls `run_all` with `run`.
+Two checkers run at once. Each starts a child of its own that holds a `Witness` FIFO (the `tests/support/lifeline.py`
+module of the no-wall-clock design spec) and writes a marker into it; the test reads the FIFO to its end, which comes
+only when every holder has closed it, so it comes promptly only when both children are dead. The checkers live on a
+`Lifeline` the test never releases before the end, and their pids are noted for the test's `Pids` to kill at teardown.
+The first checker, once its child holds the FIFO, opens a rendezvous FIFO to read and reads it to its end; the second
+opens that FIFO to write, which returns only once the first is reading, writes a mark, starts its child, notes its pids,
+writes a line on a `Beacon` and sends the signal to the process that called `run_all`. A first checker that reads no
+mark from the second marks the run serial. SIGINT is a KeyboardInterrupt in pytest's own process. A signal that ends
+the process at the OS default would end pytest too, so it is sent to a driver: a Python child that imports the core from
+the rootdir, sets the signal to the OS default, and calls `run_all` with `run`; the test reads the FIFO once the second
+checker has written its line on the `Beacon`.
 """
 
 import contextlib
@@ -20,8 +24,8 @@ import os
 import signal
 import subprocess
 import sys
-import time
-from collections.abc import Sequence
+from collections.abc import Generator, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -30,57 +34,48 @@ from gates.core.checker import Command, Completed, run, run_all
 from gates.core.project import Source
 from gates.core.report import Line
 from gates.core.runner import Run, Scratch, check_with
+from tests.support.lifeline import WITNESS, Beacon, Lifeline, Pids, Witness
 from tests.support.project import scaffold
-
-# How long the test waits for the FIFO's end or the driver's end, and the second checker for the first one's mark.
-WAIT = 10.0
-
-# How long the test sleeps between tries while it waits.
-POLL = 0.05
 
 HELD = b"held"
 
-ALIVE = b" alive"
-
-GRANDCHILD = (
-    "import os, sys, time\n"
-    "held = os.open(sys.argv[1], os.O_WRONLY)\n"
-    "os.write(held, b'held')\n"
-    "print('ready', flush=True)\n"
-    "time.sleep(40)\n"
-)
-
+# Arguments: the FIFO, the pids file, the mark path, the signal, the lifeline's read end, a Beacon's write end, the
+# child's code and the role. The child holds the FIFO. The first checker notes its pids and reads the rendezvous FIFO
+# `<mark>.started` to its end; the second opens it to write, which returns once the first reads, writes a mark, starts
+# its child, notes its pids, writes a line on the Beacon and sends the signal. Both then live on the lifeline.
 CHECKER = (
-    "import os, subprocess, sys, time\n"
-    "fifo, pids, mark, signum, role = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[6]\n"
-    "def wait_for(path):\n"
-    "    deadline = time.monotonic() + 5\n"
-    "    while not os.path.exists(path) and time.monotonic() < deadline:\n"
-    "        time.sleep(0.05)\n"
-    "    return os.path.exists(path)\n"
+    "import os, subprocess, sys\n"
+    "fifo, pids, mark, signum, line, beacon, role = (\n"
+    "    sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5], int(sys.argv[6]), sys.argv[8]\n"
+    ")\n"
+    "started = mark + '.started'\n"
     "if role == 'second':\n"
-    "    open(mark + '.started', 'w').close()\n"
-    "    wait_for(mark)\n"
+    "    with open(started, 'wb') as rendezvous:\n"
+    "        rendezvous.write(b'started')\n"
     "child = subprocess.Popen(\n"
-    "    [sys.executable, '-c', sys.argv[5], fifo],\n"
-    "    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,\n"
+    "    [sys.executable, '-c', sys.argv[7], fifo, line],\n"
+    "    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, pass_fds=(int(line),),\n"
     ")\n"
     "child.stdout.readline()\n"
     "with open(pids, 'a', encoding='utf-8') as out:\n"
     "    out.write(f'{os.getpid()}\\n{child.pid}\\n')\n"
     "if role == 'first':\n"
-    "    open(mark, 'w').close()\n"
-    "    if not wait_for(mark + '.started'):\n"
-    "        open(mark + '.serial', 'w').close()\n"
+    "    with open(started, 'rb') as rendezvous:\n"
+    "        if rendezvous.read() != b'started':\n"
+    "            open(mark + '.serial', 'w').close()\n"
     "else:\n"
+    "    os.write(beacon, b'whole\\n')\n"
     "    os.kill(os.getppid(), signum)\n"
-    "time.sleep(20)\n"
+    "while os.read(int(line), 65536):\n"
+    "    pass\n"
 )
 
 # SIGQUIT at the OS default dumps core, and macOS then shows a crash dialog for every run. So the driver answers it with a
 # Python handler that raises SystemExit with this code: `run` must kill the group, then let the handler take its course.
 QUIT_EXIT = 7
 
+# Arguments: the repository root, the signal, the file descriptors the checkers inherit (comma separated), then the
+# checker's argv but its role.
 DRIVER = (
     "import signal, sys\n"
     "sys.path.insert(0, sys.argv[1])\n"
@@ -89,62 +84,53 @@ DRIVER = (
     "def quit_handler(signum, frame):\n"
     "    raise SystemExit(7)\n"
     "signal.signal(int(sys.argv[2]), quit_handler if int(sys.argv[2]) == signal.SIGQUIT else signal.SIG_DFL)\n"
-    "argv = tuple(sys.argv[3:])\n"
-    "commands = [Command(argv=(*argv, role), cwd=Path.cwd()) for role in ('first', 'second')]\n"
+    "fds = tuple(int(fd) for fd in sys.argv[3].split(','))\n"
+    "argv = tuple(sys.argv[4:])\n"
+    "commands = [Command(argv=(*argv, role), cwd=Path.cwd(), pass_fds=fds) for role in ('first', 'second')]\n"
     "run_all(run, commands, 2)\n"
 )
 
 
-def _argv(tmp_path: Path, signum: int) -> tuple[str, ...]:
-    """The checker's argv but its role: the FIFO, the pids file, the mark, the signal and the child's code."""
-    return (
-        sys.executable,
-        "-c",
-        CHECKER,
-        str(tmp_path / "held.fifo"),
-        str(tmp_path / "pids.txt"),
-        str(tmp_path / "mark"),
-        str(int(signum)),
-        GRANDCHILD,
-    )
+@dataclass(frozen=True)
+class Rig:
+    """What the checkers hold: the Witness and Beacon the test reads, the checker's argv but its role, its inherited fds."""
+
+    witness: Witness
+    beacon: Beacon
+    argv: tuple[str, ...]
+    pass_fds: tuple[int, ...]
 
 
-def _commands(tmp_path: Path, signum: int) -> list[Command]:
-    argv = _argv(tmp_path, signum)
-    return [Command(argv=(*argv, role), cwd=tmp_path) for role in ("first", "second")]
+@contextlib.contextmanager
+def _rig(tmp_path: Path, signum: int) -> Generator[Rig]:
+    """Everything the two checkers hold, closed and their leftovers killed by pid at the end."""
+    os.mkfifo(tmp_path / "mark.started")
+    with (
+        Lifeline() as line,
+        Pids(tmp_path / "pids.txt") as pids,
+        Witness(tmp_path / "held.fifo") as witness,
+        Beacon() as beacon,
+    ):
+        argv = (
+            sys.executable,
+            "-c",
+            CHECKER,
+            str(witness.path),
+            str(pids.path),
+            str(tmp_path / "mark"),
+            str(int(signum)),
+            str(line.read_fd),
+            str(beacon.write_fd),
+            WITNESS,
+        )
+        yield Rig(witness, beacon, argv, (line.read_fd, beacon.write_fd))
 
 
-def _kill_leftovers(pids: Path) -> None:
-    """Kill, by the pids the checkers recorded, any checker or child that outlived the run."""
-    if not pids.exists():
-        return
-    for pid in pids.read_text(encoding="utf-8").split():
-        with contextlib.suppress(ProcessLookupError):
-            os.kill(int(pid), signal.SIGKILL)
-
-
-def _drain(fifo: int, pids: Path) -> bytes:
-    """Read the FIFO to its end: what the children wrote, then ALIVE where a writer still held it after WAIT seconds."""
-    held = b""
-    deadline = time.monotonic() + WAIT
-    while True:
-        try:
-            chunk = os.read(fifo, 1024)
-        except BlockingIOError:
-            if time.monotonic() >= deadline:
-                _kill_leftovers(pids)
-                return held + ALIVE
-            time.sleep(POLL)
-            continue
-        if not chunk and held:
-            return held
-        if not chunk:
-            if time.monotonic() >= deadline:
-                return held
-            time.sleep(POLL)
-            continue
-        held += chunk
-        deadline = time.monotonic() + WAIT
+def _commands(tmp_path: Path, rig: Rig) -> list[Command]:
+    return [
+        Command(argv=(*rig.argv, role), cwd=tmp_path, pass_fds=rig.pass_fds)
+        for role in ("first", "second")
+    ]
 
 
 def _serial(tmp_path: Path) -> bool:
@@ -152,22 +138,12 @@ def _serial(tmp_path: Path) -> bool:
     return (tmp_path / "mark.serial").exists()
 
 
-def _open_fifo(tmp_path: Path) -> int:
-    path = tmp_path / "held.fifo"
-    os.mkfifo(path)
-    return os.open(path, os.O_RDONLY | os.O_NONBLOCK)
-
-
 def test_interrupt_kills_every_group(tmp_path: Path) -> None:
     """A KeyboardInterrupt while two checkers run kills both their groups, then goes on out of run_all."""
-    fifo = _open_fifo(tmp_path)
-    try:
+    with _rig(tmp_path, signal.SIGINT) as rig:
         with pytest.raises(KeyboardInterrupt):
-            run_all(run, _commands(tmp_path, signal.SIGINT), 2)
-        held = _drain(fifo, tmp_path / "pids.txt")
-    finally:
-        os.close(fifo)
-        _kill_leftovers(tmp_path / "pids.txt")
+            run_all(run, _commands(tmp_path, rig), 2)
+        held = rig.witness.ended()
 
     assert (held, _serial(tmp_path)) == (HELD + HELD, False)
 
@@ -175,25 +151,17 @@ def test_interrupt_kills_every_group(tmp_path: Path) -> None:
 def test_handlers_put_back_after_interrupt(tmp_path: Path) -> None:
     """After an interrupt goes on out of run_all, the handlers in place before it are back."""
     before = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
-    fifo = _open_fifo(tmp_path)
-    try:
+    with _rig(tmp_path, signal.SIGINT) as rig:
         with pytest.raises(KeyboardInterrupt):
-            run_all(run, _commands(tmp_path, signal.SIGINT), 2)
-        _drain(fifo, tmp_path / "pids.txt")
-    finally:
-        os.close(fifo)
-        _kill_leftovers(tmp_path / "pids.txt")
+            run_all(run, _commands(tmp_path, rig), 2)
+        rig.witness.ended()
 
     assert (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)) == before
 
 
 def _ended(driver: subprocess.Popen[bytes]) -> int:
-    """The driver's return code once it ends, killing it where it outlives WAIT seconds."""
-    try:
-        return driver.wait(WAIT)
-    except subprocess.TimeoutExpired:
-        driver.kill()
-        return driver.wait()
+    """The driver's return code once it ends."""
+    return driver.wait()
 
 
 @pytest.mark.parametrize(
@@ -209,8 +177,7 @@ def test_ending_signal_kills_every_group(
     request: pytest.FixtureRequest, tmp_path: Path, signum: signal.Signals, status: int
 ) -> None:
     """A signal kills both checkers' groups, then takes its course: SIGHUP and SIGTERM end the caller, SIGQUIT runs its handler."""
-    fifo = _open_fifo(tmp_path)
-    try:
+    with _rig(tmp_path, signum) as rig:
         driver = subprocess.Popen(
             [
                 sys.executable,
@@ -218,17 +185,17 @@ def test_ending_signal_kills_every_group(
                 DRIVER,
                 str(request.config.rootpath),
                 str(int(signum)),
-                *_argv(tmp_path, signum),
+                ",".join(str(fd) for fd in rig.pass_fds),
+                *rig.argv,
             ],
             cwd=tmp_path,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            pass_fds=rig.pass_fds,
         )
-        held = _drain(fifo, tmp_path / "pids.txt")
-    finally:
-        os.close(fifo)
-        _kill_leftovers(tmp_path / "pids.txt")
+        rig.beacon.seen()
+        held = rig.witness.ended()
 
     assert (held, _serial(tmp_path), _ended(driver)) == (HELD + HELD, False, status)
 
@@ -238,14 +205,19 @@ class Held:
 
     stopped: frozenset[int] = frozenset()
 
-    def __init__(self, tmp_path: Path) -> None:
-        self.argv = _argv(tmp_path, signal.SIGINT)
+    def __init__(self, rig: Rig) -> None:
+        self.argv = rig.argv
+        self.pass_fds = rig.pass_fds
 
     def batches(self, run: Run) -> list[list[Source]]:
         return [[source] for source in run.sources]
 
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
-        return Command(argv=(*self.argv, batch[0].given.name), cwd=run.project.root)
+        return Command(
+            argv=(*self.argv, batch[0].given.name),
+            cwd=run.project.root,
+            pass_fds=self.pass_fds,
+        )
 
     def read(self, completed: Completed) -> list[str]:
         return []
@@ -266,9 +238,8 @@ def test_check_with_interrupt_kills_every_batch(tmp_path: Path) -> None:
         Source(given=Path(name), absolute=project.root / name)
         for name in ("first", "second")
     )
-    check = check_with(Held(tmp_path), budget=lambda: 2)
-    fifo = _open_fifo(tmp_path)
-    try:
+    with _rig(tmp_path, signal.SIGINT) as rig:
+        check = check_with(Held(rig), budget=lambda: 2)
         with pytest.raises(KeyboardInterrupt):
             check(
                 Run(
@@ -278,9 +249,6 @@ def test_check_with_interrupt_kills_every_batch(tmp_path: Path) -> None:
                     process=run,
                 )
             )
-        held = _drain(fifo, tmp_path / "pids.txt")
-    finally:
-        os.close(fifo)
-        _kill_leftovers(tmp_path / "pids.txt")
+        held = rig.witness.ended()
 
     assert (held, _serial(tmp_path)) == (HELD + HELD, False)
