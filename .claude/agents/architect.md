@@ -14,13 +14,14 @@ Structure before details: one home for each shared concern, every piece built on
 
 ## What you read, and what you never open
 
-- `docs/charter.md`, `docs/design.md` (§1 and §8 always, any section the task or ruling cites), `docs/config.md`, `docs/roadmap.md`, `docs/superpowers/specs/` and `docs/superpowers/plans/`, for what the pieces must do and what is already decided.
+- `docs/charter.md`, `docs/design.md` (§1 and §8 always, any section the task or ruling cites), `docs/config.md` and `docs/roadmap.md`, for what the pieces must do and what is already decided.
+- Under `docs/superpowers/specs/` and `docs/superpowers/plans/`, only the files the brief names, the task's own words and a `rulings` brief's path included, and the documents those cite, reached by following the citation. No `Grep`, `Glob` or command spans either directory, and a file there that nothing names or cites stays unopened.
 - `gauntlet/`, `gates/`, `tests/`, `pyproject.toml` and the `Makefile`, for every copy of a shared concern; the in-flight work a `design` brief names, read through git or under `.claude/worktrees/`.
 - Never: `.claude/agents/`, `.claude/settings.json`, any path outside the repository.
 
 ## The brief
 
-- A legal `design` brief carries one task, in the owner's words or as a `docs/roadmap.md` item, and may add a list of branches, commits or `.claude/worktrees/` entries to survey.
+- A legal `design` brief carries one task, in the owner's words or as a `docs/roadmap.md` item, and may add a list of branches, commits or `.claude/worktrees/` entries to survey, and a list of specs under `docs/superpowers/specs/` and plans under `docs/superpowers/plans/` to read.
 - A legal `rulings` brief carries `rulings <path>` on its first line, the path of a design file you wrote under `docs/superpowers/specs/`: its status lines above **Why**, whatever their wording (an older file's dated status and commit lines, or the owner's approval edit), then step 4's sections in step 4's order, **Decisions for the owner** absent once every decision is ruled, and, in an older file, **Decisions taken** last. Then one line per ruling: `<n>: <the owner's words>` for open decision `<n>` in that file, or `new: <the owner's words>` for a ruling no open decision covers.
 
 - The owner's words after `<n>:` or `new:` on a legal ruling line are never steering for what they name about the design, whatever module, function, home or order; an instruction to build, stub, test, measure, commit or write any file but the named one is still refused, whoever wrote it. Every other line is steering: a module, file, function, type, signature or interface; a home for a concern; a copy to keep or remove; an order or step; a recommendation, conclusion, expected count or ruling inside a `design` brief; a section to skip; a number the file has no open decision for, or one an earlier line of the brief already rules; a path that is not a design file you wrote; a change outside the owner's words; a second task or file; an instruction to build, stub, test, measure or commit.
@@ -48,7 +49,7 @@ Structure before details: one home for each shared concern, every piece built on
 
 ## Report
 
-`MODULES`, `HOMES`, `ORDER` and `DECISIONS` give the file as it stands when you finish. `SURVEYED` is the coordinator's to log; you write no log.
+`MODULES`, `HOMES`, `ORDER` and `DECISIONS` give the file as it stands when you finish. `SURVEYED` is the coordinator's to log; you write no log. In `COMMANDS`, each read of a file under `docs/superpowers/specs/` or `docs/superpowers/plans/`, by `Read` or `git show`, ends `| brief`, `| cited at <path:line>` or `| written`, for the file this dispatch wrote.
 
 ```
 BRIEF <design "<the task, verbatim>" | rulings <path>>
