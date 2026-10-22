@@ -10,9 +10,9 @@ wrapper waits on.
 
 Every wrapped run here is given `--lock` with a path under the test's temporary directory and never takes the default:
 every documented heavy run, this suite's own among them, already holds the default lock, so a test that took it would
-wait on itself. Waiting is held by order, never by a clock: a run that must wait is given WAIT seconds to break the order
-it is held to, and the line it writes must come after the line written once the lock is released. A run that is not to
-wait is met by its end, and a held command is held by a pipe the test releases (`tests/support/lifeline.py` of the
+wait on itself. Waiting is held by order, never by a clock: a run that must wait is read until it writes its WAITING
+line on stderr, the event that it waits, and the line it writes must come after the line written once the lock is
+released. A run that is not to wait is met by its end, and a held command is held by a pipe the test releases (`tests/support/lifeline.py` of the
 no-wall-clock design spec), with no timeout. On Linux the I/O
 priority is held to what the documented tool itself sets: the same probe, run under `ionice -c3`, gives the expected
 state. On macOS the line is "`nice -n <k> -- <command>`, with no `taskpolicy -b`", so the expected state is the one the
@@ -38,7 +38,6 @@ never run, the line having "no `taskpolicy -b`". A run whose `PATH` lacks a tool
 command never run: on Linux `ionice`, `nice` or both, on macOS `nice`.
 """
 
-import contextlib
 import fcntl
 import os
 import subprocess
@@ -50,8 +49,6 @@ import pytest
 from tests.support.lifeline import HOLD, ready
 
 REPO_ROOT = Path(__file__).parents[1]
-
-WAIT = 5
 
 NICENESS = "19"
 
@@ -216,15 +213,23 @@ def _start(lock: Path, command: list[str]) -> subprocess.Popen[bytes]:
     return subprocess.Popen(_wrapped(lock, command), cwd=REPO_ROOT)
 
 
-def _settle(process: subprocess.Popen[bytes]) -> None:
-    """Give a wrapped run WAIT seconds to end, and leave it running if it has not."""
-    with contextlib.suppress(subprocess.TimeoutExpired):
-        process.wait(timeout=WAIT)
+def _start_waiting(lock: Path, command: list[str]) -> subprocess.Popen[bytes]:
+    """Start a wrapped command and return once the wrapper has written its WAITING line on stderr.
+
+    The line is the event that the wrapper waits for the lock (the no-wall-clock design spec, `gates/heavy.py`); the read
+    ends on that line or, when the wrapper ends without writing it, at once on end of file.
+    """
+    process = subprocess.Popen(_wrapped(lock, command), cwd=REPO_ROOT, stderr=subprocess.PIPE)
+    assert process.stderr is not None
+    ready(process.stderr.fileno())
+    return process
 
 
 def _end(process: subprocess.Popen[bytes]) -> None:
     """Wait for a wrapped run to end."""
     process.wait()
+    if process.stderr is not None:
+        process.stderr.close()
 
 
 def _hold(lock: Path, log: Path) -> tuple[subprocess.Popen[bytes], int]:
@@ -261,8 +266,7 @@ def test_second_run_waits(tmp_path: Path) -> None:
     lock = tmp_path / "heavy.lock"
     log = tmp_path / "log"
     first, release = _hold(lock, log)
-    second = _start(lock, _python(NOTE, str(log), SECOND))
-    _settle(second)
+    second = _start_waiting(lock, _python(NOTE, str(log), SECOND))
     os.close(release)
     _end(first)
     _end(second)
@@ -288,8 +292,7 @@ def test_waits_on_flock(tmp_path: Path) -> None:
     log = tmp_path / "log"
     with lock.open("w", encoding="utf-8") as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
-        process = _start(lock, _python(NOTE, str(log), SECOND))
-        _settle(process)
+        process = _start_waiting(lock, _python(NOTE, str(log), SECOND))
         _note(log, RELEASED)
     _end(process)
 
