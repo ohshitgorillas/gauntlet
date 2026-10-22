@@ -4,6 +4,7 @@ SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c
 
 check:
+	uv run ruff format --check .
 	git ls-files -z --cached --others --exclude-standard | xargs -0 uv run python -m gates.check_suppressions
 	git ls-files -z --cached --others --exclude-standard | xargs -0 uv run python -m gates.check_mypy
 	git ls-files -z --cached --others --exclude-standard | xargs -0 uv run python -m gates.check_pyright

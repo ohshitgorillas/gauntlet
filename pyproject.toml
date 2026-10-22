@@ -58,10 +58,6 @@ timeout = 30
 target-version = "py312"
 force-exclude = true
 
-# The repo is not ruff-formatted; this keeps `ruff format` from rewriting whole files.
-[tool.ruff.format]
-exclude = ["**"]
-
 [tool.ruff.lint]
 select = ["TID251", "E902"]
 
