@@ -23,9 +23,6 @@ from tests.support.scripted import Scripted, Step
 
 REFUSAL = "cannot start the checker: refused"
 
-# How long a step holds its call, so calls that may overlap do.
-HOLD = 0.3
-
 
 def _command(tmp_path: Path, name: str) -> Command:
     return Command(argv=("checker", name), cwd=tmp_path)
@@ -58,7 +55,8 @@ class Taken:
 
 def test_no_commands(tmp_path: Path) -> None:
     """No Command gives no result."""
-    assert run_all(Scripted({}), [], 2) == []
+    process = Scripted({})
+    assert run_all(process, [], 2, next_done=process.next_done) == []
 
 
 def test_results_in_command_order(tmp_path: Path) -> None:
@@ -66,7 +64,7 @@ def test_results_in_command_order(tmp_path: Path) -> None:
     first, second = completed(1, "a\n"), completed(0, "b\n")
     process = Scripted({"a": Step(first, after=("b",)), "b": Step(second)})
 
-    results = run_all(process, _commands(tmp_path, "a", "b"), 2)
+    results = run_all(process, _commands(tmp_path, "a", "b"), 2, next_done=process.next_done)
 
     assert (results, process.finished) == ([first, second], ["b", "a"])
 
@@ -74,9 +72,9 @@ def test_results_in_command_order(tmp_path: Path) -> None:
 def test_at_most_cap(tmp_path: Path) -> None:
     """With more Commands than the cap, the cap's number run at once and no more."""
     names = ("a", "b", "c", "d", "e")
-    process = Scripted({name: Step(completed(), hold=HOLD) for name in names})
+    process = Scripted({name: Step(completed()) for name in names})
 
-    results = run_all(process, _commands(tmp_path, *names), 2)
+    results = run_all(process, _commands(tmp_path, *names), 2, next_done=process.next_done)
 
     assert (len(results), process.peak) == (5, 2)
 
@@ -84,9 +82,9 @@ def test_at_most_cap(tmp_path: Path) -> None:
 def test_cap_of_one(tmp_path: Path) -> None:
     """A cap of 1 runs one Command at a time."""
     names = ("a", "b", "c")
-    process = Scripted({name: Step(completed(), hold=HOLD) for name in names})
+    process = Scripted({name: Step(completed()) for name in names})
 
-    run_all(process, _commands(tmp_path, *names), 1)
+    run_all(process, _commands(tmp_path, *names), 1, next_done=process.next_done)
 
     assert process.peak == 1
 
@@ -97,7 +95,7 @@ def test_taken_when_a_slot_frees(tmp_path: Path) -> None:
     process = Scripted({name: Step(completed()) for name in names})
     taken = Taken(tmp_path, process, *names)
 
-    run_all(process, taken, 1)
+    run_all(process, taken, 1, next_done=process.next_done)
 
     assert (taken.finished_at_take, taken.in_main, process.called) == ([0, 1, 2], [True, True, True], ["a", "b", "c"])
 
@@ -113,7 +111,7 @@ def test_process_error_ends_the_list(tmp_path: Path, error: Exception) -> None:
     process = Scripted({"a": Step(first), "b": Step(error), "c": Step(completed())})
     taken = Taken(tmp_path, process, "a", "b", "c")
 
-    results = run_all(process, taken, 1)
+    results = run_all(process, taken, 1, next_done=process.next_done)
 
     assert (results, process.called, len(taken.finished_at_take)) == ([first, error], ["a", "b"], 2)
 
@@ -124,7 +122,7 @@ def test_taking_error_ends_the_list(tmp_path: Path) -> None:
     error = GateError(REFUSAL)
     process = Scripted({"a": Step(first)})
 
-    results = run_all(process, Taken(tmp_path, process, "a", error=error), 2)
+    results = run_all(process, Taken(tmp_path, process, "a", error=error), 2, next_done=process.next_done)
 
     assert results == [first, error]
 
@@ -135,7 +133,7 @@ def test_running_ones_waited_for(tmp_path: Path) -> None:
     error = GateError(REFUSAL)
     process = Scripted({"a": Step(first, after=("b",)), "b": Step(error), "c": Step(completed())})
 
-    results = run_all(process, Taken(tmp_path, process, "a", "b", "c"), 2)
+    results = run_all(process, Taken(tmp_path, process, "a", "b", "c"), 2, next_done=process.next_done)
 
     assert (results, process.called) == ([first, error], ["a", "b"])
 
@@ -145,7 +143,7 @@ def test_first_error_in_command_order(tmp_path: Path) -> None:
     early = OSError(errno.ENOSPC, "No space left on device")
     process = Scripted({"a": Step(early, after=("b",)), "b": Step(GateError(REFUSAL))})
 
-    results = run_all(process, _commands(tmp_path, "a", "b"), 2)
+    results = run_all(process, _commands(tmp_path, "a", "b"), 2, next_done=process.next_done)
 
     assert results == [early]
 
@@ -155,7 +153,7 @@ def test_error_after_later_finished(tmp_path: Path) -> None:
     error = GateError(REFUSAL)
     process = Scripted({"a": Step(error, after=("b",)), "b": Step(completed(1, "b\n"))})
 
-    results = run_all(process, _commands(tmp_path, "a", "b"), 2)
+    results = run_all(process, _commands(tmp_path, "a", "b"), 2, next_done=process.next_done)
 
     assert results == [error]
 
@@ -165,7 +163,7 @@ def test_other_exception_goes_on(tmp_path: Path) -> None:
     process = Scripted({"a": Step(completed()), "b": Step(ValueError("broken runner"))})
 
     with pytest.raises(ValueError, match="broken runner"):
-        run_all(process, _commands(tmp_path, "a", "b"), 2)
+        run_all(process, _commands(tmp_path, "a", "b"), 2, next_done=process.next_done)
 
 
 def test_completed_identity(tmp_path: Path) -> None:
@@ -173,4 +171,4 @@ def test_completed_identity(tmp_path: Path) -> None:
     reply = Completed(status=0, stdout="", stderr="", timed_out=False, outputs={})
     process = Scripted({"a": Step(reply)})
 
-    assert run_all(process, _commands(tmp_path, "a"), 3)[0] is reply
+    assert run_all(process, _commands(tmp_path, "a"), 3, next_done=process.next_done)[0] is reply

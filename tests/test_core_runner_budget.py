@@ -20,14 +20,11 @@ from gates.core.checker import Command, Completed
 from gates.core.project import Source
 from gates.core.report import Finding, GateError, Line, Outcome, Unfinished
 from gates.core.runner import Run, Scratch, check_with
-from tests.support.fake import FakeRunner, completed
+from tests.support.fake import completed
 from tests.support.project import scaffold
 from tests.support.scripted import Scripted, Step
 
 REFUSAL = "cannot start the checker: refused"
-
-# How long a step holds its call, so batches that may overlap do.
-HOLD = 0.3
 
 
 class Logged:
@@ -62,7 +59,7 @@ class Logged:
 
 def _checked(
     tmp_path: Path,
-    process: Callable[[Command], Completed],
+    process: Scripted,
     budget: Callable[[], int] | None,
     *names: str,
     log: list[str] | None = None,
@@ -70,12 +67,12 @@ def _checked(
 ) -> Outcome:
     project = scaffold(tmp_path / "project", {name: "value = 1\n" for name in names})
     sources = tuple(Source(given=Path(name), absolute=project.root / name) for name in names)
-    run = Run(project=project, sources=sources, scratch=Scratch(tmp_path), process=process)
+    run = Run(project=project, sources=sources, scratch=Scratch(tmp_path), process=process, next_done=process.next_done)
     return check_with(Logged([] if log is None else log, refuse=refuse), budget=budget)(run)
 
 
 def _held(*names: str) -> Scripted:
-    return Scripted({name: Step(completed(), hold=HOLD) for name in names})
+    return Scripted({name: Step(completed()) for name in names})
 
 
 def test_budget_sizes_the_cap(tmp_path: Path) -> None:
@@ -105,7 +102,8 @@ def test_budget_called_once_before_commands(tmp_path: Path) -> None:
         log.append("budget")
         return 2
 
-    _checked(tmp_path, Scripted({name: Step(completed()) for name in "abc"}), budget, "a", "b", "c", log=log)
+    process = Scripted({name: Step(completed()) for name in "abc"})
+    _checked(tmp_path, process, budget, "a", "b", "c", log=log)
 
     assert log == ["batches", "budget", "command a", "command b", "command c"]
 
@@ -117,7 +115,7 @@ def test_budget_called_once_before_commands(tmp_path: Path) -> None:
 )
 def test_budget_error(tmp_path: Path, error: Exception) -> None:
     """An error from the budget is the Outcome of its one Unfinished, and no batch runs."""
-    process = FakeRunner([])
+    process = Scripted({})
     log: list[str] = []
 
     def budget() -> int:
@@ -125,7 +123,7 @@ def test_budget_error(tmp_path: Path, error: Exception) -> None:
 
     outcome = _checked(tmp_path, process, budget, "a", log=log)
 
-    assert (outcome, process.commands, log) == (Outcome(lines=(Unfinished(str(error)),)), [], ["batches"])
+    assert (outcome, process.called, log) == (Outcome(lines=(Unfinished(str(error)),)), [], ["batches"])
 
 
 def test_lines_in_batch_order(tmp_path: Path) -> None:

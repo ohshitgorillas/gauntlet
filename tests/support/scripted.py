@@ -1,61 +1,114 @@
-"""A Runner for concurrent tests: each Command's reply chosen by its last argument, with an order the calls finish in.
+"""An event paced Runner and worker wait, paired by each concurrent test.
 
-Design: the gates-core design spec under docs/superpowers/specs/, decisions 26 and 27. FakeRunner replies in call
-order, which threads make arbitrary, so this runner keys each reply by the Command's last argument. A step may wait,
-up to WAIT seconds, for other names to finish first; a wait that runs out raises AssertionError. A step's reply is a
-Completed to return or an exception to raise. The runner keeps the names it was called with, the names that finished,
-and the most calls it saw running at once. A step may also hold its call for a moment, so calls that can overlap do.
+The no-wall-clock design specifies the barrier: every submitted call starts before next_done releases calls.
+Closing releases all blocked workers, including when the test's worker wait raises.
 """
 
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Collection, Mapping
+from concurrent.futures import Future
 from dataclasses import dataclass
 
-from gates.core.checker import Command, Completed
+from gates.core.checker import Command, Completed, first_done
 
-# How long a step waits for the names it must finish after.
-WAIT = 5.0
+
+class Released(Exception):
+    """A call was released by closing its Scripted."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(name)
+
+
+def last_argument(command: Command) -> str:
+    """Choose a step by the last argv word."""
+    return command.argv[-1]
 
 
 @dataclass(frozen=True)
 class Step:
-    """One name's reply: what it returns or raises, the names it finishes after, and how long it holds its call."""
+    """A reply and the calls that must finish before it."""
 
     reply: Completed | BaseException
     after: tuple[str, ...] = ()
-    hold: float = 0.0
 
 
 class Scripted:
-    """A Runner whose replies are keyed by each Command's last argument, safe to call from many threads."""
+    """Hold calls until their paired next_done observes all workers under way."""
 
-    def __init__(self, steps: Mapping[str, Step]) -> None:
+    def __init__(self, steps: Mapping[str, Step], *, key: Callable[[Command], str] = last_argument) -> None:
         self.steps = dict(steps)
+        self.key = key
         self.called: list[str] = []
         self.finished: list[str] = []
+        self.waiting = {name: threading.Event() for name in steps}
         self.peak = 0
         self._running = 0
-        self._lock = threading.Lock()
-        self._done = {name: threading.Event() for name in steps}
+        self._generation = 0
+        self._closed = False
+        self._condition = threading.Condition()
+        self._futures: set[Future[Completed]] = set()
 
     def __call__(self, command: Command) -> Completed:
-        name = command.argv[-1]
-        step = self.steps[name]
-        with self._lock:
+        name = self.key(command)
+        with self._condition:
+            self._check_open(name)
+            step = self.steps[name]
+            generation = self._generation
             self.called.append(name)
             self._running += 1
             self.peak = max(self.peak, self._running)
-        try:
-            for before in step.after:
-                if not self._done[before].wait(WAIT):
-                    raise AssertionError(f"{name} waited past {WAIT} seconds for {before} to finish")
-            if step.hold:
-                threading.Event().wait(step.hold)
-            if isinstance(step.reply, BaseException):
-                raise step.reply
-            return step.reply
-        finally:
-            with self._lock:
+            self._condition.notify_all()
+            try:
+                while not self._closed and generation == self._generation:
+                    self._condition.wait()
+                self._check_open(name)
+                for before in step.after:
+                    if before not in self.finished:
+                        self.waiting[name].set()
+                        while not self._closed and before not in self.finished:
+                            self._condition.wait()
+                        self._check_open(name)
+                if isinstance(step.reply, BaseException):
+                    raise step.reply
+                return step.reply
+            finally:
                 self._running -= 1
                 self.finished.append(name)
-            self._done[name].set()
+                self._condition.notify_all()
+
+    def _check_open(self, name: str) -> None:
+        if self._closed:
+            raise Released(name)
+
+    def _ended(self, future: Future[Completed]) -> None:
+        with self._condition:
+            self._condition.notify_all()
+
+    def next_done(self, running: Collection[Future[Completed]]) -> set[Future[Completed]]:
+        """Release the started calls together, then wait for a completed future."""
+        try:
+            with self._condition:
+                if not self._closed:
+                    for future in running:
+                        if future not in self._futures:
+                            self._futures.add(future)
+                            future.add_done_callback(self._ended)
+                    while self._running < sum(not future.done() for future in running):
+                        if self._closed:
+                            raise Released("next_done")
+                        self._condition.wait()
+                    if self._closed:
+                        raise Released("next_done")
+                    self._generation += 1
+                    self._condition.notify_all()
+            return first_done(running)
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        """Release every blocked call; subsequent calls fail immediately."""
+        with self._condition:
+            self._closed = True
+            self._condition.notify_all()
