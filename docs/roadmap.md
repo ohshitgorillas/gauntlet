@@ -36,16 +36,19 @@ ruff, ruff format, import-linter, deptry, uv lock and vulture run directly from 
 
 ## M1. Core and records
 
-- `core/verdicts.py`: every answer schema and the anchor type, `COULD NOT JUDGE` blocking like a failure; the `Anchor`, `Finding`, `Candidate`, `CoreMissing` and `Survey` records.
-- `core/design.py`: the design record and `design_problems`, `home_of`, `uncovered`.
-- `core/causes.py`: findings grouped into causes and routed to one fix each: `finding_problems`, `partition_problems`, `route`, `survey_problems`.
+- `core/verdicts.py`: answer primitives and the anchor type, `COULD NOT JUDGE` blocking like a failure; the `Anchor`, `Finding`, `Candidate`, `CoreMissing` and `Survey` records.
+- `core/design.py`: canonical design records and `design_problems`, `home_of`, `uncovered`.
+- `core/causes.py`: canonical cause records; findings grouped into causes and routed to one fix each: `finding_problems`, `partition_problems`, `route`, `survey_problems`.
+- `core/records.py`: composite answers, workflow state, explicit spec-line start marks, preserved-test baselines and recovery records. Each domain record keeps one definition in its own module; `core/codec.py` catalogs them once for wire envelopes and schema export.
+- `core/errors.py`, `core/roles.py` and `core/config.py`: typed product errors, fixed role/kind/schema associations and pure configuration validation; `seams/config.py` supplies explicit-root YAML access.
+- `core/red.py`: exact starting-verdict and test-binding validation. Each spec line must declare a RED/GREEN mark and preserved test ids for owner approval. GREEN requires identical existing tests, including inputs and assertions, to pass before and after. Harness source baselines must precede edits; source identity checks must pass before Lock and Land. Every line must pass the final runs.
 - `core/schedule.py`: `startable`, which of a job's steps or of the structure jobs may run beside which.
 - `core/decide.py`: `decide(state, answer)` for the stage table of §2, round caps included, with the Design, review-by-cause and structure-job rows. The structure-job rows are the ones its tests walk; `FIRST` and `SKIPPED` hold all three shapes as data.
-- `seams/job.py`: `state.json` with a row per check run, `trace.jsonl` per launch.
-- `gauntlet resume` from `state.json` after a killed harness.
+- `seams/job.py`: authoritative `state.json` with a row per check run and the launch ledger, repairable `trace.jsonl` per dispatched launch, durable checkpoints and single-writer locking.
+- `seams/resume.py` and `gauntlet resume`: continue ready work or automatically restore/replay interrupted work from `state.json`, without spending a round or requesting owner approval. Saved git intents reconcile lost receipts without duplicate commits or land effects. M1 proves the injected executor protocol; M2/M3s supply actual process, workspace, git and check/land adapters.
 - The gate that blocks shell-command parsing in Gauntlet's own code (§1, the one exception).
 
-**Done when:** every branch of `design_problems`, `uncovered`, `finding_problems`, `partition_problems`, `route`, `survey_problems` and `startable`, and of `decide` on the rows a structure job walks, has a unit test; a harness killed mid-stage resumes to the same next action.
+**Done when:** every branch of `design_problems`, `uncovered`, `finding_problems`, `partition_problems`, `route`, `survey_problems` and `startable`, and of `decide` on structure-job rows, has a unit test; every new structure, marking and recovery branch has red-to-green proof; a mixed RED/GREEN structure job preserves its approved tests unchanged through final GREEN runs; killed-harness probes continue ready work or automatically restore/replay interrupted work without spending a round, preserve completed work and approvals, and reconcile lost commit/land receipts without duplicate effects. See [`m1-core-records-design.md`](superpowers/specs/m1-core-records-design.md).
 
 ## M2. Launcher and kinds
 

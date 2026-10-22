@@ -2,6 +2,7 @@
 """Design checks from structure-first-design.md, Modules: core/design.py."""
 
 from dataclasses import replace
+from typing import TypedDict
 
 import pytest
 
@@ -16,20 +17,27 @@ from gauntlet.core.design import (
     uncovered,
 )
 from gauntlet.core.verdicts import Anchor
+from tests.support.answers import design as d
 
 
-def _design() -> Design:
-    return Design(
-        modules=(Module("pkg/home.py", "Run processes", (), ()),),
-        homes=(Home("process running", "pkg/home.py", "running a process"),),
-        order=(Step("build", ("pkg/home.py",), "core-builder"),),
-        choices=(),
-    )
+class _DesignFields(TypedDict):
+    modules: tuple[Module, ...]
+    homes: tuple[Home, ...]
+    order: tuple[Step, ...]
+    choices: tuple[Choice, ...]
+
+
+_D: _DesignFields = {
+    "modules": (Module("pkg/home.py", "Run processes", (), ()),),
+    "homes": (Home("process running", "pkg/home.py", "running a process"),),
+    "order": (Step("build", ("pkg/home.py",), "core-builder"),),
+    "choices": (),
+}
 
 
 def test_valid_design_has_no_problems() -> None:
     """Breaks when a valid design is rejected, including the five-item limits."""
-    design = _design()
+    design = d(**_D)
     choice = Choice("runner", "one home", "local runners", "migration work")
     design = replace(
         design,
@@ -42,21 +50,21 @@ def test_valid_design_has_no_problems() -> None:
 @pytest.mark.parametrize("count", [2, 3])
 def test_duplicate_concern_is_reported_once(count: int) -> None:
     """Breaks when a repeated concern is accepted or reported per home."""
-    design = _design()
+    design = d(**_D)
     design = replace(design, homes=design.homes * count)
     assert design_problems(design) == (f"concern process running: {count} homes",)
 
 
 def test_home_must_name_a_design_module() -> None:
     """Breaks when an unknown home module is accepted."""
-    design = replace(_design(), homes=(Home("running", "absent.py", "copies"),))
+    design = replace(d(**_D), homes=(Home("running", "absent.py", "copies"),))
     assert design_problems(design) == ("home running: module absent.py not in design",)
 
 
 @pytest.mark.parametrize("count", [2, 3])
 def test_duplicate_module_path_is_reported_once(count: int) -> None:
     """Breaks when module definitions sharing a path are accepted or overcounted."""
-    design = _design()
+    design = d(**_D)
     design = replace(design, modules=design.modules * count)
     assert design_problems(design) == (f"module pkg/home.py: defined {count} times",)
 
@@ -64,7 +72,7 @@ def test_duplicate_module_path_is_reported_once(count: int) -> None:
 def test_module_needs_a_step_writing_its_exact_path() -> None:
     """Breaks when a directory or a filename prefix counts as writing a module."""
     design = replace(
-        _design(), order=(Step("build", ("pkg", "pkg/home.py.old"), "builder"),)
+        d(**_D), order=(Step("build", ("pkg", "pkg/home.py.old"), "builder"),)
     )
     assert design_problems(design) == ("module pkg/home.py: no step writes it",)
 
@@ -72,7 +80,7 @@ def test_module_needs_a_step_writing_its_exact_path() -> None:
 def test_step_cannot_write_six_paths() -> None:
     """Breaks when the five-path bound is raised or the reported count is wrong."""
     design = replace(
-        _design(),
+        d(**_D),
         order=(Step("build", ("pkg/home.py", "a", "b", "c", "d", "e"), "builder"),),
     )
     assert design_problems(design) == ("step build: 6 paths, at most five",)
@@ -81,21 +89,21 @@ def test_step_cannot_write_six_paths() -> None:
 @pytest.mark.parametrize("blank", ["", " \t\n"])
 def test_step_needs_a_nonblank_implementer(blank: str) -> None:
     """Breaks when an empty or whitespace-only implementer is accepted."""
-    design = replace(_design(), order=(Step("build", ("pkg/home.py",), blank),))
+    design = replace(d(**_D), order=(Step("build", ("pkg/home.py",), blank),))
     assert design_problems(design) == ("step build: no implementer",)
 
 
 @pytest.mark.parametrize("count", [2, 3])
 def test_duplicate_step_name_is_reported_once(count: int) -> None:
     """Breaks when duplicate step names are accepted or reported repeatedly."""
-    design = _design()
+    design = d(**_D)
     design = replace(design, order=design.order * count)
     assert design_problems(design) == (f"step build: named {count} times",)
 
 
 def test_port_before_first_home_write_is_one_problem_per_triple() -> None:
     """Breaks when later home writes or repeated anchor lines multiply a problem."""
-    design = _design()
+    design = d(**_D)
     module = replace(
         design.modules[0],
         replaces=(Anchor("old.py", 1), Anchor("old.py", 9), Anchor("old.py", 1)),
@@ -117,7 +125,7 @@ def test_port_before_first_home_write_is_one_problem_per_triple() -> None:
 @pytest.mark.parametrize("port_position", [0, 1])
 def test_port_with_or_after_home_write_is_valid(port_position: int) -> None:
     """Breaks when the replacing module must be written strictly before a port."""
-    design = _design()
+    design = d(**_D)
     module = replace(design.modules[0], replaces=(Anchor("old.py", 1),))
     paths = ("pkg/home.py", "old.py") if port_position == 0 else ("pkg/home.py",)
     order: tuple[Step, ...] = (Step("build", paths, "builder"),)
@@ -129,7 +137,7 @@ def test_port_with_or_after_home_write_is_valid(port_position: int) -> None:
 def test_choices_cannot_exceed_five() -> None:
     """Breaks when six complete choices are accepted."""
     choice = Choice("runner", "one home", "local runners", "migration work")
-    assert design_problems(replace(_design(), choices=(choice,) * 6)) == (
+    assert design_problems(replace(d(**_D), choices=(choice,) * 6)) == (
         "choices: 6, at most five",
     )
 
@@ -145,7 +153,7 @@ def test_choice_needs_each_nonblank_field(field: str, blank: str) -> None:
         choice = replace(choice, alternative=blank)
     else:
         choice = replace(choice, cost=blank)
-    assert design_problems(replace(_design(), choices=(choice,))) == (
+    assert design_problems(replace(d(**_D), choices=(choice,))) == (
         f"choice runner: no {field}",
     )
 
@@ -153,7 +161,7 @@ def test_choice_needs_each_nonblank_field(field: str, blank: str) -> None:
 def test_two_problems_keep_check_order() -> None:
     """Breaks when checking choices before modules, or stopping at the first defect."""
     design = replace(
-        _design(),
+        d(**_D),
         order=(),
         choices=(Choice("runner", "one home", "local runners", ""),),
     )
@@ -200,7 +208,7 @@ def test_home_lookup_uses_first_exact_concern() -> None:
     """Breaks when lookup returns a prefix match or the last matching home."""
     first = Home("running", "first.py", "copies")
     design = replace(
-        _design(),
+        d(**_D),
         homes=(
             Home("running extra", "prefix.py", "copies"),
             first,
@@ -213,7 +221,7 @@ def test_home_lookup_uses_first_exact_concern() -> None:
 @pytest.mark.parametrize("homes", [(), (Home("Running", "home.py", "copies"),)])
 def test_home_lookup_returns_none_for_absent_concern(homes: tuple[Home, ...]) -> None:
     """Breaks when an absent concern gets a home, including a case-only match."""
-    assert home_of(replace(_design(), homes=homes), "running") is None
+    assert home_of(replace(d(**_D), homes=homes), "running") is None
 
 
 @pytest.mark.parametrize(
@@ -290,4 +298,4 @@ def test_every_done_step_leaves_every_copy_uncovered() -> None:
 
 def test_no_copies_leaves_nothing_uncovered() -> None:
     """Breaks when the design invents copies absent from the supplied survey."""
-    assert uncovered(_design(), (), ()) == ()
+    assert uncovered(d(**_D), (), ()) == ()

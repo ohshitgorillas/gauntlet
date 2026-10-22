@@ -27,7 +27,10 @@ M1 owns the import graph: domain records feed records.py, red.py imports records
 ```python
 class Category(StrEnum):
     ...  # the five values of the structure-first spec
-    MISPLACED = "misplaced"  # code a request moves to a new home, with every caller in also
+    MISPLACED = (
+        "misplaced"  # code a request moves to a new home, with every caller in also
+    )
+
 
 @dataclass(frozen=True)
 class Candidate:  # the structure-first record with one field more
@@ -43,11 +46,17 @@ class Candidate:  # the structure-first record with one field more
 
 ```python
 class TestStart(StrEnum):
-    RED = "red"; GREEN = "green"
+    RED = "red"
+    GREEN = "green"
+
 
 class RedVerdict(StrEnum):
-    RED = "red"; ERROR = "error"; GREEN = "green"
-    INVALID = "invalid"; COULD_NOT_JUDGE = "could-not-judge"
+    RED = "red"
+    ERROR = "error"
+    GREEN = "green"
+    INVALID = "invalid"
+    COULD_NOT_JUDGE = "could-not-judge"
+
 
 @dataclass(frozen=True)
 class SpecLine:
@@ -56,6 +65,7 @@ class SpecLine:
     bite: str
     start: TestStart
     tests: tuple[str, ...] = ()  # approved existing ids for GREEN
+
 
 @dataclass(frozen=True)
 class Outline:
@@ -70,11 +80,19 @@ Every line explicitly declares its start mark, with no default. GREEN names none
 **`gauntlet/core/red.py`** (M1 contract; proposed examiner extension). M1 owns starting verdicts and preserved-test bindings (`docs/superpowers/specs/m1-core-records-design.md:626`). It replaces the red-run rule at `docs/design.md:44`, `:64` and `:68`. The examiner adds only bite_problems, subject to separate approval.
 
 ```python
-def red_problems(spec: Spec, judgment: RedJudgment,
-                 bindings: Sequence[TestBinding]) -> tuple[str, ...]: ...
-def binding_problems(spec: Spec, answer: TestAnswer,
-                     baselines: Sequence[TestSnapshot]) -> tuple[str, ...]: ...
-def bite_problems(lines: Sequence[SpecLine], stubbed: Mapping[str, RedVerdict], touched: Collection[str], copies: Sequence[Anchor], keeps: Sequence[str]) -> tuple[str, ...]: ...
+def red_problems(
+    spec: Spec, judgment: RedJudgment, bindings: Sequence[TestBinding]
+) -> tuple[str, ...]: ...
+def binding_problems(
+    spec: Spec, answer: TestAnswer, baselines: Sequence[TestSnapshot]
+) -> tuple[str, ...]: ...
+def bite_problems(
+    lines: Sequence[SpecLine],
+    stubbed: Mapping[str, RedVerdict],
+    touched: Collection[str],
+    copies: Sequence[Anchor],
+    keeps: Sequence[str],
+) -> tuple[str, ...]: ...
 ```
 
 - red_problems requires one row per approved line, exact bound ids and the declared starting verdict. Missing, duplicate or unknown rows, wrong ids, ERROR, INVALID and COULD_NOT_JUDGE fail; neither a RED on a GREEN line nor a GREEN on a RED line changes the mark. Mismatches go to the arbiter under the juror cap (`docs/superpowers/specs/m1-core-records-design.md:637`).
@@ -100,7 +118,7 @@ def is_refactor(outline: Outline, override: bool | None) -> bool: ...
 **`gauntlet/core/decide.py`** (M1 rows reused; proposed routing and examiner rows). The interface is unchanged; OUTLINE and the examiner check extend it.
 
 ```python
-def decide(state: State, answer: Answer) -> Action: ...   # M1's signature
+def decide(state: State, answer: Answer) -> Action: ...  # M1's signature
 ```
 
 - OUTLINE: an approved outline for which `is_refactor` holds goes to neither DESIGN nor PLAN; the next action is the focused survey. On the owner's approval of its candidate the JOB ends at OUTLINE as handed off, its `state.json` naming the STRUCTURE job it opens, and that job starts at DESIGN by `FIRST`. A survey that is `COULD NOT JUDGE`, or a declined candidate, stops the JOB at its stop screen. Any other approved outline goes on by the OUTLINE row of `docs/superpowers/specs/structure-first-design.md:205`.
@@ -110,7 +128,7 @@ def decide(state: State, answer: Answer) -> Action: ...   # M1's signature
 **`gauntlet/seams/cli.py`** (proposed amendment). Gives `gauntlet run` the hand-off of a refactor request to a STRUCTURE job. It replaces nothing and opens a STRUCTURE job only through `open_structure`.
 
 ```python
-def run(brief: Path) -> int: ...   # gauntlet run <brief.md>
+def run(brief: Path) -> int: ...  # gauntlet run <brief.md>
 ```
 
 - When `decide` returns the focused survey after OUTLINE, `run` launches the surveyor over the checkout with the brief's text as its focus, then the grouper. A survey that fails `survey_problems` or `focus_problems` is `COULD NOT JUDGE`. `write_survey` (`docs/superpowers/specs/structure-first-design.md:223`) writes the survey as any structure audit's. The survey screen shows the brief, then the one candidate. On the owner's approval, `run` sets the candidate's `asked` to the brief's text and opens the STRUCTURE job through `open_structure` with its cause's anchors as the copies. That job runs as every STRUCTURE job does: DESIGN first, nothing skipped.
@@ -119,14 +137,20 @@ def run(brief: Path) -> int: ...   # gauntlet run <brief.md>
 **`gauntlet/seams/screens.py`** (proposed amendment). The outline screen shows the planner's choice of path and takes the owner's override of it; the survey screen shows a direct request's words above its candidate. `outline_screen` is the outline's approval screen (`docs/design.md:38`), named here with the path it gains. It replaces nothing.
 
 ```python
-def outline_screen(outline: Outline) -> Screen: ...   # steps, implementers, areas and flag, then the planner's path; approve, redirect, or override the path
-def survey_screen(survey: Survey, causes: Sequence[Cause], asked: str | None = None) -> Screen: ...   # with asked: the request, then the one candidate; approve or decline
+def outline_screen(
+    outline: Outline,
+) -> Screen: ...  # steps, implementers, areas and flag, then the planner's path; approve, redirect, or override the path
+def survey_screen(
+    survey: Survey, causes: Sequence[Cause], asked: str | None = None
+) -> Screen: ...  # with asked: the request, then the one candidate; approve or decline
 ```
 
 **`gauntlet/seams/runner.py`** (proposed amendment). Runs keeps tests on the stubbed tree. It replaces nothing.
 
 ```python
-def run_stubbed(tree: Path, files: Mapping[str, str], ids: Sequence[str], runner: Runner) -> Mapping[str, RedVerdict]: ...
+def run_stubbed(
+    tree: Path, files: Mapping[str, str], ids: Sequence[str], runner: Runner
+) -> Mapping[str, RedVerdict]: ...
 ```
 
 - `run_stubbed` writes `files` (path to whole text) onto a scratch overlay of `tree`, runs `ids` with every runner in `gauntlet.yaml` and the harness's own pytest settings (`docs/design.md:186`), and maps pass to GREEN, fail to RED and error to ERROR. The keys of `files` are the `touched` that `bite_problems` checks.
@@ -143,7 +167,13 @@ roles/examiner.md   scratch  answer: the stubbed files, path to whole text, each
 
 ```python
 def outline(*, structure_only: bool = ...) -> Outline: ...
-def candidate(*, concern: str = ..., keeps: tuple[str, ...] = ..., why: str | None = ..., asked: str | None = ...) -> Candidate: ...
+def candidate(
+    *,
+    concern: str = ...,
+    keeps: tuple[str, ...] = ...,
+    why: str | None = ...,
+    asked: str | None = ...,
+) -> Candidate: ...
 ```
 
 ## Homes

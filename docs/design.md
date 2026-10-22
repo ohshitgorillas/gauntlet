@@ -38,10 +38,10 @@ A job runs these stages in order. "You approve" means the job waits at a screen 
 | Outline | planner (reader) | brief, discovery table | steps, the implementer for each, the areas each touches, a shared-structure flag | you approve or redirect |
 | Design | architect (reader) | brief, outline, discovery table | modules with stubs, a home for each shared concern, step order, choices; only when the outline carries the flag | `design_problems` empty, then you rule each choice and approve |
 | Plan | planner and prosecutor (readers), in rounds | brief, outline (a structure job: the approved design instead), discovery, objections | plan; per-check `PASS` / `FAIL` / `COULD NOT JUDGE` | prosecutor passes every check, then you approve |
-| Spec | planner, examiner (scratch), arbiter (judge), in rounds | brief, plan | behavior lines `S1…` with `bite:` values, collateral rows; per-line rulings | arbiter accepts every line, then you approve |
+| Spec | planner, examiner (scratch), arbiter (judge), in rounds | brief, plan | behavior lines `S1…` with `bite:` values, explicit RED/GREEN start marks and preserved test ids, collateral rows; per-line rulings | arbiter accepts every line, then you approve |
 | Stubs | implementer | the plan's stub step | signatures whose bodies only raise | — |
 | Tests | scriveners (tester) | spec lines routed to them, interface view | tests, with test ids per spec line | — |
-| Red run | harness, then juror (judge) | every configured test runner; spec, tests, red output | `RED` / `ERROR` / `GREEN` / `INVALID` / `COULD NOT JUDGE` per line | every line `RED` |
+| Red run | harness, then juror (judge) | every configured test runner; spec, tests, red output | `RED` / `ERROR` / `GREEN` / `INVALID` / `COULD NOT JUDGE` per line | every line matches its approved start mark and bound test ids |
 | Lock | harness | — | commit of the tests on the job branch | — |
 | Build | implementers, one plan step each | the step, the locked tests | `complete` / `partial` / `blocked`, with a reason, or a CoreMissing | step's tests and gates green |
 | Review | repo reviewers and the structure reviewer (readers), the grouper (judge) | the diff, supplied by the harness; the approved design, if any | `Finding` records (`core/verdicts.py`), grouped into causes | no blocking findings |
@@ -58,14 +58,16 @@ Notes on the stages:
   - Each plan step lists the spec lines it serves (filled in at the Spec stage), the stubs it needs, and the files it expects to touch.
 - **Spec.**
   - A `bite:` value is the measured behavior a test pins. The examiner measures any `bite:` value that needs a script or a rendered state space. It runs on a throwaway copy of the tree.
+  - Every line explicitly declares RED for new behavior or GREEN for existing behavior with a nonempty, unique set of existing test ids. You approve the mark and preserved ids with the claim and bite; changing them requires approval again. A structure job includes every candidate keeps claim verbatim, with either mark as its behavior requires.
+  - Before stub or test edits, the harness captures the complete decorated source and parametrization of every preserved test. GREEN tests retain every input and assertion and pass on both implementations; the harness checks exact source identity before Lock and Land. All lines must pass the final runs.
   - Collateral rows name existing tests that the change alters or retires, and quote the assertion that must survive.
   - The planner routes each line to a tester by the testers' one-line descriptions.
 - **Design.** The stage runs only when the planner's outline flags that the job creates or changes shared structure. Any other job goes from Outline to Plan, and the land screen shows Design as skipped by rule. A design with any `design_problems` is a failed round under `caps.design`. The owner rules each choice and approves.
-- **Stubs.** The approved design's stubs are written before any plan step's own. Stubs let the red run fail on assertions (`RED`) instead of on missing imports (`ERROR`). A `GREEN` verdict at the red run sends the line to the arbiter, which rules whether the spec or the stub is at fault.
+- **Stubs.** The approved design's stubs are written before any plan step's own. Stubs let new behavior fail on assertions (`RED`) instead of on missing imports (`ERROR`). Existing implementations exercised by GREEN lines remain until the starting runs finish. A verdict that differs from the approved mark goes to the arbiter under the juror cap; it never changes the mark.
 - **Tests.**
   - A line the scrivener cannot test goes back to the arbiter instead of getting a weak test.
   - For a collateral row, the scrivener repairs the code around the quoted assertion. The harness checks that the assertion is byte-identical.
-- **Red run.** The harness runs every runner in `gauntlet.yaml`, not just one. A test that passes before any implementation exists reopens its spec line.
+- **Red run.** The harness runs every runner in `gauntlet.yaml`, not just one. Every approved line requires exactly one verdict row with its exact bound ids: RED requires failing behavioral assertions, GREEN requires its preserved tests to pass. Missing, duplicate or unknown rows, wrong ids, ERROR, INVALID and COULD NOT JUDGE block. GREEN on a RED line fails just as RED on a GREEN line does; mismatches go to the arbiter under the juror cap.
   - Not instead: a pytest-only red run. It once ignored the JS tests entirely.
 - **Juror.** Its verdict stops the pipeline. The juror cannot be overruled by any agent; only you can, through `accept`.
   - Not instead: a juror whose verdict advises. A juror without teeth was ignored.
@@ -233,7 +235,7 @@ Every stop shows one screen: what stopped, both sides of any disagreement, and y
 | `gauntlet edit <id>` | Edit the stage's file or the tree, then `resume`. The harness commits your edit as an owner commit. |
 | `gauntlet skip <id> <stage>` | Drop a stage |
 | `gauntlet eject <id>` | The harness steps out and leaves branch `gauntlet/<id>` and the job folder for you |
-| `gauntlet resume <id>` | Continue from `state.json` |
+| `gauntlet resume <id>` | Continue from `state.json`, automatically recovering interrupted background work |
 
 These commands exist only on the host CLI, which no container contains. Every use is recorded and shown on the land screen. A bypassed job can land, but the screen says exactly what did not go through.
 
@@ -270,7 +272,9 @@ All records live in `.gauntlet/`, which the harness adds to `.git/info/exclude`.
   trace.jsonl      coordinator launches, plus a total of each job's cost
 ```
 
-Every file is plain text, so a job survives a harness crash. `resume` restarts from `state.json`, and `eject` hands you everything as is.
+Every file is plain text, so a job survives a harness crash. `state.json` is authoritative, including the launch ledger; `trace.jsonl` is its repairable projection. `resume` continues ready work with its saved identity and inputs. For started work it automatically restores the effect's workspace checkpoint, discards unfinished output and dispatches fresh agent/check work with the same logical inputs, without spending a round or requesting owner approval. Completed work and approvals survive; interrupted launch and check rows remain visible.
+
+Before commit or land work, the executor saves the exact git intent. Recovery verifies the reference and prepared commit, reconstructs a lost receipt when the intent already happened, or restores the checkpoint before retrying it. An unreferenced commit object alone proves nothing; a lost receipt never causes a duplicate git effect. Recovery is idempotent across another crash. Missing executor capabilities stop explicitly, and corrupt state or contradictory recovery evidence raises a typed error. `eject` hands you everything as is.
 
 ## 8. Harness layout
 
@@ -278,12 +282,22 @@ Every file is plain text, so a job survives a harness crash. `resume` restarts f
 gauntlet/
   core/              pure, no I/O, one unit test per branch
     decide.py        decide(state, answer) -> next action
-    verdicts.py      every answer schema and the anchor type, COULD NOT JUDGE handling
-    design.py        the design record and what makes it valid
-    causes.py        findings grouped into causes, each routed to one fix
+    verdicts.py      answer primitives and anchors, COULD NOT JUDGE handling
+    design.py        canonical design records and what makes them valid
+    causes.py        canonical cause records; findings grouped and routed to one fix
+    records.py       composite answers, workflow state, spec marks and recovery records
+    codec.py         one catalog of domain records, wire envelopes and schema export
+    errors.py        typed product errors
+    red.py           required starting verdicts and preserved-test binding validation
+    roles.py         role/kind/schema associations
+    config.py        pure configuration validation and defaults
     reopen.py        spec line -> affected tests and steps
     schedule.py      which epic jobs, plan steps and structure jobs may start (`startable`)
     land.py          land or refuse
+```
+
+```
+gauntlet/
   seams/             thin I/O around the core
     cli.py           every command in §6, plus new, run, epic, audit, status, reopen
     git.py           worktrees, commits, land; the only place git runs
@@ -291,10 +305,14 @@ gauntlet/
     proxy.py         the credential proxy
     tools.py         run_tests, open_job, job_status, job_record
     runner.py        harness-owned test and gate runs
-    job.py           job, epic, design, cause, offer and survey records; opens structure jobs
+    job.py           durable state/trace I/O, checkpoints, locking and owned temporary cleanup
+    config.py        explicit-root YAML access through the pure validator
+    resume.py        dispatch and automatic recovery through an injected executor
     screens.py       everything you see
 roles/               fixed role prompts, each naming its answer schema, plus
                      the general implementer and general tester
 ```
 
 Each role's rules live in its prompt file and nowhere else.
+
+Each record has one definition in its domain home; records.py imports domain records without re-exporting them, and codec.py catalogs them once. The M1 contracts and recovery protocol are specified in [`superpowers/specs/m1-core-records-design.md`](superpowers/specs/m1-core-records-design.md). M1 proves the injected protocol with real durable job files; M2 and M3s supply actual process, workspace, git and check/land adapters.
