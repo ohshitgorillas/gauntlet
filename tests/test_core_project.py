@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the gates core project: its Python files, its test files, its config and its git.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "project.py: the project, its config and
@@ -29,6 +30,7 @@ The repository a git test makes is made without the `GIT_` variables, so a hook 
 
 import contextlib
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -36,8 +38,8 @@ from pathlib import Path
 
 import pytest
 
-from gates.core.checker import environment
 from gates.core import project as core
+from gates.core.checker import environment
 from gates.core.project import (
     KeyRule,
     Project,
@@ -66,7 +68,9 @@ def _project(root: Path, text: str = PIN) -> Project:
 
 
 def _source(given: str) -> Source:
-    return Source(given=Path(given), absolute=Path(os.path.abspath(given)))
+    return Source(
+        given=Path(given), absolute=Path(os.path.normpath(Path(given).absolute()))
+    )
 
 
 def _given(sources: list[Source]) -> list[str]:
@@ -420,7 +424,7 @@ def test_config_text_unreadable(tmp_path: Path) -> None:
 
 
 def test_git_command(tmp_path: Path) -> None:
-    """git runs with the arguments given, in the root, and its Completed is returned as the runner gave it."""
+    """Git runs with the arguments given, in the root, and its Completed is returned as the runner gave it."""
     reply = completed(stdout="diff\n")
     runner = FakeRunner([reply])
     result = Project(tmp_path).git("diff", "HEAD", process=runner)
@@ -434,7 +438,7 @@ def test_git_command(tmp_path: Path) -> None:
 
 
 def test_git_environment(tmp_path: Path) -> None:
-    """git gets this process's variables, less every GIT_ one (decision 12)."""
+    """Git gets this process's variables, less every GIT_ one (decision 12)."""
     runner = FakeRunner([completed()])
     Project(tmp_path).git("status", process=runner)
     env = runner.commands[0].env
@@ -453,11 +457,15 @@ def _init(root: Path) -> None:
         for name, value in environment().items()
         if not name.startswith("GIT_")
     }
-    subprocess.run(["git", "init", "--quiet", str(root)], env=env, check=True)
+    executable = shutil.which("git")
+    if executable is None:
+        missing = "git"
+        raise FileNotFoundError(missing)
+    subprocess.run([executable, "init", "--quiet", str(root)], env=env, check=True)
 
 
 def test_git_runs(tmp_path: Path) -> None:
-    """git runs for real by default, in the root."""
+    """Git runs for real by default, in the root."""
     _init(tmp_path)
     result = Project(tmp_path).git("rev-parse", "--show-toplevel")
 

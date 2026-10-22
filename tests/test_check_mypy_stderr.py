@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the mypy gate's stderr: a stop prints it as unfinished, a finish prints it again as remarks.
 
 Source: the C3 review's findings 1 and 2, as the owner ruled them. On a stop (mypy's exit 2), mypy's stderr, when not
@@ -40,10 +41,12 @@ class CacheLeavingRunner:
     """A Runner that leaves a file in each empty directory under the scratch root, then gives the next canned reply."""
 
     def __init__(self, scratch: Path, replies: Sequence[Completed]) -> None:
+        """Initialize the seeded state."""
         self.scratch = scratch
         self.replies = FakeRunner(replies)
 
     def __call__(self, command: Command) -> Completed:
+        """Return the reply for the supplied call."""
         for directory in list(self.scratch.rglob("*")):
             if directory.is_dir() and not any(directory.iterdir()):
                 (directory / "cache.json").write_text("{}\n", encoding="utf-8")

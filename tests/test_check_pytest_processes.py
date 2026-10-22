@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for how many pytest processes the pytest gate runs at once.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Tests", the "pytest strictness" bullet and its
@@ -6,7 +7,7 @@ floor(C / 2) and never fewer than one, where C counts the CPUs the gate's proces
 process and never from a command: the CPUs its affinity allows where the host keeps an affinity, and the host's CPU
 count elsewhere, as on macOS. The exit codes come from the "Gates" intro paragraph.
 
-The no-wall-clock design Order steps 42–43 measure concurrency through Scripted and its own next_done.
+The no-wall-clock design Order steps 42-43 measure concurrency through Scripted and its own next_done.
 """
 
 from pathlib import Path
@@ -77,9 +78,11 @@ def _pair(root: Path, cpus: int) -> tuple[int, int, int]:
 
 # Breaks if two available workers serialize two test modules.
 def test_two_modules_overlap_with_four_cpus(tmp_path: Path) -> None:
+    """Verify two modules overlap with four cpus."""
     assert _pair(tmp_path, FOUR_CPUS) == (NO_FINDING, 2, 2)
 
 
 # Breaks if three CPUs permit both test modules to overlap.
 def test_two_modules_serialize_with_three_cpus(tmp_path: Path) -> None:
+    """Verify two modules serialize with three cpus."""
     assert _pair(tmp_path, THREE_CPUS) == (NO_FINDING, 1, 2)

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate on a module that uses `global` at module level.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Suppression gate", third bullet: "a file the gate reads and parses is a file the gate finishes, with exit 0 or 1, and an error in the gate's own resolution of names on such a file is a defect of the gate"; and "Gates": "A gate exits 0 with no finding" and its count line reads `<gate>: N finding(s) in M Python file(s)`, the last line the run prints.
@@ -24,6 +25,7 @@ SOURCES = [
 def test_module_level_global_finishes_with_no_finding(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], source: str
 ) -> None:
+    """Verify module level global finishes with no finding."""
     path = tmp_path / "module_global.py"
     path.write_text(source, encoding="utf-8")
 

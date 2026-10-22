@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pyright gate on a tree that pins no Python, or pins it in the wrong form.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph:
@@ -71,12 +72,12 @@ ONE_FINDING = 'first_value: int = "alpha"\n'
 
 
 def _caches(_directory: str, names: list[str]) -> set[str]:
-    """The bytecode cache directories among `names`, left out of the copy."""
+    """Return the bytecode cache directories among `names`, left out of the copy."""
     return {name for name in names if name == "__pycache__"}
 
 
 def _tree(tmp_path: Path, pyproject: str) -> Path:
-    """A tree holding a copy of the `gates` package and the seeded `pyproject.toml`."""
+    """Create a tree holding a copy of the `gates` package and the seeded `pyproject.toml`."""
     root = tmp_path / "tree"
     shutil.copytree(Path(check_pyright.__file__).parent, root / "gates", ignore=_caches)
     (root / "pyproject.toml").write_text(pyproject, encoding="utf-8")

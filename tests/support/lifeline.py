@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Child processes held, met and ended by pipes: every wait a test makes on a real process.
 
 Design: the no-wall-clock design spec under docs/superpowers/specs/, the `tests/support/lifeline.py` module. Each wait
@@ -47,6 +48,7 @@ class Lifeline:
     read_fd: int
 
     def __init__(self) -> None:
+        """Initialize the seeded state."""
         self.read_fd, write_fd = os.pipe()
         self._write_fd: int | None = write_fd
 
@@ -57,6 +59,7 @@ class Lifeline:
             self._write_fd = None
 
     def __enter__(self) -> Self:
+        """Enter the resource context."""
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -77,7 +80,7 @@ class Witness:
         self._fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
 
     def ended(self) -> bytes:
-        """Called after every holder's ready line: block, with no deadline, until every holder has closed it."""
+        """Return called after every holder's ready line: block, with no deadline, until every holder has closed it."""
         os.set_blocking(self._fd, True)
         written = b""
         while chunk := os.read(self._fd, CHUNK):
@@ -85,9 +88,11 @@ class Witness:
         return written
 
     def __enter__(self) -> Self:
+        """Enter the resource context."""
         return self
 
     def __exit__(self, *exc: object) -> None:
+        """Release the context resources."""
         os.close(self._fd)
 
 
@@ -108,6 +113,7 @@ class Beacon:
     write_fd: int
 
     def __init__(self) -> None:
+        """Initialize the seeded state."""
         self._read_fd, self.write_fd = os.pipe()
         self._write_open = True
 
@@ -122,6 +128,7 @@ class Beacon:
         return ready(self._read_fd)
 
     def __enter__(self) -> Self:
+        """Enter the resource context."""
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -136,15 +143,17 @@ class Pids:
     path: Path
 
     def __init__(self, path: Path) -> None:
+        """Initialize the seeded state."""
         self.path = path
 
     def noted(self) -> list[int]:
-        """The pids noted in the file, one word each; none when no child has written it."""
+        """Return the pids noted in the file, one word each; none when no child has written it."""
         if not self.path.exists():
             return []
         return [int(word) for word in self.path.read_text(encoding="utf-8").split()]
 
     def __enter__(self) -> Self:
+        """Enter the resource context."""
         return self
 
     def __exit__(self, *exc: object) -> None:

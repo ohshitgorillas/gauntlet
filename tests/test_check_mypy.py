@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the mypy gate's configuration.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Types", first bullet.

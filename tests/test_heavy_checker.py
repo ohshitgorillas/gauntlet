@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the host-safety wrapper's command run, now the gates core's `checker.run`.
 
 Source: the gates core design under docs/superpowers/specs/, section 1, checker.py: `run` runs a process "in its own
@@ -21,6 +22,8 @@ import sys
 from pathlib import Path
 
 from tests.support.lifeline import HOLD, Lifeline, Pids, ready
+
+HEAVY_MODULE = "gates.heavy"
 
 REPO_ROOT = Path(__file__).parents[1]
 
@@ -52,11 +55,9 @@ def _wrapper(
 ) -> subprocess.CompletedProcess[str]:
     """Run the wrapper with options before the command, from the repository root, to its end.
 
-    The module is imported here, at each run, so a test and not collection meets it.
+    The child imports the wrapper module when the command runs.
     """
-    from gates import heavy
-
-    line = [sys.executable, "-m", heavy.__name__, *options, *command]
+    line = [sys.executable, "-m", HEAVY_MODULE, *options, *command]
     return subprocess.run(
         line, cwd=REPO_ROOT, check=False, capture_output=True, text=True, env=env
     )
@@ -81,8 +82,6 @@ def test_refused_line_takes_no_lock(tmp_path: Path) -> None:
 
 def test_stop_signal_ends_the_command(tmp_path: Path) -> None:
     """A signal that ends the wrapper ends its command too, not only the wrapper, and the command is not left running."""
-    from gates import heavy
-
     note = tmp_path / "pid"
     env = {"PATH": SYSTEM_PATH}
     output_read, output_write = os.pipe()
@@ -91,7 +90,7 @@ def test_stop_signal_ends_the_command(tmp_path: Path) -> None:
             [
                 sys.executable,
                 "-m",
-                heavy.__name__,
+                HEAVY_MODULE,
                 "--lock",
                 str(tmp_path / "heavy.lock"),
                 sys.executable,

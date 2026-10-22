@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pytest gate on the gates core: one pytest per test module, its JUnit report read from the Completed.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 2 ("pytest (G3, already built). A Checker with
@@ -62,7 +63,7 @@ EMPTY_JUNIT = '<?xml version="1.0"?><testsuites><testsuite name="MODULE" tests="
 
 
 def _junit(module: Path, *, classname: str, message: str | None) -> str:
-    """The JUnit XML of a run over `module` holding one test named `test_seeded`, failing with `message` when given."""
+    """Return the JUnit XML of a run over `module` holding one test named `test_seeded`, failing with `message` when given."""
     failure = "" if message is None else f'<failure message="{message}"/>'
     return (
         f'<?xml version="1.0"?><testsuites><testsuite name="{module}" tests="1">'
@@ -112,7 +113,7 @@ def test_seed_then_finding(tmp_path: Path) -> None:
 
 
 def _named(command: Command, modules: Sequence[Path]) -> list[str]:
-    """The modules among `modules` that an argument of `command` names, read from the command's working directory."""
+    """Return the modules among `modules` that an argument of `command` names, read from the command's working directory."""
     named = {command.cwd / argument for argument in command.argv}
     return [str(module) for module in modules if module in named]
 

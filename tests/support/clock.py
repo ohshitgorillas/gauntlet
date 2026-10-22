@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """A virtual clock: the one Clock a test hands to code that waits on time.
 
 Design: the no-wall-clock design spec under docs/superpowers/specs/, the `tests/support/clock.py` module, decisions 6
@@ -23,12 +24,13 @@ class VirtualClock:
     def __init__(
         self, *, passes: float | None = None, after: Callable[[], object] | None = None
     ) -> None:
+        """Initialize the seeded state."""
         self.now = 0.0
         self._passes = passes
         self._after = after
 
     def wait(self, ready: Ready, seconds: float | None) -> bool:
-        """True when the event came before `seconds` passed on this clock; None: no cap."""
+        """Return true when the event came before `seconds` passed on this clock; None: no cap."""
         if ready(0):
             return True
         if self._passes is None:

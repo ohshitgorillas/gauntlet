@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the scope an assignment expression's value is read in, inside a comprehension.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate",

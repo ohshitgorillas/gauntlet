@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """The project a gate runs in: its Python files, its test files, its one config file, and git in its root."""
 
 import errno
@@ -65,7 +66,7 @@ def python_files(paths: Sequence[Path]) -> list[Source]:
     """Return the Python files among the paths, in order; a file given twice is one Source, its first spelling kept."""
     sources: dict[str, Source] = {}
     for path in paths:
-        absolute = os.path.abspath(path)
+        absolute = os.path.normpath(path.absolute())
         if absolute not in sources and is_python_file(path):
             sources[absolute] = Source(given=path, absolute=Path(absolute))
     return list(sources.values())

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the gates core runner: one gate run from start to exit, its scratch space and its checker driver.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "runner.py: one gate run, from start to
@@ -48,6 +49,9 @@ from tests.support.capture import Captured, captured
 from tests.support.clock import VirtualClock
 from tests.support.fake import FakeRunner, completed
 from tests.support.project import ScaffoldError, scaffold
+
+DIRECTORY_COUNT = 2
+CALL_COUNT = 2
 
 NAME = "check_example"
 
@@ -100,7 +104,7 @@ def _scratch_root(tmp_path: Path) -> Path:
 
 
 def _project(tmp_path: Path, *names: str) -> Project:
-    return scaffold(tmp_path / "project", {name: "value = 1\n" for name in names})
+    return scaffold(tmp_path / "project", dict.fromkeys(names, "value = 1\n"))
 
 
 def _sources(project: Project, *names: str) -> tuple[Source, ...]:
@@ -119,28 +123,35 @@ class Echo:
     stopped = frozenset({STOP})
 
     def __init__(self, *, refuse: str | None = None) -> None:
+        """Initialize the seeded state."""
         self.refuse = refuse
 
     def batches(self, run: Run) -> list[list[Source]]:
+        """Return batches."""
         return [[source] for source in run.sources]
 
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
+        """Return command."""
         given = [str(source.given) for source in batch]
         if self.refuse in given:
             raise GateError(REFUSAL)
         return Command(argv=(ECHO, *given), cwd=run.project.root, timeout=TIMEOUT)
 
     def read(self, completed: Completed) -> list[str]:
+        """Return read."""
         if completed.stdout == GARBAGE:
             raise GateError(GARBAGE)
         return completed.stdout.splitlines()
 
     def expected_status(self, report: list[str]) -> int:
+        """Return expected status."""
         return 1 if report else 0
 
     def lines(
         self, report: list[str], batch: Sequence[Source], *, stopped: bool
     ) -> list[Line]:
+        """Return lines."""
+        del batch
         return [Unfinished(text) if stopped else Finding(text) for text in report]
 
 
@@ -148,12 +159,14 @@ class Refusing:
     """A Runner that gives its replies in order, then raises the error it holds in place of the next one."""
 
     def __init__(self, replies: Sequence[Completed], error: Exception) -> None:
+        """Initialize the seeded state."""
         self.replies = FakeRunner(replies)
         self.left = len(replies)
         self.error = error
         self.calls = 0
 
     def __call__(self, command: Command) -> Completed:
+        """Return the reply for the supplied call."""
         self.calls += 1
         if self.calls > self.left:
             raise self.error
@@ -173,16 +186,23 @@ def _checked(
     return check_with(Echo(refuse=refuse))(run)
 
 
+_DEFAULT_OUTCOME = Outcome()
+
+
 class Seen:
     """A gate check that keeps every Run it is called with and gives the Outcome it holds."""
 
-    def __init__(self, outcome: Outcome = Outcome(), make: str | None = None) -> None:
+    def __init__(
+        self, outcome: Outcome = _DEFAULT_OUTCOME, make: str | None = None
+    ) -> None:
+        """Initialize the seeded state."""
         self.outcome = outcome
         self.make = make
         self.runs: list[Run] = []
         self.made: list[Path] = []
 
     def __call__(self, run: Run) -> Outcome:
+        """Return the reply for the supplied call."""
         self.runs.append(run)
         if self.make is not None:
             self.made.append(run.scratch.directory(self.make))
@@ -358,7 +378,7 @@ def test_once_names_apart(tmp_path: Path) -> None:
     scratch.once("warm", built.append)
     scratch.once("cold", built.append)
 
-    assert len(set(built)) == 2
+    assert len(set(built)) == DIRECTORY_COUNT
 
 
 def test_once_failed_make_not_kept(tmp_path: Path) -> None:
@@ -381,6 +401,7 @@ def test_once_error_to_caller(tmp_path: Path) -> None:
     error = GateError(REFUSAL)
 
     def failing(path: Path) -> None:
+        del path
         raise error
 
     with pytest.raises(GateError) as raised:
@@ -397,7 +418,7 @@ def test_close_deletes_everything(tmp_path: Path) -> None:
     root = _scratch_root(tmp_path)
     scratch = Scratch(root)
     (scratch.directory("work") / "a.txt").write_text("a\n", encoding="utf-8")
-    scratch.once("warm", lambda path: None)
+    scratch.once("warm", lambda _path: None)
 
     assert (scratch.close(), _names(root)) == (None, [KEEP])
 
@@ -579,7 +600,7 @@ def test_process_error_stops_batches(tmp_path: Path) -> None:
     process = Refusing([completed(1, "a\n")], GateError(REFUSAL))
     _checked(tmp_path, process, "a.py", "b.py", "c.py")
 
-    assert process.calls == 2
+    assert process.calls == CALL_COUNT
 
 
 def test_process_os_error(tmp_path: Path) -> None:
@@ -615,7 +636,7 @@ def _run(
     paths = [project.root / name for name in names]
     root = tmp_path / "scratch"
     root.mkdir(exist_ok=True)
-    output = captured(
+    return captured(
         lambda: run_gate(
             gate,
             paths,
@@ -624,7 +645,6 @@ def _run(
             scratch_root=root,
         )
     )
-    return output
 
 
 def test_nothing_checked(tmp_path: Path) -> None:
@@ -935,8 +955,9 @@ def test_close_failure(tmp_path: Path) -> None:
 
 
 def test_main_exits(tmp_path: Path) -> None:
-    """main exits with the run's exit code."""
-    gate = Gate(name=NAME, check=Seen(), select=lambda sources: [])
+    """Main exits with the run's exit code."""
+    del tmp_path
+    gate = Gate(name=NAME, check=Seen(), select=lambda _sources: [])
     with pytest.raises(SystemExit) as raised:
         captured(lambda: main(gate))
 
@@ -954,7 +975,7 @@ def test_main_exits(tmp_path: Path) -> None:
 def test_main_command_line(
     tmp_path: Path, name: str, status: int, lines: list[str]
 ) -> None:
-    """main runs over the paths of its command line and exits with the run's exit code."""
+    """Main runs over the paths of its command line and exits with the run's exit code."""
     project = scaffold(tmp_path, {name: "value = 1\n"})
     env = {**environment(), "PYTHONPATH": str(REPOSITORY)}
     command = Command(

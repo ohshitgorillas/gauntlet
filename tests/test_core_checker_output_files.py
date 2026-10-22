@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the output files a checker writes: a file left at an output path is never read back as the checker's.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process":

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for `environment`: a checker's environment, the running process's variables less those it is told to drop.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process",
@@ -22,6 +23,7 @@ hold every variable `environment` gives, under its own value, and what a drop le
 with nothing dropped.
 """
 
+import shutil
 import subprocess
 
 import pytest
@@ -81,9 +83,13 @@ def test_whole() -> None:
 
 
 def _inherited() -> dict[str, str]:
-    """The running process's variables as a child it starts with no env of its own sees them, through POSIX env."""
+    """Return the running process's variables as a child it starts with no env of its own sees them, through POSIX env."""
+    executable = shutil.which("env")
+    if executable is None:
+        missing = "env"
+        raise FileNotFoundError(missing)
     printed = subprocess.run(
-        ["env", "-0"], capture_output=True, check=True
+        [executable, "-0"], capture_output=True, check=True
     ).stdout.decode()
     return dict(entry.split("=", 1) for entry in printed.split("\0") if entry)
 

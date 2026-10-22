@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the mypy gate on the gates core: a mypy that exits nonzero with nothing to show is unfinished.
 
 Source: the gates core design spec under docs/superpowers/specs/, "Why", item (a), section 1, runner.py, the paragraph
@@ -44,10 +45,12 @@ class CacheLeavingRunner:
     """A Runner that leaves a file in each empty directory under the scratch root, then gives the next canned reply."""
 
     def __init__(self, scratch: Path, replies: Sequence[Completed]) -> None:
+        """Initialize the seeded state."""
         self.scratch = scratch
         self.replies = FakeRunner(replies)
 
     def __call__(self, command: Command) -> Completed:
+        """Return the reply for the supplied call."""
         for directory in list(self.scratch.rglob("*")):
             if directory.is_dir() and not any(directory.iterdir()):
                 (directory / "cache.json").write_text("{}\n", encoding="utf-8")
@@ -73,7 +76,7 @@ def _run(tmp_path: Path, reply: Completed) -> tuple[int, list[str]]:
 
 
 def test_exit_one_with_no_record_prints_the_whole_output(tmp_path: Path) -> None:
-    """mypy's refusal, exit 1 with no record on stdout, is no finish: its whole output, then the count line, exit 2."""
+    """Mypy's refusal, exit 1 with no record on stdout, is no finish: its whole output, then the count line, exit 2."""
     status, lines = _run(tmp_path, completed(1, "", REFUSAL + SEE_ALSO))
 
     assert (status, lines) == (2, [REFUSAL, SEE_ALSO, COUNT_NONE])

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the gates core source reader: the pinned version, a parse under it, and the comment markers it holds.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "source.py: reading a Python file under

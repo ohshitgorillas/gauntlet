@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the ban on `typing.cast` as `typing_extensions` exports it.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Gates", "Types", third bullet:

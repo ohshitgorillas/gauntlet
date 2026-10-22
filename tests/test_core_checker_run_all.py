@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for `run_all`: Commands run through a Runner at most cap at once, results in command order.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process",
@@ -42,6 +43,7 @@ class Taken:
         *names: str,
         error: Exception | None = None,
     ) -> None:
+        """Initialize the seeded state."""
         self.tmp_path = tmp_path
         self.process = process
         self.names = names
@@ -50,6 +52,7 @@ class Taken:
         self.in_main: list[bool] = []
 
     def __iter__(self) -> Iterator[Command]:
+        """Return iter."""
         for name in self.names:
             self.finished_at_take.append(len(self.process.finished))
             self.in_main.append(threading.current_thread() is threading.main_thread())
@@ -61,6 +64,7 @@ class Taken:
 
 def test_no_commands(tmp_path: Path) -> None:
     """No Command gives no result."""
+    del tmp_path
     process = Scripted({})
     assert run_all(process, [], 2, next_done=process.next_done) == []
 

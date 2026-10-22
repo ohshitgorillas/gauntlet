@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for a comment that carries more than one suppression marker.
 
 Sources: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate":

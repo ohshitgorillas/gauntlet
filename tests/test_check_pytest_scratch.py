@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pytest gate's temp space: one temp directory per run under the scratch root it is handed, one pytest temp directory per test module inside it, deleted on every exit path, a failure to make or delete it reported.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Tests", the "pytest strictness" bullet. "Each run of the pytest gate makes one temp directory of its own under the run's scratch root, before its seed line. The scratch root is the `scratch_root` argument of the gate's `main`, used as given". "Each test module's pytest process takes a path of its own inside the run's temp directory as pytest's `--basetemp`, which no other process shares". "The run's temp directory and all it holds are deleted on every exit path: every return and every exception, `KeyboardInterrupt` included, a run that did not finish among them. After a run the scratch root holds exactly what it held before, every other entry in it untouched". "A run temp directory the gate cannot make, a missing scratch root included, prints one error line naming the path and the OS error, then the count line with N 0 and M the test files given, and exits 2." "A deletion that fails ... is temp space the gate cannot delete and is never passed over: after the seed line and every module's lines, the gate prints one error line naming the path and the OS error, then the count line with N the findings it read, and exits 2, whatever the modules found." Placement is judged only by the scratch root the test hands the run, seen from inside a seeded test module through pytest's public `tmp_path_factory.getbasetemp()`. The seed line's shape is `<gate>: seed N`; the count line's shape and the empty run come from the "Gates" intro; a finding's shape from the JUnit sub-bullet. The gate's script is `gates/check_pytest.py`, so `<gate>` is `check_pytest`.
@@ -195,7 +196,7 @@ def _seed(root: Path, relative: str, source: str) -> Path:
 
 
 def _scratch(root: Path) -> Path:
-    """A scratch root that already holds a file and two directories, one named as a temp directory might be."""
+    """Create a scratch root that already holds a file and two directories, one named as a temp directory might be."""
     scratch = root / "scratch"
     for relative, text in PRESEEDED.items():
         _seed(scratch, relative, text)
@@ -235,7 +236,7 @@ def _record_lines(record: Path) -> list[str]:
 
 
 def _reports_of(record: Path) -> list[str]:
-    """The files under the scratch root, relative to it, that parsed as a JUnit XML report of the recording module's test as its pytest process exited."""
+    """Return the files under the scratch root, relative to it, that parsed as a JUnit XML report of the recording module's test as its pytest process exited."""
     return _record_lines(record.with_name(f"{record.stem}-reports.txt"))
 
 
@@ -263,7 +264,7 @@ def _base(lines: list[str]) -> Path | None:
 
 
 def _top(base: Path | None, scratch: Path) -> str:
-    """The entry of the scratch root the module's pytest temp directory lies in, or nothing when it lies outside."""
+    """Return the entry of the scratch root the module's pytest temp directory lies in, or nothing when it lies outside."""
     if base is None or not base.is_relative_to(scratch.resolve()):
         return ""
     return base.relative_to(scratch.resolve()).parts[0]
@@ -461,7 +462,7 @@ def _exactly(path: Path | None) -> re.Pattern[str]:
 
 
 def _shape(line: str, named: re.Pattern[str], error: str) -> str:
-    """A printed line, with the seed line and an error line naming the path and the OS error each put as its kind."""
+    """Return a printed line, with the seed line and an error line naming the path and the OS error each put as its kind."""
     if SEED_LINE.fullmatch(line) is not None:
         return SEED
     if named.search(line) is not None and error in line:
@@ -470,7 +471,7 @@ def _shape(line: str, named: re.Pattern[str], error: str) -> str:
 
 
 def _run_directory(scratch: Path, entries: list[str]) -> Path | None:
-    """The run's temp directory: the one entry of a scratch root that held nothing before the run, as a module saw it while it ran."""
+    """Return the run's temp directory: the one entry of a scratch root that held nothing before the run, as a module saw it while it ran."""
     return scratch / entries[0] if len(entries) == ONE_RUN_DIRECTORY else None
 
 

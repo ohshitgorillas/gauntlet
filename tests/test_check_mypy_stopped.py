@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the mypy gate's stopped path: every record of a stop is unfinished, wherever it lies, once per run.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 2, `Mypy.lines` ("every record, wherever it
@@ -47,10 +48,12 @@ class CacheLeavingRunner:
     """A Runner that leaves a file in each empty directory under the scratch root, then gives the next canned reply."""
 
     def __init__(self, scratch: Path, replies: Sequence[Completed]) -> None:
+        """Initialize the seeded state."""
         self.scratch = scratch
         self.replies = FakeRunner(replies)
 
     def __call__(self, command: Command) -> Completed:
+        """Return the reply for the supplied call."""
         for directory in list(self.scratch.rglob("*")):
             if directory.is_dir() and not any(directory.iterdir()):
                 (directory / "cache.json").write_text("{}\n", encoding="utf-8")
@@ -58,7 +61,7 @@ class CacheLeavingRunner:
 
 
 def _carried(line: str, records: Sequence[tuple[Path, str]]) -> str | None:
-    """The message of the first seeded record whose file and message the printed line both carry, else None."""
+    """Return the message of the first seeded record whose file and message the printed line both carry, else None."""
     for file, message in records:
         if message in line and str(file) in line:
             return message

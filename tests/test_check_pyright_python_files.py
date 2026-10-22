@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red test: the pyright gate checks a stub file, because a stub file is a Python file.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph:

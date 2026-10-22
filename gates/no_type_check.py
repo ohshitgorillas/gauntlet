@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Name resolution for the suppression gate: find each reference to a `no_type_check` function in one module, resolving every name by Python's scopes."""
 
 import ast

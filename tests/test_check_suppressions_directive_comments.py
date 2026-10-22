@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for which comments the suppression gate takes as mypy, pyright and fmt directives.
 
 Sources: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate":

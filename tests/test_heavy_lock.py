@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the host-safety wrapper whose lock cannot be taken.
 
 Source: the agents design spec under docs/superpowers/specs/, "Decisions", the bullet on heavy runs: "given `--lock
@@ -20,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+HEAVY_MODULE = "gates.heavy"
+
 REPO_ROOT = Path(__file__).parents[1]
 
 BLOCKED = 2
@@ -41,28 +44,26 @@ def _lines(path: Path) -> list[str]:
 
 
 def _under_file(tmp_path: Path) -> Path:
-    """A lock path whose parent is a regular file."""
+    """Create a lock path whose parent is a regular file."""
     parent = tmp_path / "file"
     parent.write_text("", encoding="utf-8")
     return parent / "heavy.lock"
 
 
 def _too_long(tmp_path: Path) -> Path:
-    """A lock path whose name is longer than the host allows a file name."""
+    """Create a lock path whose name is longer than the host allows a file name."""
     return tmp_path / LONG_NAME
 
 
 def _wrapper(options: list[str], log: Path) -> subprocess.CompletedProcess[str]:
     """Run the wrapper with options before a command that notes RAN in log, from the repository root, to its end.
 
-    The module is imported here, at each run, so a test and not collection meets it.
+    The child imports the wrapper module when the command runs.
     """
-    from gates import heavy
-
     line = [
         sys.executable,
         "-m",
-        heavy.__name__,
+        HEAVY_MODULE,
         *options,
         sys.executable,
         "-c",

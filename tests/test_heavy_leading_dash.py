@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the host-safety wrapper given a command whose first word begins with `-`.
 
 Source: the agents design spec under docs/superpowers/specs/, "Decisions", the bullet on heavy runs: the `--` of the
@@ -43,8 +44,10 @@ def _lines(path: Path) -> list[str]:
 
 
 def test_run_dash(tmp_path: Path) -> None:
-    """The wrapper given a command whose first word begins with - runs it with its arguments as given and exits with
-    its status."""
+    """The wrapper given a command whose first word begins with - runs it with its arguments as given and exits with.
+
+    its status.
+    """
     tools = tmp_path / "tools"
     record = tmp_path / "record"
     _program(tools, record)

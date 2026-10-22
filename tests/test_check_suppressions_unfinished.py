@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate on a file its checker did not finish.
 
 Source: the quality gates design spec, "Gates" intro:
@@ -13,6 +14,8 @@ import pytest
 
 from gates.check_suppressions import main
 
+UNFINISHED_STATUS = 2
+
 UNPARSEABLE = {
     "unterminated triple-quoted string": 'value = """never closed\n',
     "unindent matching no outer level": "if True:\n        first = 1\n    second = 2\n",
@@ -27,19 +30,21 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 
 @pytest.mark.parametrize("source", UNPARSEABLE.values(), ids=UNPARSEABLE.keys())
 def test_unparseable_file_alone_exits_2(tmp_path: Path, source: str) -> None:
+    """Verify unparseable file alone exits 2."""
     broken = _seed(tmp_path, "broken.py", source)
 
-    assert main([broken]) == 2
+    assert main([broken]) == UNFINISHED_STATUS
 
 
 @pytest.mark.parametrize("source", UNPARSEABLE.values(), ids=UNPARSEABLE.keys())
 def test_unparseable_file_beside_clean_file_exits_2(
     tmp_path: Path, source: str
 ) -> None:
+    """Verify unparseable file beside clean file exits 2."""
     broken = _seed(tmp_path, "broken.py", source)
     clean = _seed(tmp_path, "clean.py", "value = 1\n")
 
-    assert main([clean, broken]) == 2
+    assert main([clean, broken]) == UNFINISHED_STATUS
 
 
 @pytest.mark.parametrize(
@@ -48,26 +53,29 @@ def test_unparseable_file_beside_clean_file_exits_2(
 def test_unparseable_file_beside_file_with_marker_exits_2(
     tmp_path: Path, *, broken_first: bool
 ) -> None:
+    """Verify unparseable file beside file with marker exits 2."""
     broken = _seed(
         tmp_path, "broken.py", UNPARSEABLE["unterminated triple-quoted string"]
     )
     dirty = _seed(tmp_path, "dirty.py", "value = 1  # noqa\n")
     paths = [broken, dirty] if broken_first else [dirty, broken]
 
-    assert main(paths) == 2
+    assert main(paths) == UNFINISHED_STATUS
 
 
 def test_undecodable_file_beside_clean_file_exits_2(tmp_path: Path) -> None:
+    """Verify undecodable file beside clean file exits 2."""
     undecodable = tmp_path / "undecodable.py"
     undecodable.write_bytes(b"value = '\xff\xfe'\n")
     clean = _seed(tmp_path, "clean.py", "value = 1\n")
 
-    assert main([clean, undecodable]) == 2
+    assert main([clean, undecodable]) == UNFINISHED_STATUS
 
 
 def test_unreadable_file_beside_file_with_marker_exits_2(tmp_path: Path) -> None:
+    """Verify unreadable file beside file with marker exits 2."""
     unreadable = _seed(tmp_path, "unreadable.py", "value = 1\n")
     unreadable.chmod(0o000)
     dirty = _seed(tmp_path, "dirty.py", "value = 1  # noqa\n")
 
-    assert main([dirty, unreadable]) == 2
+    assert main([dirty, unreadable]) == UNFINISHED_STATUS

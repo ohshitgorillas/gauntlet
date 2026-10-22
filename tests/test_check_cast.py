@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the gate that bans `typing.cast`.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Gates", "Types", third bullet:
@@ -16,6 +17,7 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 
 
 def test_gate_fails_on_cast_imported_from_typing(tmp_path: Path) -> None:
+    """Verify gate fails on cast imported from typing."""
     path = _seed(
         tmp_path, "seeded.py", "from typing import cast\n\nvalue = cast(int, 1)\n"
     )
@@ -24,6 +26,7 @@ def test_gate_fails_on_cast_imported_from_typing(tmp_path: Path) -> None:
 
 
 def test_gate_fails_on_cast_reached_through_typing_module(tmp_path: Path) -> None:
+    """Verify gate fails on cast reached through typing module."""
     path = _seed(
         tmp_path, "seeded.py", "import typing\n\nvalue = typing.cast(int, 1)\n"
     )
@@ -32,6 +35,7 @@ def test_gate_fails_on_cast_reached_through_typing_module(tmp_path: Path) -> Non
 
 
 def test_gate_fails_on_cast_imported_under_an_alias(tmp_path: Path) -> None:
+    """Verify gate fails on cast imported under an alias."""
     path = _seed(
         tmp_path,
         "seeded.py",
@@ -42,12 +46,14 @@ def test_gate_fails_on_cast_imported_under_an_alias(tmp_path: Path) -> None:
 
 
 def test_gate_passes_file_without_cast(tmp_path: Path) -> None:
+    """Verify gate passes file without cast."""
     path = _seed(tmp_path, "clean.py", "from typing import Final\n\nVALUE: Final = 1\n")
 
     assert main([path]) == 0
 
 
 def test_gate_passes_local_function_named_cast(tmp_path: Path) -> None:
+    """Verify gate passes local function named cast."""
     source = "def cast(value: int) -> int:\n    return value\n\n\nresult = cast(1)\n"
     path = _seed(tmp_path, "local.py", source)
 
@@ -55,6 +61,7 @@ def test_gate_passes_local_function_named_cast(tmp_path: Path) -> None:
 
 
 def test_gate_passes_cast_named_only_inside_string_literal(tmp_path: Path) -> None:
+    """Verify gate passes cast named only inside string literal."""
     path = _seed(
         tmp_path,
         "literal.py",
@@ -65,6 +72,7 @@ def test_gate_passes_cast_named_only_inside_string_literal(tmp_path: Path) -> No
 
 
 def test_gate_fails_when_any_listed_file_uses_cast(tmp_path: Path) -> None:
+    """Verify gate fails when any listed file uses cast."""
     first = _seed(tmp_path, "first.py", "value = 1\n")
     dirty = _seed(
         tmp_path, "dirty.py", "import typing\n\nvalue = typing.cast(int, 1)\n"

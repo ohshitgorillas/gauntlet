@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate parsing with the grammar of the pinned Python, 3.12.
 
 Sources: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate",
@@ -84,7 +85,7 @@ def test_parse_names_the_file_with_newer_syntax_as_unfinished(
 
 @pytest.mark.parametrize("newer_first", [True, False])
 def test_gate_exits_unfinished_on_newer_syntax_whatever_other_files_hold(
-    tmp_path: Path, newer_first: bool
+    tmp_path: Path, *, newer_first: bool
 ) -> None:
     """Exit with the unfinished status when one file uses newer syntax and another carries a finding."""
     newer = _seed(tmp_path, "newer.py", NEWER_SOURCES[0])

@@ -47,7 +47,7 @@ When the error names a path outside the scaffold's scope, or the second run prin
 
 ## Step 7
 
-On a scaffold step then run `flock /tmp/gauntlet-heavy.lock nice -n 19 ionice -c3 uv run pre-commit run --all-files`, whose `make check` line shows that pre-commit invokes the gate.
+On a scaffold step then run `uv run python -m gates.heavy -- uv run pre-commit run --all-files`, whose `make check` line shows that pre-commit invokes the gate. The wrapper uses the private lock directory specified in the agents design's heavy-run rule.
 
 ## Rails
 

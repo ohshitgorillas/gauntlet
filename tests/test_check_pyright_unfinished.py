@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pyright gate on a file pyright cannot read or cannot parse.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph:
@@ -17,6 +18,8 @@ from pathlib import Path
 import pytest
 
 from gates.check_pyright import main
+
+UNFINISHED_STATUS = 2
 
 UNPARSEABLE = "def broken(:\n    return\n"
 
@@ -54,7 +57,7 @@ def test_unparsed(tmp_path: Path, companion: str | None, *, broken_first: bool) 
     broken = _seed(tmp_path, "broken.py", UNPARSEABLE)
     paths = _layout(tmp_path, broken, companion, broken_first=broken_first)
 
-    assert main(paths) == 2
+    assert main(paths) == UNFINISHED_STATUS
 
 
 @pytest.mark.parametrize(("companion", "broken_first"), LAYOUTS)
@@ -64,4 +67,4 @@ def test_unread(tmp_path: Path, companion: str | None, *, broken_first: bool) ->
     broken.chmod(0o000)
     paths = _layout(tmp_path, broken, companion, broken_first=broken_first)
 
-    assert main(paths) == 2
+    assert main(paths) == UNFINISHED_STATUS

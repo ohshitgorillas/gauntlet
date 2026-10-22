@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests: the mypy gate on a Python file its checker cannot read or cannot parse.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "A Python file the checker cannot read or cannot parse is a file the checker did not finish: the gate prints what the checker reported for that file and exits 2, whatever it found in the other files." Applied to the mypy gate of "Types", first bullet.
@@ -12,6 +13,8 @@ from pathlib import Path
 import pytest
 
 from gates.check_mypy import main
+
+UNFINISHED_STATUS = 2
 
 SYNTAX_ERROR = "count: int = 1\n\ndef broken(:\n"
 
@@ -49,7 +52,7 @@ def _seed(root: Path, name: str, source: str) -> Path:
 
 
 def _locked(root: Path) -> Path:
-    """A well-typed file no one may read."""
+    """Create a well-typed file no one may read."""
     path = _seed(root, UNREADABLE_NAME, WELL_TYPED)
     path.chmod(0)
     return path
@@ -61,7 +64,7 @@ def _printed(capsys: pytest.CaptureFixture[str]) -> str:
 
 
 def _first_number(text: str) -> int | None:
-    """The first run of decimal digits in `text`, read as a number, or None where `text` holds no digit."""
+    """Return the first run of decimal digits in `text`, read as a number, or None where `text` holds no digit."""
     digits = ""
     for character in text:
         if character in "0123456789":
@@ -84,7 +87,7 @@ def test_syntax_alone(tmp_path: Path) -> None:
     """A file the checker cannot parse is a checker that did not finish, not a finding."""
     files = [_seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR)]
 
-    assert main(files) == 2
+    assert main(files) == UNFINISHED_STATUS
 
 
 def test_syntax_beside_finding(tmp_path: Path) -> None:
@@ -94,7 +97,7 @@ def test_syntax_beside_finding(tmp_path: Path) -> None:
         _seed(tmp_path, "typed.py", TYPE_ERROR),
     ]
 
-    assert main(files) == 2
+    assert main(files) == UNFINISHED_STATUS
 
 
 def test_syntax_before_clean(tmp_path: Path) -> None:
@@ -104,7 +107,7 @@ def test_syntax_before_clean(tmp_path: Path) -> None:
         _seed(tmp_path, "clean.py", WELL_TYPED),
     ]
 
-    assert main(files) == 2
+    assert main(files) == UNFINISHED_STATUS
 
 
 def test_syntax_after_finding(tmp_path: Path) -> None:
@@ -114,7 +117,7 @@ def test_syntax_after_finding(tmp_path: Path) -> None:
         _seed(tmp_path, SYNTAX_NAME, SYNTAX_ERROR),
     ]
 
-    assert main(files) == 2
+    assert main(files) == UNFINISHED_STATUS
 
 
 def test_syntax_stub(tmp_path: Path) -> None:
@@ -124,7 +127,7 @@ def test_syntax_stub(tmp_path: Path) -> None:
         _seed(tmp_path, STUB_NAME, STUB_SYNTAX_ERROR),
     ]
 
-    assert main(files) == 2
+    assert main(files) == UNFINISHED_STATUS
 
 
 def test_syntax_stub_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -146,7 +149,7 @@ def test_syntax_shebang(tmp_path: Path) -> None:
         _seed(tmp_path, SHEBANG_NAME, SHEBANG_SYNTAX_ERROR),
     ]
 
-    assert main(files) == 2
+    assert main(files) == UNFINISHED_STATUS
 
 
 def test_syntax_shebang_report(
@@ -170,21 +173,21 @@ def test_null_byte(tmp_path: Path) -> None:
         _seed(tmp_path, "nulled.py", NULL_BYTE),
     ]
 
-    assert main(files) == 2
+    assert main(files) == UNFINISHED_STATUS
 
 
 def test_unreadable_alone(tmp_path: Path) -> None:
     """A file the checker cannot read is a checker that did not finish."""
     files = [_locked(tmp_path)]
 
-    assert main(files) == 2
+    assert main(files) == UNFINISHED_STATUS
 
 
 def test_unreadable_beside_finding(tmp_path: Path) -> None:
     """A finding in another file does not turn an unread file into a run that finished."""
     files = [_seed(tmp_path, "typed.py", TYPE_ERROR), _locked(tmp_path)]
 
-    assert main(files) == 2
+    assert main(files) == UNFINISHED_STATUS
 
 
 def test_undecodable(tmp_path: Path) -> None:
@@ -192,7 +195,7 @@ def test_undecodable(tmp_path: Path) -> None:
     path = tmp_path / "garbled.py"
     path.write_bytes(UNDECODABLE)
 
-    assert main([path]) == 2
+    assert main([path]) == UNFINISHED_STATUS
 
 
 def test_syntax_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -217,7 +220,7 @@ def test_syntax_report_beside_finding(
 
 
 def _checker_line(path: Path) -> str:
-    """The first line mypy itself prints naming `path` when run on that file alone."""
+    """Return the first line mypy itself prints naming `path` when run on that file alone."""
     run = subprocess.run(
         [sys.executable, "-m", "mypy", str(path)],
         capture_output=True,

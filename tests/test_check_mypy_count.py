@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the mypy gate's count line.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "The count line of a run whose checker finished reads `<gate>: N finding(s) in M Python file(s)`, where `<gate>` is the name of the gate script without its extension, and it is the last line the run prints." Applied to the mypy gate of "Types", first bullet, whose script is `gates/check_mypy.py`, so `<gate>` is `check_mypy`.
@@ -10,6 +11,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from gates.check_mypy import main
+
+COUNT_WORDS = 6
 
 TWO_TYPE_ERRORS = 'count: int = "none"\nname: str = 0\n'
 
@@ -35,7 +38,7 @@ def _seed(root: Path, name: str, source: str) -> Path:
 
 
 def _last_line(paths: list[Path]) -> str:
-    """The last line the run prints, stdout and stderr read together in print order."""
+    """Return the last line the run prints, stdout and stderr read together in print order."""
     buffer = io.StringIO()
     with redirect_stdout(buffer), redirect_stderr(buffer):
         main(paths)
@@ -44,10 +47,10 @@ def _last_line(paths: list[Path]) -> str:
 
 
 def _count(line: str) -> tuple[str, int, int] | None:
-    """The gate name, N and M of a line shaped `<gate>: N finding(s) in M Python file(s)`, or None."""
+    """Return the gate name, N and M of a line shaped `<gate>: N finding(s) in M Python file(s)`, or None."""
     gate, separator, rest = line.partition(": ")
     words = rest.split(" ")
-    shaped = separator == ": " and len(words) == 6
+    shaped = separator == ": " and len(words) == COUNT_WORDS
     if not shaped:
         return None
     findings, finding_word, in_word, files, python_word, file_word = words

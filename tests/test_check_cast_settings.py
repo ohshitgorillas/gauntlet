@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for where the cast gate takes its checker's settings from.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "a gate whose checker

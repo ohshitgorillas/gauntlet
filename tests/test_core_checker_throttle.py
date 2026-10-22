@@ -1,10 +1,11 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for `throttle_line`: the command prefix a heavy checker runs under, per platform and caller's niceness.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process":
 `def throttle_line(platform: str, niceness: int, path: str | None = None) -> list[str]  # heavy's line; GateError on a
 host with none, or a tool not on `path` (None: os.environ's PATH)`, which replaces "heavy's `wrapped`, `missing` and
 `status`". Heavy's line is the agents design spec's, under "Decisions", the bullet on heavy runs: "on Linux `ionice -c3
-nice -n <k> -- <command>`, on macOS `nice -n <k> -- <command>`, with no `taskpolicy -b`, ..., where `k` is 19 − niceness,
+nice -n <k> -- <command>`, on macOS `nice -n <k> -- <command>`, with no `taskpolicy -b`, ..., where `k` is 19 - niceness,
 since `nice -n` adds to a niceness rather than setting it, and a caller at 19 or above, macOS's ceiling being 20, gets
 `nice -n 0`; the `--` ends `nice`'s options, so any command is run as given, ...; each tool is found on `PATH`; on any
 other host `wrapped` gives None." and "On any other host, or where a tool of the line is not on `PATH`, the wrapper runs

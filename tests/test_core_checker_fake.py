@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for `tests/support/fake.py`: FakeRunner, a Runner that gives back canned replies, and `completed`, a reply builder.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 3, "Tests", the `fake.py` bullet:

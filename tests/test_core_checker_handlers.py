@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the signal handlers `run` leaves alone: off the main thread, and for a signal that was ignored.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process":

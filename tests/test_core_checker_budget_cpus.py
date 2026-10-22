@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for `cpu_budget(cpus)`: half of the given CPU count, rounded down, the cap on mutation and backstop workers.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process":

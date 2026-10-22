@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the reach of the pyright gate over the tree.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", first paragraph: every gate applies to every Python file in the tree, `gauntlet/`, `tests/`, gate scripts and any hook or tool script, and no path is excluded. A Python file is a file whose name ends in `.py`, or an extensionless file whose first line is a shebang that names python; a `.pyw` file is not one. Applied to the pyright gate of "Types", second bullet. The gate is handed the tree's files by path. A shebang naming `python3` or `python3.N` names python.

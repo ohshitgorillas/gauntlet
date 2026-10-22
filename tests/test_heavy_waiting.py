@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the wrapper's wait on a lock another holder has.
 
 Source: the no-wall-clock design under docs/superpowers/specs/, "`gates/heavy.py`: a wait the test can see" and its

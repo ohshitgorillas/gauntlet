@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pytest strictness gate.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Tests", the "pytest strictness" bullet, read
@@ -20,6 +21,8 @@ from pathlib import Path
 import pytest
 
 from gates.check_pytest import main
+
+UNFINISHED_STATUS = 2
 
 REPO_ROOT = Path(__file__).parents[1]
 
@@ -97,9 +100,9 @@ MISSING_MODULE = "seededmissingmodule"
 
 UNKNOWN_MARKER = "seededmarker"
 
-USAGE_TOKEN = "SeededUsage"
+USAGE_MARKER = "SeededUsage"
 
-INTERNAL_TOKEN = "SeededInternal"
+INTERNAL_MARKER = "SeededInternal"
 
 COLLECTION_ERROR = f"import {MISSING_MODULE}\n\n\ndef test_seeded():\n    pass\n"
 
@@ -115,9 +118,9 @@ COLLECTION_WARNING = (
 
 NO_TESTS = "SEEDED_VALUE = 1\n"
 
-USAGE_CONFTEST = f"import pytest\n\n\ndef pytest_configure(config):\n    raise pytest.UsageError('{USAGE_TOKEN}')\n"
+USAGE_CONFTEST = f"import pytest\n\n\ndef pytest_configure(config):\n    raise pytest.UsageError('{USAGE_MARKER}')\n"
 
-INTERNAL_CONFTEST = f"def pytest_collection_modifyitems(items):\n    raise RuntimeError('{INTERNAL_TOKEN}')\n"
+INTERNAL_CONFTEST = f"def pytest_collection_modifyitems(items):\n    raise RuntimeError('{INTERNAL_MARKER}')\n"
 
 LAX_XFAIL = "xfail_strict = false\n"
 
@@ -179,8 +182,8 @@ UNFINISHED = [
 PYTEST_ERRORS = [
     pytest.param(COLLECTION_ERROR, None, MISSING_MODULE, id="import"),
     pytest.param(MARKED_UNKNOWN, None, UNKNOWN_MARKER, id="marker"),
-    pytest.param(PASSING, USAGE_CONFTEST, USAGE_TOKEN, id="usage"),
-    pytest.param(PASSING, INTERNAL_CONFTEST, INTERNAL_TOKEN, id="internal"),
+    pytest.param(PASSING, USAGE_CONFTEST, USAGE_MARKER, id="usage"),
+    pytest.param(PASSING, INTERNAL_CONFTEST, INTERNAL_MARKER, id="internal"),
 ]
 
 
@@ -390,7 +393,7 @@ def test_halt(tmp_path: Path, source: str, conftest: str | None) -> None:
     if conftest is not None:
         paths.append(_seed(tmp_path, "tests/conftest.py", conftest))
 
-    assert main(paths) == 2
+    assert main(paths) == UNFINISHED_STATUS
 
 
 @pytest.mark.parametrize(("source", "conftest", "token"), PYTEST_ERRORS)

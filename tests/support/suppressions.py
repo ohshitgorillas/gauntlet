@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """The suppression gate's findings for one file, as a test reads them: the file parsed by the core under a pin.
 
 The pin is the repository's own pyright `pythonVersion` unless the test gives one. A file the core could not parse
@@ -20,6 +21,8 @@ def find_suppressions(
     """Return the gate's findings in the file at `path`; raise AssertionError with the core's report when it is unfinished."""
     pinned = pinned_version(Project(OWN_CONFIG.parent)) if version is None else version
     parsed = parse(Source(given=path, absolute=path.absolute()), pinned)
-    if isinstance(parsed, Unfinished):
-        raise AssertionError(parsed.text)
-    return gate_findings(parsed)
+    match parsed:
+        case Unfinished(text=report):
+            raise AssertionError(report)
+        case _:
+            return gate_findings(parsed)

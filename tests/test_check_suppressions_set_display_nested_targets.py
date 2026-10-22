@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate's no_type_check ban through set displays unpacked into nested targets.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate",

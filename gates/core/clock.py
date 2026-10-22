@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """The one home of real time in gates/: every wait that can end on time as well as on an event goes through a Clock."""
 
 from collections.abc import Callable

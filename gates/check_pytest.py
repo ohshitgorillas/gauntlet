@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """pytest gate: run the test files among the given Python files under the strict pytest settings in `pyproject.toml`."""
 
 import re
@@ -6,7 +7,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
-from xml.etree import ElementTree
+
+from defusedxml import ElementTree
 
 from gates.core.checker import (
     UNREAD_CPUS,
@@ -78,7 +80,7 @@ def module_classname(module: str, root: Path) -> str:
 
 
 def test_modules(sources: Sequence[Source]) -> list[Source]:
-    """The test modules among the sources, in their order: each test file but a `conftest.py`."""
+    """Return the test modules among the sources, in their order: each test file but a `conftest.py`."""
     return [source for source in sources if is_test_module(source)]
 
 
@@ -156,7 +158,7 @@ class Pytest:
         return [[source] for source in test_modules(run.sources)]
 
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
-        """pytest over the batch's one test module from the project's root, its report and its `--basetemp` in the module's own directory.
+        """Pytest over the batch's one test module from the project's root, its report and its `--basetemp` in the module's own directory.
 
         The suite name of the JUnit report is the module's absolute path, which the report is read back by.
         `--basetemp` is passed on the command line and changes no setting `pyproject.toml` holds.
@@ -183,7 +185,7 @@ class Pytest:
         )
 
     def read(self, completed: Completed) -> list[Failure]:
-        """The failed cases of pytest's JUnit XML report, each by its id; GateError when pytest wrote no report the gate can read.
+        """Read failed cases from pytest's JUnit XML report by id; raise GateError when the report cannot be read.
 
         A report holding a failed case that is not its module's is no report the gate can read.
         """
@@ -200,7 +202,7 @@ class Pytest:
         return failures
 
     def expected_status(self, report: list[Failure]) -> int:
-        """pytest exits 1 when its report holds a failed test and 0 when it holds none; exit 5, no test collected, is no finish."""
+        """Pytest exits 1 when its report holds a failed test and 0 when it holds none; exit 5, no test collected, is no finish."""
         return 1 if report else 0
 
     def lines(
@@ -210,6 +212,7 @@ class Pytest:
 
         A test whose call fails and whose teardown fails too is one failing test.
         """
+        del stopped
         found: dict[str, str] = {}
         for failure in report:
             found.setdefault(f"{batch[0].given}::{failure.identity}", failure.message)
@@ -241,7 +244,7 @@ def check(budget: Callable[[], int], run: Run) -> Outcome:
 
 
 def gate(budget: Callable[[], int] = cpu_budget) -> Gate:
-    """The gate over the test files among the given Python files, running as many pytest processes at once as `budget` gives."""
+    """Build the gate over the given test files, running as many pytest processes at once as `budget` gives."""
     return Gate(
         name=GATE_NAME,
         check=partial(check, budget),
@@ -254,7 +257,7 @@ GATE: Gate = gate()
 
 
 def read_budget(read_cpus: Callable[[], int | None]) -> int:
-    """The CPU budget of the count `read_cpus` gives; GateError when it gives none, a count that cannot be read."""
+    """Return the CPU budget of the count `read_cpus` gives; raise GateError when the count cannot be read."""
     cpus = read_cpus()
     if cpus is None:
         raise GateError(UNREAD_CPUS)

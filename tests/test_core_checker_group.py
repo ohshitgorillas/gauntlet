@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the lifetime of a checker process: its own session, and the whole group killed at a timeout or interrupt.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process":

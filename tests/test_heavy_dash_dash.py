@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the host-safety wrapper given `--` right after its own options.
 
 Source: the agents design spec under docs/superpowers/specs/, "Decisions", the bullet on heavy runs: "given `--lock
@@ -74,13 +75,15 @@ def _run(tmp_path: Path, name: str, after: list[str]) -> tuple[int, list[str]]:
 
 
 def _command(arguments: list[str]) -> list[str]:
-    """The command the wrapper reads from arguments."""
+    """Return the command the wrapper reads from arguments."""
     return heavy.parser().parse_args(arguments, namespace=heavy.Arguments()).command
 
 
 def test_ends_options(tmp_path: Path) -> None:
-    """A -- right after --lock and its path is not passed on: the command after it runs as given, and the wrapper exits
-    with its status."""
+    """A -- right after --lock and its path is not passed on: the command after it runs as given, and the wrapper exits.
+
+    with its status.
+    """
     assert _run(tmp_path, PROGRAM, [DOUBLE_DASH, PROGRAM, *ARGUMENTS]) == (
         STATUS,
         ARGUMENTS,
@@ -109,8 +112,10 @@ def test_later_kept(tmp_path: Path) -> None:
 
 
 def test_no_options() -> None:
-    """Given -- before any option of its own, the wrapper reads the command after it, as `-- make check` runs
-    `make check`."""
+    """Given -- before any option of its own, the wrapper reads the command after it, as `-- make check` runs.
+
+    `make check`.
+    """
     assert _command([DOUBLE_DASH, "make", "check"]) == ["make", "check"]
 
 

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red test for `check_with` handing `Run.next_done` to `run_all`.
 
 Source: the no-wall-clock design spec under docs/superpowers/specs/, section "gates/core/runner.py: a test's wait on
@@ -27,20 +28,27 @@ class Quiet:
     stopped: frozenset[int] = frozenset()
 
     def batches(self, run: Run) -> list[list[Source]]:
+        """Return batches."""
         return [[source] for source in run.sources]
 
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
+        """Return command."""
         return Command(argv=("echo", batch[0].given.name), cwd=run.project.root)
 
     def read(self, completed: Completed) -> int:
+        """Return read."""
         return completed.status
 
     def expected_status(self, report: int) -> int:
+        """Return expected status."""
+        del report
         return 0
 
     def lines(
         self, report: int, batch: Sequence[Source], *, stopped: bool
     ) -> list[Line]:
+        """Return lines."""
+        del report, batch, stopped
         return []
 
 
@@ -48,11 +56,13 @@ class Held:
     """A Runner that holds each call until its entered event is set, then replies as a FakeRunner does."""
 
     def __init__(self, replies: Sequence[Completed], entered: threading.Event) -> None:
+        """Initialize the seeded state."""
         self._fake = FakeRunner(replies)
         self.commands = self._fake.commands
         self._entered = entered
 
     def __call__(self, command: Command) -> Completed:
+        """Return the reply for the supplied call."""
         self._entered.wait()
         return self._fake(command)
 
@@ -61,12 +71,14 @@ class Noting:
     """A next_done that notes how many workers each call is handed, sets entered, then answers with first_done."""
 
     def __init__(self, entered: threading.Event) -> None:
+        """Initialize the seeded state."""
         self.noted: list[int] = []
         self._entered = entered
 
     def __call__(
         self, running: Collection[Future[Completed]]
     ) -> set[Future[Completed]]:
+        """Return the reply for the supplied call."""
         self.noted.append(len(running))
         self._entered.set()
         return first_done(running)

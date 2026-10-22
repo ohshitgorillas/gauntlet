@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for how far the ban on `typing.cast` reaches.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Gates", "Types", third bullet:

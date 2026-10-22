@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the test-support capture helper.
 
 Source: the capture design spec under docs/superpowers/specs/, its Modules and Decisions sections: each
@@ -46,6 +47,7 @@ import sys
 import threading
 import warnings
 from collections.abc import Callable
+from pathlib import Path
 from typing import TextIO
 
 import pytest
@@ -74,7 +76,7 @@ _CHILD = (
 )
 
 
-class Boom(Exception):
+class BoomError(Exception):
     """Raised by a captured call to prove the exception propagates."""
 
 
@@ -91,7 +93,7 @@ _ENDED = "ended after the other stream's line\n"
 
 # Text written to fd 1 through sys.stdout and to fd 2 directly, in two writes that cut "\r\n" between them, and the lines
 # str.splitlines(keepends=True) makes of it: it ends a line at \n, \r, \r\n, \v, \f, \x1c, \x1d, \x1e, \x85,
-# and  , and keeps a last line that has no line end.
+# and \u2029, and keeps a last line that has no line end.
 _SPLIT_HEAD = (
     "line feed\n"
     "carriage return\r"
@@ -102,8 +104,8 @@ _SPLIT_HEAD = (
     "group separator\x1d"
     "record separator\x1e"
     "next line\x85"
-    "line separator "
-    "paragraph separator "
+    "line separator\u2028"
+    "paragraph separator\u2029"
     "both cut between writes\r"
 )
 _SPLIT_TAIL = "\nno line end"
@@ -117,8 +119,8 @@ _SPLIT_LINES = [
     "group separator\x1d",
     "record separator\x1e",
     "next line\x85",
-    "line separator ",
-    "paragraph separator ",
+    "line separator\u2028",
+    "paragraph separator\u2029",
     "both cut between writes\r\n",
     "no line end",
 ]
@@ -171,8 +173,8 @@ def _runs(
     ]
 
 
-def _print_non_ascii() -> None:
-    print(_NON_ASCII)
+def _write_non_ascii() -> None:
+    sys.stdout.write(_NON_ASCII + "\n")
 
 
 def _write_stdout_buffer() -> None:
@@ -201,6 +203,7 @@ def _write_split_characters() -> None:
 
 
 def test_captured_runs_the_call_in_this_interpreter_and_returns_its_result() -> None:
+    """Verify captured runs the call in this interpreter and returns its result."""
     effects: list[str] = []
     returned = object()
 
@@ -218,9 +221,11 @@ def test_captured_runs_the_call_in_this_interpreter_and_returns_its_result() -> 
 def test_captured_merges_every_channel_in_the_order_written_save_raw_writes_no_stream_write_parts() -> (
     None
 ):
+    """Verify captured merges every channel in the order written save raw writes no stream write parts."""
+
     def call() -> None:
-        print("one: sys.stdout")
-        print("two: sys.stderr", file=sys.stderr)
+        sys.stdout.write("one: sys.stdout\n")
+        sys.stderr.write("two: sys.stderr\n")
         IMPORT_STDOUT.write("three: stdout bound at import\n")
         IMPORT_STDOUT.flush()
         IMPORT_STDERR.write("four: stderr bound at import\n")
@@ -285,6 +290,8 @@ def test_captured_merges_every_channel_in_the_order_written_save_raw_writes_no_s
 def test_captured_keeps_a_line_another_stream_interrupts_mid_line_whole_and_placed_by_its_first_byte(
     interrupted: int,
 ) -> None:
+    """Verify captured keeps a line another stream interrupts mid line whole and placed by its first byte."""
+
     def call() -> None:
         begun, other = (
             (sys.stdout, sys.stderr) if interrupted == 1 else (sys.stderr, sys.stdout)
@@ -308,9 +315,9 @@ def test_captured_splits_what_each_fd_was_written_into_lines_as_str_splitlines_d
     """Capture design, the `_lines` paragraph: each fd's text splits at every `str.splitlines` boundary."""
 
     def call() -> None:
-        print(_SPLIT_HEAD, end="")
+        sys.stdout.write(_SPLIT_HEAD)
         sys.stdout.flush()
-        print(_SPLIT_TAIL, end="")
+        sys.stdout.write(_SPLIT_TAIL)
         os.write(2, _SPLIT_HEAD.encode())
         os.write(2, _SPLIT_TAIL.encode())
 
@@ -323,9 +330,9 @@ def test_captured_splits_what_each_fd_was_written_into_lines_as_str_splitlines_d
     ("write", "views"),
     [
         pytest.param(
-            _print_non_ascii,
+            _write_non_ascii,
             ([_NON_ASCII + "\n"], _NO_LINES),
-            id="non-ASCII text through print",
+            id="non-ASCII text through sys.stdout",
         ),
         pytest.param(
             _write_stdout_buffer,
@@ -352,12 +359,14 @@ def test_captured_splits_what_each_fd_was_written_into_lines_as_str_splitlines_d
 def test_a_write_that_works_uncaptured_works_captured(
     write: Callable[[], None], views: tuple[list[str], list[str]]
 ) -> None:
+    """Verify a write that works uncaptured works captured."""
     capture = captured(write)
 
     assert (capture.out, capture.err) == views
 
 
 def test_bytes_that_are_not_utf_8_never_lose_the_capture() -> None:
+    """Verify bytes that are not utf 8 never lose the capture."""
     returned = object()
 
     def call() -> object:
@@ -407,12 +416,13 @@ def test_bytes_that_are_not_utf_8_never_lose_the_capture() -> None:
 def test_captured_restores_fds_and_python_streams_after_the_call(
     capfd: pytest.CaptureFixture[str],
 ) -> None:
+    """Verify captured restores fds and python streams after the call."""
     stdout_before, stderr_before = sys.stdout, sys.stderr
     fd1_before, fd2_before = _fd_identity(1), _fd_identity(2)
     threads_before = set(threading.enumerate())
 
     def call() -> None:
-        print("inside")
+        sys.stdout.write("inside\n")
         os.write(2, b"inside fd 2\n")
 
     captured(call)
@@ -433,16 +443,18 @@ def test_captured_restores_fds_and_python_streams_after_the_call(
 def test_captured_lets_the_exception_propagate_and_still_restores(
     capfd: pytest.CaptureFixture[str],
 ) -> None:
+    """Verify captured lets the exception propagate and still restores."""
     stdout_before, stderr_before = sys.stdout, sys.stderr
     fd1_before, fd2_before = _fd_identity(1), _fd_identity(2)
     threads_before = set(threading.enumerate())
 
     def call() -> None:
-        print("before the raise")
+        sys.stdout.write("before the raise\n")
         os.write(1, b"fd 1 before the raise\n")
-        raise Boom("raised inside the call")
+        message = "raised inside the call"
+        raise BoomError(message)
 
-    with pytest.raises(Boom, match="raised inside the call"):
+    with pytest.raises(BoomError, match="raised inside the call"):
         captured(call)
 
     assert set(threading.enumerate()) == threads_before
@@ -459,6 +471,7 @@ def test_captured_lets_the_exception_propagate_and_still_restores(
 
 
 def test_captured_takes_a_write_far_past_a_mebibyte_whole_on_each_fd() -> None:
+    """Verify captured takes a write far past a mebibyte whole on each fd."""
     stream_line = "s" * (4 * _MIB) + "\n"
     raw_line = "r" * (4 * _MIB) + "\n"
 
@@ -477,6 +490,7 @@ def test_captured_takes_a_write_far_past_a_mebibyte_whole_on_each_fd() -> None:
 
 
 def test_captured_takes_a_childs_write_far_past_a_mebibyte_whole() -> None:
+    """Verify captured takes a childs write far past a mebibyte whole."""
     size = 4 * _MIB
     child_line = "c" * size + "\n"
     child = f"import sys\nsys.stdout.buffer.write(b'c' * {size} + b'\\n')\nsys.stdout.flush()\n"
@@ -490,6 +504,7 @@ def test_captured_takes_a_childs_write_far_past_a_mebibyte_whole() -> None:
 def test_captured_never_fails_a_write_while_more_is_written_than_the_reader_has_drained() -> (
     None
 ):
+    """Verify captured never fails a write while more is written than the reader has drained."""
     out_lines = [f"out {index:06d} " + "o" * 4096 + "\n" for index in range(2048)]
     err_lines = [f"err {index:06d} " + "e" * 4096 + "\n" for index in range(2048)]
 
@@ -503,10 +518,12 @@ def test_captured_never_fails_a_write_while_more_is_written_than_the_reader_has_
     assert (capture.out, capture.err) == (out_lines, err_lines)
 
 
-@pytest.mark.parametrize("kind", [Boom, Halt])
+@pytest.mark.parametrize("kind", [BoomError, Halt])
 def test_output_of_reads_every_line_a_raising_call_wrote_from_its_exception(
-    kind: type[Boom | Halt],
+    kind: type[BoomError | Halt],
 ) -> None:
+    """Verify output of reads every line a raising call wrote from its exception."""
+
     def call() -> None:
         sys.stdout.write(_RAISED_OUT_ONE)
         sys.stderr.write(_RAISED_ERR_ONE)
@@ -526,14 +543,15 @@ def test_output_of_reads_every_line_a_raising_call_wrote_from_its_exception(
 
 
 def test_a_raising_call_propagates_as_the_very_exception_it_raised() -> None:
-    thrown: list[Boom] = []
+    """Verify a raising call propagates as the very exception it raised."""
+    thrown: list[BoomError] = []
 
     def call() -> None:
         sys.stdout.write(_RAISED_OUT_ONE)
-        thrown.append(Boom())
+        thrown.append(BoomError())
         raise thrown[0]
 
-    with pytest.raises(Boom) as raised:
+    with pytest.raises(BoomError) as raised:
         captured(call)
 
     assert (raised.value is thrown[0], output_of(raised.value).out) == (
@@ -555,6 +573,7 @@ def test_a_raising_call_propagates_as_the_very_exception_it_raised() -> None:
 def test_a_built_in_exception_a_call_raises_propagates_unchanged_with_every_line_it_wrote(
     kind: type[BaseException],
 ) -> None:
+    """Verify a built in exception a call raises propagates unchanged with every line it wrote."""
     thrown: list[BaseException] = []
 
     def call() -> None:
@@ -589,13 +608,16 @@ def test_a_built_in_exception_a_call_raises_propagates_unchanged_with_every_line
 
 
 def _never_left_captured() -> BaseException:
-    """An exception a captured call raised and caught itself, so it never left `captured`."""
-    caught: list[Boom] = []
+    """Return an exception a captured call raised and caught itself, so it never left `captured`."""
+    caught: list[BoomError] = []
+
+    def raise_boom() -> None:
+        raise BoomError
 
     def call() -> None:
         try:
-            raise Boom
-        except Boom as error:
+            raise_boom()
+        except BoomError as error:
             caught.append(error)
 
     captured(call)
@@ -605,7 +627,7 @@ def _never_left_captured() -> BaseException:
 @pytest.mark.parametrize(
     "unrecorded",
     [
-        pytest.param(Boom, id="never passed through captured"),
+        pytest.param(BoomError, id="never passed through captured"),
         pytest.param(
             _never_left_captured, id="raised and caught inside a captured call"
         ),
@@ -614,6 +636,7 @@ def _never_left_captured() -> BaseException:
 def test_output_of_an_exception_captured_never_recorded_raises_its_own_error_carrying_it(
     unrecorded: Callable[[], BaseException],
 ) -> None:
+    """Verify output of an exception captured never recorded raises its own error carrying it."""
     exc = unrecorded()
 
     with pytest.raises(CaptureUnrecordedError) as raised:
@@ -635,8 +658,8 @@ class Interrupt(KeyboardInterrupt):
 def _open_fds() -> set[int]:
     """Every fd open in this process, the one that lists them excluded."""
     open_fds: set[int] = set()
-    for name in os.listdir("/dev/fd"):
-        fd = int(name)
+    for path in Path("/dev/fd").iterdir():
+        fd = int(path.name)
         try:
             os.fstat(fd)
         except OSError:
@@ -646,7 +669,7 @@ def _open_fds() -> set[int]:
 
 
 def _nth_free_fd(open_fds: set[int], count: int) -> int:
-    """The fd number below which exactly `count` fd numbers are free."""
+    """Return the fd number below which exactly `count` fd numbers are free."""
     free = (fd for fd in itertools.count() if fd not in open_fds)
     return next(itertools.islice(free, count, None))
 
@@ -662,7 +685,7 @@ def _write_later() -> None:
 
 def _write_then_raise() -> None:
     _write_both()
-    raise Boom
+    raise BoomError
 
 
 def _write_then_interrupt() -> None:
@@ -677,7 +700,7 @@ def _returned() -> list[str]:
 def _raised() -> list[str]:
     try:
         captured(_write_then_raise)
-    except Boom as error:
+    except BoomError as error:
         return output_of(error).out
     return _NO_LINES
 
@@ -702,6 +725,7 @@ _EXIT_PATHS = [
 def test_every_fd_captured_opens_is_closed_on_every_exit_path(
     leave: Callable[[], list[str]], out: list[str]
 ) -> None:
+    """Verify every fd captured opens is closed on every exit path."""
     gc.collect()
     fds_before = _open_fds()
 
@@ -714,6 +738,7 @@ def test_every_fd_captured_opens_is_closed_on_every_exit_path(
 def test_captured_leaves_nothing_behind_that_warns_when_it_is_collected(
     leave: Callable[[], list[str]], out: list[str]
 ) -> None:
+    """Verify captured leaves nothing behind that warns when it is collected."""
     gc.collect()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -724,6 +749,7 @@ def test_captured_leaves_nothing_behind_that_warns_when_it_is_collected(
 
 
 def test_an_interrupted_call_restores_fds_streams_and_threads() -> None:
+    """Verify an interrupted call restores fds streams and threads."""
     stdout_before, stderr_before = sys.stdout, sys.stderr
     fd1_before, fd2_before = _fd_identity(1), _fd_identity(2)
     threads_before = set(threading.enumerate())
@@ -741,6 +767,7 @@ def test_an_interrupted_call_restores_fds_streams_and_threads() -> None:
 
 
 def test_captured_restores_fds_and_streams_the_call_itself_replaced() -> None:
+    """Verify captured restores fds and streams the call itself replaced."""
     stdout_before, stderr_before = sys.stdout, sys.stderr
     fd1_before, fd2_before = _fd_identity(1), _fd_identity(2)
 
@@ -776,6 +803,7 @@ def test_captured_restores_fds_and_streams_the_call_itself_replaced() -> None:
 def test_a_failure_partway_through_setting_up_raises_its_own_error_and_leaves_nothing_behind(
     free: int,
 ) -> None:
+    """Verify a failure partway through setting up raises its own error and leaves nothing behind."""
     gc.collect()
     stdout_before, stderr_before = sys.stdout, sys.stderr
     fd1_before, fd2_before = _fd_identity(1), _fd_identity(2)

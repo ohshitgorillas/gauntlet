@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Suppression gate: fail on any comment that silences a checker, and on any reference to `typing.no_type_check`."""
 
 import re

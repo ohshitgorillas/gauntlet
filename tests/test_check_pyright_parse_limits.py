@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pyright gate on a file whose parse cannot run to its end.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates",
@@ -17,6 +18,8 @@ from pathlib import Path
 import pytest
 
 from gates.check_pyright import main
+
+UNFINISHED_STATUS = 2
 
 DEPTH = 100_000
 
@@ -45,7 +48,7 @@ def test_deep_file_alone_is_unfinished(tmp_path: Path, source: str) -> None:
     """A lone file whose parse runs out of depth or memory exits 2."""
     deep = _seed(tmp_path, "deep.py", source)
 
-    assert main([deep]) == 2
+    assert main([deep]) == UNFINISHED_STATUS
 
 
 @pytest.mark.parametrize("source", DEEP_SOURCES)
@@ -54,7 +57,7 @@ def test_deep_file_beside_clean_file_is_unfinished(tmp_path: Path, source: str) 
     clean = _seed(tmp_path, "clean.py", CLEAN)
     deep = _seed(tmp_path, "deep.py", source)
 
-    assert main([clean, deep]) == 2
+    assert main([clean, deep]) == UNFINISHED_STATUS
 
 
 @pytest.mark.parametrize("source", DEEP_SOURCES)
@@ -63,4 +66,4 @@ def test_deep_file_beside_finding_is_unfinished(tmp_path: Path, source: str) -> 
     flawed = _seed(tmp_path, "flawed.py", MISSING_PARAMETER_TYPE)
     deep = _seed(tmp_path, "deep.py", source)
 
-    assert main([flawed, deep]) == 2
+    assert main([flawed, deep]) == UNFINISHED_STATUS

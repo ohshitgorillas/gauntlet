@@ -1,8 +1,9 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the host-safety wrapper every heavy run is made under.
 
 Source: the agents design spec under docs/superpowers/specs/, "Decisions", the bullet on heavy runs: every heavy run "is
 wrapped in `uv run python -m gates.heavy`, the host-safety wrapper in `gates/heavy.py`". "It holds an exclusive
-`fcntl.flock` lock on `/tmp/gauntlet-heavy.lock` for the whole of the command it is given, so a second wrapped run waits
+`fcntl.flock` lock on `~/.cache/gauntlet/heavy.lock` for the whole of the command it is given, so a second wrapped run waits
 until the first ends; given `--lock <path>` before its command, it locks that path instead". "It runs that command at
 niceness 19, and on Linux at the lowest I/O priority too". "It exits with its command's exit status."
 The owner names the lock as one taken with `fcntl.flock`, so a lock the test takes that way on the given path is one the
@@ -47,6 +48,8 @@ from pathlib import Path
 import pytest
 
 from tests.support.lifeline import HOLD, ready
+
+HEAVY_MODULE = "gates.heavy"
 
 REPO_ROOT = Path(__file__).parents[1]
 
@@ -159,8 +162,10 @@ DROPS = {"io": 1, "nice": 2}
 
 
 def _io_line(step: str, command: list[str]) -> list[str]:
-    """The arguments the host's I/O tool is given, nice -n taking step: none on macOS, where the line is "`nice -n <k>
-    -- <command>`, with no `taskpolicy -b`"."""
+    """Return the arguments the host's I/O tool is given, nice -n taking step: none on macOS, where the line is "`nice -n <k>.
+
+    -- <command>`, with no `taskpolicy -b`".
+    """
     return (
         [IO_OPTION, "nice", "-n", step, "--", *command]
         if IO_LOWERED[sys.platform]
@@ -199,22 +204,18 @@ def _pass_on(tools: Path, name: str, record: Path, drop: int) -> None:
 
 
 def _wrapped(lock: Path, command: list[str]) -> list[str]:
-    """The wrapper's command line; the module is imported here, at each run, so a test and not collection meets it."""
-    from gates import heavy
-
-    return [sys.executable, "-m", heavy.__name__, "--lock", str(lock), *command]
+    """Return the wrapper command line; the child imports its module when it runs."""
+    return [sys.executable, "-m", HEAVY_MODULE, "--lock", str(lock), *command]
 
 
 def _reporting(lock: Path, reported: int, command: list[str]) -> list[str]:
-    """The wrapper's command line, run in a process that reports its niceness as reported."""
-    from gates import heavy
-
+    """Return the wrapper's command line, run in a process that reports its niceness as reported."""
     return [
         sys.executable,
         "-c",
         REPORTS,
         str(reported),
-        heavy.__name__,
+        HEAVY_MODULE,
         "--lock",
         str(lock),
         *command,
@@ -340,8 +341,10 @@ def test_arguments(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(("reported", "step"), REPORTED, ids=REPORTED_IDS)
 def test_niceness(tmp_path: Path, reported: int, step: str) -> None:
-    """The command runs at niceness 19, by nice -n with 19 less the wrapper's own niceness: this process's, and the one
-    the wrapper's process reports where it reports another."""
+    """The command runs at niceness 19, by nice -n with 19 less the wrapper's own niceness: this process's, and the one.
+
+    the wrapper's process reports where it reports another.
+    """
     out = tmp_path / "out"
     record = tmp_path / "nice"
     reported_record = tmp_path / "reported"
@@ -363,8 +366,10 @@ def test_niceness(tmp_path: Path, reported: int, step: str) -> None:
 
 
 def test_io_priority(tmp_path: Path) -> None:
-    """The command runs at the I/O priority the spec names when the wrapper starts from the host's default: on Linux the
-    one ionice -c3 sets, which the default alone does not give; on macOS, with no taskpolicy -b, the default."""
+    """The command runs at the I/O priority the spec names when the wrapper starts from the host's default: on Linux the.
+
+    one ionice -c3 sets, which the default alone does not give; on macOS, with no taskpolicy -b, the default.
+    """
     wrapped = tmp_path / "wrapped"
     reference = tmp_path / "reference"
     unwrapped = tmp_path / "unwrapped"
@@ -385,9 +390,11 @@ def test_io_priority(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(("reported", "step"), REPORTED, ids=REPORTED_IDS)
 def test_io_tool_on_path(tmp_path: Path, reported: int, step: str) -> None:
-    """On Linux ionice is the one found first on PATH, given -c3, nice -n with 19 less the wrapper's own niceness, this
+    """On Linux ionice is the one found first on PATH, given -c3, nice -n with 19 less the wrapper's own niceness, this.
+
     process's and the one the wrapper's process reports where it reports another, and the command. On macOS a
-    taskpolicy first on PATH is never run."""
+    taskpolicy first on PATH is never run.
+    """
     record = tmp_path / "io"
     reported_record = tmp_path / "reported"
     command = _python("pass")

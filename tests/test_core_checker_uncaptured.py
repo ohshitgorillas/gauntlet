@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for a Command run with capture off: the checker writes straight to the run's own fds 1 and 2.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process",
@@ -54,7 +55,7 @@ def _writer(tmp_path: Path) -> Completed:
 
 
 def _held(tmp_path: Path) -> tuple[list[str], list[str]]:
-    """The device and inode of fds 1 and 2, as the run holds them and as the checker it starts with capture off does."""
+    """Return the device and inode of fds 1 and 2, as the run holds them and as the checker it starts with capture off does."""
     report = tmp_path / "held.txt"
     own = [
         str(value)

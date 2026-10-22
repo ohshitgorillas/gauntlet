@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests: the suppression gate reports a first-bullet comment marker in a `.pyi` file.
 
 Source: the quality-gates design spec under docs/superpowers/specs/.
@@ -32,6 +33,7 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 
 @pytest.mark.parametrize("marker", MARKERS)
 def test_gate_fails_on_marker_in_pyi_file(tmp_path: Path, marker: str) -> None:
+    """Verify gate fails on marker in pyi file."""
     clean = _seed(tmp_path, "clean.py", "value = 1\n")
     marked = _seed(tmp_path, "seeded.pyi", f"value: int  # {marker}\n")
 
@@ -39,6 +41,7 @@ def test_gate_fails_on_marker_in_pyi_file(tmp_path: Path, marker: str) -> None:
 
 
 def test_gate_passes_pyi_file_without_markers(tmp_path: Path) -> None:
+    """Verify gate passes pyi file without markers."""
     path = _seed(tmp_path, "clean.pyi", "value: int  # an ordinary comment\n")
 
     assert main([path]) == 0

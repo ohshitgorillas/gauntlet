@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for `python_module`: the Command that runs a Python module with the given arguments, cwd and timeout.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process",

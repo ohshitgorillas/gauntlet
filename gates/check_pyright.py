@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """pyright gate: type-check every Python file in strict mode under the settings in `pyproject.toml`."""
 
 import json
@@ -162,7 +163,7 @@ class Pyright:
         return [list(run.sources)]
 
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
-        """pyright over the batch, each file by its resolved path, with the project's settings, as a JSON report."""
+        """Pyright over the batch, each file by its resolved path, with the project's settings, as a JSON report."""
         return python_module(
             "pyright",
             "--outputjson",
@@ -175,11 +176,11 @@ class Pyright:
         )
 
     def read(self, completed: Completed) -> Report:
-        """The report pyright wrote, or a GateError."""
+        """Read the report Pyright wrote, or raise a GateError."""
         return report(completed)
 
     def expected_status(self, report: Report) -> int:
-        """pyright exits 1 when its report holds an error, 0 when it holds none."""
+        """Pyright exits 1 when its report holds an error, 0 when it holds none."""
         return (
             1
             if any(
@@ -191,7 +192,7 @@ class Pyright:
     def lines(
         self, report: Report, batch: Sequence[Source], *, stopped: bool
     ) -> list[Line]:
-        """The diagnostics in the given files, then each parse that did not finish, then the line for files pyright left out.
+        """Return diagnostics in the given files, unfinished parses, and the line for files Pyright left out.
 
         A diagnostic no rule raised in a file that could not be parsed is pyright's report of not finishing it; every
         other diagnostic is a finding.

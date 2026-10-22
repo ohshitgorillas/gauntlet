@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the cast gate's count line.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "The count line of a run

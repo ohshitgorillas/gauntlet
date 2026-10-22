@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for how a pytest gate run whose checker did not finish on a test file ends.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "The count line of a run
@@ -96,7 +97,7 @@ def _seed(root: Path, relative: str, source: str) -> Path:
 def _paths(
     root: Path, source: str, companion: str | None, *, locked: bool, broken_first: bool
 ) -> list[Path]:
-    """The unfinished test file alone, or beside a companion test file given before or after it."""
+    """Return the unfinished test file alone, or beside a companion test file given before or after it."""
     broken = _seed(root, f"tests/{BROKEN_NAME}", source)
     if locked:
         broken.chmod(0o000)
@@ -158,7 +159,7 @@ def test_one(
 
 
 def _evidence(source: str, *, locked: bool) -> str:
-    """What only pytest's own error on the unfinished test file carries: a denied read, a syntax error, or the missing module."""
+    """Return what only pytest's own error on the unfinished test file carries: a denied read, a syntax error, or the missing module."""
     if locked:
         return PERMISSION_DENIED
     return SYNTAX_ERROR if source == UNPARSEABLE else MISSING_MODULE

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests: the mypy gate applies to every Python file, stub files included.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph:

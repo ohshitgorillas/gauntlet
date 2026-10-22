@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for an interrupt while `run_all` runs checkers in worker threads, and through `check_with`'s budget.
 
 Source: the gates core design spec under docs/superpowers/specs/, decisions 26 and 27. While `run_all` runs, the main
@@ -160,7 +161,7 @@ def test_handlers_put_back_after_interrupt(tmp_path: Path) -> None:
 
 
 def _ended(driver: subprocess.Popen[bytes]) -> int:
-    """The driver's return code once it ends."""
+    """Return the driver's return code once it ends."""
     return driver.wait()
 
 
@@ -206,13 +207,16 @@ class Held:
     stopped: frozenset[int] = frozenset()
 
     def __init__(self, rig: Rig) -> None:
+        """Initialize the seeded state."""
         self.argv = rig.argv
         self.pass_fds = rig.pass_fds
 
     def batches(self, run: Run) -> list[list[Source]]:
+        """Return batches."""
         return [[source] for source in run.sources]
 
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
+        """Return command."""
         return Command(
             argv=(*self.argv, batch[0].given.name),
             cwd=run.project.root,
@@ -220,14 +224,20 @@ class Held:
         )
 
     def read(self, completed: Completed) -> list[str]:
+        """Return read."""
+        del completed
         return []
 
     def expected_status(self, report: list[str]) -> int:
+        """Return expected status."""
+        del report
         return 0
 
     def lines(
         self, report: list[str], batch: Sequence[Source], *, stopped: bool
     ) -> list[Line]:
+        """Return lines."""
+        del report, batch, stopped
         return []
 
 

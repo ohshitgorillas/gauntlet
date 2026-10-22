@@ -1,13 +1,16 @@
+# Copyright 2026 oh shit, gorillas!
 """Host-safety wrapper: run one heavy command under an exclusive lock, at niceness 19 and, on Linux, the lowest I/O priority."""
 
 import argparse
 import os
 import sys
+from collections.abc import Callable
 from contextlib import ExitStack
 from pathlib import Path
 from typing import IO, override
 
-from gates.core.checker import Command, run as run_command, throttle_line
+from gates.core.checker import Command, throttle_line
+from gates.core.checker import run as run_command
 from gates.core.report import (
     GateError,
     Outcome,
@@ -17,7 +20,18 @@ from gates.core.report import (
     write,
 )
 
-LOCK = Path("/tmp/gauntlet-heavy.lock")
+_flock: Callable[[int, int], None] | None
+_lock_modes: tuple[int, int] | None
+try:
+    import fcntl
+
+    _flock = fcntl.flock
+    _lock_modes = (fcntl.LOCK_EX, fcntl.LOCK_NB)
+except ImportError:
+    _flock = None
+    _lock_modes = None
+
+LOCK = Path.home() / ".cache" / "gauntlet" / "heavy.lock"
 
 LOCK_OPTION = "--lock"
 
@@ -32,17 +46,18 @@ def acquire(handle: IO[str], lock: Path, err: IO[str]) -> None:
     The lock is asked for without blocking first. When another holder has it, `WAITING` for `lock`
     and a line end are written on `err` once, as one write, and flushed, so a reader of `err` sees
     the wait as that line; then the lock is waited on, never polled. Any `OSError` from the lock
-    reaches the caller. `fcntl` is imported here, not with the module, because a host without it
-    gets no throttle line, which `main` reports with exit 2 before this runs.
+    reaches the caller. A host without `fcntl` cannot take the lock and is refused at call time.
     """
-    import fcntl
-
+    if _flock is None or _lock_modes is None:
+        message = "fcntl is unavailable; cannot take the host lock"
+        raise GateError(message)
+    exclusive, nonblocking = _lock_modes
     try:
-        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _flock(handle.fileno(), exclusive | nonblocking)
     except BlockingIOError:
         err.write(f"{WAITING.format(path=lock)}\n")
         err.flush()
-        fcntl.flock(handle, fcntl.LOCK_EX)
+        _flock(handle.fileno(), exclusive)
 
 
 def run(lock: Path, line: list[str]) -> int:
@@ -61,6 +76,9 @@ def run(lock: Path, line: list[str]) -> int:
     """
     with ExitStack() as stack:
         try:
+            if lock == LOCK:
+                lock.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                lock.parent.chmod(0o700)
             handle = stack.enter_context(lock.open("a", encoding="utf-8"))
             acquire(handle, lock, sys.stderr)
         except OSError as error:
@@ -101,7 +119,8 @@ class Parser(argparse.ArgumentParser):
 def lock_path(text: str) -> Path:
     """Return `text` as the path to lock, refusing an empty one, which `Path` would read as the current directory."""
     if not text:
-        raise argparse.ArgumentTypeError("empty path")
+        message = "empty path"
+        raise argparse.ArgumentTypeError(message)
     return Path(text)
 
 
@@ -131,7 +150,7 @@ def main(arguments: list[str]) -> int:
     """Run the command in `arguments` under the host lock, throttled, and exit with its exit status.
 
     `arguments` is read by `parser`: the command, optionally preceded by `--lock <path>` or
-    `--lock=<path>`, which locks that path in place of `/tmp/gauntlet-heavy.lock`, and by one
+    `--lock=<path>`, which locks that path in place of `~/.cache/gauntlet/heavy.lock`, and by one
     `--`, which is not passed on. The command is run as given whatever its first word, one that
     begins with `-` included. With no command, or `--lock` with no path or an empty one, the
     wrapper prints its usage and exits 2. The line comes from `throttle_line`, given this process's own

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for a first-item marker that contains a second-item marker.
 
 Sources: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate":
@@ -13,6 +14,8 @@ from pathlib import Path
 import pytest
 
 from tests.support.suppressions import find_suppressions
+
+MARKER_COUNT = 2
 
 NESTED_MARKER_COMMENTS = [
     "# pyright: ignore",
@@ -43,7 +46,7 @@ def test_pyright_ignore_comment_is_one_finding_naming_both_markers(
     assert [
         (
             finding.line,
-            _letters(finding.marker).count("pyright") >= 2,
+            _letters(finding.marker).count("pyright") >= MARKER_COUNT,
             "ignore" in _letters(finding.marker),
         )
         for finding in findings

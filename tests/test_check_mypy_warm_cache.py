@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the mypy gate's warm cache: one warm per run, a copy of it per file, all under the scratch root.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Types", the sub-bullet under the first bullet,
@@ -119,6 +120,7 @@ class MypyStandIn:
         warm_reply: Completed | None = None,
         lock: Path | None = None,
     ) -> None:
+        """Initialize the seeded state."""
         self.warm = warm
         self.warm_reply = completed(0) if warm_reply is None else warm_reply
         self.lock = lock
@@ -126,6 +128,7 @@ class MypyStandIn:
         self.seen: list[dict[str, str]] = []
 
     def __call__(self, command: Command) -> Completed:
+        """Return the reply for the supplied call."""
         self.commands.append(command)
         directory = _cache_dir(command)
         if len(self.commands) == 1:
@@ -169,7 +172,7 @@ def _gate(
 
 
 def _warm_run(tmp_path: Path, runner: MypyStandIn) -> tuple[Run, Path]:
-    """A run over one clean file with the stand-in as its process, and an empty directory to warm in."""
+    """Create a run over one clean file with the stand-in as its process, and an empty directory to warm in."""
     project: Project = scaffold(tmp_path / "project", {SOURCE: CLEAN})
     run = Run(
         project=project,

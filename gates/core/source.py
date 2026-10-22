@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Reading a Python file under the pinned Python: the pin, the file's text, tokens and tree, and its comment markers."""
 
 import ast

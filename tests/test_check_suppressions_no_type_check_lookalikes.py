@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate passing a `no_type_check` name not bound to the typing function.
 
 Sources: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate",

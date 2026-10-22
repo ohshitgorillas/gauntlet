@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """In-process capture of everything a call writes to file descriptors 1 and 2 and to sys.stdout and sys.stderr.
 
 Design: the capture design spec under docs/superpowers/specs/. For the length of the call, fds 1 and 2 each point at the
@@ -21,7 +22,7 @@ import threading
 from collections.abc import Buffer, Callable
 from concurrent.futures import ThreadPoolExecutor
 from types import TracebackType
-from typing import Literal, override
+from typing import Literal, Self, override
 
 _OUT, _ERR = "out", "err"
 _READ_SIZE = 1 << 16
@@ -31,20 +32,24 @@ class Output:
     """The lines written to fd 1, to fd 2, and to both in the order of arrival; each line keeps its line end."""
 
     def __init__(self, out: list[str], err: list[str], merged: list[str]) -> None:
+        """Initialize the seeded state."""
         self._out = list(out)
         self._err = list(err)
         self._merged = list(merged)
 
     @property
     def out(self) -> list[str]:
+        """Return out."""
         return list(self._out)
 
     @property
     def err(self) -> list[str]:
+        """Return err."""
         return list(self._err)
 
     @property
     def merged(self) -> list[str]:
+        """Return merged."""
         return list(self._merged)
 
 
@@ -52,11 +57,13 @@ class Captured[T](Output):
     """A call that returned: its result and its Output."""
 
     def __init__(self, result: T, output: Output) -> None:
+        """Initialize the seeded state."""
         super().__init__(output.out, output.err, output.merged)
         self._result = result
 
     @property
     def result(self) -> T:
+        """Return result."""
         return self._result
 
 
@@ -69,6 +76,7 @@ class CaptureSetupError(Exception):
     def __init__(
         self, errno: int | None, step: Literal["pipe", "dup", "reader"]
     ) -> None:
+        """Initialize the seeded state."""
         super().__init__(
             f"captured: could not set up: the {step} step failed, errno {errno}"
         )
@@ -82,6 +90,7 @@ class CaptureUnrecordedError(Exception):
     exc: BaseException
 
     def __init__(self, exc: BaseException) -> None:
+        """Initialize the seeded state."""
         super().__init__(f"output_of: captured never recorded {exc!r}")
         self.exc = exc
 
@@ -213,7 +222,8 @@ def _text_stream(fd: int, source: str, reader: _Reader) -> io.TextIOWrapper:
 
 
 def _lines(chunks: list[tuple[str, bytes]], source: str) -> list[tuple[int, str]]:
-    """The source's lines, as str.splitlines makes them of its bytes decoded as UTF-8 with each bad byte replaced, each
+    """Return the source's lines, as str.splitlines makes them of its bytes decoded as UTF-8 with each bad byte replaced, each.
+
     with the index in `chunks` of the chunk its first byte arrived in.
 
     A chunk read while the decoder holds the first bytes of a character starts one character later, since that
@@ -305,7 +315,7 @@ class _Capture:
             self._reader = _Reader({out_read: _OUT, err_read: _ERR}, stop)
             undo.pop_all()
 
-    def __enter__(self) -> "_Capture":
+    def __enter__(self) -> Self:
         return self
 
     def run[T](self, call: Callable[[], T]) -> T:
@@ -360,7 +370,7 @@ def captured[T](call: Callable[[], T]) -> Captured[T]:
 
 
 def output_of(exc: BaseException) -> Output:
-    """The Output read while the call that raised `exc` ran; CaptureUnrecordedError for an `exc` captured never recorded."""
+    """Return the Output read while the call that raised `exc` ran; CaptureUnrecordedError for an `exc` captured never recorded."""
     stash: dict[str, object] = exc.__dict__
     output = stash.get(_OUTPUT_KEY)
     if not isinstance(output, Output):

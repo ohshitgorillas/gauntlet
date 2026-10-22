@@ -12,6 +12,7 @@ gauntlet = "gauntlet.seams.cli:main"
 
 [dependency-groups]
 dev = [
+    "defusedxml==0.7.1",
     "mypy",
     "pre-commit",
     "pyright[nodejs]",
@@ -19,6 +20,7 @@ dev = [
     "pytest-randomly",
     "pytest-timeout",
     "ruff",
+    "types-defusedxml==0.7.0.20260504",
 ]
 
 [tool.mypy]
@@ -56,10 +58,27 @@ timeout = 30
 
 [tool.ruff]
 target-version = "py312"
-force-exclude = true
 
 [tool.ruff.lint]
-select = ["TID251", "E902"]
+select = ["ALL"]
+ignore = [
+    "C901", # Complexity counts do not establish code quality.
+    "E501", # Line length is handled by the formatter.
+    "W505", # Documentation line length is not capped.
+    "PLR0911", # Return counts do not establish code quality.
+    "PLR0912", # Branch counts do not establish code quality.
+    "PLR0913", # Argument counts do not establish code quality.
+    "PLR0915", # Statement counts do not establish code quality.
+    "PLR0917", # Positional argument counts do not establish code quality.
+    "D203", # D211 requires no blank line before class docstrings.
+    "D213", # D212 puts the summary on the first docstring line.
+    "COM812", # The formatter handles trailing commas.
+    "ISC001", # The formatter handles implicit string concatenation.
+    "S603", # Process arguments are checked by the code and its tests.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "typing.cast".msg = "narrow the type in the code instead"

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate's count line.
 
 Source: the quality gates design spec, "Gates" intro: the count line of a run whose checker finished reads
@@ -36,6 +37,7 @@ def _last_lines(paths: list[Path]) -> list[str]:
 
 
 def test_clean_run_ends_with_zero_finding_count_line(tmp_path: Path) -> None:
+    """Verify clean run ends with zero finding count line."""
     path = _seed(tmp_path, "clean.py", "value = 1\n")
     expected = _count_line(0, 1)
 
@@ -43,6 +45,7 @@ def test_clean_run_ends_with_zero_finding_count_line(tmp_path: Path) -> None:
 
 
 def test_run_with_findings_ends_with_count_line_after_findings(tmp_path: Path) -> None:
+    """Verify run with findings ends with count line after findings."""
     dirty = _seed(
         tmp_path, "dirty.py", "first = 1  # noqa\nsecond = 2  # pragma: no cover\n"
     )
@@ -53,6 +56,7 @@ def test_run_with_findings_ends_with_count_line_after_findings(tmp_path: Path) -
 
 
 def test_count_line_counts_only_python_files(tmp_path: Path) -> None:
+    """Verify count line counts only python files."""
     source = _seed(tmp_path, "module.py", "value = 1\n")
     windowed = _seed(tmp_path, "window.pyw", "value = 1\n")
     expected = _count_line(0, 1)

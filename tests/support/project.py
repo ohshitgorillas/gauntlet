@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """A project tree a gate test runs in: its files, its pyproject.toml, unreadable paths, and a git repository.
 
 Design: the gates-core design spec under docs/superpowers/specs/, section 3, "project.py", and its decision 25. The
@@ -34,6 +35,7 @@ class ScaffoldError(Exception):
     completed: Completed
 
     def __init__(self, completed: Completed) -> None:
+        """Initialize the seeded state."""
         super().__init__(
             f"scaffold: git exited {completed.status}: {completed.output()}"
         )

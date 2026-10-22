@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the waits `run_all` makes on its workers: each one through the `next_done` it is handed.
 
 Source: the no-wall-clock design spec under docs/superpowers/specs/, the `gates/core/checker.py` module and decisions
@@ -50,19 +51,21 @@ class Noting:
     noted: list[int]
 
     def __init__(self, lines: Sequence[Lifeline]) -> None:
+        """Initialize the seeded state."""
         self.noted = []
         self._lines = list(lines)
 
     def __call__(
         self, running: Collection[Future[Completed]]
     ) -> set[Future[Completed]]:
+        """Return the reply for the supplied call."""
         self.noted.append(len(running))
         if self._lines:
             self._lines.pop(0).release()
         return first_done(running)
 
 
-class Stalled(Exception):
+class StalledError(Exception):
     """The exception the test's next_done raises in run_all's first wait."""
 
 
@@ -70,9 +73,11 @@ class Lingering:
     """A Runner around run whose call, once run has returned, blocks with no timeout until the test lets it go."""
 
     def __init__(self) -> None:
+        """Initialize the seeded state."""
         self._let_go = threading.Event()
 
     def __call__(self, command: Command) -> Completed:
+        """Return the reply for the supplied call."""
         completed = run(command)
         self._let_go.wait()
         return completed
@@ -83,12 +88,15 @@ class Lingering:
 
 
 class Stalling:
-    """A next_done noting the workers each call is handed: the first lets the checker go and raises, later ones let
-    the Runner go."""
+    """A next_done noting the workers each call is handed: the first lets the checker go and raises, later ones let.
+
+    the Runner go.
+    """
 
     handed: list[frozenset[Future[Completed]]]
 
     def __init__(self, line: Lifeline, process: Lingering) -> None:
+        """Initialize the seeded state."""
         self.handed = []
         self._line = line
         self._process = process
@@ -96,23 +104,27 @@ class Stalling:
     def __call__(
         self, running: Collection[Future[Completed]]
     ) -> set[Future[Completed]]:
+        """Return the reply for the supplied call."""
         self.handed.append(frozenset(running))
         if len(self.handed) == 1:
             self._line.release()
-            raise Stalled
+            raise StalledError
         self._process.release()
         return first_done(running)
 
 
 class Adding:
-    """A next_done that raises Stalled at its first call; at each later one it runs a held checker through run, then
-    lets the Runner go."""
+    """A next_done that raises StalledError at its first call; at each later one it runs a held checker through run, then.
+
+    lets the Runner go.
+    """
 
     completed: list[Completed]
 
     def __init__(
         self, cwd: Path, lines: tuple[Lifeline, Lifeline], process: Lingering
     ) -> None:
+        """Initialize the seeded state."""
         self.completed = []
         self._calls = 0
         self._cwd = cwd
@@ -122,9 +134,10 @@ class Adding:
     def __call__(
         self, running: Collection[Future[Completed]]
     ) -> set[Future[Completed]]:
+        """Return the reply for the supplied call."""
         self._calls += 1
         if self._calls == 1:
-            raise Stalled
+            raise StalledError
         try:
             self.completed.append(run(_held(self._cwd, self._second)))
         finally:
@@ -139,7 +152,7 @@ SIGNAL_FLOOR = 128
 
 
 def _held(cwd: Path, line: Lifeline) -> Command:
-    """A checker that lives until its Lifeline is let go."""
+    """Return a checker that lives until its Lifeline is let go."""
     return Command(
         argv=(sys.executable, "-c", HOLD, str(line.read_fd)),
         cwd=cwd,
@@ -171,7 +184,7 @@ def test_cleanup(tmp_path: Path) -> None:
         next_done = Stalling(line, process)
 
         try:
-            with pytest.raises(Stalled):
+            with pytest.raises(StalledError):
                 run_all(process, [_held(tmp_path, line)], 1, next_done=next_done)
         finally:
             process.release()
@@ -190,7 +203,7 @@ def test_kill_add(tmp_path: Path) -> None:
         next_done = Adding(tmp_path, (first, second), process)
 
         try:
-            with pytest.raises(Stalled):
+            with pytest.raises(StalledError):
                 run_all(process, [_held(tmp_path, first)], 1, next_done=next_done)
         finally:
             process.release()

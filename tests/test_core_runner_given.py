@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for `Run.given`: every Python file given, test files included, which `run_gate` fills and selects from.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "runner.py: one gate run, from start to
@@ -22,16 +23,20 @@ class Seen:
     """A gate check that keeps every Run it is called with and gives an empty Outcome."""
 
     def __init__(self) -> None:
+        """Initialize the seeded state."""
         self.runs: list[Run] = []
 
     def __call__(self, run: Run) -> Outcome:
+        """Return the reply for the supplied call."""
         self.runs.append(run)
         return Outcome()
 
 
 def test_given_every_python_file(tmp_path: Path) -> None:
-    """The run's given holds every Python file given, test files included, once each as first spelled; its sources are
-    those the gate selects from it."""
+    """The run's given holds every Python file given, test files included, once each as first spelled; its sources are.
+
+    those the gate selects from it.
+    """
     project = scaffold(
         tmp_path / "project",
         {

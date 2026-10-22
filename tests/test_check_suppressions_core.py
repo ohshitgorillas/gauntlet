@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate on the gates core.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 2, "A gate on the core", the C4 row of

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the cast gate on a Python file its checker cannot parse.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "A Python file the
@@ -18,6 +19,8 @@ from pathlib import Path
 import pytest
 
 from gates.check_cast import main
+
+UNFINISHED_STATUS = 2
 
 UNPARSEABLE = "def broken(:\n    pass\n"
 
@@ -47,7 +50,7 @@ def _lines(paths: list[Path], capsys: pytest.CaptureFixture[str]) -> list[str]:
 
 
 def _first_number(text: str) -> int | None:
-    """The first run of decimal digits in `text`, read as a number, or None where `text` holds no digit."""
+    """Return the first run of decimal digits in `text`, read as a number, or None where `text` holds no digit."""
     digits = ""
     for character in text:
         if character in "0123456789":
@@ -70,7 +73,7 @@ def test_broken_alone(tmp_path: Path) -> None:
     """A run over one file the checker cannot parse did not finish, so the gate exits 2, not 1 as for a finding."""
     broken = _seed(tmp_path, "broken.py", UNPARSEABLE)
 
-    assert main([broken]) == 2
+    assert main([broken]) == UNFINISHED_STATUS
 
 
 def test_broken_clean(tmp_path: Path) -> None:
@@ -78,7 +81,7 @@ def test_broken_clean(tmp_path: Path) -> None:
     clean = _seed(tmp_path, "clean.py", CLEAN)
     broken = _seed(tmp_path, "broken.py", UNPARSEABLE)
 
-    assert main([clean, broken]) == 2
+    assert main([clean, broken]) == UNFINISHED_STATUS
 
 
 def test_dirty_broken(tmp_path: Path) -> None:
@@ -86,7 +89,7 @@ def test_dirty_broken(tmp_path: Path) -> None:
     dirty = _seed(tmp_path, "dirty.py", DIRTY)
     broken = _seed(tmp_path, "broken.py", UNPARSEABLE)
 
-    assert main([dirty, broken]) == 2
+    assert main([dirty, broken]) == UNFINISHED_STATUS
 
 
 def test_broken_dirty(tmp_path: Path) -> None:
@@ -94,14 +97,14 @@ def test_broken_dirty(tmp_path: Path) -> None:
     broken = _seed(tmp_path, "broken.py", UNPARSEABLE)
     dirty = _seed(tmp_path, "dirty.py", DIRTY)
 
-    assert main([broken, dirty]) == 2
+    assert main([broken, dirty]) == UNFINISHED_STATUS
 
 
 def test_broken_cast(tmp_path: Path) -> None:
     """A file the checker cannot parse is unfinished even where it also holds a use of `typing.cast`: the gate exits 2."""
     broken = _seed(tmp_path, "broken.py", UNPARSEABLE_WITH_CAST)
 
-    assert main([broken]) == 2
+    assert main([broken]) == UNFINISHED_STATUS
 
 
 def test_broken_shown(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

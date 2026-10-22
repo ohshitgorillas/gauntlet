@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the count line of a suppression gate run whose checker could not finish.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: a gate "exits 2 when its
@@ -62,19 +63,19 @@ def _newer_grammar(tmp_path: Path) -> list[Path]:
 
 
 def _beside_clean(tmp_path: Path) -> list[Path]:
-    """A clean file, then a file the tokenizer cannot finish."""
+    """Create a clean file, then a file the tokenizer cannot finish."""
     clean = _seed(tmp_path, "clean.py", CLEAN)
     return [clean, *_untokenizable(tmp_path)]
 
 
 def _beside_marker(tmp_path: Path) -> list[Path]:
-    """A file with a marker, then a file the tokenizer cannot finish."""
+    """Create a file with a marker, then a file the tokenizer cannot finish."""
     dirty = _seed(tmp_path, "dirty.py", MARKED)
     return [dirty, *_untokenizable(tmp_path)]
 
 
 def _undecodable(tmp_path: Path) -> list[Path]:
-    """A clean file, then a file that is not valid UTF-8."""
+    """Create a clean file, then a file that is not valid UTF-8."""
     clean = _seed(tmp_path, "clean.py", CLEAN)
     undecodable = tmp_path / "undecodable.py"
     undecodable.write_bytes(b"value = '\xff\xfe'\n")
@@ -82,7 +83,7 @@ def _undecodable(tmp_path: Path) -> list[Path]:
 
 
 def _unreadable(tmp_path: Path) -> list[Path]:
-    """A file with a marker, then a file no one may read."""
+    """Create a file with a marker, then a file no one may read."""
     dirty = _seed(tmp_path, "dirty.py", MARKED)
     unreadable = _seed(tmp_path, "unreadable.py", CLEAN)
     unreadable.chmod(0o000)

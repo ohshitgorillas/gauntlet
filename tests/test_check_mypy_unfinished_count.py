@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the count line of a mypy gate run whose checker could not finish.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "The count line of a run whose checker finished reads `<gate>: N finding(s) in M Python file(s)`, where `<gate>` is the name of the gate script without its extension and `finding(s)` and `file(s)` are printed as written whatever N and M are", and "A run whose checker could not finish prints the same count line, in the same shape, as the last line it prints, after what the checker reported; a line saying on how many files the checker could not finish, or that it gave no report the gate can read, is not a count line, and no gate prints one." The same paragraph: "A Python file the checker cannot read or cannot parse is a file the checker did not finish: the gate prints what the checker reported for that file and exits 2, whatever it found in the other files." The mypy gate is "Types", first bullet; its script is `gates/check_mypy.py`, so `<gate>` is `check_mypy`.
@@ -57,7 +58,7 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 
 
 def _unfinished(tmp_path: Path, name: str) -> Path:
-    """The file mypy cannot parse, or a well-typed file no one may read."""
+    """Return the file mypy cannot parse, or a well-typed file no one may read."""
     if name == UNPARSEABLE_NAME:
         return _seed(tmp_path, name, UNPARSEABLE)
     path = _seed(tmp_path, name, CLEAN)
@@ -68,7 +69,7 @@ def _unfinished(tmp_path: Path, name: str) -> Path:
 def _layout(
     tmp_path: Path, unfinished: Path, companion: str | None, *, unfinished_first: bool
 ) -> list[Path]:
-    """The unfinished file alone, or beside a companion file placed before or after it."""
+    """Return the unfinished file alone, or beside a companion file placed before or after it."""
     if companion is None:
         return [unfinished]
     other = _seed(tmp_path, "companion.py", companion)
@@ -84,7 +85,7 @@ def _run(paths: list[Path]) -> tuple[int, list[str]]:
 
 
 def _first_number(text: str) -> int | None:
-    """The first run of decimal digits in `text`, read as a number, or None where `text` holds no digit."""
+    """Return the first run of decimal digits in `text`, read as a number, or None where `text` holds no digit."""
     digits = ""
     for character in text:
         if character in "0123456789":
@@ -106,7 +107,7 @@ def _is_report(line: str, name: str) -> bool:
 def _outcome(
     status: int, lines: list[str], name: str, files: int
 ) -> tuple[int, bool, list[bool]]:
-    """The exit status; whether mypy's report on `name` is on a line printed before the last; and, for the last line, as a list of at most one, whether it is the count line with any N and M as `files`."""
+    """Return the exit status; whether mypy's report on `name` is on a line printed before the last; and, for the last line, as a list of at most one, whether it is the count line with any N and M as `files`."""
     reported = any(_is_report(line, name) for line in lines[:-1])
     count_line = re.compile(rf"{GATE}: \d+ finding\(s\) in {files} Python file\(s\)")
     shapes = [count_line.fullmatch(line) is not None for line in lines[-1:]]

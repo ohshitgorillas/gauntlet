@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for `Completed.output()`: the checker's whole console output, its stdout followed by its stderr.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process",
@@ -22,7 +23,7 @@ PADDED_ERR = "\n  \n"
 
 
 def _completed(stdout: str, stderr: str) -> Completed:
-    """A finished checker run with exit 0 and no output files, holding the two streams given."""
+    """Return a finished checker run with exit 0 and no output files, holding the two streams given."""
     return Completed(
         status=0, stdout=stdout, stderr=stderr, timed_out=False, outputs={}
     )

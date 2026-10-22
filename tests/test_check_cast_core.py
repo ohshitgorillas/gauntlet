@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the cast gate on the gates core.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 2, "A gate on the core", and decision 2

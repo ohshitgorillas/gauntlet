@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Tests for the test-support virtual clock.
 
 Source: the no-wall-clock design spec under docs/superpowers/specs/, the `tests/support/clock.py` module, decisions 6
@@ -15,11 +16,14 @@ passed on the clock, and None for `seconds` is no cap.
 
 from collections import deque
 from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
 
 import pytest
 
-from gates.core.clock import Clock
 from tests.support.clock import VirtualClock
+
+if TYPE_CHECKING:
+    from gates.core.clock import Clock
 
 
 class _Event:
@@ -37,9 +41,8 @@ class _Event:
         if self._log is not None:
             self._log.append(("ready", seconds))
         if not self._answers:
-            raise AssertionError(
-                f"the Ready was called past its script, with {seconds!r}"
-            )
+            message = f"the Ready was called past its script, with {seconds!r}"
+            raise AssertionError(message)
         return self._answers.popleft()
 
 
@@ -51,6 +54,7 @@ class _Event:
     ],
 )
 def test_a_new_clock_has_passed_no_time(clock: VirtualClock) -> None:
+    """Verify a new clock has passed no time."""
     assert clock.now == 0
 
 
@@ -68,6 +72,7 @@ def test_a_new_clock_has_passed_no_time(clock: VirtualClock) -> None:
 def test_an_event_come_at_the_poll_ends_the_wait_true_with_no_time_passed(
     passes: float | None, seconds: float | None
 ) -> None:
+    """Verify an event come at the poll ends the wait true with no time passed."""
     clock = VirtualClock(passes=passes)
     ready = _Event([True])
 
@@ -87,6 +92,7 @@ def test_an_event_come_at_the_poll_ends_the_wait_true_with_no_time_passed(
 def test_passes_at_or_past_the_cap_lets_the_cap_pass_at_once_when_the_event_has_not_come(
     passes: float, seconds: float
 ) -> None:
+    """Verify passes at or past the cap lets the cap pass at once when the event has not come."""
     clock = VirtualClock(passes=passes)
     ready = _Event([False, False])
 
@@ -105,6 +111,7 @@ def test_passes_at_or_past_the_cap_lets_the_cap_pass_at_once_when_the_event_has_
 def test_after_runs_between_the_first_poll_and_a_second_and_before_the_cap_passes(
     passes: float, seconds: float
 ) -> None:
+    """Verify after runs between the first poll and a second and before the cap passes."""
     log: list[tuple[str, float | None]] = []
     ready = _Event([False, False], log)
     clock = VirtualClock(passes=passes, after=lambda: log.append(("after", clock.now)))
@@ -128,6 +135,7 @@ def test_after_runs_between_the_first_poll_and_a_second_and_before_the_cap_passe
 def test_an_event_come_at_the_second_poll_ends_the_wait_true_with_no_time_passed(
     after: Callable[[], object] | None,
 ) -> None:
+    """Verify an event come at the second poll ends the wait true with no time passed."""
     clock = VirtualClock(passes=5.0, after=after)
     ready = _Event([False, True])
 
@@ -151,6 +159,7 @@ def test_after_is_not_called_when_the_cap_is_not_about_to_pass(
     answers: list[bool],
     handed: list[float | None],
 ) -> None:
+    """Verify after is not called when the cap is not about to pass."""
     calls: list[str] = []
     clock = VirtualClock(passes=passes, after=lambda: calls.append("after"))
     ready = _Event(answers)
@@ -170,8 +179,9 @@ def test_after_is_not_called_when_the_cap_is_not_about_to_pass(
 )
 @pytest.mark.parametrize("answer", [True, False])
 def test_a_still_clock_never_lets_a_cap_pass_and_ends_the_wait_on_the_event_alone(
-    seconds: float | None, answer: bool
+    seconds: float | None, *, answer: bool
 ) -> None:
+    """Verify a still clock never lets a cap pass and ends the wait on the event alone."""
     clock = VirtualClock()
     ready = _Event([False, answer])
 
@@ -189,8 +199,9 @@ def test_a_still_clock_never_lets_a_cap_pass_and_ends_the_wait_on_the_event_alon
 )
 @pytest.mark.parametrize("answer", [True, False])
 def test_passes_short_of_the_cap_passes_its_seconds_and_ends_the_wait_on_the_event(
-    passes: float, seconds: float | None, answer: bool
+    passes: float, seconds: float | None, *, answer: bool
 ) -> None:
+    """Verify passes short of the cap passes its seconds and ends the wait on the event."""
     clock = VirtualClock(passes=passes)
     ready = _Event([False, answer])
 
@@ -200,6 +211,7 @@ def test_passes_short_of_the_cap_passes_its_seconds_and_ends_the_wait_on_the_eve
 
 
 def test_time_moves_only_by_the_caps_that_pass_and_what_the_test_sets() -> None:
+    """Verify time moves only by the caps that pass and what the test sets."""
     clock = VirtualClock(passes=4.0)
 
     first = clock.wait(_Event([False, False]), 3.0)
@@ -232,6 +244,7 @@ def test_time_moves_only_by_the_caps_that_pass_and_what_the_test_sets() -> None:
 def test_a_virtual_clock_is_a_clock_that_hands_its_ready_no_positive_number(
     passes: float | None, answers: list[bool]
 ) -> None:
+    """Verify a virtual clock is a clock that hands its ready no positive number."""
     clock: Clock = VirtualClock(passes=passes)
     ready = _Event(answers)
 

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the signals that end a process, met while `run` runs a checker: SIGHUP, SIGQUIT and SIGTERM.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process":
@@ -134,7 +135,7 @@ def _driver(
 
 
 def _ended(driver: subprocess.Popen[bytes]) -> int:
-    """The driver's return code once it ends."""
+    """Return the driver's return code once it ends."""
     return driver.wait()
 
 

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the scope of the pyright gate's report under `make check-tests`.
 
 Source: the agents design spec under docs/superpowers/specs/, "Decisions", the

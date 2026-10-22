@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Cast gate: fail on any use of `typing.cast`, found by ruff's `TID251` under the banned API in `pyproject.toml`."""
 
 import json
@@ -116,7 +117,7 @@ class Cast:
         return [list(run.sources)]
 
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
-        """ruff over the batch, with the project's settings, as a JSON report."""
+        """Ruff over the batch, with the project's settings, as a JSON report."""
         return python_module(
             "ruff",
             "check",
@@ -131,17 +132,17 @@ class Cast:
         )
 
     def read(self, completed: Completed) -> Report:
-        """The report ruff wrote, or a GateError."""
+        """Read the report Ruff wrote, or raise a GateError."""
         return report(completed)
 
     def expected_status(self, report: Report) -> int:
-        """ruff exits 1 with any entry of any rule it was set to check, 0 with none."""
+        """Ruff exits 1 with any entry of any rule it was set to check, 0 with none."""
         return 1 if report.entries else 0
 
     def lines(
         self, report: Report, batch: Sequence[Source], *, stopped: bool
     ) -> list[Line]:
-        """A Finding for each use of the banned name, then an Unfinished for each file ruff could not finish."""
+        """Return a Finding for each banned name, then an Unfinished for each file Ruff could not finish."""
         del batch, stopped
         return [
             *(Finding(describe(found)) for found in report.findings),

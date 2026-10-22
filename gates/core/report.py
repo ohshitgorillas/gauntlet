@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """What a gate run prints and how it exits: the run's lines, its count line, its exit code and the one writer."""
 
 import sys

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the line naming a checker's time cap and the pair a capped checker's run gives.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "report.py: what a run prints and how it

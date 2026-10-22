@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Mutation gate: run mutmut over the changed functions of the given Python files that are not test files, and fail on any mutant it does not kill."""
 
 from collections.abc import Sequence
@@ -74,9 +75,10 @@ class Mutant:
 
 @dataclass(frozen=True)
 class Mutated:
-    """What a mutmut run left: every mutant it did not kill, whether it hit the wall-clock cap, and its error when it
-    left a mutant unchecked other than at the cap, with the failing test ids when the suite failed on the unmutated
-    tree."""
+    """What a mutmut run left: every mutant it did not kill, whether it hit the wall-clock cap, and its error.
+
+    An error means it left a mutant unchecked other than at the cap, with the failing test ids when the suite failed on the unmutated tree.
+    """
 
     mutants: tuple[Mutant, ...] = ()
     at_cap: bool = False
@@ -106,8 +108,10 @@ def _order(mutant: Mutant) -> tuple[str, str]:
 
 
 def outcome(settings: Sequence[Finding], mutated: Mutated) -> Outcome:
-    """Return the run's lines: the checker's error first when it did not finish, then the key findings, then each mutant
-    not killed in order of path as given, then of name; at the cap, the gate's line naming it comes first."""
+    """Return the run's lines: the checker's error first when it did not finish, then the key findings, then each mutant not killed.
+
+    Sort mutants in order of path as given, then of name; at the cap, the gate's line naming it comes first.
+    """
     findings = (
         *settings,
         *(
@@ -122,8 +126,7 @@ def outcome(settings: Sequence[Finding], mutated: Mutated) -> Outcome:
 
 
 def check(run: Run) -> Outcome:
-    """Check the run's sources under the project's pin; a GateError from mutmut's run is the checker's error, and the
-    key findings still print after it."""
+    """Check the run's sources under the project's pin; a GateError from mutmut's run is the checker's error, and the key findings still print after it."""
     version = pinned_version(run.project)
     settings = setting_findings(run.project)
     try:

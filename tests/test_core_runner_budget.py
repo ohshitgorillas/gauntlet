@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for `check_with`'s budget: the batches it runs at once, and their lines in batch order.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "runner.py: one gate run, from start to
@@ -24,6 +25,8 @@ from tests.support.fake import completed
 from tests.support.project import scaffold
 from tests.support.scripted import Scripted, Step
 
+WORKER_COUNT = 2
+
 REFUSAL = "cannot start the checker: refused"
 
 
@@ -33,14 +36,17 @@ class Logged:
     stopped: frozenset[int] = frozenset()
 
     def __init__(self, log: list[str], *, refuse: str | None = None) -> None:
+        """Initialize the seeded state."""
         self.log = log
         self.refuse = refuse
 
     def batches(self, run: Run) -> list[list[Source]]:
+        """Return batches."""
         self.log.append("batches")
         return [[source] for source in run.sources]
 
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
+        """Return command."""
         name = batch[0].given.name
         self.log.append(f"command {name}")
         if name == self.refuse:
@@ -48,14 +54,18 @@ class Logged:
         return Command(argv=("echo", name), cwd=run.project.root)
 
     def read(self, completed: Completed) -> list[str]:
+        """Return read."""
         return completed.stdout.splitlines()
 
     def expected_status(self, report: list[str]) -> int:
+        """Return expected status."""
         return 1 if report else 0
 
     def lines(
         self, report: list[str], batch: Sequence[Source], *, stopped: bool
     ) -> list[Line]:
+        """Return lines."""
+        del batch, stopped
         return [Finding(text) for text in report]
 
 
@@ -67,7 +77,7 @@ def _checked(
     log: list[str] | None = None,
     refuse: str | None = None,
 ) -> Outcome:
-    project = scaffold(tmp_path / "project", {name: "value = 1\n" for name in names})
+    project = scaffold(tmp_path / "project", dict.fromkeys(names, "value = 1\n"))
     sources = tuple(
         Source(given=Path(name), absolute=project.root / name) for name in names
     )
@@ -93,7 +103,7 @@ def test_budget_sizes_the_cap(tmp_path: Path) -> None:
 
     _checked(tmp_path, process, lambda: 2, "a", "b", "c", "d")
 
-    assert process.peak == 2
+    assert process.peak == WORKER_COUNT
 
 
 @pytest.mark.parametrize(

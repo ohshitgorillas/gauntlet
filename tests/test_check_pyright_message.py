@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for what a pyright gate finding carries.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gate code",

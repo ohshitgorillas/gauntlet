@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Tests for the test-support lifeline: child processes held, met and ended by pipes.
 
 Source: the no-wall-clock design spec under docs/superpowers/specs/, the `tests/support/lifeline.py` module. A
@@ -83,7 +84,7 @@ def _child(
 
 
 def _ready(child: subprocess.Popen[bytes]) -> bytes:
-    """The first line the child writes on its stdout."""
+    """Return the first line the child writes on its stdout."""
     assert child.stdout is not None
     return ready(child.stdout.fileno())
 
@@ -98,6 +99,7 @@ def _taken(fd: int, data: bytes) -> int:
 
 
 def test_a_held_child_writes_its_ready_line_and_exits_0_once_released() -> None:
+    """Verify a held child writes its ready line and exits 0 once released."""
     with (
         Lifeline() as line,
         _child(HOLD, str(line.read_fd), fds=(line.read_fd,)) as child,
@@ -112,6 +114,7 @@ def test_a_held_child_writes_its_ready_line_and_exits_0_once_released() -> None:
 def test_a_held_child_reads_its_fd_until_the_writer_closes_it_and_then_exits_0() -> (
     None
 ):
+    """Verify a held child reads its fd until the writer closes it and then exits 0."""
     read_fd, write_fd = os.pipe()
     with _child(HOLD, str(read_fd), fds=(read_fd,)) as child:
         os.close(read_fd)
@@ -126,6 +129,7 @@ def test_a_held_child_reads_its_fd_until_the_writer_closes_it_and_then_exits_0()
 
 
 def test_leaving_a_lifeline_releases_its_child() -> None:
+    """Verify leaving a lifeline releases its child."""
     line = Lifeline()
     with _child(HOLD, str(line.read_fd), fds=(line.read_fd,)) as child:
         with line:
@@ -136,6 +140,7 @@ def test_leaving_a_lifeline_releases_its_child() -> None:
 
 
 def test_a_second_release_does_nothing(tmp_path: Path) -> None:
+    """Verify a second release does nothing."""
     other = tmp_path / "other.txt"
     other.write_text("other", encoding="utf-8")
     with Lifeline() as line:
@@ -151,15 +156,17 @@ def test_a_second_release_does_nothing(tmp_path: Path) -> None:
 
 
 def test_leaving_a_lifeline_closes_its_read_end() -> None:
+    """Verify leaving a lifeline closes its read end."""
     with Lifeline() as line:
         read_fd = line.read_fd
-    with pytest.raises(OSError) as raised:
+    with pytest.raises(OSError, match=rf"\[Errno {errno.EBADF}\]") as raised:
         os.fstat(read_fd)
 
     assert raised.value.errno == errno.EBADF
 
 
 def test_a_witness_is_a_fifo_at_its_path(tmp_path: Path) -> None:
+    """Verify a witness is a fifo at its path."""
     path = tmp_path / "witness.fifo"
     with Witness(path) as witness:
         mode = path.stat().st_mode
@@ -170,6 +177,7 @@ def test_a_witness_is_a_fifo_at_its_path(tmp_path: Path) -> None:
 def test_ended_gives_back_what_every_holder_wrote_once_each_has_closed(
     tmp_path: Path,
 ) -> None:
+    """Verify ended gives back what every holder wrote once each has closed."""
     with (
         Lifeline() as line,
         Witness(tmp_path / "witness.fifo") as witness,
@@ -191,6 +199,7 @@ def test_ended_gives_back_what_every_holder_wrote_once_each_has_closed(
 def test_ended_reads_on_until_a_holder_writing_after_its_release_has_closed(
     tmp_path: Path,
 ) -> None:
+    """Verify ended reads on until a holder writing after its release has closed."""
     with (
         Lifeline() as line,
         Witness(tmp_path / "witness.fifo") as witness,
@@ -207,6 +216,7 @@ def test_ended_reads_on_until_a_holder_writing_after_its_release_has_closed(
 
 
 def test_ready_gives_back_one_line_at_a_time() -> None:
+    """Verify ready gives back one line at a time."""
     read_fd, write_fd = os.pipe()
     try:
         os.write(write_fd, b"one\ntwo\n")
@@ -219,6 +229,7 @@ def test_ready_gives_back_one_line_at_a_time() -> None:
 
 
 def test_ready_gives_back_nothing_when_every_writer_closed_first() -> None:
+    """Verify ready gives back nothing when every writer closed first."""
     read_fd, write_fd = os.pipe()
     os.close(write_fd)
     try:
@@ -230,11 +241,12 @@ def test_ready_gives_back_nothing_when_every_writer_closed_first() -> None:
 
 
 def _open_fds() -> set[str]:
-    """The fds this process has open, as /dev/fd lists them."""
-    return set(os.listdir("/dev/fd"))
+    """Return the fds this process has open, as /dev/fd lists them."""
+    return {path.name for path in Path("/dev/fd").iterdir()}
 
 
 def test_seen_gives_back_the_line_a_child_still_holding_the_beacon_wrote() -> None:
+    """Verify seen gives back the line a child still holding the beacon wrote."""
     with (
         Lifeline() as line,
         Beacon() as beacon,
@@ -255,6 +267,7 @@ def test_seen_gives_back_the_line_a_child_still_holding_the_beacon_wrote() -> No
 def test_seen_gives_back_nothing_when_every_child_holding_the_beacon_closed_it_first() -> (
     None
 ):
+    """Verify seen gives back nothing when every child holding the beacon closed it first."""
     with Beacon() as beacon, _child("pass\n", fds=(beacon.write_fd,)) as child:
         seen = beacon.seen()
         status = child.wait()
@@ -263,6 +276,7 @@ def test_seen_gives_back_nothing_when_every_child_holding_the_beacon_closed_it_f
 
 
 def test_leaving_a_beacon_closes_both_its_ends() -> None:
+    """Verify leaving a beacon closes both its ends."""
     before = _open_fds()
     with Beacon():
         pass
@@ -274,6 +288,7 @@ def test_leaving_a_beacon_closes_both_its_ends() -> None:
 def test_leaving_a_beacon_after_seen_closes_nothing_a_second_time(
     tmp_path: Path,
 ) -> None:
+    """Verify leaving a beacon after seen closes nothing a second time."""
     other = tmp_path / "other.txt"
     other.write_text("other", encoding="utf-8")
     with Beacon() as beacon:
@@ -288,6 +303,7 @@ def test_leaving_a_beacon_after_seen_closes_nothing_a_second_time(
 
 
 def test_no_pids_noted_before_the_file_is_written(tmp_path: Path) -> None:
+    """Verify no pids noted before the file is written."""
     with Pids(tmp_path / "pids.txt") as pids:
         noted = pids.noted()
 
@@ -295,6 +311,7 @@ def test_no_pids_noted_before_the_file_is_written(tmp_path: Path) -> None:
 
 
 def test_pids_gives_back_the_pids_noted_in_its_file(tmp_path: Path) -> None:
+    """Verify pids gives back the pids noted in its file."""
     path = tmp_path / "pids.txt"
     pids = Pids(path)
     path.write_text("1\n2\n", encoding="utf-8")
@@ -305,6 +322,7 @@ def test_pids_gives_back_the_pids_noted_in_its_file(tmp_path: Path) -> None:
 def test_pids_kills_each_noted_pid_passing_over_one_already_gone(
     tmp_path: Path,
 ) -> None:
+    """Verify pids kills each noted pid passing over one already gone."""
     path = tmp_path / "pids.txt"
     with _child("pass\n") as gone:
         gone.wait()
@@ -331,6 +349,7 @@ def test_pids_kills_each_noted_pid_passing_over_one_already_gone(
 def test_meet_returns_once_the_other_side_has_opened_the_fifo(
     tmp_path: Path, side: str, flags: int
 ) -> None:
+    """Verify meet returns once the other side has opened the fifo."""
     path = tmp_path / "meet.fifo"
     os.mkfifo(path)
     with _child(MEET, str(path), side) as child:

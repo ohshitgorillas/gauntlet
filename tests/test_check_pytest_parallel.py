@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pytest gate's parallel test-module processes.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Tests", the "pytest strictness" bullet and its
@@ -132,7 +133,7 @@ def test_given_order(tmp_path: Path) -> None:
 
 
 def test_error_whole(tmp_path: Path) -> None:
-    """pytest's error for the module given first, which ends last, prints whole before the other module's finding."""
+    """Pytest's error for the module given first, which ends last, prints whole before the other module's finding."""
     first, second = _ordered(tmp_path, FIRST_BREAKS_LATE)
 
     lines = _child([first, second], _cpus(tmp_path, 4)).stdout.splitlines()

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """An event paced Runner and worker wait, paired by each concurrent test.
 
 The no-wall-clock design specifies the barrier: every submitted call starts before next_done releases calls.
@@ -12,10 +13,11 @@ from dataclasses import dataclass
 from gates.core.checker import Command, Completed, first_done
 
 
-class Released(Exception):
+class ReleasedError(Exception):
     """A call was released by closing its Scripted."""
 
     def __init__(self, name: str) -> None:
+        """Initialize the seeded state."""
         self.name = name
         super().__init__(name)
 
@@ -42,6 +44,7 @@ class Scripted:
         *,
         key: Callable[[Command], str] = last_argument,
     ) -> None:
+        """Initialize the seeded state."""
         self.steps = dict(steps)
         self.key = key
         self.called: list[str] = []
@@ -55,6 +58,7 @@ class Scripted:
         self._futures: set[Future[Completed]] = set()
 
     def __call__(self, command: Command) -> Completed:
+        """Return the reply for the supplied call."""
         name = self.key(command)
         with self._condition:
             self._check_open(name)
@@ -84,9 +88,10 @@ class Scripted:
 
     def _check_open(self, name: str) -> None:
         if self._closed:
-            raise Released(name)
+            raise ReleasedError(name)
 
     def _ended(self, future: Future[Completed]) -> None:
+        del future
         with self._condition:
             self._condition.notify_all()
 
@@ -102,11 +107,9 @@ class Scripted:
                             self._futures.add(future)
                             future.add_done_callback(self._ended)
                     while self._running < sum(not future.done() for future in running):
-                        if self._closed:
-                            raise Released("next_done")
+                        self._check_open("next_done")
                         self._condition.wait()
-                    if self._closed:
-                        raise Released("next_done")
+                    self._check_open("next_done")
                     self._generation += 1
                     self._condition.notify_all()
             return first_done(running)

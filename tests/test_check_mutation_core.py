@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the mutation gate's entry and outcome on the gates core.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Tests", the "Mutation testing blocks" bullet,
@@ -108,8 +109,10 @@ NAME_CHARACTERS = r"\w"
 
 
 def _whole(part: str, characters: str) -> str:
-    """A pattern matching the part only as a whole token: no token character or dot touches it before, and no token
-    character, nor a dot then a token character, follows it."""
+    """Return a pattern matching the part only as a whole token: no token character or dot touches it before, and no token.
+
+    character, nor a dot then a token character, follows it.
+    """
     return rf"(?<![.{characters}]){re.escape(part)}(?![{characters}]|\.[{characters}])"
 
 

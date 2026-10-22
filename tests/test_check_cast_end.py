@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for how a cast gate run whose checker did not finish on some file ends.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: a gate "exits 2 when its
@@ -67,12 +68,12 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 
 
 def _broken(tmp_path: Path) -> Path:
-    """A file the checker cannot parse, its syntax error on line 5."""
+    """Create a file the checker cannot parse, its syntax error on line 5."""
     return _seed(tmp_path, BROKEN, UNPARSEABLE_ON_FIVE)
 
 
 def _locked(tmp_path: Path) -> Path:
-    """A file the checker cannot read: no one may read it."""
+    """Create a file the checker cannot read: no one may read it."""
     locked = _seed(tmp_path, LOCKED, CLEAN)
     locked.chmod(0o000)
     return locked
@@ -139,7 +140,7 @@ def _counts(lines: list[str]) -> int:
 
 
 def _first_number(text: str) -> int | None:
-    """The first run of decimal digits in `text`, read as a number, or None where `text` holds no digit."""
+    """Return the first run of decimal digits in `text`, read as a number, or None where `text` holds no digit."""
     digits = ""
     for character in text:
         if character in "0123456789":
@@ -150,8 +151,10 @@ def _first_number(text: str) -> int | None:
 
 
 def _reports(name: str, line_number: int | None, lines: list[str]) -> int:
-    """How many lines name `name`, carrying `line_number`, where one is given, as the first number after that name, and
-    the operating system's text for a denied read where none is."""
+    """How many lines name `name`, carrying `line_number`, where one is given, as the first number after that name, and.
+
+    the operating system's text for a denied read where none is.
+    """
     return sum(
         1
         for line in lines

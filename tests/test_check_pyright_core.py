@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pyright gate on the gates core.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 2, "A gate on the core", the C2 row of
@@ -18,8 +19,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from gates.check_pyright import GATE, main
-from gates.core.runner import run_gate
 from gates.core.checker import Completed
+from gates.core.runner import run_gate
 from tests.support.capture import captured
 from tests.support.fake import FakeRunner, completed
 from tests.support.project import scaffold

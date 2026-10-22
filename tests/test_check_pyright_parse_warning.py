@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pyright gate on a file whose parse raises a warning.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates":
@@ -20,6 +21,8 @@ from pathlib import Path
 import pytest
 
 from gates.check_pyright import main
+
+UNFINISHED_STATUS = 2
 
 INVALID_ESCAPE = 'PATTERN = "\\d"\n'
 
@@ -65,7 +68,7 @@ def test_parse_warning_exits_two(tmp_path: Path, source: str) -> None:
     """A file whose parse raises a warning is one the checker did not finish."""
     path = _seed(tmp_path, "seeded.py", source)
 
-    assert _run([path]) == 2
+    assert _run([path]) == UNFINISHED_STATUS
 
 
 @pytest.mark.parametrize("source", SOURCES)

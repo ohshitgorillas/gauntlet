@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """One gate run, from start to exit: its sources, its scratch space, its checker's batches, its printed lines and exit."""
 
 import os
@@ -151,17 +152,27 @@ class Checker[R](Protocol):
 
     stopped: frozenset[int]
 
-    def batches(self, run: Run) -> Sequence[Sequence[Source]]: ...
+    def batches(self, run: Run) -> Sequence[Sequence[Source]]:
+        """Group the run's sources into checker batches."""
+        ...
 
-    def command(self, run: Run, batch: Sequence[Source]) -> Command: ...
+    def command(self, run: Run, batch: Sequence[Source]) -> Command:
+        """Build the checker command for a batch."""
+        ...
 
-    def read(self, completed: Completed) -> R: ...
+    def read(self, completed: Completed) -> R:
+        """Read a completed command's report."""
+        ...
 
-    def expected_status(self, report: R) -> int: ...
+    def expected_status(self, report: R) -> int:
+        """Return the exit status that agrees with the report."""
+        ...
 
     def lines(
         self, report: R, batch: Sequence[Source], *, stopped: bool
-    ) -> Sequence[Line]: ...
+    ) -> Sequence[Line]:
+        """Translate the report into finding, remark or unfinished lines."""
+        ...
 
 
 def check_with[R](
@@ -214,7 +225,8 @@ def _batch_lines[R](
     output = completed.output()
     if completed.timed_out:
         if command.timeout is None:
-            raise GateError(f"the checker {command.argv[0]} timed out with no time cap")
+            message = f"the checker {command.argv[0]} timed out with no time cap"
+            raise GateError(message)
         return list(timed_out(output, command.argv[0], command.timeout))
     try:
         report = checker.read(completed)

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests: the mypy gate's verdict on a Python file does not depend on the tree's other files.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "A gate's verdict on a Python file is the same whatever other files the tree holds." The same paragraph: a gate exits 0 with no finding, 1 with one or more findings, and 2 when its checker could not finish, and prints each finding on its own line. Applied to the mypy gate of "Types", first bullet.

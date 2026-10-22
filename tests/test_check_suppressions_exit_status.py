@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate's exit status on a marker in any Python file.
 
 Sources: the quality-gates design spec under docs/superpowers/specs/, "Gates" (the

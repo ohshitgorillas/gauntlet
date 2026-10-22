@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """mypy gate: type-check every Python file under the settings in `pyproject.toml`."""
 
 import json
@@ -70,7 +71,7 @@ def record(line: str) -> Record:
 
 
 def _texts(record: Record) -> list[str]:
-    """The lines mypy's own text report gives the record: the record with its whole message and its code, then each of its notes.
+    """Return the lines mypy's own text report gives the record: the record with its whole message and its code, then each of its notes.
 
     A record of severity `note` shows its code only where mypy's text report shows one, for a code in `SHOW_NOTE_CODES`.
     """
@@ -92,7 +93,7 @@ def describe(record: Record) -> str:
 
 
 def shown(record: Record) -> list[Line]:
-    """The record's lines for a finished check: a Finding for the record, a Remark when it is a note, and a Remark per note on it."""
+    """Return the record's lines for a finished check: a Finding for the record, a Remark when it is a note, and a Remark per note on it."""
     head, *notes = _texts(record)
     return [
         Remark(head) if record["severity"] == NOTE else Finding(head),
@@ -101,7 +102,7 @@ def shown(record: Record) -> list[Line]:
 
 
 def _options(project: Project, cache: Path) -> tuple[str | Path, ...]:
-    """The options every mypy run of the gate takes: the project's settings and the cache it reads and writes."""
+    """Return the options every mypy run of the gate takes: the project's settings and the cache it reads and writes."""
     return ("--config-file", project.config, "--cache-dir", cache, "--no-error-summary")
 
 
@@ -119,13 +120,13 @@ def warm_cache(run: Run, directory: Path) -> None:
     if completed.output():
         raise GateError(completed.output())
     if completed.status != 0:
-        raise GateError(
+        message = (
             f"cannot warm the mypy cache in {directory}: mypy exited {completed.status}"
         )
+        raise GateError(message)
     if not any(path.is_file() for path in directory.rglob("*")):
-        raise GateError(
-            f"cannot warm the mypy cache in {directory}: mypy left no file there"
-        )
+        message = f"cannot warm the mypy cache in {directory}: mypy left no file there"
+        raise GateError(message)
 
 
 class Mypy:
@@ -145,7 +146,7 @@ class Mypy:
         return [[source] for source in run.sources]
 
     def command(self, run: Run, batch: Sequence[Source]) -> Command:
-        """mypy over the batch's one file, from its own copy of the warm cache, as a JSON report with absolute paths."""
+        """Mypy over the batch's one file, from its own copy of the warm cache, as a JSON report with absolute paths."""
         warm = run.scratch.once("warm", partial(warm_cache, run))
         return python_module(
             "mypy",
@@ -158,20 +159,20 @@ class Mypy:
         )
 
     def read(self, completed: Completed) -> Report:
-        """The records of mypy's JSON report, with its stderr; GateError on a line that holds no record."""
+        """Read the records of mypy's JSON report with its stderr; raise GateError on a line that holds no record."""
         return Report(
             records=[record(line) for line in completed.stdout.splitlines()],
             stderr=completed.stderr,
         )
 
     def expected_status(self, report: Report) -> int:
-        """mypy exits 1 when its report holds a record and 0 when it holds none: exit 1 with no record is a refusal, not a pass."""
+        """Mypy exits 1 when its report holds a record and 0 when it holds none: exit 1 with no record is a refusal, not a pass."""
         return 1 if report.records else 0
 
     def lines(
         self, report: Report, batch: Sequence[Source], *, stopped: bool
     ) -> list[Line]:
-        """A stop gives every record, wherever it lies, then its stderr, as unfinished; a finish gives the records in the batch's file, then its stderr as remarks."""
+        """Return every record and stderr as unfinished on a stop, or the batch file records and stderr remarks on a finish."""
         if stopped:
             return [
                 *(Unfinished(describe(entry)) for entry in report.records),

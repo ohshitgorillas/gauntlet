@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for a throttled Command: `run` starts it under this host's throttle line, and an unthrottled one as its argv says.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process":
@@ -65,11 +66,11 @@ def _logged(*words: str) -> str:
 
 
 def _step() -> str:
-    """The nice step this process's own niceness gives: 19 less it, floored at 0."""
+    """Return the nice step this process's own niceness gives: 19 less it, floored at 0."""
     return str(max(0, 19 - os.getpriority(os.PRIO_PROCESS, 0)))
 
 
-def _run(tmp_path: Path, throttled: bool) -> tuple[int, list[str], Path]:
+def _run(tmp_path: Path, *, throttled: bool) -> tuple[int, list[str], Path]:
     """Run the checker through `run` with an env whose PATH holds only the stand-in tools; return status and log."""
     tools = tmp_path / "bin"
     tools.mkdir()

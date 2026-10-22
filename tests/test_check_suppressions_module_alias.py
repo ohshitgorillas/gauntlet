@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate on `no_type_check` reached through a name bound to its module by assignment.
 
 Sources: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate",

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pytest gate's cap on processes at once, and the CPU count it reads in its own process.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Tests", the "pytest strictness" bullet, the
@@ -6,7 +7,7 @@ are test modules up to floor(C / 2) and never fewer than one, where C counts the
 read in the gate's own process: the CPUs its affinity allows where the host keeps an affinity. The exit codes come from
 the "Gates" intro paragraph.
 
-The no-wall-clock design Order steps 37–41 measure concurrency through Scripted and its own next_done.
+The no-wall-clock design Order steps 37-41 measure concurrency through Scripted and its own next_done.
 """
 
 import os
@@ -64,26 +65,31 @@ def _peak(root: Path, count: int, cpus: int | None) -> tuple[int, int, int]:
 
 # Breaks if the pytest gate runs fewer or more than two of three modules with four CPUs.
 def test_four_cpus_overlap_exactly_two(tmp_path: Path) -> None:
+    """Verify four cpus overlap exactly two."""
     assert _peak(tmp_path, 3, FOUR_CPUS) == (NO_FINDING, 2, 3)
 
 
 # Breaks if the CPU budget rounds three CPUs up to two workers.
 def test_three_cpus_serialize_modules(tmp_path: Path) -> None:
+    """Verify three cpus serialize modules."""
     assert _peak(tmp_path, 2, THREE_CPUS) == (NO_FINDING, 1, 2)
 
 
 # Breaks if six CPUs are capped below three concurrent workers.
 def test_six_cpus_overlap_three_modules(tmp_path: Path) -> None:
+    """Verify six cpus overlap three modules."""
     assert _peak(tmp_path, 3, SIX_CPUS) == (NO_FINDING, 3, 3)
 
 
 # Breaks if zero CPUs prevents work or permits concurrent workers.
 def test_zero_cpus_serialize_modules(tmp_path: Path) -> None:
+    """Verify zero cpus serialize modules."""
     assert _peak(tmp_path, 2, NO_CPUS) == (NO_FINDING, 1, 2)
 
 
 # Breaks if the default gate ignores process affinity or the host CPU count.
 def test_default_cpu_count_controls_overlap(tmp_path: Path) -> None:
+    """Verify default cpu count controls overlap."""
     if sys.platform == "linux":
         allowed = os.sched_getaffinity(0)
         os.sched_setaffinity(0, {min(allowed)})

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the Python version the pyright gate checks against.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Types",

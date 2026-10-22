@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """The one test in `tests/` that waits on real time: `SystemClock` says time's up when no event comes within its cap.
 
 Source: the no-wall-clock design spec under docs/superpowers/specs/, "gates/core/clock.py: the one home of real time"

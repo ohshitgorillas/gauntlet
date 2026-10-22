@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pyright gate's mode.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Types", second bullet.

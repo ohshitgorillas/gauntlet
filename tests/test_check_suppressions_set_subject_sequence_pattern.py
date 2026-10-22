@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate's no_type_check ban on sequence patterns over a set subject.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate",

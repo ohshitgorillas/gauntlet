@@ -1,4 +1,5 @@
-"""Red tests for the gates core gate error and the exit code a run's outcome calls for.
+# Copyright 2026 oh shit, gorillas!
+r"""Red tests for the gates core gate error and the exit code a run's outcome calls for.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "report.py: what a run prints and how it
 exits": `GateError(report)` is an Exception that "keeps `.report`, the report as given, which the runner reads by that
@@ -66,11 +67,11 @@ SEED = "check_pytest: seed 1234"
 
 
 def test_gate_error_is_an_exception_that_carries_its_report() -> None:
-    """Raise a GateError and catch it as an Exception whose `.report` is the report it was given, as given."""
-    with pytest.raises(Exception) as caught:
-        raise GateError(REPORT)
-    error = caught.value
-    assert isinstance(error, GateError) and error.report == REPORT
+    """Verify GateError is an Exception carrying the report it was given, as given."""
+    error = GateError(REPORT)
+    assert isinstance(error, Exception)
+    assert isinstance(error, GateError)
+    assert error.report == REPORT
 
 
 @pytest.mark.parametrize(
@@ -308,7 +309,7 @@ def test_split(text: str, expected: list[str]) -> None:
 
 @pytest.mark.parametrize("brk", BREAKS)
 def test_join_at(brk: str) -> None:
-    """one_line: each line boundary str.splitlines knows becomes one space, `\\r\\n` included as one."""
+    r"""one_line: each line boundary str.splitlines knows becomes one space, `\\r\\n` included as one."""
     assert one_line(FIRST + brk + SECOND) == FIRST + " " + SECOND
 
 
@@ -587,13 +588,13 @@ KEPT_TEXT = CRASH + "\n" + "\n" + INDENTED + "\n" + CAUSE + "\n"
 
 
 def _buffered() -> tuple[io.TextIOWrapper, io.BytesIO]:
-    """A text stream whose writes reach its bytes only when it is flushed."""
+    """Return a text stream whose writes reach its bytes only when it is flushed."""
     raw = io.BytesIO()
     return io.TextIOWrapper(raw, encoding="utf-8", newline="\n"), raw
 
 
 def _written(call: Callable[[], object]) -> tuple[str, str, list[str]]:
-    """What `call` prints to a sys.stdout and a sys.stderr of its own, and every line that reaches fd 1 or fd 2 instead.
+    """Return what `call` prints to a sys.stdout and a sys.stderr of its own, and every line that reaches fd 1 or fd 2 instead.
 
     The streams put in place for the call are neither sys.__stdout__ nor sys.__stderr__ nor a wrapper over fd 1 or 2, so
     a writer that does not look up sys.stdout and sys.stderr when it is called prints nothing to them.

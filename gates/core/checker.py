@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Running a checker process: the command, what it gave back, and the host's throttle line and CPU budget."""
 
 import contextlib

@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the count line of a pyright gate run whose checker could not finish.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "The count line of a run
@@ -65,7 +66,7 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 def _layout(
     tmp_path: Path, broken: Path, companion: str | None, *, broken_first: bool
 ) -> list[Path]:
-    """The unfinished file alone, or beside a companion file placed before or after it."""
+    """Return the unfinished file alone, or beside a companion file placed before or after it."""
     if companion is None:
         return [broken]
     other = _seed(tmp_path, "companion.py", companion)
@@ -101,7 +102,7 @@ def _shapes(lines: list[str]) -> list[bool]:
 
 
 def _pyright_messages(path: Path) -> list[str]:
-    """The message of each diagnostic pyright itself reports on one file, run on it alone, its rule name dropped."""
+    """Return the message of each diagnostic pyright itself reports on one file, run on it alone, its rule name dropped."""
     command = [sys.executable, "-m", "pyright", str(path)]
     run = subprocess.run(command, capture_output=True, text=True, check=False)
     prefix = f"{path}:"

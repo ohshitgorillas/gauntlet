@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the mypy gate run over `tests/` only, as `make check-tests` runs it.
 
 Source: the agents design spec under docs/superpowers/specs/, "Decisions", the `make check-tests` bullet: the target runs each gate of `check` over `tests/` only and prints only findings located under `tests/`, while the type checkers follow imports out of `tests/` as the quality gates spec requires. Applied to the mypy gate of the quality gates spec, "Types", first bullet.

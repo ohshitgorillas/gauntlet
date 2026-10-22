@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red test for the Python version the test suite runs on.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Types",

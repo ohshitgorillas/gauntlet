@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the one line that counts files in a pyright gate run whose checker could not finish.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "The count line of a run
@@ -57,7 +58,7 @@ def _seed(tmp_path: Path, name: str, source: str) -> Path:
 def _layout(
     tmp_path: Path, broken: Path, companion: str | None, *, broken_first: bool
 ) -> list[Path]:
-    """The unfinished file alone, or beside a companion file placed before or after it."""
+    """Return the unfinished file alone, or beside a companion file placed before or after it."""
     if companion is None:
         return [broken]
     other = _seed(tmp_path, "companion.py", companion)

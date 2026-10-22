@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for what the pytest gate prints over a test file pytest did not finish.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Tests", the "pytest strictness" bullet: "over one
@@ -23,15 +24,15 @@ from pathlib import Path
 from gates.check_pytest import main
 from tests.support.capture import captured
 
-OUT_TOKEN = "SeededOut"
+OUT_MARKER = "SeededOut"
 
-ERR_TOKEN = "SeededErr"
+ERR_MARKER = "SeededErr"
 
 SPEAKING_CONFTEST = (
     "import sys\n\n\n"
     "def pytest_sessionfinish(session, exitstatus):\n"
-    f"    print('{OUT_TOKEN}', file=sys.stdout, flush=True)\n"
-    f"    print('{ERR_TOKEN}', file=sys.stderr, flush=True)\n"
+    f"    print('{OUT_MARKER}', file=sys.stdout, flush=True)\n"
+    f"    print('{ERR_MARKER}', file=sys.stderr, flush=True)\n"
 )
 
 NO_TESTS = "SEEDED_VALUE = 1\n"
@@ -51,7 +52,7 @@ def _seed(root: Path, relative: str, source: str) -> Path:
 
 
 def _printed(root: Path, source: str) -> tuple[list[str], str]:
-    """The lines the gate printed over the seeded module and its speaking conftest, endings dropped, split off its last."""
+    """Return the lines the gate printed over the seeded module and its speaking conftest, endings dropped, split off its last."""
     paths = [
         _seed(root, "tests/test_seeded.py", source),
         _seed(root, "tests/conftest.py", SPEAKING_CONFTEST),
@@ -65,8 +66,8 @@ def test_empty(tmp_path: Path) -> None:
     before, last = _printed(tmp_path, NO_TESTS)
 
     assert (
-        OUT_TOKEN in before,
-        ERR_TOKEN in before,
+        OUT_MARKER in before,
+        ERR_MARKER in before,
         COUNT_LINE.fullmatch(last) is not None,
     ) == (True, True, True)
 
@@ -76,7 +77,7 @@ def test_error(tmp_path: Path) -> None:
     before, last = _printed(tmp_path, COLLECTION_ERROR)
 
     assert (
-        OUT_TOKEN in before,
-        ERR_TOKEN in before,
+        OUT_MARKER in before,
+        ERR_MARKER in before,
         COUNT_LINE.fullmatch(last) is not None,
     ) == (True, True, True)

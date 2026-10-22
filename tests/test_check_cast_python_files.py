@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red test for the cast gate's exit status when its checker cannot finish.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "Every gate applies to
@@ -16,6 +17,8 @@ from pathlib import Path
 
 from gates.check_cast import main
 
+UNFINISHED_STATUS = 2
+
 DIRTY = "import typing\n\nvalue = typing.cast(int, 1)\n"
 
 
@@ -32,4 +35,4 @@ def test_unreadable(tmp_path: Path) -> None:
     path = _seed(tmp_path / "locked.py", DIRTY)
     path.chmod(stat.S_IWUSR)
 
-    assert main([path]) == 2
+    assert main([path]) == UNFINISHED_STATUS

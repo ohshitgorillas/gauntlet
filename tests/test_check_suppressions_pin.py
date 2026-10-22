@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate on a tree whose `pyproject.toml` pins no Python it can parse with.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph: "A gate that parses a
@@ -61,12 +62,12 @@ MARKED = "value = 1  # noqa\n"
 
 
 def _caches(_directory: str, names: list[str]) -> set[str]:
-    """The bytecode cache directories among `names`, left out of the copy."""
+    """Return the bytecode cache directories among `names`, left out of the copy."""
     return {name for name in names if name == "__pycache__"}
 
 
 def _tree(tmp_path: Path, pyproject: str) -> Path:
-    """A tree holding a copy of the `gates` package and the seeded `pyproject.toml`."""
+    """Create a tree holding a copy of the `gates` package and the seeded `pyproject.toml`."""
     root = tmp_path / "tree"
     shutil.copytree(
         Path(check_suppressions.__file__).parent, root / "gates", ignore=_caches

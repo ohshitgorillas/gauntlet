@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the descriptors a checker process holds: those `Command.pass_fds` names stay open, every other is closed.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process",
@@ -58,7 +59,7 @@ def _open(
 
 
 def _identity(fd: int) -> tuple[str, str, str]:
-    """The descriptor's number, then the device and inode of the file it holds, as the probe reads them."""
+    """Return the descriptor's number, then the device and inode of the file it holds, as the probe reads them."""
     status = os.fstat(fd)
     return (str(fd), str(status.st_dev), str(status.st_ino))
 

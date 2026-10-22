@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate's ban on `typing.no_type_check` and `typing.no_type_check_decorator`.
 
 Sources: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate",
@@ -192,7 +193,7 @@ def test_gate_exits_unfinished_on_file_it_cannot_parse(
 
 @pytest.mark.parametrize("broken_first", [True, False])
 def test_gate_exits_unfinished_whatever_it_found_in_other_files(
-    tmp_path: Path, broken_first: bool
+    tmp_path: Path, *, broken_first: bool
 ) -> None:
     """Exit with the unfinished status when one file does not parse and another carries a finding."""
     broken = _seed(tmp_path, "broken.py", "value = = 1\n")

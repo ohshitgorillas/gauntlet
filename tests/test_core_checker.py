@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for running a checker process: what `run` gives back from the Command it is handed.
 
 Source: the gates core design spec under docs/superpowers/specs/, section 1, "checker.py: running a checker process".

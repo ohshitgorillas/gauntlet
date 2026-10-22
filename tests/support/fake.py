@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """A scripted stand-in for the process runner: canned replies in order, and a record of every Command it was given.
 
 Design: the gates-core design spec under docs/superpowers/specs/, section 3, "fake.py". A test hands FakeRunner the
@@ -19,13 +20,16 @@ class FakeRunner:
     commands: list[Command]
 
     def __init__(self, replies: Sequence[Completed]) -> None:
+        """Initialize the seeded state."""
         self.commands = []
         self._replies = deque(replies)
 
     def __call__(self, command: Command) -> Completed:
+        """Return the reply for the supplied call."""
         self.commands.append(command)
         if not self._replies:
-            raise AssertionError(f"FakeRunner has no reply left for {command.argv!r}")
+            message = f"FakeRunner has no reply left for {command.argv!r}"
+            raise AssertionError(message)
         return self._replies.popleft()
 
 
@@ -37,7 +41,7 @@ def completed(
     *,
     timed_out: bool = False,
 ) -> Completed:
-    """A reply: the status, the streams, whether the cap was hit, and the output files' text, None for one not written."""
+    """Return a reply: the status, the streams, whether the cap was hit, and the output files' text, None for one not written."""
     return Completed(
         status=status,
         stdout=stdout,

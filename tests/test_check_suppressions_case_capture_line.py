@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate's finding on the case line of a match capture.
 
 Source: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate",

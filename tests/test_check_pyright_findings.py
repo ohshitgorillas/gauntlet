@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the pyright gate's finding lines on a finished run.
 
 Source: the quality gates design spec under docs/superpowers/specs/, "Gates", intro paragraph:
@@ -19,6 +20,8 @@ from pathlib import Path
 import pytest
 
 from gates.check_pyright import main
+
+DIAGNOSTIC_COUNT = 2
 
 ALPHA = 'first_value: int = "alpha"\n'
 
@@ -62,4 +65,4 @@ def test_each_finding_on_own_line(
     lines = _printed_lines(layout(tmp_path))
     carrying = [line for line in lines if any(word in line for word in SEEDED)]
 
-    assert len(carrying) == 2
+    assert len(carrying) == DIAGNOSTIC_COUNT

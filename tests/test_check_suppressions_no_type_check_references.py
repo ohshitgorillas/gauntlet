@@ -1,3 +1,4 @@
+# Copyright 2026 oh shit, gorillas!
 """Red tests for the suppression gate's finding on every reference to `no_type_check`.
 
 Sources: the quality-gates design spec under docs/superpowers/specs/, "Suppression gate",
