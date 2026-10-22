@@ -165,29 +165,69 @@ It replaces the raising body of `mutate` (`gates/check_mutation.py:91`–`:100`)
 | The test-file rule | `test_files` and `non_test_files` (`gates/core/project.py:82`, `:92`) | `check_pytest.select` or a `conftest.py` rule of its own in the mutation gate |
 | A file the checker did not finish | An `Unfinished` in `Selection.unfinished` (decision 5) | An exception that ends the run for one file |
 | A move onto a home that keeps behavior | The moved module's block of **Modules**, built by that module's build step and held by the tests already in the tree under the build commit's `make check` (decision 9) | The move named in a brief or a step's text, a step of its own for it, or the old spelling left beside its home |
+| A stub's signatures | Its module's block of **Modules**, each declaration line written word for word, up to its comment, in its stub step's block in **Order** (decision 10) | A signature in a stub step's block that its module's block does not give word for word; a declaration a stub writes that its step's block does not list |
 | A repository in tests | `scaffold(..., git=True)` (`tests/support/project.py:63`), then the test's own writes for a change; `FakeRunner` and `completed` for git's replies (`tests/support/fake.py:16`, `:32`) | A test's own `git init` or commit, or its own `GIT_` scrub |
 
 A builder that needs what these homes lack stops and reports it, and writes no copy.
 
 ## Order
 
-Each step lands green under `make check` before the next starts, save a `stub` step and a red step, which land in the commit of the build that turns those red tests green (`docs/superpowers/specs/2026-10-18-agents-design.md:64`). Each stub step writes one module and is paired with the one build step that turns all its red tests green. A stub step writes each declaration **Modules** gives its module, a constant at the value given there, a dataclass's fields, a Protocol's signatures and each new function's or method's body raising `NotImplementedError`, and changes no line already in the module save `mutate`'s body at step 21. A red step holds one behavior, the one name it gives, as **Modules** gives it (`docs/superpowers/specs/2026-10-18-agents-design.md:61`); its brief carries no path, fixture or fake, so its Paths are `tests/`, the one file `test-writer` names in its report. A build step is a `gatesmith` module step: one module by its path and its block of **Modules**, on the red tests of its own stub's group (`docs/superpowers/specs/2026-10-18-agents-design.md:66`); what that block moves onto a home is held by the tests already in the tree (decision 9). Whether a `gatesmith` module step builds what its block gives beyond its red tests is unmeasured, so a move it gets wrong shows first at the build commit's `make check`.
+Each step lands green under `make check` before the next starts, save a `stub` step and a red step, which land in the commit of the build that turns those red tests green (`docs/superpowers/specs/2026-10-18-agents-design.md:64`). Each stub step writes one module and is paired with the one build step that turns all its red tests green. A red step holds one behavior, the one name it gives, as **Modules** gives it (`docs/superpowers/specs/2026-10-18-agents-design.md:61`); its brief carries no path, fixture or fake, so its Paths are `tests/`, the one file `test-writer` names in its report. A build step is a `gatesmith` module step: one module by its path and its block of **Modules**, on the red tests of its own stub's group (`docs/superpowers/specs/2026-10-18-agents-design.md:66`); what that block moves onto a home is held by the tests already in the tree (decision 9). Whether a `gatesmith` module step builds what its block gives beyond its red tests is unmeasured, so a move it gets wrong shows first at the build commit's `make check`.
+
+A stub step's text holds a fenced block of each declaration line its module's block of **Modules** gives, word for word up to its comment, so its brief, the plan step's text (`docs/superpowers/specs/2026-10-18-agents-design.md:64`), carries every signature the stub writes (decision 10). A stub step writes each declaration its block lists and no other, a constant at the value given there, a dataclass's fields, a Protocol's signatures and each new function's or method's body raising `NotImplementedError`, and changes no line already in the module save `mutate`'s body at step 21.
 
 Step 1 and steps 3 to 12 run beside C7b, steps 10 to 12 once step 9 lands. Step 2 waits for C7b's step 7, the architect pass that writes the mutmut run design (`docs/superpowers/specs/2026-10-21-mutmut-run-design.md:154`). Steps 13 to 20 wait for C7b's step 34, the last C7b step that writes `gates/check_mutation.py` or `gates/mutmut_driver.py` (`docs/superpowers/specs/2026-10-21-mutmut-run-design.md:181`), and run beside steps 10 to 12. Step 21 waits for steps 2, 5, 9, 12 and 20.
 
 1. The gates core design's `runner.py` block names `place` (`docs/superpowers/specs/2026-10-20-gates-core-design.md:153`–`:158`), its `project.py` block names `located` and `files` (`:101`–`:107`), and its C7a-c row points here for C7c (`:338`). The quality gates spec's changed-function rule (`docs/superpowers/specs/2026-10-17-quality-gates-design.md:81`) holds decision 4's ruling, and its closed set of a gate's own lines (`:30`) holds decision 5's. The gap list decision 7 closes is removed. Agent: `general-purpose`, a change confined to `docs/`. Paths: `docs/superpowers/specs/2026-10-20-gates-core-design.md`, `docs/superpowers/specs/2026-10-17-quality-gates-design.md`, `docs/superpowers/audits/2026-10-21-mutation-plan-gaps.md`.
 2. The mutmut run design's forbid (`docs/superpowers/specs/2026-10-21-mutmut-run-design.md:126`) names git through `Project.git` on `run.process` as the one process C7c reaches, and its driver block points here for C7c's additions (`:77`–`:95`). Agent: `general-purpose`, a change confined to `docs/`. Paths: `docs/superpowers/specs/2026-10-21-mutmut-run-design.md`.
 3. `stub`: `Scratch.place`. Agent: `gatesmith`, no red test. Paths: `gates/core/runner.py`.
+
+   ```python
+   class Scratch:
+       def place(self, name: str, files: Mapping[str, Path | str]) -> Path
+   ```
+
 4. Red test: `Scratch.place`. Agent: `test-writer`. Paths: `tests/`.
 5. `gates/core/runner.py`, as its block of **Modules** gives it. Lands with steps 3 and 4. Agent: `gatesmith`, red test from step 4. Paths: `gates/core/runner.py`.
 6. `stub`: `Project.located` and `Project.files`. Agent: `gatesmith`, no red test. Paths: `gates/core/project.py`.
+
+   ```python
+   class Project:
+       def located(self, absolute: Path) -> str | None
+       def files(self, *, process: Runner = run) -> tuple[str, ...]
+   ```
+
 7. Red test: `Project.located`. Agent: `test-writer`. Paths: `tests/`.
 8. Red test: `Project.files`. Agent: `test-writer`. Paths: `tests/`.
 9. `gates/core/project.py`, as its block of **Modules** gives it. Lands with steps 6 to 8. Agent: `gatesmith`, red tests from steps 7 and 8. Paths: `gates/core/project.py`.
 10. `stub`: `settings_arguments`. Agent: `gatesmith`, no red test. Paths: `gates/check_pytest.py`.
+
+    ```python
+    def settings_arguments(config: Path, root: Path) -> tuple[str, ...]
+    ```
+
 11. Red test: `settings_arguments`. Agent: `test-writer`. Paths: `tests/`.
 12. `gates/check_pytest.py`, as its block of **Modules** gives it (decision 9). Lands with steps 10 and 11. Agent: `gatesmith`, red test from step 11. Paths: `gates/check_pytest.py`.
 13. `stub`: in the driver, `MUTANTS`, `SOURCE_PATHS`, `PYTEST_ARGUMENTS` and `TEST_SELECTION` at their values, `mangle` in the `Mutmut` Protocol and on `MUTMUT`, `mutable`, `mutated_path`, `unmutated_path`, `settings_text` and `function_spans`. Agent: `gatesmith`, no red test. Paths: `gates/mutmut_driver.py`.
+
+    ```python
+    MUTANTS: str = "mutants"
+    SOURCE_PATHS: str = "source_paths"
+    PYTEST_ARGUMENTS: str = "pytest_add_cli_args"
+    TEST_SELECTION: str = "pytest_add_cli_args_test_selection"
+
+    class Mutmut(Protocol):
+        def mangle(self, name: str, class_name: str | None) -> str: ...
+
+    MUTMUT: Mutmut
+
+    def mutable(located: str) -> bool
+    def mutated_path(located: str) -> str
+    def unmutated_path(located: str) -> str
+    def settings_text(mutated: Sequence[str], tests: Sequence[str], pytest_arguments: Sequence[str]) -> str
+    def function_spans(tree: ast.Module, mutmut: Mutmut = MUTMUT) -> dict[str, range]
+    ```
+
 14. Red test: `mutable`. Agent: `test-writer`. Paths: `tests/`.
 15. Red test: `mutated_path`. Agent: `test-writer`. Paths: `tests/`.
 16. Red test: `unmutated_path`. Agent: `test-writer`. Paths: `tests/`.
@@ -196,6 +236,28 @@ Step 1 and steps 3 to 12 run beside C7b, steps 10 to 12 once step 9 lands. Step 
 19. Red test: `MUTMUT.mangle`, as the driver block gives its rule, no mangled name spelled (decision 8). Agent: `test-writer`. Paths: `tests/`.
 20. `gates/mutmut_driver.py`, as its block of **Modules** gives it (decision 9). Lands with steps 13 to 19. Agent: `gatesmith`, red tests from steps 14 to 19. Paths: `gates/mutmut_driver.py`.
 21. `stub`: `Changes`, `Selection`, `hunk_changes`, `changed_functions`, `has_head`, `changes`, `select_changes` and `lay_out`, and `mutate`'s body raising `NotImplementedError` in place of its GateError (`gates/check_mutation.py:96`–`:100`), so its red test reads `NotImplementedError`. Agent: `gatesmith`, no red test. Paths: `gates/check_mutation.py`.
+
+    ```python
+    @dataclass(frozen=True)
+    class Changes:
+        lines: frozenset[int]
+        cuts: frozenset[int] = frozenset()
+
+    @dataclass(frozen=True)
+    class Selection:
+        changed: Mapping[str, frozenset[str]]
+        given: Mapping[str, Source]
+        unfinished: tuple[Unfinished, ...] = ()
+
+    def hunk_changes(diff: str) -> Changes
+    def changed_functions(spans: Mapping[str, range], changes: Changes | None) -> frozenset[str]
+    def has_head(run: Run) -> bool
+    def changes(run: Run, located: str, head: bool) -> Changes | None
+    def select_changes(run: Run, version: tuple[int, int], *, mutmut: Mutmut = MUTMUT) -> Selection
+    def lay_out(run: Run, selection: Selection) -> Plan
+    def mutate(run: Run, version: tuple[int, int]) -> Mutated
+    ```
+
 22. Red test: `hunk_changes`. Agent: `test-writer`. Paths: `tests/`.
 23. Red test: `changed_functions`. Agent: `test-writer`. Paths: `tests/`.
 24. Red test: `has_head`. Agent: `test-writer`. Paths: `tests/`.
@@ -204,6 +266,10 @@ Step 1 and steps 3 to 12 run beside C7b, steps 10 to 12 once step 9 lands. Step 
 27. Red test: `lay_out`. Agent: `test-writer`. Paths: `tests/`.
 28. Red test: `mutate`. Agent: `test-writer`. Paths: `tests/`.
 29. `gates/check_mutation.py`, as its block of **Modules** gives it (decision 9). Lands with steps 21 to 28. Agent: `gatesmith`, red tests from steps 22 to 28. Paths: `gates/check_mutation.py`.
+
+## Decisions for the owner
+
+11. **Where does a stub's signature have its one spelling, now that its module's block and its stub step's block both give it (decision 10)?** Recommend: its module's block of **Modules**, its stub step's block a word-for-word copy of its declaration lines up to their comments, which every `rulings` pass that touches the module's block rewrites beside it and the architect's reread checks against it; cost: each signature spelled twice in one file, so an edit that reaches one and misses the other leaves them apart, caught only by that reread, how often unmeasured. Alternative: the stub step's block as the one spelling, each module's block in **Modules** keeping its job and each name's behavior under the bare name, so no signature is written twice; cost: **Modules** no longer gives a module's interface as stubs in one block, the shape the mutmut run design's **Modules** gives too (`docs/superpowers/specs/2026-10-21-mutmut-run-design.md:25`–`:53`), and a reader of a name's behavior turns to **Order** for its types.
 
 ## Decisions taken
 
@@ -218,3 +284,4 @@ Each entry gives the question, or for a `new:` ruling a name for the structure, 
 7. **Where does the architect read the 16 gaps ruling 6 closes?** Ruling: "Sounds good, keep things rolling, as I said (the gaps: docs/superpowers/audits/2026-10-21-mutation-plan-gaps.md, all 16, committed inside the repository)" The list lies in the tree at the path it names, the decision's alternative, so the 16 share this entry. Gaps 1 and 6 hold no longer: step 2 cites the forbid at `docs/superpowers/specs/2026-10-21-mutmut-run-design.md:126`, and step 13 waits for C7b's step 34 (`:181`); gap 3 fits. Adds: the values of `MUTANTS` and the three key names, `mangle` on `MUTMUT` and its rule through `changed_mutants` in `gates/mutmut_driver.py`, and `SCOPE_KEYS` on those names in `gates/check_mutation.py`; the home "A move onto a home that keeps behavior", and a mangled name forbidden in a test or a gate; step 1's removal of the list, and step 2 after C7b's step 7 (gap 2); one module per stub at steps 3, 6, 10, 13 and 21, each paired with its one build at step 5, 9, 12, 20 or 29 (gaps 5, 7), step 13 writing the constants' values and `MUTMUT`'s `mangle` (gaps 8, 9), step 21 `mutate`'s body raising `NotImplementedError` (gap 15); red steps 4, 7, 8, 11, 14 to 19 and 22 to 28, one behavior each with no path, fixture or fake in the brief (gaps 4, 10, 12, 14); build steps naming a module and its block, its moves held by the tree's tests (gaps 11, 13, 16); decisions 8 and 9. Written in: **Why**, **Modules**, **Homes**, **Order**, **Decisions for the owner**, **Decisions taken**.
 8. **Where does the red test of `MUTMUT.mangle` take its expected names?** Ruling: "Where you and the Architect both agree is fine with me. I want you to bring me conflicts." No conflict was brought on this decision, so the recommendation is taken: from the rule the driver block gives `mangle`, that `changed_mutants` keeps a function's mutants and no other's when handed `mangle`'s name for it, so no mangled name is spelled in a test, and no spike step measures mutmut's names. Adds: `Mutmut.mangle`'s rule through `changed_mutants` in `gates/mutmut_driver.py` as the source of step 19's expected values, whether `changed_mutants` matches on 3.8.0's names written as unmeasured; in the home "Which functions mutmut mutates, and their names", a mangled name spelled in a test or a gate forbidden; step 19's red test, spelling no mangled name, after C7b's driver build (`docs/superpowers/specs/2026-10-21-mutmut-run-design.md:173`) as steps 13 to 20 wait for C7b's step 34. Written in: **Modules**, **Homes**, **Order**, **Decisions for the owner**, **Decisions taken**.
 9. **How does a move onto a home that keeps behavior reach its builder?** Ruling: "Where you and the Architect both agree is fine with me. I want you to bring me conflicts." No conflict was brought on this decision, so the recommendation is taken: each move is written in its module's block of **Modules**, built by the build step that names the module by its path and that block (`docs/superpowers/specs/2026-10-18-agents-design.md:66`), and held by the tests already in the tree under the build commit's `make check`. Adds: the moves in the blocks of `gates/check_pytest.py` (the pytest gate's command onto `settings_arguments`, `module_classname` onto `Project.located`), `gates/mutmut_driver.py` (`meta_path` onto `MUTANTS`) and `gates/check_mutation.py` (`SCOPE_KEYS` onto the driver's key names); the home "A move onto a home that keeps behavior"; build steps 12, 20 and 29 carrying them, with no step and no `finding` step of their own, whether a `gatesmith` module step builds what its block gives beyond its red tests written as unmeasured. Written in: **Modules**, **Homes**, **Order**, **Decisions for the owner**, **Decisions taken**.
+10. **Each stub signature in its stub step.** Ruling: "Write each stub signature into the mutation plan design step list, please thank you" Each stub step's text holds a fenced block of every declaration line its module's block of **Modules** gives, word for word up to its comment, so the `stub` brief, the plan step's text (`docs/superpowers/specs/2026-10-18-agents-design.md:64`), carries each signature its stub writes. Adds: no module; the home "A stub's signatures"; the blocks of stub steps 3, 6, 10, 13 and 21, and **Order**'s rule that a stub writes each declaration its step's block lists and no other; decision 11. Written in: **Homes**, **Order**, **Decisions for the owner**, **Decisions taken**.
