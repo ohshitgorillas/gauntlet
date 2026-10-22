@@ -1,6 +1,7 @@
 """Running a checker process: the command, what it gave back, and the host's throttle line and CPU budget."""
 
 import contextlib
+import functools
 import os
 import select as multiplexing
 import shutil
@@ -71,10 +72,10 @@ def run(command: Command, *, clock: Clock = SYSTEM) -> Completed:
     to the moment it is reaped. The group is killed first; the signal then takes its course. Output files already
     at their paths are deleted before the checker starts, so each one read back was written by this checker.
 
+    The wait on the checker's exit is the Ready handed to the clock, and the timeout passes on that clock.
+
     Raises GateError when the program cannot start, when the wait on it cannot be set up, or when an output file cannot be deleted or read.
     """
-    if clock is not SYSTEM:
-        raise NotImplementedError
     argv = command.argv
     if command.throttled:
         path = os.pathsep.join(os.get_exec_path(command.env))
@@ -99,7 +100,7 @@ def run(command: Command, *, clock: Clock = SYSTEM) -> Completed:
             raise GateError(message) from error
         with process:
             _LIVE.add(process)
-            timed_out = _settle(process, command.timeout, interrupts)
+            timed_out = _settle(process, command.timeout, interrupts, clock)
         return Completed(
             status=_shell_status(process.wait()),
             stdout=_text(out),
@@ -193,8 +194,8 @@ def _streams(command: Command, stack: contextlib.ExitStack[bool | None]) -> tupl
     return stack.enter_context(tempfile.TemporaryFile()), stack.enter_context(tempfile.TemporaryFile())
 
 
-def _settle(process: subprocess.Popen[bytes], timeout: float | None, interrupts: _Interrupts) -> bool:
-    """Wait for the checker to end; return whether the timeout passed first.
+def _settle(process: subprocess.Popen[bytes], timeout: float | None, interrupts: _Interrupts, clock: Clock) -> bool:
+    """Wait through the clock for the checker to end; return whether the timeout passed first on that clock.
 
     Whatever ends the wait, the checker's whole process group is then killed, so no process still in that group
     outlives the run; one that left it, as by its own setsid, is not killed. The checker is reaped only after that
@@ -203,7 +204,7 @@ def _settle(process: subprocess.Popen[bytes], timeout: float | None, interrupts:
     ended = False
     try:
         interrupts.release()
-        ended = _await_exit(process, timeout)
+        ended = clock.wait(functools.partial(_await_exit, process), timeout)
     finally:
         interrupts.holding = True
         _kill_group(process)

@@ -15,6 +15,10 @@ test.
 The interrupt is a KeyboardInterrupt in the process that called `run`: the checker sends SIGINT to the test's own pid
 once its child holds the FIFO. Whether `run` raises the interrupt again after it kills the group the documents do not
 say, so a KeyboardInterrupt out of `run` is let through and nothing is claimed about it.
+
+The time cap passes on the clock `run` is handed (the no-wall-clock design spec, decision 6): a positive cap with
+`VirtualClock(passes=...)` at it, against a checker a `Lifeline` holds, which is certainly alive at the clock's first
+poll, so the cap passes at once in virtual time and `run` reports `timed_out`.
 """
 
 import contextlib
@@ -23,10 +27,15 @@ import sys
 from pathlib import Path
 
 from gates.core.checker import Command, Completed, run
-from tests.support.lifeline import WITNESS, Lifeline, Pids, Witness
+from tests.support.clock import VirtualClock
+from tests.support.lifeline import HOLD, WITNESS, Lifeline, Pids, Witness
 
 # A timeout the checker's child opens the FIFO well inside.
 TIMEOUT = 3.0
+
+# A cap that passes only on the VirtualClock handed to run, which lets exactly this many seconds pass at its poll. It
+# lies far past pytest-timeout's 30-second bound, so a run that sits the cap out in real time fails at that bound.
+CAP = 3600.0
 
 EXIT_CODE = 3
 
@@ -35,8 +44,6 @@ HELD = b"held"
 NO_TARGET = "0"
 
 EXIT = "import sys\nsys.exit(int(sys.argv[1]))\n"
-
-SLEEPER = "import time\ntime.sleep(20)\n"
 
 SESSION = "import os, sys\nsys.stdout.write(str(os.getsid(0) == os.getpid()))\n"
 
@@ -92,9 +99,18 @@ def test_own_session(tmp_path: Path) -> None:
     assert _run(tmp_path, _python(SESSION)).stdout == "True"
 
 
-def test_timed_out(tmp_path: Path) -> None:
-    """A checker still running when the Command's timeout passes gives back a Completed that says timed_out."""
-    assert _run(tmp_path, _python(SLEEPER), TIMEOUT).timed_out is True
+def test_timed_out_on_the_clock_run_is_handed(tmp_path: Path) -> None:
+    """A checker a Lifeline holds is still running when its cap passes on the clock `run` is handed: timed_out.
+
+    The clock lets the cap pass at once in virtual time, and moves its `now` by the cap, only when `run` waits through
+    it with the Command's timeout as the cap.
+    """
+    clock = VirtualClock(passes=CAP)
+    with Lifeline() as line:
+        command = Command(argv=_python(HOLD, str(line.read_fd)), cwd=tmp_path, timeout=CAP, pass_fds=(line.read_fd,))
+        completed = run(command, clock=clock)
+
+    assert (completed.timed_out, clock.now) == (True, CAP)
 
 
 def test_in_time(tmp_path: Path) -> None:
