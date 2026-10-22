@@ -34,6 +34,8 @@ A brief may open with its shape's word. Every other line is steering: how to bui
 
 A steered brief is answered before anything runs: `REJECTED: STEERING` on the first line, then each offending line verbatim in double quotes, one per line, and nothing after.
 
+A legal brief may instead get the `OVERLOADED:` return of `~/dev/CLAUDE.md` 7.1f, before any work or at a safe point partway, in place of the report; a brief carrying more than one gate, module or step is one.
+
 ## Steps
 
 1. Check the brief against the rule above. Steered: reject and stop.
