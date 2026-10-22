@@ -4,15 +4,15 @@ Status: proposed, for the owner's approval.
 
 A request to restructure code without changing what it does has no path through Gauntlet. A STRUCTURE job opens only from a finding, and every spec line must start out failing, which a line that pins behavior the code already has cannot do. The pieces of this design (the planner's choice of a refactor path on the outline, with the owner's override; the hand-off of a refactor request to a STRUCTURE job and the candidate it opens with; and a red-run rule for lines that pin existing behavior) share one Candidate record, one opener, one spec line record and one red-run rule.
 
-- **A STRUCTURE job opens from two places only: 2 entries, 4 restatements.** A CoreMissing on a build step (`docs/design.md:94`) and an audit pick (`docs/design.md:100`). The `Shape.STRUCTURE` comment (`docs/superpowers/specs/2026-10-20-structure-first-design.md:178`), the opening bullet (`:191`), the home of `open_structure` (`:261`) and `docs/design.md:32` name those two and no other. A request enters through `gauntlet run <brief.md>` (`docs/roadmap.md:104`) or `gauntlet new` (`docs/roadmap.md:132`), both of the JOB shape (`structure-first-design.md:180`).
+- **A STRUCTURE job opens from two places only: 2 entries, 4 restatements.** A CoreMissing on a build step (`docs/design.md:94`) and an audit pick (`docs/design.md:100`). The `Shape.STRUCTURE` comment, the opening bullet, the home of `open_structure` and `docs/design.md:32` name those two and no other. A request enters through `gauntlet run <brief.md>` (`docs/roadmap.md:104`) or `gauntlet new` (`docs/roadmap.md:132`), both of the JOB shape.
 
-- **The outline carries one routing flag, and none for a refactor.** The planner's outline returns a shared-structure flag and the owner approves or redirects it (`docs/design.md:38`); `needs_design` is its one reader (`structure-first-design.md:113`, `:251`). Nothing on the outline says a request changes no behavior, so no stage the planner reaches can send a request to a STRUCTURE job.
+- **The outline carries one routing flag, and none for a refactor.** The planner's outline returns a shared-structure flag and the owner approves or redirects it (`docs/design.md:38`); `needs_design` is its one reader. Nothing on the outline says a request changes no behavior, so no stage the planner reaches can send a request to a STRUCTURE job.
 
 - **The red-run rule, 3 copies, none with an exception.** "every line `RED`" (`docs/design.md:44`); "A `GREEN` verdict at the red run sends the line to the arbiter" (`docs/design.md:64`); "A test that passes before any implementation exists reopens its spec line" (`docs/design.md:68`).
 
-- **Keeps lines meet that rule with no rule of their own, 3 places.** A STRUCTURE job's SPEC carries each of its candidate's `keeps` lines as a spec line, locked before any port step (`structure-first-design.md:192`, `:260`; `docs/roadmap.md:67`). A keeps line pins behavior the copies already carry, so its test passes at the red run and reopens under `docs/design.md:68`. The gap holds for every audit pick, not only for a direct request.
+- **Keeps lines meet that rule with no rule of their own, 3 places.** A STRUCTURE job's SPEC carries each of its candidate's `keeps` lines as a spec line, locked before any port step. A keeps line pins behavior the copies already carry, so its test passes at the red run and reopens under `docs/design.md:68`. The gap holds for every audit pick, not only for a direct request.
 
-- **Two producers of a Candidate, none for a request.** The surveyor's `Survey.candidates` (`structure-first-design.md:64`) and an implementer's `CoreMissing.candidate` (`:58`). A direct request has neither, so it has no copies for `uncovered` to check at DESIGN (`:186`).
+- **Two producers of a Candidate, none for a request.** The surveyor's `Survey.candidates` and an implementer's `CoreMissing.candidate`. A direct request has neither, so it has no copies for `uncovered` to check at DESIGN.
 
 - **Nothing marks a spec line as a keeps line.** No document defines a spec line record. The Spec row returns behavior lines `S1…` with `bite:` values (`docs/design.md:41`), and nothing records which of them carries which `keeps` line, so nothing can tell a line that may start out passing from one that may not.
 
@@ -20,7 +20,7 @@ A request to restructure code without changing what it does has no path through 
 
 ## Modules
 
-Core imports run `verdicts` ← `red` ← `decide`; `red` imports nothing else of the core. `SpecLine` and `RedVerdict` are M1's answer records (`docs/superpowers/specs/2026-10-20-gates-core-design.md:370`): this design stubs only the fields it needs, and M1's design names their other fields and may rename them. `Runner` is M2's process-running seam (`2026-10-20-gates-core-design.md:378`). `Outline` and `State` are M1's types (`structure-first-design.md:21`); `is_refactor` lives in `design.py`, which keeps its place in the structure-first chain, `verdicts` ← `design` ← `causes` ← `decide` (`structure-first-design.md:21`). A refactor request opens no new shape: it is a STRUCTURE job (`docs/design.md:102`).
+Core imports run `verdicts` ← `red` ← `decide`; `red` imports nothing else of the core. `SpecLine` and `RedVerdict` are M1's answer records (`docs/superpowers/specs/gates-core-design.md:370`): this design stubs only the fields it needs, and M1's design names their other fields and may rename them. `Runner` is M2's process-running seam (`gates-core-design.md:378`). `Outline` and `State` are M1's types (`structure-first-design.md:21`); `is_refactor` lives in `design.py`, which keeps its place in the structure-first chain, `verdicts` ← `design` ← `causes` ← `decide` (`structure-first-design.md:21`). A refactor request opens no new shape: it is a STRUCTURE job (`docs/design.md:102`).
 
 **`gauntlet/core/verdicts.py`** (amended). Gains the keeps mark on a spec line, the juror's verdict per line, the owner's words on a Candidate, the planner's choice of path on the outline (decision 1), and the MISPLACED category (decision 5). It replaces nothing; it adds to the records at `structure-first-design.md:31`-`53`.
 
@@ -153,7 +153,7 @@ Each code step follows the repository's chain: stub, red tests from `test-writer
 
 | Step | Milestone | Agent | Writes |
 |---|---|---|---|
-| RQ-D1 | before M1 | `general-purpose` (docs only, no red test) | `docs/design.md`, `docs/roadmap.md`, `docs/superpowers/specs/2026-10-20-structure-first-design.md`, `docs/superpowers/plans/structure-first-plan.md` |
+| RQ-D1 | before M1 | `general-purpose` (docs only, no red test) | `docs/design.md`, `docs/roadmap.md`, `docs/superpowers/specs/structure-first-design.md`, `docs/superpowers/plans/structure-first-plan.md` |
 | RQ-C1 stub | M1 | `core-builder` | `gauntlet/core/verdicts.py`, `gauntlet/core/red.py`, `gauntlet/core/causes.py` |
 | RQ-C2 red | M1 | `test-writer` | `tests/support/answers.py`, `tests/test_core_red.py`, `tests/test_core_causes_focus.py` |
 | RQ-C3 build | M1 | `core-builder` | `gauntlet/core/red.py`, `gauntlet/core/causes.py` |

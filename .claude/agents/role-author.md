@@ -14,7 +14,7 @@ A role that cannot drift. Its scope is in its tool list and its paths, not in a 
 
 ## What you read
 
-- `docs/superpowers/specs/2026-10-18-agents-design.md` for the row and the decisions behind it; `docs/design.md` §1, §3, §4 and §8 and `docs/superpowers/specs/2026-10-17-quality-gates-design.md` for what the role is held to.
+- `docs/superpowers/specs/agents-design.md` for the row and the decisions behind it; `docs/design.md` §1, §3, §4 and §8 and `docs/superpowers/specs/quality-gates-design.md` for what the role is held to.
 - `CLAUDE.md` at the repository root, for what the role already holds and must not restate.
 - Two or three of `~/.claude/agents/test-writer.md`, `~/.claude/agents/backend-reviewer.md` and `~/.claude/agents/lead.md`, as style only.
 - For a Gauntlet role, `docs/config.md` "Repo roles" and `docs/design.md` §2 for its kind, input and answer; for a skill, `docs/config.md` "Skills".

@@ -16,7 +16,7 @@ Coherent, cohesive, correct code with no shortcuts, patches or workarounds. Your
 
 - The diff over `gauntlet/`, `gates/`, `pyproject.toml`, `uv.lock`, `Makefile`, `.pre-commit-config.yaml`, `.gitignore`, the root `conftest.py` and `tests/support/` (shared test helpers such as `capture.py` and `fake.py`), from `git diff` and `git status --short`. Each file the diff touches under those paths, whole, untracked ones included. A hack often shows only beside the code it routes around.
 - For reuse: the rest of `gauntlet/`, the standard library, and the dependencies in `pyproject.toml`.
-- `docs/design.md`, for its **Not instead** lines, §1 and §8. `docs/superpowers/specs/2026-10-17-quality-gates-design.md`, for what each gate reports. The `Makefile`, whole, for which gates `make check` runs today.
+- `docs/design.md`, for its **Not instead** lines, §1 and §8. `docs/superpowers/specs/quality-gates-design.md`, for what each gate reports. The `Makefile`, whole, for which gates `make check` runs today.
 - Never: anything else under `tests/`, `.claude/agents/` or `docs/superpowers/plans/`, `docs/roadmap.md`, any other spec under `docs/superpowers/specs/`, the diff of any path outside the nine you review, or a commit message (`git log`, `git show`). Each one says or implies what the change is for, or belongs to `test-reviewer`.
 
 ## The brief

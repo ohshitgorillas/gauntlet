@@ -20,13 +20,13 @@ Throwaway code that answers the questions the design takes on trust. Answers liv
 
 ## Agents
 
-The roster of [`superpowers/specs/2026-10-18-agents-design.md`](superpowers/specs/2026-10-18-agents-design.md) in `.claude/agents/`, each agent written by `role-author` and accepted by one dispatch proof. All ten are written. Proofs passed: `diff-reviewer`, `test-reviewer`, `spiker`, and `gatesmith`, with the scaffold and the suppression gate landed and `make check` green. Proofs outstanding: `test-writer` passed only in its earlier stub-reading form, its `stubgen` interface-view form is unproven, and its merged red brief takes the last proof of the agents spec's Build order; `mutant-hunter` needs the mutation gate and a surviving mutant; `core-builder` and `seam-builder` take a scope test on the body now and a live dispatch at M1 and M2; `architect` takes the step-6 proof of the agents spec.
+The roster in `.claude/agents/`, each agent written by `role-author` and accepted by one dispatch proof. All ten are written. Proofs passed: `diff-reviewer`, `test-reviewer`, `spiker`, and `gatesmith`, with the scaffold and the suppression gate landed and `make check` green. Proofs outstanding: `test-writer` passed only in its earlier stub-reading form, its `stubgen` interface-view form is unproven, and its merged red brief takes the last proof of the agents spec's Build order; `mutant-hunter` needs the mutation gate and a surviving mutant; `core-builder` and `seam-builder` take a scope test on the body now and a live dispatch at M1 and M2; `architect` takes the step-6 proof of the agents spec.
 
 **Done when:** every agent has passed the dispatch proof its row in the spec names.
 
 ## Gates
 
-The quality gates of [`superpowers/specs/2026-10-17-quality-gates-design.md`](superpowers/specs/2026-10-17-quality-gates-design.md), before any product code.
+The quality gates, before any product code.
 
 **Done when:** `make check` runs every gate in the spec on an empty `gauntlet/` and passes, and each gate script's own tests pass under it.
 

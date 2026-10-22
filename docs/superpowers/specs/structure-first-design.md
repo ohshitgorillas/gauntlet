@@ -14,11 +14,11 @@ Gauntlet builds structure first for itself, not for the repositories it builds i
 - **Audit covers tests only.** `gauntlet audit` judges tests against the test policy (`docs/design.md:93`, `docs/roadmap.md:107`, `docs/config.md:35`, `:69`). Nothing surveys for a missing core or a duplicated concern.
 - **Round caps have no named reader.** `caps` is a `gauntlet.yaml` key (`docs/config.md:23`, `:40`), but no module in `docs/design.md` §8 (`:265`-`286`) reads the configuration.
 
-The vocabulary below is the product form of rules that already bind Gauntlet's own build: the judgment layer's "duplicated concept, logic in the wrong home, a patch where a root-cause fix belongs" (`docs/superpowers/specs/2026-10-17-quality-gates-design.md:158`), `diff-reviewer`'s categories (`docs/superpowers/specs/2026-10-18-agents-design.md:34`), and the design step that each milestone takes (`docs/superpowers/specs/2026-10-20-gates-core-design.md:364`-`372`). Those stay as rules for building Gauntlet; this design does not replace them.
+The vocabulary below is the product form of rules that already bind Gauntlet's own build: the judgment layer's "duplicated concept, logic in the wrong home, a patch where a root-cause fix belongs", `diff-reviewer`'s categories, and the design step that each milestone takes. Those stay as rules for building Gauntlet; this design does not replace them.
 
 ## Modules
 
-Core imports run in one chain: `verdicts` ← `design` ← `causes` ← `decide`, and `decide` also imports `schedule`, which imports none of them. `Outline`, `State`, `Answer` and `Action` are M1's types (`docs/design.md:270`-`271`); `Screen` and `Section` are M3's (`docs/superpowers/specs/2026-10-20-gates-core-design.md:391`). The codec that turns a record into job-folder text is M1's record codec (`docs/superpowers/specs/2026-10-20-gates-core-design.md:377`).
+Core imports run in one chain: `verdicts` ← `design` ← `causes` ← `decide`, and `decide` also imports `schedule`, which imports none of them. `Outline`, `State`, `Answer` and `Action` are M1's types (`docs/design.md:270`-`271`); `Screen` and `Section` are M3's (`docs/superpowers/specs/gates-core-design.md:391`). The codec that turns a record into job-folder text is M1's record codec (`docs/superpowers/specs/gates-core-design.md:377`).
 
 **`gauntlet/core/verdicts.py`.** The records every role's answer is built from: anchors, findings and their categories, the candidate structure job put to the owner, the survey, and an implementer's report that the core is missing something. It is the one home of answer schemas: `roles/` holds prompts that name a schema and never define one, replacing the second home at `docs/design.md:284`. One record, `Candidate`, carries every structure job to the owner, whether a survey ranks it or an implementer reports it. A CoreMissing on `blocked` with no `why`, or on `complete` or `partial` with one, fails its schema (decision 8).
 
@@ -230,7 +230,7 @@ roles/surveyor.md             reader   answer: Survey, findings in categories CO
 
 The structure reviewer runs in every job's REVIEW. On a job with a design it gets the diff and the approved design's modules and homes; on a job without one it gets the diff and reads the tree for code the diff repeats. It never gets the brief or plan. The surveyor runs in a structure audit over its scope, and in a STRUCTURE job's REVIEW over the job tree for the job's concern.
 
-**`tests/support/answers.py`.** Builders for the records above. It is the home for the State and Answer builders that M1's design names (`docs/superpowers/specs/2026-10-20-gates-core-design.md:381`), and M1's design may rename the file. It replaces nothing.
+**`tests/support/answers.py`.** Builders for the records above. It is the home for the State and Answer builders that M1's design names (`docs/superpowers/specs/gates-core-design.md:381`), and M1's design may rename the file. It replaces nothing.
 
 ```python
 def anchor(path: str = ..., line: int = ...) -> Anchor
@@ -267,7 +267,7 @@ def survey(*, findings: tuple[Finding, ...] = ..., candidates: tuple[Candidate, 
 
 ## Order
 
-Each core step follows the repository's chain: stub, then red tests from `test-writer` against the `stubgen` view, then build, blind reviews and `make check`, with one commit. The C and S steps fold into the chunks of each milestone's own design step (`docs/superpowers/specs/2026-10-20-gates-core-design.md:366`), which takes these modules as given.
+Each core step follows the repository's chain: stub, then red tests from `test-writer` against the `stubgen` view, then build, blind reviews and `make check`, with one commit. The C and S steps fold into the chunks of each milestone's own design step (`docs/superpowers/specs/gates-core-design.md:366`), which takes these modules as given.
 
 | Step | Milestone | Agent | Writes |
 |---|---|---|---|

@@ -22,7 +22,7 @@ Every decision the harness makes written as a pure function of its inputs that r
 
 - The red tests the brief names, and the helpers under `tests/` they import, for the names, signatures and behavior they call.
 - The files in scope, the file a `REWRITE` line names, or the file each finding names, and the modules under `gauntlet/core/` they import; on a `finding` step, a reuse target a `hand-rolled` line cites under `gauntlet/core/`, and `uv.lock` when a line cites a third-party package, to see whether it is pinned.
-- `docs/design.md` §1, "Decisions are pure functions", and §8; the "Structure" section of `docs/superpowers/specs/2026-10-17-quality-gates-design.md`; any `docs/` section the step cites; on a `finding` step, each `docs/design.md` section whose **Not instead** line a finding quotes.
+- `docs/design.md` §1, "Decisions are pure functions", and §8; the "Structure" section of `docs/superpowers/specs/quality-gates-design.md`; any `docs/` section the step cites; on a `finding` step, each `docs/design.md` section whose **Not instead** line a finding quotes.
 - Never any path outside `gauntlet/core/`, `gauntlet/__init__.py`, `tests/` and `docs/`, but `uv.lock` on a `finding` step, a reuse target a finding cites there included. Every `Grep` and `Glob` carries an explicit path under `gauntlet/core/`, `tests/` or `docs/`, or is a `Glob` for `gauntlet/__init__.py` itself.
 
 ## The brief

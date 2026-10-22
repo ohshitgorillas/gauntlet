@@ -4,7 +4,7 @@ Rules for building Gauntlet. What it is and how it works lives in `docs/`: [`cha
 
 ## Gates
 
-- `make check` is the gate, defined by `docs/superpowers/specs/2026-10-17-quality-gates-design.md`. It runs before every commit, in full, unpiped. A commit report names each gate the spec lists that `make check` does not run.
+- `make check` is the gate, defined by `docs/superpowers/specs/quality-gates-design.md`. It runs before every commit, in full, unpiped. A commit report names each gate the spec lists that `make check` does not run.
 - No suppression, exemption, baseline, threshold or exclusion, ever. A gate says no; the fix is the code. No exemption path exists, owner-approved or not.
 
 ## Tests first
@@ -15,7 +15,7 @@ Rules for building Gauntlet. What it is and how it works lives in `docs/`: [`cha
 
 ## Roster
 
-Agents live in `.claude/agents/`, one per craft, each confined to the paths in *Writes*. `role-author` writes every other agent. Design and proofs: `docs/superpowers/specs/2026-10-18-agents-design.md`.
+Agents live in `.claude/agents/`, one per craft, each confined to the paths in *Writes*. `role-author` writes every other agent. Design and proofs: `docs/superpowers/specs/agents-design.md`.
 
 | Agent | Writes | Red test |
 |---|---|---|

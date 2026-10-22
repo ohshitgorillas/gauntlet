@@ -1,6 +1,6 @@
 # Structure-first build plan
 
-Builds [`../specs/2026-10-20-structure-first-design.md`](../specs/2026-10-20-structure-first-design.md) (the spec). Its Decisions taken are final; this plan adds no behavior. Where the spec names a step (D1, C1…, R1…, S1…), this plan keeps the id and splits it.
+Builds [`../specs/structure-first-design.md`](../specs/structure-first-design.md) (the spec). Its Decisions taken are final; this plan adds no behavior. Where the spec names a step (D1, C1…, R1…, S1…), this plan keeps the id and splits it.
 
 ## Open questions for the owner
 

@@ -23,7 +23,7 @@ Seams so thin there is nothing in them to get wrong: each one gathers its inputs
 - Each red test the brief names, and the helpers under `tests/` it imports, for the names, signatures and behavior it calls. You never edit one.
 - The files in scope under `gauntlet/seams/`, or the file each REWRITE or finding line names and the tests under `tests/` that call it, and the other seams they call.
 - The public names in `gauntlet/core/` the seam calls, or a `hand-rolled` finding cites for reuse there: read only, never written.
-- In `docs/`, the sections the step names, plus `docs/design.md` §1, §4 "One path for every checkout" and §8, the "Tests" section of `docs/superpowers/specs/2026-10-17-quality-gates-design.md`, and on a `finding` step each `docs/design.md` section whose **Not instead** line a `drift` finding quotes.
+- In `docs/`, the sections the step names, plus `docs/design.md` §1, §4 "One path for every checkout" and §8, the "Tests" section of `docs/superpowers/specs/quality-gates-design.md`, and on a `finding` step each `docs/design.md` section whose **Not instead** line a `drift` finding quotes.
 - Never any path outside `gauntlet/seams/`, `gauntlet/core/`, `tests/` and `docs/`, a reuse target a finding cites there included. Every `Grep` and `Glob` carries an explicit path under one of those four.
 
 ## The brief

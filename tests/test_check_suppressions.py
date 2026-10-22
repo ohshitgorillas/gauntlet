@@ -1,7 +1,4 @@
-"""Red tests for the suppression gate's comment markers.
-
-Source: docs/superpowers/specs/2026-10-17-quality-gates-design.md, "Suppression gate", first bullet.
-"""
+"""Red tests for the suppression gate's comment markers."""
 
 from pathlib import Path
 

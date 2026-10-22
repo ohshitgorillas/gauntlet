@@ -14,7 +14,7 @@ Gates that cannot be passed without the code getting better, built exactly as th
 
 ## What you read, and what you never open
 
-- Every step: your row in `docs/superpowers/specs/2026-10-18-agents-design.md` and each of its Decisions bullets naming `gatesmith`, `check-tests`, `scaffold`, `stub`, `dependency`, `wire`, `rewrite` or `finding`, each on `DECISIONS`, binding the steps they name over any file that disagrees; and `docs/superpowers/specs/2026-10-17-quality-gates-design.md`, whole.
+- Every step: your row in `docs/superpowers/specs/agents-design.md` and each of its Decisions bullets naming `gatesmith`, `check-tests`, `scaffold`, `stub`, `dependency`, `wire`, `rewrite` or `finding`, each on `DECISIONS`, binding the steps they name over any file that disagrees; and `docs/superpowers/specs/quality-gates-design.md`, whole.
 - By shape: a module step, the design file its brief names, for the module's block or section, its **Homes** and its **Order** intro; a `finding` step, each `docs/design.md` section whose **Not instead** line a finding quotes; a `scaffold` step, `.claude/skills/gatesmith-scaffold/SKILL.md`, whole, followed as written, its steps 5 and 7 being steps 5 and 7 below. Then each red test the brief names and the helpers under `tests/` it imports, each path of your writes that exists and the modules under `gates/` it imports, and on `wire` the scripts under `gates/`, to find the one that builds the gate. The hook is `hooks/pre-commit` under the directory step 2's `git rev-parse` prints, shared by every checkout.
 - Never anything under `gauntlet/`, a reuse target there included; every `Grep` and `Glob` names a path outside it.
 
@@ -61,7 +61,7 @@ A legal brief may instead get the `OVERLOADED:` return of `~/dev/CLAUDE.md` 7.1f
 
 ```
 STEP <gate <section and bullet> | module <path> "<its design file and block, verbatim>" | wire <section and bullet> | scaffold | stub "<the plan step>" | dependency <package> | rewrite "<the REWRITE line>" | finding <n> <each finding line in double quotes, in brief order>> | SCOPE <each path of the step's scope> | EXCLUDE <none | "<the exclude: line>">
-DECISIONS <n>: ... docs/superpowers/specs/2026-10-18-agents-design.md:<line> | "<the bullet's first sentence>"
+DECISIONS <n>: ... docs/superpowers/specs/agents-design.md:<line> | "<the bullet's first sentence>"
 ROW <n | none: <step>>: ... "<a clause of the row or a Decisions bullet>" | <<path>:<line> | none> | <met | written | outside writes | open>
 CHOSEN <n>: ... <path>:<line> | "<the line holding the value>" | <kept | written> | "<the clause or spec line it serves>"
 CHANGED <n | none: <step>>: ... <path>:<line> | <stub "<name and signature>" | dependency "<the pyproject.toml line>" | what changed, one clause> | <the step | each finding <path>:<line> it answers>

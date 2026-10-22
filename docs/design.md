@@ -29,7 +29,7 @@ Each section states a mechanism, then lists the approaches it replaces under **N
 
 ## 2. Workflow
 
-A job runs these stages in order. "You approve" means the job waits at a screen until you act. A job that creates or changes shared structure also runs a design stage for the shared core, is reviewed against that design, and has its findings fixed by cause. Structure jobs and the structure audit build the shared core in repositories that lack one. All are specified in [`superpowers/specs/2026-10-20-structure-first-design.md`](superpowers/specs/2026-10-20-structure-first-design.md). Stages are named, never numbered.
+A job runs these stages in order. "You approve" means the job waits at a screen until you act. A job that creates or changes shared structure also runs a design stage for the shared core, is reviewed against that design, and has its findings fixed by cause. Structure jobs and the structure audit build the shared core in repositories that lack one. Stages are named, never numbered.
 
 | Stage | Who | Input | Returns | Gate |
 |---|---|---|---|---|

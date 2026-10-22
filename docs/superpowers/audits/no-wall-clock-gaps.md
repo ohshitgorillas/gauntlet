@@ -1,6 +1,6 @@
 # No-wall-clock design: Order gaps, step 5 on
 
-Spec is `docs/superpowers/specs/2026-10-21-no-wall-clock-design.md` (main, as checked out in the nwc-audit worktree). Steps 1-4 and step 5's port part count as built on nwc-build (bc412ad).
+Spec is `docs/superpowers/specs/no-wall-clock-design.md`.
 
 1. Step 5: the step's text "the group tests onto it, their time cap a positive cap on a `VirtualClock` ... `main`'s command-line test ... on a still `VirtualClock`" (spec:234) replaces at least `test_timed_out`, `test_timeout_kills_group` and `test_main_command_line` with new claims, but the red shape allows "optionally `replaces:`, one test id under `tests/`" (.claude/agents/test-writer.md:26), and the port shape requires "every assert statement byte for byte as before; no test removed, no expected value changed" (test-writer.md:40), so no single test-writer shape takes the step.
 
@@ -8,9 +8,9 @@ Spec is `docs/superpowers/specs/2026-10-21-no-wall-clock-design.md` (main, as ch
 
 3. Step 6: "the one real-time test, kept on its own, and every other behaviour of `SystemClock` through a `Ready` the test hands in" (spec:235) is two behaviours in two files, and a red brief takes "`behavior:`, one behavior" (test-writer.md:26), so test-writer refuses the step as steering.
 
-4. Step 6: `SystemClock` "hands `seconds` to ready as they are" (spec:128), so the real time in the real-time test can only be spent in the test's own `Ready`, as a positive timeout on a blocking wait in a test file. Both the clock rule's "as does a timeout above 0 to a blocking `wait`, `join`, `result`..." (docs/superpowers/specs/2026-10-17-quality-gates-design.md:120) and the Homes row's "a positive timeout on `wait` ... in a test file" (spec:211) forbid that, and the data exception covers only "a cap handed to ... a `Clock`'s `wait`" (spec:203). The test cannot be written inside the rules.
+4. Step 6: `SystemClock` "hands `seconds` to ready as they are" (spec:128), so the real time in the real-time test can only be spent in the test's own `Ready`, as a positive timeout on a blocking wait in a test file. Both the clock rule's "as does a timeout above 0 to a blocking `wait`, `join`, `result`..." (docs/superpowers/specs/quality-gates-design.md:120) and the Homes row's "a positive timeout on `wait` ... in a test file" (spec:211) forbid that, and the data exception covers only "a cap handed to ... a `Clock`'s `wait`" (spec:203). The test cannot be written inside the rules.
 
-5. Step 6: it relies on step 1's "decision 16, a cap handed to a `Clock`'s `wait` passing the clock rule at `:120` as data" (spec:230). Neither main's nor nwc-build's quality-gates-design.md contains the word `Clock`, and line 120 still exempts only "a cap handed to `Command` or `python_module`", so the test-writer, who reads expected behaviour from `docs/`, finds no document that allows the real-time test's cap.
+5. Step 6: it relies on step 1's "decision 16, a cap handed to a `Clock`'s `wait` passing the clock rule at `:120` as data" (spec:230). Neither main's nor nwc-build's quality-gates spec contains the word `Clock`, and line 120 still exempts only "a cap handed to `Command` or `python_module`", so the test-writer, who reads expected behaviour from `docs/`, finds no document that allows the real-time test's cap.
 
 6. Step 7: subject to item 2 only.
 

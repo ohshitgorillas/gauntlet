@@ -7,7 +7,7 @@ Status: approved, with its five decisions ruled.
 - **Size and a full queue.** A write to a captured fd blocks as it would on a pipe whose reader is alive. It never fails, and is never cut, for its size or for a full queue.
 - **A call that raises.** Every line written before the call raised reaches the caller.
 - **A holder left running.** A child or other holder that keeps fd 1 or fd 2 open after the call ends is waited on until it closes them. The helper keeps no bound of its own: pytest-timeout's 30 seconds (`pyproject.toml:55`) is the one bound on that wait (decision 3).
-- **Typed errors.** The helper's own errors are typed exceptions carrying data, as the gates spec's "No copy" bullet asks (`docs/superpowers/specs/2026-10-17-quality-gates-design.md:94`).
+- **Typed errors.** The helper's own errors are typed exceptions carrying data.
 
 **The constraints conflict on ordering.** No kernel object gives one queue, ordered across two fds and tagged by the fd that wrote, that also blocks like a pipe:
 
@@ -60,7 +60,7 @@ How `captured` behaves:
 - **A holder left behind.** Once the call has ended, capture closes its own write ends. The reader then drains until both pipes reach end of file, with no bound of its own. pytest-timeout's 30 seconds (`pyproject.toml:55`) is the one bound, so a holder left behind fails the test as pytest-timeout's timeout, with no error of the helper's. Capture never signals the holder, because it does not know the holder's PID.
 - **Cleanup, on every exit path, an interrupt included.** The `sys` streams are restored, and fds 1 and 2 are restored from saved duplicates. Every fd that capture opened is closed, because a `ResourceWarning` is an error under `pyproject.toml:53`. The reader is joined before `captured` returns or raises. No temp directory is made.
 
-`_lines` is the one place captured bytes become lines. It splits each fd's text at every `str.splitlines` boundary, each line keeping its line end, as `one_line` and `output_lines` in `2026-10-20-gates-core-design.md` do.
+`_lines` is the one place captured bytes become lines. It splits each fd's text at every `str.splitlines` boundary, each line keeping its line end.
 
 ## Homes
 
@@ -83,7 +83,7 @@ How `captured` behaves:
    - **Rule:** the call's exception propagates unchanged. Its `Output`, with `.out`, `.err` and `.merged`, is read through `output_of(exc: BaseException) -> Output` in `capture.py`, backed by the exception's own instance `__dict__` under one private key that nothing else reads; `output_of` reads it back with an `isinstance` check and raises `CaptureUnrecordedError` when it is absent. It stays the one typed accessor, not a note.
    - **Cost:** a test reads those lines as data, with no note text to parse. pytest's failure report does not show them.
    - **Not taken:** an attribute set on the exception through `setattr`, which hides from mypy and pyright, since it is set by string on an arbitrary `BaseException`; a note (`BaseException.add_note`) holding the `.merged` lines, which a test wanting data would have to parse; and `captured` never re-raising, with `Captured.raised: BaseException | None`, which passes a caller that never checks `.raised` on a call that failed; and a `weakref.WeakKeyDictionary`, since built-in exception instances such as `ValueError`, `AssertionError` and `KeyboardInterrupt` cannot be weakly referenced, so their output would be lost.
-3. **The bound: none of the helper's own.** Ruled by decision 4 of `2026-10-21-no-wall-clock-design.md`, superseding the `timeout` keyword.
+3. **The bound: none of the helper's own.**
    - **Rule:** once the call has ended, `captured` blocks until both pipes reach end of file. pytest-timeout's 30 seconds (`pyproject.toml:55`) is the one bound. There is no `timeout` keyword, no `HOLD_BOUND` and no `CaptureError`.
    - **Cost:** a holder left behind fails as pytest-timeout's timeout, after 30 seconds and only in a failing test, with no `CaptureError` output.
    - **Not taken:** a `timeout` keyword with a `HOLD_BOUND` default and a `CaptureError`, whose own test sits out the bound on every passing run; and a fixed bound with no keyword.
