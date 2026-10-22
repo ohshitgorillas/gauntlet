@@ -183,14 +183,6 @@ RQ-D1 writes this design into the documents. In `docs/design.md`: the Outline ro
 | M4 | The examiner's stubbed files and `run_stubbed`. Done when a keeps test that still passes with the copies stubbed goes to the arbiter. |
 | M3f | The planner's outline carries the structure-only choice, the outline screen takes the owner's override of it, and an approved refactor outline hands off to a STRUCTURE job (decisions 1, 6, 7). Done when a fixture brief asking to give the three-file concern one home yields an outline marked structure only, one candidate whose `asked` is the brief, a JOB ended at OUTLINE as handed off, a STRUCTURE job at DESIGN, its keeps lines GREEN at the red run and passing its gate, and a landed job with `uncovered` empty; when the owner's override on that outline sends the brief down the JOB path; and when a JOB-shape spec holding a keeps line fails a round. |
 
-## Decisions for the owner
-
-6. **How an approved refactor outline becomes a STRUCTURE job.** Recommend: a hand-off: the JOB runs the focused survey, and on the owner's approval of its candidate it ends at OUTLINE as handed off while `open_structure` opens a STRUCTURE job that starts at DESIGN. Alternative: the job changes shape in place: a `decide` row moves it from JOB to STRUCTURE after OUTLINE, and it goes on to DESIGN in the same folder and branch. Cost of the recommendation: two job folders and two branches per refactor request, the JOB's holding no diff; its launch cost is unmeasured. Cost of the alternative: `FIRST` no longer fixes a job's stages, `decide` gains a shape-change row, and `open_structure` stops being the one opener of a STRUCTURE job (`structure-first-design.md:261`).
-
-7. **When the refactor path lands.** Recommend: M3f, with `gauntlet run`'s Outline stage (`docs/roadmap.md:104`-`106`) and the feature-phase outline steps C4a and C4b (`structure-first-plan.md:144`-`145`), since the planner's choice lives on the outline (decision 1). Alternative: M3s builds a thin `run` that ends at Outline: the planner's outline, the outline screen and the hand-off, with a request the outline leaves as JOB refused until M3f. Cost of the recommendation: no refactor request reaches Gauntlet until after the structure pilot (M7s, `docs/roadmap.md:96`); the red-run rule for keeps lines lands at M1 either way, since audit picks need it. Cost of the alternative: `Outline`, the planner role, the outline screen, `is_refactor` and the OUTLINE row land at M3s ahead of the feature phase, with a refusal branch beside them; its size is unmeasured.
-
-8. **Whether the owner may name the path up front.** Recommend: no; the outline screen is the one place the owner overrides the planner's choice. Alternative: `gauntlet run <brief.md> --structure` sets the override before the planner runs, and the outline screen shows it as the owner's. Cost of the recommendation: each refactor request takes a planner launch and an outline screen before its survey, unmeasured. Cost of the alternative: two places set one choice, and an outline's path is fixed before the planner reads the brief.
-
 ## Decisions taken
 
 Each entry names the question put to the owner in bold, then the owner's ruling verbatim, then `Adds:`, each module, home and step the ruling adds, and `Written in:`, each section it touches.
@@ -214,3 +206,15 @@ Each entry names the question put to the owner in bold, then the owner's ruling 
 5. **A refactor with no copy: a move, a rename or a split.** "Where you and the Architect both agree is fine with me. I want you to bring me conflicts."
    - Adds: none; `Category.MISPLACED` and its `finding_problems` branch hold as recommended.
    - Written in: Modules (`core/verdicts.py`, `roles/`), Homes ("A code move or rename as a finding"), Order (RQ-D1).
+
+6. **How an approved refactor outline becomes a STRUCTURE job.** "Where you and the Architect both agree is fine with me. I want you to bring me conflicts."
+   - Adds: none; the hand-off holds as recommended: the JOB ends at OUTLINE as handed off once the owner approves the focused survey's candidate, and `open_structure` opens a STRUCTURE job that starts at DESIGN by `FIRST`.
+   - Written in: Modules (`core/verdicts.py` `asked`, `core/decide.py` OUTLINE row, `seams/cli.py`), Homes ("The owner's words on a STRUCTURE job", "Opening the STRUCTURE job a refactor request becomes"), Order (M3f).
+
+7. **When the refactor path lands.** "Yes, we should definitely be doing that not twice. Do it once, do it properly."
+   - Adds: none; the refactor path lands once, at M3f, with `gauntlet run`'s Outline stage and the feature-phase outline steps C4a and C4b, as recommended, and no thin M3s `run` is built ahead of it.
+   - Written in: Order (the waits paragraph, RQ-C8 to RQ-C12, RQ-R1, RQ-S1 to RQ-S3, M3f).
+
+8. **Whether the owner may name the path up front.** "Where you and the Architect both agree is fine with me. I want you to bring me conflicts."
+   - Adds: none; `run` takes no flag that sets the path, and the outline screen is the one place the owner overrides the planner's choice, as recommended.
+   - Written in: Modules (`seams/cli.py`), Homes ("Whether a request is a refactor").
