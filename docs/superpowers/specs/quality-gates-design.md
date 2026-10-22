@@ -1,3 +1,5 @@
+# Copyright 2026 oh shit, gorillas!
+
 # Quality gates for building Gauntlet
 
 Status: approved 2026-10-18.
@@ -6,7 +8,7 @@ Status: approved 2026-10-18.
 
 Gauntlet is built by agents before it can build itself. Gating is extremely strict and trust in agent-written code is low. The outcome wanted is coherent, cohesive, correct, easily testable code: no shortcuts, no patches, no workarounds. A small bug that shows a whole system is wrong leads to the system being rebuilt, not the symptom patched.
 
-These gates go in before any product code. M1 starts under the full set.
+M1 starts after the one-day gate wiring, under the gates then running; the rest are added alongside.
 
 ## Principles
 
@@ -18,6 +20,8 @@ These gates go in before any product code. M1 starts under the full set.
 ## Gates
 
 All gates run from one entry point, `make check`, which pre-commit invokes.
+
+ruff, ruff format, import-linter, deptry, uv lock and vulture run directly from `make check` and use the tools' native output and exit codes, not the custom output contract below.
 
 - Every gate applies to every Python file in the tree: `gauntlet/`, `tests/`, gate scripts, and any hook or tool script.
 - A Python file is a file whose name ends in `.py` or `.pyi`, or an extensionless file whose first line is a shebang that names python; a `.pyw` file is not one.

@@ -1,3 +1,5 @@
+# Copyright 2026 oh shit, gorillas!
+
 # Gauntlet development roadmap
 
 This document orders the work that turns the v0.11.0 design into a running harness. The mechanisms are in [`design.md`](design.md); section numbers below refer to it.
@@ -26,7 +28,9 @@ The roster in `.claude/agents/`, each agent written by `role-author` and accepte
 
 ## Gates
 
-The quality gates, before any product code.
+M1 starts after the one-day gate wiring, under the gates then running; the rest are added alongside.
+
+ruff, ruff format, import-linter, deptry, uv lock and vulture run directly from `make check` and use the tools' native output and exit codes, not the custom output contract in the gates spec.
 
 **Done when:** `make check` runs every gate in the spec on an empty `gauntlet/` and passes, and each gate script's own tests pass under it.
 
