@@ -6,19 +6,21 @@ are test modules up to floor(C / 2) and never fewer than one, where C counts the
 read in the gate's own process: the CPUs its affinity allows where the host keeps an affinity. The exit codes come from
 the "Gates" intro paragraph.
 
-Seeded test modules meet at a rendezvous: each marks its own file, never removed, and waits up to ten seconds for every
-other module's mark. A module passes only when every other module has run before it or runs beside it, so the modules
-given first fail when the gate holds back a module they wait for.
+The no-wall-clock design Order steps 37–41 measure concurrency through Scripted and its own next_done.
 """
 
 import os
 import sys
 from pathlib import Path
 
-from gates.check_pytest import main
+from gates.check_pytest import gate, read_budget
+from gates.core.checker import Command
+from gates.core.runner import run_gate
+from tests.support.fake import completed
+from tests.support.project import scaffold
+from tests.support.scripted import Scripted, Step
 
 NO_FINDING = 0
-FINDINGS = 1
 
 NO_CPUS = 0
 THREE_CPUS = 3
@@ -27,106 +29,60 @@ SIX_CPUS = 6
 
 PASSING = "def test_seeded():\n    pass\n"
 
-RENDEZVOUS = (
-    "import pathlib\n"
-    "import time\n\n"
-    "MINE = pathlib.Path(MINE_PATH)\n"
-    "OTHERS = [pathlib.Path(path) for path in OTHER_PATHS]\n\n\n"
-    "def missing():\n"
-    "    return [str(other) for other in OTHERS if not other.exists()]\n\n\n"
-    "def test_seeded():\n"
-    "    MINE.touch()\n"
-    "    for _ in range(200):\n"
-    "        if not missing():\n"
-    "            break\n"
-    "        time.sleep(0.05)\n"
-    "    assert missing() == []\n"
-)
+def _module(command: Command) -> str:
+    return next(word for word in command.argv if word.endswith(".py") and "=" not in word)
 
 
-def _seed(root: Path, relative: str, source: str) -> Path:
-    path = root / relative
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(source, encoding="utf-8")
-    return path
+def _peak(root: Path, count: int, cpus: int | None) -> tuple[int, int, int]:
+    names = [f"tests/test_module{index}.py" for index in range(count)]
+    project = scaffold(root, dict.fromkeys(names, PASSING))
+    modules = [project.root / name for name in names]
+    steps = {
+        str(module): Step(completed(outputs={"junit": (
+            f'<testsuites><testsuite name="{module}" tests="1">'
+            f'<testcase classname="tests.{module.stem}" name="test_seeded"/>'
+            '</testsuite></testsuites>'
+        )})) for module in modules
+    }
+    process = Scripted(steps, key=_module)
+    selected = gate() if cpus is None else gate(lambda: read_budget(lambda: cpus))
+    status = run_gate(selected, modules, project=project, process=process, next_done=process.next_done)
+    return status, process.peak, len(process.finished)
 
 
-def _rendezvous(root: Path, names: list[str]) -> list[Path]:
-    """One test module per name, in the order given, each waiting for the marks of all the others."""
-    marks = {name: str(root / f"{name}.mark") for name in names}
-    modules: list[Path] = []
-    for name in names:
-        others = [marks[other] for other in names if other != name]
-        source = RENDEZVOUS.replace("MINE_PATH", repr(marks[name])).replace(
-            "OTHER_PATHS", repr(others)
-        )
-        modules.append(_seed(root, f"tests/test_{name}.py", source))
-    return modules
+# Breaks if the pytest gate runs fewer or more than two of three modules with four CPUs.
+def test_four_cpus_overlap_exactly_two(tmp_path: Path) -> None:
+    assert _peak(tmp_path, 3, FOUR_CPUS) == (NO_FINDING, 2, 3)
 
 
-def test_four_cpus_hold_back_a_third_module(tmp_path: Path) -> None:
-    """Four CPUs leave room for two processes, no fewer and no more.
-
-    Two at once: of three modules, a pair that waits for each other only meets beside a third that waits for none, which
-    fails when the gate runs the three one at a time. No more: three modules that each wait for all the others fail, as
-    the third waits and the first two wait for it alone.
-    """
-    pair = [
-        *_rendezvous(tmp_path / "two", ["alpha", "bravo"]),
-        _seed(tmp_path / "two", "tests/test_charlie.py", PASSING),
-    ]
-    trio = _rendezvous(tmp_path / "three", ["alpha", "bravo", "charlie"])
-
-    assert (
-        main(pair, read_cpus=lambda: FOUR_CPUS),
-        main(trio, read_cpus=lambda: FOUR_CPUS),
-    ) == (NO_FINDING, FINDINGS)
+# Breaks if the CPU budget rounds three CPUs up to two workers.
+def test_three_cpus_serialize_modules(tmp_path: Path) -> None:
+    assert _peak(tmp_path, 2, THREE_CPUS) == (NO_FINDING, 1, 2)
 
 
-def test_three_cpus_run_one_at_a_time(tmp_path: Path) -> None:
-    """Three CPUs are floor(3 / 2), one process, not two by rounding up: of two modules the first waits for the second alone."""
-    modules = _rendezvous(tmp_path, ["left", "right"])
-
-    assert main(modules, read_cpus=lambda: THREE_CPUS) == FINDINGS
+# Breaks if six CPUs are capped below three concurrent workers.
+def test_six_cpus_overlap_three_modules(tmp_path: Path) -> None:
+    assert _peak(tmp_path, 3, SIX_CPUS) == (NO_FINDING, 3, 3)
 
 
-def test_six_cpus_run_three_modules_at_once(tmp_path: Path) -> None:
-    """Six CPUs leave room for three processes, so three modules all run at once and every rendezvous is met."""
-    modules = _rendezvous(tmp_path, ["alpha", "bravo", "charlie"])
-
-    assert main(modules, read_cpus=lambda: SIX_CPUS) == NO_FINDING
+# Breaks if zero CPUs prevents work or permits concurrent workers.
+def test_zero_cpus_serialize_modules(tmp_path: Path) -> None:
+    assert _peak(tmp_path, 2, NO_CPUS) == (NO_FINDING, 1, 2)
 
 
-def test_no_cpus_still_run_one_at_a_time(tmp_path: Path) -> None:
-    """A count of no CPUs is floor(0 / 2), raised to one process: both modules still run, one after the other."""
-    modules = _rendezvous(tmp_path, ["left", "right"])
-
-    assert main(modules, read_cpus=lambda: NO_CPUS) == FINDINGS
-
-
-def test_affinity_of_one_cpu_runs_one_at_a_time(tmp_path: Path) -> None:
-    """With no reader given, C is the CPUs this process may run on, read in this process.
-
-    Where the host keeps an affinity, C is the CPUs it allows: pinned to one, the two modules run in turn. Elsewhere, as
-    on macOS, C is the host's count: floor(C / 2) modules that each wait for all the others meet, and one module more
-    fails, as the gate holds it back.
-    """
+# Breaks if the default gate ignores process affinity or the host CPU count.
+def test_default_cpu_count_controls_overlap(tmp_path: Path) -> None:
     if sys.platform == "linux":
-        modules = _rendezvous(tmp_path, ["left", "right"])
         allowed = os.sched_getaffinity(0)
         os.sched_setaffinity(0, {min(allowed)})
         try:
-            status = main(modules)
+            result = _peak(tmp_path, 2, None)
         finally:
             os.sched_setaffinity(0, allowed)
 
-        assert status == FINDINGS
+        assert result == (NO_FINDING, 1, 2)
     else:
         host = os.cpu_count()
         assert host is not None
         at_once = max(1, host // 2)
-        names = [f"module{index}" for index in range(at_once + 1)]
-        fits = _rendezvous(tmp_path / "fits", names[:at_once])
-        over = _rendezvous(tmp_path / "over", names)
-
-        assert (main(fits), main(over)) == (NO_FINDING, FINDINGS)
+        assert _peak(tmp_path, at_once + 1, None) == (NO_FINDING, at_once, at_once + 1)

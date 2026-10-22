@@ -224,8 +224,6 @@ def run_gate(
 
     The scratch is closed on every path, an interrupt included, which then goes on with nothing printed.
     """
-    if next_done is not first_done:
-        raise NotImplementedError
     given = tuple(python_files(paths))
     sources = gate.select(given)
     if not sources:
@@ -235,7 +233,14 @@ def run_gate(
     try:
         try:
             run_project = Project.current() if project is None else project
-            gate_run = Run(project=run_project, sources=tuple(sources), scratch=scratch, process=process, given=given)
+            gate_run = Run(
+                project=run_project,
+                sources=tuple(sources),
+                scratch=scratch,
+                process=process,
+                given=given,
+                next_done=next_done,
+            )
             outcome = gate.check(gate_run)
         except (GateError, OSError) as error:
             outcome = Outcome(lines=(Unfinished(_report(error)),))
