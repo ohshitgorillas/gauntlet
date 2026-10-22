@@ -9,6 +9,7 @@ The gate runs in a child interpreter whose `PATH` starts with a directory holdin
 that script prints.
 """
 
+import os
 import re
 import subprocess
 import sys
@@ -27,38 +28,34 @@ PREPEND_PATH = 'export PATH="$0:$PATH"; exec "$@"'
 
 MISSING_MODULE = "seededmissingmodule"
 
+# The seeded modules meet on a FIFO, as `MEET` in tests/support/lifeline.py does: an open blocks until both ends are open, so
+# the module that must end last opens it to read and reads to its end, which comes when the other module's process exits.
 FIRST_FAILS_LATE = (
-    "import pathlib\n"
-    "import time\n\n"
-    "DONE = pathlib.Path(DONE_PATH)\n\n\n"
+    "import os\n\n"
+    "DONE = DONE_PATH\n\n\n"
     "def test_seeded():\n"
-    "    start = time.monotonic()\n"
-    "    while not DONE.exists() and time.monotonic() < start + 10:\n"
-    "        time.sleep(0.05)\n"
-    "    seen = DONE.exists()\n"
-    "    time.sleep(2)\n"
-    "    raise ValueError('SeededZulu' if seen else 'SeededAlone')\n"
+    "    fd = os.open(DONE, os.O_RDONLY)\n"
+    "    while os.read(fd, 65536):\n"
+    "        pass\n"
+    "    raise ValueError('SeededZulu')\n"
 )
 
 FIRST_BREAKS_LATE = (
-    "import pathlib\n"
-    "import time\n\n"
-    "DONE = pathlib.Path(DONE_PATH)\n"
-    "START = time.monotonic()\n"
-    "while not DONE.exists() and time.monotonic() < START + 10:\n"
-    "    time.sleep(0.05)\n"
-    "time.sleep(2)\n"
-    "if DONE.exists():\n"
-    f"    import {MISSING_MODULE}\n\n\n"
+    "import os\n\n"
+    "DONE = DONE_PATH\n"
+    "FD = os.open(DONE, os.O_RDONLY)\n"
+    "while os.read(FD, 65536):\n"
+    "    pass\n"
+    f"import {MISSING_MODULE}\n\n\n"
     "def test_seeded():\n"
     "    pass\n"
 )
 
 SECOND_FAILS_EARLY = (
-    "import pathlib\n\n"
-    "DONE = pathlib.Path(DONE_PATH)\n\n\n"
+    "import os\n\n"
+    "DONE = DONE_PATH\n\n\n"
     "def test_seeded():\n"
-    "    DONE.touch()\n"
+    "    os.open(DONE, os.O_WRONLY)\n"
     "    raise ValueError('SeededAlpha')\n"
 )
 
@@ -103,6 +100,7 @@ def _child(paths: list[Path], tools: Path) -> subprocess.CompletedProcess[str]:
 
 
 def _ordered(root: Path, first_source: str) -> tuple[Path, Path]:
+    os.mkfifo(root / "done")
     done = repr(str(root / "done"))
     first = _seed(root, "tests/test_zulu.py", first_source.replace("DONE_PATH", done))
     second = _seed(root, "tests/test_alpha.py", SECOND_FAILS_EARLY.replace("DONE_PATH", done))
