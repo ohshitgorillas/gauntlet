@@ -1,14 +1,25 @@
 # Copyright 2026 oh shit, gorillas!
 """In-process capture of everything a call writes to file descriptors 1 and 2 and to sys.stdout and sys.stderr.
 
-Design: the capture design spec under docs/superpowers/specs/. For the length of the call, fds 1 and 2 each point at the
+For the length of the call, fds 1 and 2 each point at the
 write end of a pipe of their own, so a write to either fd, from this process or a child that inherits it, blocks as it
 would on any pipe whose reader is alive, and is never cut or failed for size. A reader thread drains both read ends
 while the call runs. sys.stdout and sys.stderr are text streams over fds 1 and 2 whose writes skip the pipes: each
 first drains both pipes, then records its own bytes, so it is placed after every write that finished before it. Once
 the call has ended, capture closes its write ends and the reader drains until both pipes reach end of file, with no bound
-of its own: a holder of fd 1 or 2 is waited on until it closes them, and pytest-timeout is the one bound (capture design,
-"A holder left behind" and decision 3).
+of its own: a holder of fd 1 or 2 is waited on until it closes them, and pytest-timeout is the one bound.
+
+Capture never signals a holder, whose PID it does not know, and makes no temporary directory.
+
+Consumers use captured, never capsys, capfd, output-reading redirect_stdout/redirect_stderr, os.dup2 onto fd 1 or 2,
+or a child interpreter to capture their own code. Stream substitution is allowed only when the stream object is
+what the test is about.
+
+Consumers read Output.out, Output.err or Output.merged; they never join out and err or split captured text again.
+
+Consumers add no wait, poll or bound for a captured child's output and never restore fds 1 and 2 or the sys streams.
+
+Consumers read a raised call's output only through output_of; output is never carried as exception note text.
 """
 
 import bisect

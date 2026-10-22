@@ -9,7 +9,7 @@ line has run nothing, and takes no lock to do so.
 
 Every run is given `--lock` with a path under the test's temporary directory and never takes the default, since this
 suite's own run already holds it. The command a signal test runs notes its process id in a file, writes a ready line and
-holds on a `Lifeline` the test never releases (`tests/support/lifeline.py` of the no-wall-clock design spec), and each
+holds on a `Lifeline` the test never releases (`tests/support/lifeline.py`), and each
 such test's `Pids` kills the recorded id at the end. The test reads the ready line as the event that the command is
 running, and then its standard output to its end, which comes only when no process of the run holds it, with no timeout.
 """

@@ -1,10 +1,10 @@
 # Copyright 2026 oh shit, gorillas!
 """Red tests for `SystemClock.wait` handing its `Ready` the seconds it is given and returning the `Ready`'s answer.
 
-Source: the no-wall-clock design spec under docs/superpowers/specs/, "gates/core/clock.py: the one home of real time":
+Source: gates/core/clock.py:
 `SystemClock` is "real time, the only real time in gates/: hands `seconds` to ready as they are", and "Every other
 behaviour of `SystemClock`, the `seconds` it hands `ready` and the answer it returns, is proven in
-`tests/test_core_clock.py` through a `Ready` the test hands in, with no real time" (decision 16). A `Ready` is "the
+`tests/test_core_clock.py` through a `Ready` the test hands in, with no real time". A `Ready` is "the
 caller's own wait on an event, for up to the seconds given (None: without end); True when the event came", and a
 clock's `wait` is "True when the event came before `seconds` passed on this clock; None: no cap".
 

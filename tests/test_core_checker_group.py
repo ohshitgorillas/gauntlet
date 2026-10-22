@@ -6,8 +6,7 @@ Source: the gates core design spec under docs/superpowers/specs/, section 1, "ch
 `Command` carries `timeout: float | None`, and `Completed` carries `timed_out: bool`.
 
 A process in its own session leads it, so its session id is its own pid. The checker here starts a child of its own,
-which stays in the checker's process group. That child holds a `Witness` FIFO (the `tests/support/lifeline.py` module
-of the no-wall-clock design spec), writes a marker into it and then lives on a `Lifeline` the test releases only after
+which stays in the checker's process group. That child holds a `Witness` FIFO (the `tests/support/lifeline.py`), writes a marker into it and then lives on a `Lifeline` the test releases only after
 the FIFO's end; the checker lives on the same `Lifeline`, and both note their pids for the test's `Pids` to kill at
 teardown. The test reads the FIFO to its end: the end comes only when every holder has closed it, so it comes before
 the release only when the child is dead. A child the group kill missed holds the FIFO until pytest-timeout ends the
@@ -17,10 +16,10 @@ The interrupt is a KeyboardInterrupt in the process that called `run`: the check
 once its child holds the FIFO. Whether `run` raises the interrupt again after it kills the group the documents do not
 say, so a KeyboardInterrupt out of `run` is let through and nothing is claimed about it.
 
-The time cap passes on the clock `run` is handed (the no-wall-clock design spec, decision 6): a positive cap with
+The time cap passes on the clock `run` is handed (tests/support/clock.py): a positive cap with
 `VirtualClock(passes=...)` at it, against a checker a `Lifeline` holds, which is certainly alive at the clock's first
 poll, so the cap passes at once in virtual time and `run` reports `timed_out`. In the timeout's group test the clock's
-`after` is the checker's `Beacon` (decision 14): the checker writes its line there once its child holds the FIFO, so
+`after` is the checker's `Beacon`: the checker writes its line there once its child holds the FIFO, so
 the cap passes only once the group is whole.
 """
 

@@ -1,5 +1,5 @@
 # Copyright 2026 oh shit, gorillas!
-"""The event paced Runner specified by the no-wall-clock design's Scripted stubs."""
+"""The event paced Runner in tests/support/scripted.py."""
 
 import threading
 from collections.abc import Callable

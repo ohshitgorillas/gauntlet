@@ -13,8 +13,7 @@ Every wrapped run here is given `--lock` with a path under the test's temporary 
 every documented heavy run, this suite's own among them, already holds the default lock, so a test that took it would
 wait on itself. Waiting is held by order, never by a clock: a run that must wait is read until it writes its WAITING
 line on stderr, the event that it waits, and the line it writes must come after the line written once the lock is
-released. A run that is not to wait is met by its end, and a held command is held by a pipe the test releases (`tests/support/lifeline.py` of the
-no-wall-clock design spec), with no timeout. On Linux the I/O
+released. A run that is not to wait is met by its end, and a held command is held by a pipe the test releases (`tests/support/lifeline.py`), with no timeout. On Linux the I/O
 priority is held to what the documented tool itself sets: the same probe, run under `ionice -c3`, gives the expected
 state. On macOS the line is "`nice -n <k> -- <command>`, with no `taskpolicy -b`", so the expected state is the one the
 probe gives with no tool. A child inherits its parent's I/O priority, and this suite's own wrapped run may already be
@@ -239,7 +238,7 @@ def _start(lock: Path, command: list[str]) -> subprocess.Popen[bytes]:
 def _start_waiting(lock: Path, command: list[str]) -> subprocess.Popen[bytes]:
     """Start a wrapped command and return once the wrapper has written its WAITING line on stderr.
 
-    The line is the event that the wrapper waits for the lock (the no-wall-clock design spec, `gates/heavy.py`); the read
+    The line is the event that the wrapper waits for the lock (`gates/heavy.py`); the read
     ends on that line or, when the wrapper ends without writing it, at once on end of file.
     """
     process = subprocess.Popen(

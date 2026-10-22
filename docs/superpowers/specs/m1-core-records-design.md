@@ -39,9 +39,14 @@ class Anchor:
     path: str
     line: int
 
+
 class Category(StrEnum):
-    DEFECT = "defect"; COPY = "copy"; OWN_CORE = "own-core"
-    DRIFT = "drift"; MISSING = "missing"
+    DEFECT = "defect"
+    COPY = "copy"
+    OWN_CORE = "own-core"
+    DRIFT = "drift"
+    MISSING = "missing"
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -52,6 +57,7 @@ class Finding:
     concern: str | None
     also: tuple[Anchor, ...] = ()
 
+
 @dataclass(frozen=True)
 class Candidate:
     concern: str
@@ -60,11 +66,13 @@ class Candidate:
     keeps: tuple[str, ...]
     why: str | None = None
 
+
 @dataclass(frozen=True)
 class CoreMissing:
     need: str
     candidate: Candidate
     also: tuple[Anchor, ...]
+
 
 @dataclass(frozen=True)
 class Survey:
@@ -72,8 +80,10 @@ class Survey:
     candidates: tuple[Candidate, ...]
     sound: tuple[str, ...]
 
-def core_missing_problems(missing: CoreMissing, *,
-                          blocked: bool) -> tuple[str, ...]: ...
+
+def core_missing_problems(
+    missing: CoreMissing, *, blocked: bool
+) -> tuple[str, ...]: ...
 ```
 
 ### `gauntlet/core/records.py` — composite answers, workflow state and recovery contracts
@@ -82,34 +92,70 @@ It adds M1's records and enums, importing design records from design and cause r
 
 ```python
 class Stage(StrEnum):
-    BRIEF = "brief"; DISCOVERY = "discovery"; OUTLINE = "outline"
-    DESIGN = "design"; PLAN = "plan"; SPEC = "spec"; STUBS = "stubs"
-    TESTS = "tests"; RED_RUN = "red-run"; LOCK = "lock"; BUILD = "build"
-    REVIEW = "review"; BAILIFF = "bailiff"; LAND = "land"
+    BRIEF = "brief"
+    DISCOVERY = "discovery"
+    OUTLINE = "outline"
+    DESIGN = "design"
+    PLAN = "plan"
+    SPEC = "spec"
+    STUBS = "stubs"
+    TESTS = "tests"
+    RED_RUN = "red-run"
+    LOCK = "lock"
+    BUILD = "build"
+    REVIEW = "review"
+    BAILIFF = "bailiff"
+    LAND = "land"
+
 
 class Shape(StrEnum):
-    JOB = "job"; TEST_AUDIT = "test-audit"; STRUCTURE = "structure"
+    JOB = "job"
+    TEST_AUDIT = "test-audit"
+    STRUCTURE = "structure"
+
 
 class Verdict(StrEnum):
-    PASS = "pass"; FAIL = "fail"; COULD_NOT_JUDGE = "could-not-judge"
+    PASS = "pass"
+    FAIL = "fail"
+    COULD_NOT_JUDGE = "could-not-judge"
+
 
 class Loop(StrEnum):
-    DESIGN = "design"; PLAN = "plan"; SPEC = "spec"; JUROR = "juror"
-    BUILD = "build"; REVIEW = "review"; REOPEN = "reopen"
+    DESIGN = "design"
+    PLAN = "plan"
+    SPEC = "spec"
+    JUROR = "juror"
+    BUILD = "build"
+    REVIEW = "review"
+    REOPEN = "reopen"
+
 
 class Kind(StrEnum):
-    JUDGE = "judge"; READER = "reader"; COORDINATOR = "coordinator"
-    SCRATCH = "scratch"; TESTER = "tester"; IMPLEMENTER = "implementer"
+    JUDGE = "judge"
+    READER = "reader"
+    COORDINATOR = "coordinator"
+    SCRATCH = "scratch"
+    TESTER = "tester"
+    IMPLEMENTER = "implementer"
+
 
 class TestStart(StrEnum):
-    RED = "red"; GREEN = "green"
+    RED = "red"
+    GREEN = "green"
+
 
 class RedVerdict(StrEnum):
-    RED = "red"; ERROR = "error"; GREEN = "green"
-    INVALID = "invalid"; COULD_NOT_JUDGE = "could-not-judge"
+    RED = "red"
+    ERROR = "error"
+    GREEN = "green"
+    INVALID = "invalid"
+    COULD_NOT_JUDGE = "could-not-judge"
+
 
 class BuildStatus(StrEnum):
-    COMPLETE = "complete"; PARTIAL = "partial"; BLOCKED = "blocked"
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    BLOCKED = "blocked"
 ```
 
 All records below are frozen dataclasses. Collections are tuples, including key/value entries; a frozen record contains no mutable dict or list. Identifiers and paths are exact strings, not normalized by core code. Anchor retains its existing constructor behavior, including preservation of supplied line values (`tests/test_core_records.py:82`); wire validation rejects an invalid incoming anchor without changing that constructor.
@@ -118,25 +164,31 @@ All records below are frozen dataclasses. Collections are tuples, including key/
 class Brief:
     text: str
 
+
 class Citation:
     claim: str
     anchor: Anchor
 
+
 class Discovery:
     citations: tuple[Citation, ...]
+
 
 class PlanStep:
     step: Step
     serves: tuple[str, ...]
     stubs: tuple[Stub, ...]
 
+
 class Outline:
     steps: tuple[Step, ...]
     areas: tuple[str, ...]
     shared_structure: bool = False
 
+
 class Plan:
     steps: tuple[PlanStep, ...]
+
 
 class SpecLine:
     id: str
@@ -145,14 +197,17 @@ class SpecLine:
     start: TestStart
     tests: tuple[str, ...] = ()  # approved existing ids for GREEN
 
+
 class Collateral:
     test_id: str
     assertion: str
     disposition: str
 
+
 class Spec:
     lines: tuple[SpecLine, ...]
     collateral: tuple[Collateral, ...]
+
 
 class SpecDefect:
     line: str
@@ -169,36 +224,45 @@ class Check:
     reason: str
     citations: tuple[Anchor, ...]
 
+
 class CheckSet:
     checks: tuple[Check, ...]
     disposition: str  # continue, refuse, escalate-leave
+
 
 class SpecRuling:
     line: str
     verdict: Verdict
     reason: str
 
+
 class SpecJudgment:
     rulings: tuple[SpecRuling, ...]
 
+
 class Evidence:
     measurements: tuple[Citation, ...]
+
 
 class TestBinding:
     line: str
     ids: tuple[str, ...]
 
+
 class TestAnswer:
     bindings: tuple[TestBinding, ...]
     untestable: tuple[str, ...]
+
 
 class RedLine:
     line: str
     verdict: RedVerdict
     tests: tuple[str, ...]
 
+
 class RedJudgment:
     lines: tuple[RedLine, ...]
+
 
 class TestSnapshot:
     test_id: str
@@ -212,33 +276,41 @@ class BuildAnswer:
     reason: str
     missing: CoreMissing | None = None
 
+
 class ReviewAnswer:
     findings: tuple[Finding, ...]
 
+
 class CausesAnswer:
     causes: tuple[Cause, ...]
+
 
 class Pin:
     line: str
     verdict: str  # pin, unpinned, could-not-judge
     reason: str
 
+
 class CollateralRuling:
     test_id: str
     verdict: str  # held, altered, could-not-judge
     reason: str
 
+
 class BailiffAnswer:
     pins: tuple[Pin, ...]
     collateral: tuple[CollateralRuling, ...]
+
 
 class AuditRow:
     test_id: str
     verdict: str  # valid, strike, amend, note, could-not-judge
     reason: str
 
+
 class AuditAnswer:
     rows: tuple[AuditRow, ...]
+
 
 class EpicJob:
     id: str
@@ -246,14 +318,33 @@ class EpicJob:
     depends: tuple[str, ...]
     areas: tuple[str, ...]
 
+
 class EpicAnswer:
     jobs: tuple[EpicJob, ...]
     stop: str | None
 
-type Payload = (Brief | Discovery | Outline | Design | Plan | Spec
-    | CheckSet | SpecJudgment | Evidence | TestAnswer | RedJudgment
-    | BuildAnswer | ReviewAnswer | CausesAnswer | BailiffAnswer
-    | Survey | AuditAnswer | EpicAnswer)
+
+type Payload = (
+    Brief
+    | Discovery
+    | Outline
+    | Design
+    | Plan
+    | Spec
+    | CheckSet
+    | SpecJudgment
+    | Evidence
+    | TestAnswer
+    | RedJudgment
+    | BuildAnswer
+    | ReviewAnswer
+    | CausesAnswer
+    | BailiffAnswer
+    | Survey
+    | AuditAnswer
+    | EpicAnswer
+)
+
 
 class RoleAnswer:
     payload: Payload
@@ -272,18 +363,22 @@ class Caps:
     review: int = 2
     reopen: int = 2
 
+
 class TestCommand:
     directory: str
     run: str
+
 
 class InterfaceCommand:
     language: str
     run: str
 
+
 class RoleSetting:
     name: str
     model: str | None
     effort: str | None
+
 
 class Config:
     image: str
@@ -298,10 +393,12 @@ class Config:
     caps: Caps = Caps()
     roles: tuple[RoleSetting, ...] = ()
 
+
 class RoleSpec:
     name: str
     kind: Kind
     schemas: tuple[str, ...]
+
 
 class StageRule:
     stage: Stage
@@ -321,19 +418,23 @@ class CheckRow:
     verdict: Verdict
     evidence: str
 
+
 class Bypass:
     stage: Stage
     reason: str  # by-rule, unavailable, or owner; detail is mandatory
     detail: str
 
+
 class Amendment:
     lines: tuple[str, ...]
     reason: str
+
 
 class OwnerUse:
     command: str
     stage: Stage
     detail: str
+
 
 class TraceRow:
     id: str  # one dispatched launch attempt, distinct from a retry or its effect
@@ -344,14 +445,17 @@ class TraceRow:
     cost: str | None  # decimal text, not binary float
     outcome: str  # starting, running, complete, failed, interrupted
 
+
 class Round:
     loop: Loop
     used: int
+
 
 class Artifact:
     name: str
     revision: int
     answer: RoleAnswer
+
 
 class StepRun:
     name: str
@@ -359,6 +463,7 @@ class StepRun:
     base_commit: str
     partial_diff: str | None
     status: str  # pending, running, partial, complete, blocked
+
 
 class CauseRound:
     id: str
@@ -377,16 +482,19 @@ class Effect:
     input: Payload | None
     inputs: tuple[Artifact, ...]
 
+
 class GitIntent:
     repository: str
     reference: str
     before: str
     after: str  # exact prepared commit oid, with effect identity in its metadata
 
+
 class RecoveryPoint:
     dispatch: int
     workspace: str | None  # durable executor checkpoint, opaque to core
     git: GitIntent | None
+
 
 class Pending:
     effect: Effect
@@ -394,6 +502,7 @@ class Pending:
     launch_id: str | None
     dispatch: int = 0
     recovery: RecoveryPoint | None = None
+
 
 class State:
     job: str
@@ -419,6 +528,7 @@ class State:
     receipts: tuple[Receipt, ...]
     baselines: tuple[TestSnapshot, ...]
 
+
 class Action:
     state: State
     effects: tuple[Effect, ...]
@@ -432,6 +542,7 @@ Effect.inputs is the immutable artifact selection for that role, including each 
 class Tick:
     pass
 
+
 class Answered:
     effect: str
     dispatch: int
@@ -439,10 +550,12 @@ class Answered:
     answer: RoleAnswer
     trace: TraceRow
 
+
 class Checked:
     effect: str
     dispatch: int
     rows: tuple[CheckRow, ...]
+
 
 class Approved:
     effect: str
@@ -450,40 +563,51 @@ class Approved:
     choices: tuple[tuple[str, str], ...]
     design: Design | None = None
 
+
 class Baselined:
     effect: str
     dispatch: int
     tests: tuple[TestSnapshot, ...]
 
+
 class Restored:
     pass
+
 
 class Reconciled:
     commit: str
 
+
 type RecoveryResult = Restored | Reconciled
+
 
 class Recovered:
     effect: str
     dispatch: int
     result: RecoveryResult
 
+
 class Completed:
     effect: str
     dispatch: int
     commit: str | None
+
 
 class Failed:
     effect: str
     dispatch: int
     reason: str
 
+
 type ExecutionAnswer = Answered | Checked | Approved | Baselined | Completed | Failed
 type Answer = Tick | Recovered | ExecutionAnswer
+
 
 class Receipt:
     effect: str
     event: Answer
+
+
 type Json = None | bool | int | float | str | list[Json] | dict[str, Json]
 ```
 
@@ -497,38 +621,52 @@ It takes the existing UnownedPathError; causes retains UnownedPath as the same c
 class GauntletError(Exception):
     pass
 
+
 class UnownedPathError(GauntletError):
     path: str
+
     def __init__(self, path: str) -> None: ...
+
 
 class RecordError(GauntletError):
     location: str
     reason: str
+
     def __init__(self, location: str, reason: str) -> None: ...
+
 
 class ConfigError(GauntletError):
     key: str
     reason: str
+
     def __init__(self, key: str, reason: str) -> None: ...
+
 
 class StateError(GauntletError):
     effect: str
     reason: str
+
     def __init__(self, effect: str, reason: str) -> None: ...
+
 
 class StorageError(GauntletError):
     path: str
     operation: str
     errno: int | None
+
     def __init__(self, path: str, operation: str, errno: int | None) -> None: ...
+
 
 class RecoveryError(GauntletError):
     effects: tuple[str, ...]
     reason: str
+
     def __init__(self, effects: tuple[str, ...], reason: str) -> None: ...
+
 
 class CapabilityError(GauntletError):
     operation: str
+
     def __init__(self, operation: str) -> None: ...
 ```
 
@@ -546,6 +684,7 @@ class Stub:
     name: str
     text: str
 
+
 @dataclass(frozen=True)
 class Module:
     path: str
@@ -553,11 +692,13 @@ class Module:
     stubs: tuple[Stub, ...]
     replaces: tuple[Anchor, ...]
 
+
 @dataclass(frozen=True)
 class Home:
     concern: str
     module: str
     forbids: str
+
 
 @dataclass(frozen=True)
 class Step:
@@ -565,12 +706,14 @@ class Step:
     paths: tuple[str, ...]
     implementer: str
 
+
 @dataclass(frozen=True)
 class Choice:
     question: str
     recommend: str
     alternative: str
     cost: str
+
 
 @dataclass(frozen=True)
 class Design:
@@ -588,11 +731,13 @@ class Cause:
     concern: str | None
     findings: tuple[Finding, ...]
 
+
 @dataclass(frozen=True)
 class FixStep:
     cause: Cause
     implementer: str
     paths: tuple[str, ...]
+
 
 @dataclass(frozen=True)
 class DesignChange:
@@ -604,23 +749,31 @@ class DesignChange:
 # Defines Stub, Module, Home, Step, Choice and Design above.
 def design_problems(design: Design) -> tuple[str, ...]: ...
 def home_of(design: Design, concern: str) -> Home | None: ...
-def uncovered(design: Design, copies: Sequence[Anchor],
-              done: Collection[str]) -> tuple[Anchor, ...]: ...
+def uncovered(
+    design: Design, copies: Sequence[Anchor], done: Collection[str]
+) -> tuple[Anchor, ...]: ...
+
 
 # gauntlet/core/causes.py
 # Defines Cause, FixStep and DesignChange above.
 # Imports UnownedPathError from errors; UnownedPath = UnownedPathError.
 def finding_problems(finding: Finding, design: Design | None) -> tuple[str, ...]: ...
-def partition_problems(findings: Sequence[Finding],
-                       causes: Sequence[Cause]) -> tuple[str, ...]: ...
-def route(cause: Cause, design: Design | None,
-          owners: Mapping[str, str]) -> FixStep | DesignChange: ...
+def partition_problems(
+    findings: Sequence[Finding], causes: Sequence[Cause]
+) -> tuple[str, ...]: ...
+def route(
+    cause: Cause, design: Design | None, owners: Mapping[str, str]
+) -> FixStep | DesignChange: ...
 def survey_problems(survey: Survey, causes: Sequence[Cause]) -> tuple[str, ...]: ...
 
+
 # gauntlet/core/schedule.py: existing implementation, no write step.
-def startable(order: Sequence[tuple[str, frozenset[str]]],
-              done: Collection[str], running: Collection[str],
-              held: Collection[str]) -> tuple[str, ...]: ...
+def startable(
+    order: Sequence[tuple[str, frozenset[str]]],
+    done: Collection[str],
+    running: Collection[str],
+    held: Collection[str],
+) -> tuple[str, ...]: ...
 ```
 
 ### `gauntlet/core/red.py` — approved test starting verdicts and preserved-test bindings
@@ -628,10 +781,12 @@ def startable(order: Sequence[tuple[str, frozenset[str]]],
 It owns the per-line rule replacing the three restatements at `docs/design.md:44`, `docs/design.md:64` and `docs/design.md:68`. It uses records; it performs no test execution or source inspection.
 
 ```python
-def red_problems(spec: Spec, judgment: RedJudgment,
-                 bindings: Sequence[TestBinding]) -> tuple[str, ...]: ...
-def binding_problems(spec: Spec, answer: TestAnswer,
-                     baselines: Sequence[TestSnapshot]) -> tuple[str, ...]: ...
+def red_problems(
+    spec: Spec, judgment: RedJudgment, bindings: Sequence[TestBinding]
+) -> tuple[str, ...]: ...
+def binding_problems(
+    spec: Spec, answer: TestAnswer, baselines: Sequence[TestSnapshot]
+) -> tuple[str, ...]: ...
 ```
 
 red_problems requires exactly one row per approved line, the exact bound test ids and its declared RED or GREEN verdict. Missing, duplicate or unknown rows, wrong ids, ERROR, INVALID and COULD NOT JUDGE fail. RED on a GREEN line fails just as GREEN on a RED line does; neither changes the mark. Any mismatch goes to the arbiter under the juror cap.
@@ -644,6 +799,8 @@ It replaces no implementation. It centralizes the role/schema relationship requi
 
 ```python
 ROLES: tuple[RoleSpec, ...]
+
+
 def role(name: str) -> RoleSpec: ...
 def registry_problems(roles: Sequence[RoleSpec]) -> tuple[str, ...]: ...
 ```
@@ -677,6 +834,8 @@ It replaces no product codec. It encodes all the record types from verdicts, des
 ```python
 FORMAT: int  # 1
 SCHEMAS: tuple[str, ...]
+
+
 def json_value(value: object) -> Json: ...
 def encode_state(state: State) -> str: ...
 def decode_state(text: str) -> State: ...
@@ -715,9 +874,16 @@ FIRST: Mapping[Shape, Stage]  # JOB: BRIEF; TEST_AUDIT: SPEC; STRUCTURE: DESIGN
 SKIPPED: Mapping[Shape, frozenset[Stage]]
 # TEST_AUDIT: STUBS, BUILD, REVIEW; JOB and STRUCTURE: empty
 STAGES: tuple[StageRule, ...]
-def initial(job: str, shape: Shape, config: Config, *,
-            candidate: Candidate | None = None,
-            copies: tuple[Anchor, ...] = ()) -> State: ...
+
+
+def initial(
+    job: str,
+    shape: Shape,
+    config: Config,
+    *,
+    candidate: Candidate | None = None,
+    copies: tuple[Anchor, ...] = (),
+) -> State: ...
 def state_problems(state: State) -> tuple[str, ...]: ...
 def decide(state: State, answer: Answer) -> Action: ...
 ```
@@ -758,9 +924,12 @@ It replaces no implementation. It owns each job's state.json and trace.jsonl, as
 class JobStore:
     def __init__(self, job: Path) -> None: ...
     def __enter__(self) -> JobStore: ...
-    def __exit__(self, exc_type: type[BaseException] | None,
-                 exc: BaseException | None,
-                 traceback: TracebackType | None) -> None: ...
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None: ...
     def load(self) -> State: ...
     def create(self, state: State) -> None: ...
     def save(self, state: State, *, expected_revision: int) -> None: ...
@@ -780,10 +949,9 @@ It replaces no implementation. It contains no stage routing, shell/process runne
 ```python
 class Executor(Protocol):
     def prepare(self, effect: Effect, *, dispatch: int) -> RecoveryPoint: ...
-    def __call__(self, effect: Effect,
-                 point: RecoveryPoint) -> ExecutionAnswer: ...
-    def recover(self, effect: Effect,
-                point: RecoveryPoint) -> RecoveryResult: ...
+    def __call__(self, effect: Effect, point: RecoveryPoint) -> ExecutionAnswer: ...
+    def recover(self, effect: Effect, point: RecoveryPoint) -> RecoveryResult: ...
+
 
 def pending_action(job: Path) -> Action: ...
 def resume(job: Path, *, execute: Executor) -> State: ...
@@ -805,8 +973,9 @@ It fills the existing entry point (`pyproject.toml:12`) and replaces no CLI. It 
 def render_action(action: Action) -> str: ...
 def render_error(error: GauntletError) -> str: ...
 def exit_code(error: GauntletError | None) -> int: ...
-def main(arguments: Sequence[str] | None = None, *,
-         execute: Executor | None = None) -> int: ...
+def main(
+    arguments: Sequence[str] | None = None, *, execute: Executor | None = None
+) -> int: ...
 ```
 
 The command is gauntlet resume <id>; id is a single job-folder component, excluding dot, dot-dot and path separators. The caller's repository root supplies .gauntlet/jobs/<id>, with no alternate job discovery. M1 main uses its explicit CLI cwd as that root; tests supply cwd through their process runner, not Path.cwd assertions. Output names the persisted stage and pending operations, or the typed failure's fields. Successful owner wait or finished work returns 0; stopped/unavailable work and typed failures return 2. Bad CLI syntax follows argparse's status 2. A missing executor reports CapabilityError and preserves pending work; it never marks that work complete. New/run/audit/status and owner controls remain their roadmap work.
@@ -818,7 +987,11 @@ It uses Run, source.parse and report.Outcome instead of copying gate selection, 
 ```python
 def parsing_findings(parsed: Parsed) -> tuple[Finding, ...]: ...
 def check(run: Run) -> Outcome: ...
+
+
 GATE: Gate
+
+
 def main(paths: Sequence[Path]) -> int: ...
 ```
 
@@ -832,23 +1005,49 @@ It replaces the four factory sites counted in Why. Builders construct supplied r
 
 ```python
 def anchor(path: str = "pkg/a.py", line: int = 1) -> Anchor: ...
-def finding(*, anchor: Anchor = ..., scenario: str = "a call fails",
-            category: Category = Category.DEFECT, blocking: bool = True,
-            concern: str | None = None, also: tuple[Anchor, ...] = ()) -> Finding: ...
-def design(*, modules: tuple[Module, ...] = ...,
-           homes: tuple[Home, ...] = ..., order: tuple[Step, ...] = ...,
-           choices: tuple[Choice, ...] = ()) -> Design: ...
-def cause(*, id: str = "c1", claim: str = "one cause",
-          concern: str | None = None,
-          findings: tuple[Finding, ...] = ...) -> Cause: ...
-def candidate(*, concern: str = "process running", payoff: str = "one runner",
-              risk: str = "a caller breaks", keeps: tuple[str, ...] = (),
-              why: str | None = None) -> Candidate: ...
-def survey(*, findings: tuple[Finding, ...] = (),
-           candidates: tuple[Candidate, ...] = (),
-           sound: tuple[str, ...] = ()) -> Survey: ...
-def missing(*, need: str = "one shared policy",
-            candidate: Candidate = ..., also: tuple[Anchor, ...] = ()) -> CoreMissing: ...
+def finding(
+    *,
+    anchor: Anchor = ...,
+    scenario: str = "a call fails",
+    category: Category = Category.DEFECT,
+    blocking: bool = True,
+    concern: str | None = None,
+    also: tuple[Anchor, ...] = (),
+) -> Finding: ...
+def design(
+    *,
+    modules: tuple[Module, ...] = ...,
+    homes: tuple[Home, ...] = ...,
+    order: tuple[Step, ...] = ...,
+    choices: tuple[Choice, ...] = (),
+) -> Design: ...
+def cause(
+    *,
+    id: str = "c1",
+    claim: str = "one cause",
+    concern: str | None = None,
+    findings: tuple[Finding, ...] = ...,
+) -> Cause: ...
+def candidate(
+    *,
+    concern: str = "process running",
+    payoff: str = "one runner",
+    risk: str = "a caller breaks",
+    keeps: tuple[str, ...] = (),
+    why: str | None = None,
+) -> Candidate: ...
+def survey(
+    *,
+    findings: tuple[Finding, ...] = (),
+    candidates: tuple[Candidate, ...] = (),
+    sound: tuple[str, ...] = (),
+) -> Survey: ...
+def missing(
+    *,
+    need: str = "one shared policy",
+    candidate: Candidate = ...,
+    also: tuple[Anchor, ...] = (),
+) -> CoreMissing: ...
 ```
 
 Default design is Module("pkg/home.py", "one line", (), ()), Home("process running", "pkg/home.py", "running a process"), Step("s1", ("pkg/home.py",), "core-builder"), with no choices. Default cause contains the default finding. Default finding.anchor is anchor(); default missing.candidate is candidate(). Helpers' keyword overrides replace only their named field, and no default contains a mutable collection.
@@ -893,12 +1092,18 @@ class StateChanges(TypedDict, total=False):
     receipts: tuple[Receipt, ...]
     baselines: tuple[TestSnapshot, ...]
 
+
 def config(**changes: Unpack[ConfigChanges]) -> Config: ...
 def state(**changes: Unpack[StateChanges]) -> State: ...
-def answer(payload: Payload = ..., *, effect: str = "e1",
-           dispatch: int = 0, role: str = "architect",
-           spec_defect: SpecDefect | None = None,
-           trace: TraceRow = ...) -> Answered: ...
+def answer(
+    payload: Payload = ...,
+    *,
+    effect: str = "e1",
+    dispatch: int = 0,
+    role: str = "architect",
+    spec_defect: SpecDefect | None = None,
+    trace: TraceRow = ...,
+) -> Answered: ...
 def seed(schema: str) -> Payload: ...
 ```
 
@@ -936,24 +1141,34 @@ It replaces no support module. It uses existing pipe coordination (`tests/suppor
 
 ```python
 class Replies:
-    def __init__(self, values: Sequence[ExecutionAnswer], *,
-                 points: Sequence[RecoveryPoint] = (),
-                 recoveries: Sequence[RecoveryResult] = ()) -> None: ...
+    def __init__(
+        self,
+        values: Sequence[ExecutionAnswer],
+        *,
+        points: Sequence[RecoveryPoint] = (),
+        recoveries: Sequence[RecoveryResult] = (),
+    ) -> None: ...
     def prepare(self, effect: Effect, *, dispatch: int) -> RecoveryPoint: ...
-    def __call__(self, effect: Effect,
-                 point: RecoveryPoint) -> ExecutionAnswer: ...
-    def recover(self, effect: Effect,
-                point: RecoveryPoint) -> RecoveryResult: ...
+    def __call__(self, effect: Effect, point: RecoveryPoint) -> ExecutionAnswer: ...
+    def recover(self, effect: Effect, point: RecoveryPoint) -> RecoveryResult: ...
     @property
     def seen(self) -> tuple[Effect, ...]: ...
 
+
 class RepliesExhaustedError(Exception):
     seen: tuple[Effect, ...]
+
     def __init__(self, seen: tuple[Effect, ...]) -> None: ...
 
-def checkpoint_child(job: str, ready: int, release: int,
-                     replies: tuple[ExecutionAnswer, ...], *,
-                     checkpoint: str = "ready") -> None: ...
+
+def checkpoint_child(
+    job: str,
+    ready: int,
+    release: int,
+    replies: tuple[ExecutionAnswer, ...],
+    *,
+    checkpoint: str = "ready",
+) -> None: ...
 ```
 
 Replies records each call and returns the next supplied literal answer, recovery point or recovery result; exhausted sequences raise a typed support error, never compute a production response. checkpoint_child announces the requested committed ready, started, recovering or completed checkpoint over ready and waits on release at that boundary. The parent kills it only after the announcement, joins by process exit and reloads the real temporary job. The ordinary pytest timeout is the failure bound.
