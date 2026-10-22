@@ -38,6 +38,8 @@ Plus `CLAUDE.md` at the repository root: the gate command, tests-first, the rost
 
 ## Decisions
 
+- `architect`, `test-writer`, `test-reviewer` and `mutant-hunter` read only the specs and plans their brief or step names, plus the documents those cite. No agent loads all of `docs/superpowers/` on every run. This section is the home of that scope; the four role bodies apply it within their existing read boundaries.
+
 - `diff-reviewer` gets no purpose line. The quality spec says "without being told what it is for". So it never opens `docs/roadmap.md`, the other specs under `docs/superpowers/specs/`, or the plans under `docs/superpowers/plans/`, where the writing-plans skill puts them: each says what a change is for. Cost: it cannot file scope creep. `test-reviewer` is separate because scope creep in tests is what the bailiff catches later, and this repository's own tests have no bailiff yet.
 - Two implementers, not one. The core/seam split is the design's first principle. Each builder's body bars it from the other directory; the diff read catches a write across the split, not a read.
 - `test-writer` shadows by name instead of taking a new name. The alternative costs an edit to the user-scope `orchestrate` roster and `lead`.
@@ -82,3 +84,4 @@ One agent per dispatch, one diff read, one commit. `role-author` gets no red tes
 5. `role-author` writes `core-builder`, `seam-builder`. Proof: a test per agent that its body names only paths inside its scope. Live proof at M1 for `core-builder` and M2 for `seam-builder`.
 6. `role-author` writes `architect`. Proof: a brief that dictates a module or an interface returns `REJECTED: STEERING` quoting the line; a clean brief on one multi-piece task writes one design file under `docs/superpowers/specs/`, and `git status --short` shows nothing else.
 7. `role-author` rewrites `test-writer`'s red brief to carry a run of behaviors. Proof: the first live red dispatch of two or more behaviors, its `COMMANDS` showing no read under `gauntlet/` or `gates/`; each behavior's tests red as `AssertionError` or `NotImplementedError`; each `replaces:` test gone from the diff; `CHANGED` equal to the lead's count of the diff. A failed proof returns red briefs to one behavior until the role is fixed.
+8. `role-author` scopes spec and plan reads in `.claude/agents/architect.md`, `.claude/agents/test-writer.md`, `.claude/agents/test-reviewer.md` and `.claude/agents/mutant-hunter.md` to **Decisions**. Proof: one dispatch per role shows in `COMMANDS` that every spec or plan read is named by its brief or step, or reached through a citation, with each role's existing read boundaries preserved.
