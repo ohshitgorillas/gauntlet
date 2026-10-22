@@ -2,54 +2,32 @@ Status: proposed, for the owner's approval.
 
 ## Why
 
-A request to restructure code without changing what it does has no path through Gauntlet. A STRUCTURE job opens only from a finding, and every spec line must start out failing, which a line that pins behavior the code already has cannot do. The pieces of this design (the planner's choice of a refactor path on the outline, with the owner's override; the hand-off of a refactor request to a STRUCTURE job and the candidate it opens with; and a red-run rule for lines that pin existing behavior) share one Candidate record, one opener, one spec line record and one red-run rule.
+A request to restructure code without changing what it does has no direct STRUCTURE path: the existing openers are a CoreMissing or an audit pick (`docs/design.md:94`, `docs/design.md:100`). The proposed outline routing and hand-off share one Candidate record and one opener. M1 defines per-line RED/GREEN marks and unchanged existing tests (`docs/superpowers/specs/m1-core-records-design.md:163`, `:626`). Routing, MISPLACED and examiner extensions require separate owner approval.
 
-- **A STRUCTURE job opens from two places only: 2 entries, 4 restatements.** A CoreMissing on a build step (`docs/design.md:94`) and an audit pick (`docs/design.md:100`). The `Shape.STRUCTURE` comment, the opening bullet, the home of `open_structure` and `docs/design.md:32` name those two and no other. A request enters through `gauntlet run <brief.md>` (`docs/roadmap.md:104`) or `gauntlet new` (`docs/roadmap.md:132`), both of the JOB shape.
+- **A STRUCTURE job opens from two places only: 2 entries, 4 restatements.** A CoreMissing on a build step (`docs/design.md:94`) and an audit pick (`docs/design.md:100`). The `Shape.STRUCTURE` comment (`docs/superpowers/specs/structure-first-design.md:198`), opening bullet (`:211`) and `open_structure` home (`:281`) name those two; the workflow summary is at `docs/design.md:32`. A request enters through `gauntlet run <brief.md>` (`docs/roadmap.md:108`) or `gauntlet new` (`docs/roadmap.md:136`), both of the JOB shape (`docs/superpowers/specs/structure-first-design.md:200`).
 
-- **The outline carries one routing flag, and none for a refactor.** The planner's outline returns a shared-structure flag and the owner approves or redirects it (`docs/design.md:38`); `needs_design` is its one reader. Nothing on the outline says a request changes no behavior, so no stage the planner reaches can send a request to a STRUCTURE job.
+- **The outline carries one routing flag, and none for a refactor.** The planner's outline returns a shared-structure flag and the owner approves or redirects it (`docs/design.md:38`); `needs_design` reads that flag (`docs/superpowers/specs/structure-first-design.md:133`). Nothing on the outline says a request changes no behavior, so no stage the planner reaches can send a request to a STRUCTURE job.
 
 - **The red-run rule, 3 copies, none with an exception.** "every line `RED`" (`docs/design.md:44`); "A `GREEN` verdict at the red run sends the line to the arbiter" (`docs/design.md:64`); "A test that passes before any implementation exists reopens its spec line" (`docs/design.md:68`).
 
-- **Keeps lines meet that rule with no rule of their own, 3 places.** A STRUCTURE job's SPEC carries each of its candidate's `keeps` lines as a spec line, locked before any port step. A keeps line pins behavior the copies already carry, so its test passes at the red run and reopens under `docs/design.md:68`. The gap holds for every audit pick, not only for a direct request.
+- **Kept behaviors and starting verdicts have separate homes.** Each Candidate.keeps claim must appear in its STRUCTURE spec before porting (`docs/superpowers/specs/structure-first-design.md:212`). M1 requires an explicit RED or GREEN mark on every line; a kept claim can have either mark, and GREEN preserves approved existing test ids unchanged (`docs/superpowers/specs/m1-core-records-design.md:163`). This applies without inferring permission from the job shape.
 
-- **Two producers of a Candidate, none for a request.** The surveyor's `Survey.candidates` and an implementer's `CoreMissing.candidate`. A direct request has neither, so it has no copies for `uncovered` to check at DESIGN.
+- **Two producers of a Candidate, none for a request.** The surveyor's `Survey.candidates` (`gauntlet/core/verdicts.py:67`) and an implementer's `CoreMissing.candidate` (`gauntlet/core/verdicts.py:56`). A direct request has neither, so it has no copies for `uncovered` to check at DESIGN.
 
-- **Nothing marks a spec line as a keeps line.** No document defines a spec line record. The Spec row returns behavior lines `S1…` with `bite:` values (`docs/design.md:41`), and nothing records which of them carries which `keeps` line, so nothing can tell a line that may start out passing from one that may not.
+- **One spec record and one starting-verdict validator.** M1 defines SpecLine.start, SpecLine.tests and TestStart in records.py (`docs/superpowers/specs/m1-core-records-design.md:104`, `:141`), and red_problems and binding_problems in red.py (`:626`). This proposal consumes those contracts; it introduces no second mark or validator.
 
-- **No copy of these concerns in code.** `gauntlet/` holds only three empty files, `gauntlet/__init__.py`, `gauntlet/core/__init__.py` and `gauntlet/seams/__init__.py`, and nothing under `gates/` or `tests/` holds a job shape, a candidate or a red-run rule. Every copy above is in the documents the code will be built from.
+- **Candidate already has one code home.** Candidate, CoreMissing and Survey are defined at `gauntlet/core/verdicts.py:41`, `:56` and `:67`. M1 retains these definitions and introduces the composite records separately (`docs/superpowers/specs/m1-core-records-design.md:25`, `:79`); routing reuses them.
 
 ## Modules
 
-Core imports run `verdicts` ← `red` ← `decide`; `red` imports nothing else of the core. `SpecLine` and `RedVerdict` are M1's answer records (`docs/superpowers/specs/gates-core-design.md:370`): this design stubs only the fields it needs, and M1's design names their other fields and may rename them. `Runner` is M2's process-running seam (`gates-core-design.md:378`). `Outline` and `State` are M1's types (`structure-first-design.md:21`); `is_refactor` lives in `design.py`, which keeps its place in the structure-first chain, `verdicts` ← `design` ← `causes` ← `decide` (`structure-first-design.md:21`). A refactor request opens no new shape: it is a STRUCTURE job (`docs/design.md:102`).
+M1 owns the import graph: domain records feed records.py, red.py imports records, and decide imports the pure homes (`docs/superpowers/specs/m1-core-records-design.md:23`). SpecLine, TestStart, RedVerdict, Outline and State live in records.py (`:79`); Candidate stays in verdicts.py (`:25`). The interfaces below use those definitions. Runner is M2's process seam (`docs/superpowers/specs/gates-core-design.md:402`). A refactor request uses the existing STRUCTURE shape (`docs/superpowers/specs/structure-first-design.md:198`).
 
-**`gauntlet/core/verdicts.py`** (amended). Gains the keeps mark on a spec line, the juror's verdict per line, the owner's words on a Candidate, the planner's choice of path on the outline (decision 1), and the MISPLACED category (decision 5). It replaces nothing; it adds to the records at `structure-first-design.md:31`-`53`.
+**`gauntlet/core/verdicts.py`** (proposed amendment). Gains Candidate.asked and Category.MISPLACED on the existing records (`gauntlet/core/verdicts.py:16`, `:41`). It defines no spec mark or composite answer.
 
 ```python
 class Category(StrEnum):
     ...  # the five values of the structure-first spec
-    MISPLACED = "misplaced"  # code a request moves to a new home, with every caller in `also` (decision 5)
-
-
-class RedVerdict(StrEnum):  # the juror's verdict per spec line (docs/design.md:44)
-    RED = "red"
-    ERROR = "error"
-    GREEN = "green"
-    INVALID = "invalid"
-    COULD_NOT_JUDGE = "could-not-judge"
-
-
-@dataclass(frozen=True)
-class SpecLine:  # M1's spec line record; its other fields are M1's
-    id: str  # "S1", stable across amendments (docs/design.md:90)
-    keeps: str | None = (
-        None  # the Candidate.keeps line it carries, verbatim; None on any other line
-    )
-
-
-@dataclass(frozen=True)
-class Outline:  # M1's outline answer; its steps, implementers, areas and shared-structure flag are M1's
-    structure_only: bool = False  # the planner's choice of path: True when the brief asks to restructure without changing behavior (decision 1)
-
+    MISPLACED = "misplaced"  # code a request moves to a new home, with every caller in also
 
 @dataclass(frozen=True)
 class Candidate:  # the structure-first record with one field more
@@ -58,126 +36,161 @@ class Candidate:  # the structure-first record with one field more
     risk: str
     keeps: tuple[str, ...]
     why: str | None = None
-    asked: str | None = (
-        None  # the owner's request verbatim; set only by `cli.run`'s hand-off, from the JOB's brief (decision 6)
-    )
+    asked: str | None = None  # exact JOB brief text; cli.run is the sole writer
 ```
 
-`finding_problems` checks MISPLACED as it checks MISSING: it needs an `also`, a concern and `blocking` (decision 5).
-
-**`gauntlet/core/red.py`** (new). Which verdict each spec line must have at the red run, whether a spec's keeps lines are exactly its candidate's, and whether each keeps test bites. It replaces the red-run rule at `docs/design.md:44`, `:64` and `:68`.
+**`gauntlet/core/records.py`** (M1 contract; proposed Outline extension). SpecLine and its verdict types use M1's definitions (`docs/superpowers/specs/m1-core-records-design.md:104`, `:141`); only Outline.structure_only belongs to the routing proposal. The start mark and preserved ids are visible to the owner as part of spec approval (`:163`).
 
 ```python
-def expected(line: SpecLine) -> RedVerdict    # GREEN for a keeps line, RED for any other
-def red_problems(lines: Sequence[SpecLine], verdicts: Mapping[str, RedVerdict]) -> tuple[str, ...]
-def keeps_problems(lines: Sequence[SpecLine], keeps: Sequence[str]) -> tuple[str, ...]
-def bite_problems(lines: Sequence[SpecLine], stubbed: Mapping[str, RedVerdict], touched: Collection[str], copies: Sequence[Anchor]) -> tuple[str, ...]   # decision 3
+class TestStart(StrEnum):
+    RED = "red"; GREEN = "green"
+
+class RedVerdict(StrEnum):
+    RED = "red"; ERROR = "error"; GREEN = "green"
+    INVALID = "invalid"; COULD_NOT_JUDGE = "could-not-judge"
+
+@dataclass(frozen=True)
+class SpecLine:
+    id: str
+    claim: str
+    bite: str
+    start: TestStart
+    tests: tuple[str, ...] = ()  # approved existing ids for GREEN
+
+@dataclass(frozen=True)
+class Outline:
+    steps: tuple[Step, ...]
+    areas: tuple[str, ...]
+    shared_structure: bool = False
+    structure_only: bool = False  # proposed planner choice, subject to owner override
 ```
 
-- `red_problems` names each line with no verdict and each whose verdict is not `expected(line)`. `INVALID` and `COULD_NOT_JUDGE` are never expected, so they always fail. A keeps line that is RED pins behavior the tree lacks; any other line that is GREEN passes before anything is built. Each named line goes to the arbiter, which rules whether the spec or the test is at fault.
-- `keeps_problems` names each of `keeps` that no line carries, each line whose `keeps` is not one of `keeps`, and each of `keeps` carried by two lines. A JOB has no candidate and is checked with `keeps` empty, so any keeps line in its spec fails: only a STRUCTURE spec holds a line that may start out passing.
-- `bite_problems` names each path in `touched` that no anchor in `copies` lies in, and each keeps line whose verdict on the stubbed tree is GREEN or absent (decision 3). The stubbed tree is the job tree with the body of each function holding a copy anchor replaced by a raise. The examiner writes those files; the harness's runner runs the keeps tests on them, and the examiner's own account of outcomes never counts.
+Every line explicitly declares its start mark, with no default. GREEN names nonempty, unique existing test ids whose tests pass unchanged on the old and new code. RED requires failing behavioral assertions. Neither Candidate.keeps nor STRUCTURE implies GREEN; missing or invalid marks fail SPEC, and changing the mark or preserved ids needs spec approval again. M1 owns this contract (`docs/superpowers/specs/m1-core-records-design.md:163`).
 
-**`gauntlet/core/causes.py`** (amended). Gains the check that a survey focused on one request answers it with one candidate. It replaces nothing.
+**`gauntlet/core/red.py`** (M1 contract; proposed examiner extension). M1 owns starting verdicts and preserved-test bindings (`docs/superpowers/specs/m1-core-records-design.md:626`). It replaces the red-run rule at `docs/design.md:44`, `:64` and `:68`. The examiner adds only bite_problems, subject to separate approval.
 
 ```python
-def focus_problems(survey: Survey) -> tuple[str, ...]
+def red_problems(spec: Spec, judgment: RedJudgment,
+                 bindings: Sequence[TestBinding]) -> tuple[str, ...]: ...
+def binding_problems(spec: Spec, answer: TestAnswer,
+                     baselines: Sequence[TestSnapshot]) -> tuple[str, ...]: ...
+def bite_problems(lines: Sequence[SpecLine], stubbed: Mapping[str, RedVerdict], touched: Collection[str], copies: Sequence[Anchor], keeps: Sequence[str]) -> tuple[str, ...]: ...
 ```
 
-- `focus_problems` names a survey with no candidate and one with more than one. Beside `survey_problems` (`structure-first-design.md:155`), which ties every candidate to a cause and every cause to anchored findings, it holds a direct request to one candidate with at least one copy.
+- red_problems requires one row per approved line, exact bound ids and the declared starting verdict. Missing, duplicate or unknown rows, wrong ids, ERROR, INVALID and COULD_NOT_JUDGE fail; neither a RED on a GREEN line nor a GREEN on a RED line changes the mark. Mismatches go to the arbiter under the juror cap (`docs/superpowers/specs/m1-core-records-design.md:637`).
+- The binding contract requires exact owner-selected GREEN ids and a nonblank harness baseline for each preserved test. LOCK and LAND require harness evidence that complete test definitions, decorators and parametrization equal their snapshots. Final runs require every line GREEN (`docs/superpowers/specs/m1-core-records-design.md:639`).
+- Proposed bite_problems identifies kept lines by claim membership in keeps, independently of their start mark. It names each touched path without a copy anchor and each kept line whose stubbed verdict is GREEN or absent. The examiner supplies files with copy-bearing function bodies replaced by raises; the harness runs their tests. This check supplements M1's source-preservation checks and remains unapproved.
 
-**`gauntlet/core/design.py`** (amended). Gains whether an approved outline sends its request down the STRUCTURE path (decision 1). It replaces nothing and sits beside `needs_design` (`structure-first-design.md:113`), the other reader of the outline.
+**`gauntlet/core/causes.py`** (proposed amendment). Gains the check that a survey focused on one request answers it with one candidate. finding_problems checks MISPLACED as MISSING: also anchors, a concern and blocking are required. It replaces nothing.
 
 ```python
-def is_refactor(outline: Outline, override: bool | None) -> bool
+def focus_problems(survey: Survey) -> tuple[str, ...]: ...
+```
+
+- `focus_problems` names a survey with no candidate and one with more than one. Beside `survey_problems` (`docs/superpowers/specs/structure-first-design.md:168`), which ties every candidate to a cause and every cause to anchored findings, it holds a direct request to one candidate with at least one copy.
+
+**`gauntlet/core/design.py`** (proposed amendment). Gains whether an approved outline sends its request down the STRUCTURE path. Its Outline annotation uses a type-only records import, preserving M1's runtime dependency direction. It replaces nothing and sits beside `needs_design` (`docs/superpowers/specs/structure-first-design.md:133`), the other reader of the outline.
+
+```python
+def is_refactor(outline: Outline, override: bool | None) -> bool: ...
 ```
 
 - `is_refactor` returns the owner's override where the owner gave one at the outline screen, and the planner's `structure_only` otherwise. `override` is the owner's ruling as M1's State records it, `None` when the owner approved the outline as the planner wrote it.
 
-**`gauntlet/core/decide.py`** (amended rows). The interface is unchanged; these rows join the stage table.
+**`gauntlet/core/decide.py`** (M1 rows reused; proposed routing and examiner rows). The interface is unchanged; OUTLINE and the examiner check extend it.
 
 ```python
-def decide(state: State, answer: Answer) -> Action   # M1's signature; the rows below are added
+def decide(state: State, answer: Answer) -> Action: ...   # M1's signature
 ```
 
-- OUTLINE: an approved outline for which `is_refactor` holds goes to neither DESIGN nor PLAN; the next action is the focused survey. On the owner's approval of its candidate the JOB ends at OUTLINE as handed off, its `state.json` naming the STRUCTURE job it opens, and that job starts at DESIGN by `FIRST` (decision 6). A survey that is `COULD NOT JUDGE`, or a declined candidate, stops the JOB at its stop screen. Any other approved outline goes on by the OUTLINE row of `structure-first-design.md:185`.
-- SPEC: a spec with any `keeps_problems` against the job's candidate's `keeps`, empty for a JOB, is a failed round under `caps.spec`, beside the arbiter's rulings.
-- RED_RUN: the gate is `red_problems` returning nothing. Each line it names goes to the arbiter.
-- Between RED_RUN and LOCK, a STRUCTURE job with keeps lines runs the bite check (decision 3): the examiner returns the stubbed files, `run_stubbed` runs the keeps tests on them, and each line `bite_problems` names goes to the arbiter. Until M4 builds the examiner, the check is recorded as skipped and shown as a bypass on the land screen.
+- OUTLINE: an approved outline for which `is_refactor` holds goes to neither DESIGN nor PLAN; the next action is the focused survey. On the owner's approval of its candidate the JOB ends at OUTLINE as handed off, its `state.json` naming the STRUCTURE job it opens, and that job starts at DESIGN by `FIRST`. A survey that is `COULD NOT JUDGE`, or a declined candidate, stops the JOB at its stop screen. Any other approved outline goes on by the OUTLINE row of `docs/superpowers/specs/structure-first-design.md:205`.
+- M1's SPEC, TESTS, RED_RUN, LOCK and LAND rules are consumed unchanged (`docs/superpowers/specs/m1-core-records-design.md:731`, `:733`, `:739`). SPEC preserves each Candidate.keeps claim and validates every line's explicit mark and ids before owner approval. Approval captures baselines before stubs or test work; starting runs retain the old implementations exercised by GREEN tests. No keeps_problems or expected function is added here.
+- Examiner extension, requiring separate approval: between RED_RUN and LOCK, a STRUCTURE job with kept claims uses run_stubbed for their tests and bite_problems with the candidate's keeps. Problems go to the arbiter; unavailable execution requires an explicit bypass. M1's unchanged-test contract is independent of this extension.
 
-**`gauntlet/seams/cli.py`** (amended). Gives `gauntlet run` the hand-off of a refactor request to a STRUCTURE job (decisions 1, 6). It replaces nothing and opens a STRUCTURE job only through `open_structure`.
+**`gauntlet/seams/cli.py`** (proposed amendment). Gives `gauntlet run` the hand-off of a refactor request to a STRUCTURE job. It replaces nothing and opens a STRUCTURE job only through `open_structure`.
 
 ```python
-def run(brief: Path) -> int   # gauntlet run <brief.md>
+def run(brief: Path) -> int: ...   # gauntlet run <brief.md>
 ```
 
-- When `decide` returns the focused survey after OUTLINE, `run` launches the surveyor over the checkout with the brief's text as its focus, then the grouper (decision 2). A survey that fails `survey_problems` or `focus_problems` is `COULD NOT JUDGE`. `write_survey` (`structure-first-design.md:203`) writes the survey as any structure audit's. The survey screen shows the brief, then the one candidate. On the owner's approval, `run` sets the candidate's `asked` to the brief's text and opens the STRUCTURE job through `open_structure` with its cause's anchors as the copies. That job runs as every STRUCTURE job does: DESIGN first, nothing skipped.
-- `run` takes no flag that sets the path: the owner overrides the planner's choice at the outline screen alone (decision 8).
+- When `decide` returns the focused survey after OUTLINE, `run` launches the surveyor over the checkout with the brief's text as its focus, then the grouper. A survey that fails `survey_problems` or `focus_problems` is `COULD NOT JUDGE`. `write_survey` (`docs/superpowers/specs/structure-first-design.md:223`) writes the survey as any structure audit's. The survey screen shows the brief, then the one candidate. On the owner's approval, `run` sets the candidate's `asked` to the brief's text and opens the STRUCTURE job through `open_structure` with its cause's anchors as the copies. That job runs as every STRUCTURE job does: DESIGN first, nothing skipped.
+- `run` takes no flag that sets the path: the owner overrides the planner's choice at the outline screen alone.
 
-**`gauntlet/seams/screens.py`** (amended). The outline screen shows the planner's choice of path and takes the owner's override of it (decision 1); the survey screen shows a direct request's words above its candidate. `outline_screen` is the outline's approval screen (`docs/design.md:38`), named here with the path it gains. It replaces nothing.
+**`gauntlet/seams/screens.py`** (proposed amendment). The outline screen shows the planner's choice of path and takes the owner's override of it; the survey screen shows a direct request's words above its candidate. `outline_screen` is the outline's approval screen (`docs/design.md:38`), named here with the path it gains. It replaces nothing.
 
 ```python
-def outline_screen(outline: Outline) -> Screen   # steps, implementers, areas and flag, then the planner's path; approve, redirect, or override the path
-def survey_screen(survey: Survey, causes: Sequence[Cause], asked: str | None = None) -> Screen   # with asked: the request, then the one candidate; approve or decline
+def outline_screen(outline: Outline) -> Screen: ...   # steps, implementers, areas and flag, then the planner's path; approve, redirect, or override the path
+def survey_screen(survey: Survey, causes: Sequence[Cause], asked: str | None = None) -> Screen: ...   # with asked: the request, then the one candidate; approve or decline
 ```
 
-**`gauntlet/seams/runner.py`** (amended, decision 3). Runs keeps tests on the stubbed tree. It replaces nothing.
+**`gauntlet/seams/runner.py`** (proposed amendment). Runs keeps tests on the stubbed tree. It replaces nothing.
 
 ```python
-def run_stubbed(tree: Path, files: Mapping[str, str], ids: Sequence[str], runner: Runner) -> Mapping[str, RedVerdict]
+def run_stubbed(tree: Path, files: Mapping[str, str], ids: Sequence[str], runner: Runner) -> Mapping[str, RedVerdict]: ...
 ```
 
 - `run_stubbed` writes `files` (path to whole text) onto a scratch overlay of `tree`, runs `ids` with every runner in `gauntlet.yaml` and the harness's own pytest settings (`docs/design.md:186`), and maps pass to GREEN, fail to RED and error to ERROR. The keys of `files` are the `touched` that `bite_problems` checks.
 
-**`roles/`** (amended). Three roles gain a duty; each runs in its existing kind (`docs/design.md:110`-`115`).
+**`roles/`** (proposed amendment). Three roles gain a duty; each runs in its existing kind (`docs/design.md:110`, `:112`, `:114`).
 
 ```text
-roles/surveyor.md   reader   answer: Survey; given a focus, one candidate for the request, findings COPY, MISSING, MISPLACED   (decisions 2, 5)
-roles/planner.md    reader   answer: Outline with `structure_only` set when the brief asks to restructure without changing behavior   (decision 1); spec lines, in a STRUCTURE job each keeps line carried by one SpecLine with `keeps` verbatim
-roles/examiner.md   scratch  answer: the stubbed files, path to whole text, each function holding a copy anchor raising   (decision 3)
+roles/surveyor.md   reader   answer: Survey; given a focus, one candidate for the request, findings COPY, MISSING, MISPLACED
+roles/planner.md    reader   answer: Outline with `structure_only` set when the brief asks to restructure without changing behavior; spec lines use M1's approved per-line start and existing test ids, with every candidate.keeps claim carried verbatim
+roles/examiner.md   scratch  answer: the stubbed files, path to whole text, each function holding a copy anchor raising
 ```
 
-**`tests/support/answers.py`** (amended). Builders for the records above. It replaces nothing.
+**`tests/support/answers.py`** (proposed amendment). Builders for the records above. It replaces nothing.
 
 ```python
-def spec_line(*, id: str = ..., keeps: str | None = ...) -> SpecLine
-def outline(*, structure_only: bool = ...) -> Outline
-def candidate(*, concern: str = ..., keeps: tuple[str, ...] = ..., why: str | None = ..., asked: str | None = ...) -> Candidate
+def outline(*, structure_only: bool = ...) -> Outline: ...
+def candidate(*, concern: str = ..., keeps: tuple[str, ...] = ..., why: str | None = ..., asked: str | None = ...) -> Candidate: ...
 ```
 
 ## Homes
 
 | Concern | Home | Forbids elsewhere |
 |---|---|---|
-| Whether a request is a refactor | the planner's `Outline.structure_only`, which the owner's override at the outline screen replaces, read only by `is_refactor` in `gauntlet/core/design.py` (decision 1) | Any other role, `decide` or a seam choosing it. A STRUCTURE path the owner has not seen on the outline screen. A flag or second screen where the owner sets it (decision 8). A new shape for a refactor request. |
-| The candidate and copies a direct request opens with | the surveyor's focused survey after an approved refactor outline, checked by `survey_problems` and `focus_problems` (decision 2) | A brief-writer, planner, architect or seam writing a Candidate or naming copies for a request. |
+| Whether a request is a refactor | the planner's `Outline.structure_only`, which the owner's override at the outline screen replaces, read only by `is_refactor` in `gauntlet/core/design.py` | Any other role, `decide` or a seam choosing it. A STRUCTURE path the owner has not seen on the outline screen. A flag or second screen where the owner sets it. A new shape for a refactor request. |
+| The candidate and copies a direct request opens with | the surveyor's focused survey after an approved refactor outline, checked by `survey_problems` and `focus_problems` | A brief-writer, planner, architect or seam writing a Candidate or naming copies for a request. |
 | The owner's words on a STRUCTURE job | `Candidate.asked`, set only by `cli.run`'s hand-off from the JOB's brief | A second field or file carrying the request into the job. A role rewriting it. |
-| Opening the STRUCTURE job a refactor request becomes | `open_structure` in `gauntlet/seams/job.py` (`structure-first-design.md:261`), after the JOB ends handed off (decision 6) | `run` making a job folder itself. A JOB going on past OUTLINE as a STRUCTURE job. |
-| Which verdict a spec line needs at the red run | `expected` and `red_problems` in `gauntlet/core/red.py` | The rule restated at `docs/design.md:44`, `:64` and `:68`. A juror, seam or role deciding which lines may start out passing. |
-| Which spec lines are keeps lines | `SpecLine.keeps`, checked against the candidate's `keeps` by `keeps_problems` | A keeps line in a JOB's spec. A keeps line the candidate does not carry. Any other field marking a line as one that may pass at the red run. |
-| Whether a keeps test bites | `bite_problems` over `run_stubbed`'s run (decision 3) | A keeps line locked on a GREEN run alone once M4 lands. The examiner's own report of outcomes counted as the run. |
-| A code move or rename as a finding | `Category.MISPLACED` (decision 5) | A move recorded as COPY or MISSING. |
+| Opening the STRUCTURE job a refactor request becomes | `open_structure` in `gauntlet/seams/job.py` (`docs/superpowers/specs/structure-first-design.md:281`), after the JOB ends handed off | `run` making a job folder itself. A JOB going on past OUTLINE as a STRUCTURE job. |
+| Starting-verdict mark and preserved ids | M1's SpecLine.start, SpecLine.tests and TestStart in `gauntlet/core/records.py`; red_problems and binding_problems in `gauntlet/core/red.py` | A second mark or validator, job-shape or keeps inference, or changing approved marks/ids without spec approval; replaces `docs/design.md:44`, `:64`, `:68`. |
+| Kept behavior coverage | Candidate.keeps claims carried verbatim in the STRUCTURE spec, validated by M1's SPEC row | SpecLine.keeps, a second keeps validator, or treating a kept claim as permission to start GREEN. |
+
+| Concern | Home | Forbids elsewhere |
+|---|---|---|
+| Unchanged existing tests | M1's State.baselines and harness checks before LOCK and LAND | Agent-supplied snapshots, modifying a preserved test, or a GREEN verdict alone proving source identity. |
+| Whether a keeps test bites (proposed) | `bite_problems` over `run_stubbed`'s run | Agent-certified test outcomes or source identity. |
+| A code move or rename as a finding | `Category.MISPLACED` | A move recorded as COPY or MISSING. |
 | Test builders for these records | `tests/support/answers.py` | A builder or seed helper inside a test file. |
 
 ## Order
 
-Each code step follows the repository's chain: stub, red tests from `test-writer` against the `stubgen` view, build, blind reviews and `make check`, one commit per chain. RQ-C1 to RQ-C3 wait on the structure-first plan's C1 to C3 and on M1's design naming the spec line and juror verdict records; RQ-C4 and RQ-C5 wait on its C5; RQ-C8 to RQ-C12 on its feature-phase C4a and C4b OUTLINE bullet (`docs/superpowers/plans/structure-first-plan.md:144`-`145`) and on M1's design naming `Outline`; RQ-R1 and RQ-S1 to RQ-S3 on its S1 to S6 and on M3f's `run` and outline screen (decision 7).
+M1's design owns the mark, baseline, binding and starting-verdict work (`docs/superpowers/specs/m1-core-records-design.md:1004`, `:1037`, `:1046`, `:1050`). Those steps build once there; no RQ step duplicates them. New behavior still follows stub, red tests from test-writer against stubgen interfaces, build, blind reviews and make check before a commit. Approved GREEN tests remain unchanged and pass on both implementations.
+
+All RQ steps below require separate approval of this proposal. Routing lands at M3f and the examiner extension at M4; neither is M1 work. RQ-C1 to RQ-C3 reuse the structure-first core; RQ-C8 to RQ-C12 wait on its feature-phase OUTLINE work (`docs/superpowers/plans/structure-first-plan.md:144`, `:145`). RQ-R1 and RQ-S1 to RQ-S3 wait on M3f's run and outline screen (`docs/roadmap.md:108`). Each row writes at most five files.
 
 | Step | Milestone | Agent | Writes |
 |---|---|---|---|
-| RQ-D1 | before M1 | `general-purpose` (docs only, no red test) | `docs/design.md`, `docs/roadmap.md`, `docs/superpowers/specs/structure-first-design.md`, `docs/superpowers/plans/structure-first-plan.md` |
-| RQ-C1 stub | M1 | `core-builder` | `gauntlet/core/verdicts.py`, `gauntlet/core/red.py`, `gauntlet/core/causes.py` |
-| RQ-C2 red | M1 | `test-writer` | `tests/support/answers.py`, `tests/test_core_red.py`, `tests/test_core_causes_focus.py` |
-| RQ-C3 build | M1 | `core-builder` | `gauntlet/core/red.py`, `gauntlet/core/causes.py` |
-| RQ-C4 red | M1 | `test-writer` | `tests/test_core_decide_keeps.py` |
-| RQ-C5 build | M1 | `core-builder` | `gauntlet/core/decide.py` |
+| RQ-D1 | before routing | `general-purpose` (docs only, no red test) | `docs/design.md`, `docs/roadmap.md`, `docs/superpowers/specs/structure-first-design.md`, `docs/superpowers/plans/structure-first-plan.md` |
+| RQ-C1 stub | M3f | `core-builder` | `gauntlet/core/verdicts.py`, `gauntlet/core/causes.py` |
+| RQ-C2 red | M3f | `test-writer` | `tests/support/answers.py`, `tests/test_core_causes_focus.py` |
+| RQ-C3 build | M3f | `core-builder` | `gauntlet/core/causes.py` |
+
+| Step | Milestone | Agent | Writes |
+|---|---|---|---|
 | RQ-R2 | M4 | `role-author` | `roles/examiner.md` |
 | RQ-S4 stub | M4 | `seam-builder` | `gauntlet/seams/runner.py` |
 | RQ-S5 red | M4 | `test-writer` | `tests/test_seams_runner_stubbed.py` |
 | RQ-S6 build | M4 | `seam-builder` | `gauntlet/seams/runner.py` |
+| RQ-C6a stub | M4 | `core-builder` | `gauntlet/core/red.py` |
+| RQ-C6b red | M4 | `test-writer` | `tests/test_core_red_bite.py` |
 | RQ-C6 red | M4 | `test-writer` | `tests/test_core_decide_bite.py` |
-| RQ-C7 build | M4 | `core-builder` | `gauntlet/core/decide.py` |
-| RQ-C8 stub | M3f | `core-builder` | `gauntlet/core/verdicts.py`, `gauntlet/core/design.py` |
+| RQ-C7 build | M4 | `core-builder` | `gauntlet/core/red.py`, `gauntlet/core/decide.py` |
+
+| Step | Milestone | Agent | Writes |
+|---|---|---|---|
+| RQ-C8 stub | M3f | `core-builder` | `gauntlet/core/verdicts.py`, `gauntlet/core/records.py`, `gauntlet/core/design.py` |
 | RQ-C9 red | M3f | `test-writer` | `tests/support/answers.py`, `tests/test_core_design_is_refactor.py` |
 | RQ-C10 build | M3f | `core-builder` | `gauntlet/core/design.py` |
 | RQ-C11 red | M3f | `test-writer` | `tests/test_core_decide_hand_off.py` |
@@ -187,46 +200,16 @@ Each code step follows the repository's chain: stub, red tests from `test-writer
 | RQ-S2 red | M3f | `test-writer` | `tests/test_seams_cli_run_hand_off.py`, `tests/test_seams_screens_outline_path.py`, `tests/test_seams_screens_asked.py` |
 | RQ-S3 build | M3f | `seam-builder` | `gauntlet/seams/cli.py`, `gauntlet/seams/screens.py` |
 
-RQ-D1 writes this design into the documents. In `docs/design.md`: the Outline row (`:38`) returns the planner's structure-only choice and its gate reads "you approve, redirect or override the path"; the Red run row's gate (`:44`) and the notes at `:64` and `:68` say every line at the verdict `expected` gives, RED or GREEN for a keeps line, with a pointer to `core/red.py`; `:32`, "Reopening the spec" (`:94`) and "Audit jobs" (`:100`) add the hand-off of an approved refactor outline as the third opener of a STRUCTURE job; §8 adds `red.py` and `run`'s hand-off (`:288`). In the structure-first spec, at their home, `Category` (`:31`-`36`) gains MISPLACED, `Candidate` (`:47`-`53`) gains `asked`, `needs_design` (`:113`) gains `is_refactor` beside it, the OUTLINE row (`:185`) points to the hand-off, `survey_screen` (`:213`) gains `asked`, and the SPEC bullet (`:192`) points to `keeps_problems` and `red_problems`, each with a pointer to this design. In the structure-first plan, C2b's exact `Category` values (`structure-first-plan.md:65`) gain `misplaced`, C1 and S4 to S6 point to the RQ steps, and the feature phase's C4a and C4b OUTLINE bullets (`:144`-`145`) point to RQ-C8 to RQ-C12. In `docs/roadmap.md`, the milestone changes below.
+RQ-D1 synchronizes routing only after proposal approval. M1's documentation step already owns the RED/GREEN workflow and records/red layout (`docs/superpowers/specs/m1-core-records-design.md:1004`).
 
-| Milestone | Change |
+In `docs/design.md`, the Outline row (`:38`) gains the planner's structure-only choice and owner override; the entry summary (`:32`), CoreMissing text (`:94`) and audit text (`:100`) gain the approved-outline hand-off as the third STRUCTURE opener, and the CLI layout (`:288`) gains that hand-off.
+
+In `docs/superpowers/specs/structure-first-design.md`, Category (`:32`) gains MISPLACED, Candidate (`:53`) gains asked, needs_design (`:133`) gains is_refactor beside it, the OUTLINE row (`:205`) points to the hand-off, and survey_screen (`:233`) gains asked. Its SPEC bullet (`:212`) points to M1 for the start marks, preserved ids and kept-claim coverage.
+
+RQ-D1's plan targets are Category's values (`docs/superpowers/plans/structure-first-plan.md:65`) for misplaced and the feature-phase OUTLINE steps (`:144`, `:145`) for RQ-C8 to RQ-C12. The routing scope belongs at `docs/roadmap.md:106`; the separately authorized examiner scope belongs at `docs/roadmap.md:73`.
+
+| Milestone | Scope and completion |
 |---|---|
-| M1 | Builds `core/red.py`, `focus_problems`, and the SPEC and RED_RUN rows. Done when every branch of `red_problems`, `keeps_problems`, `bite_problems` and `focus_problems` has a unit test. |
-| M4 | The examiner's stubbed files and `run_stubbed`. Done when a keeps test that still passes with the copies stubbed goes to the arbiter. |
-| M3f | The planner's outline carries the structure-only choice, the outline screen takes the owner's override of it, and an approved refactor outline hands off to a STRUCTURE job (decisions 1, 6, 7). Done when a fixture brief asking to give the three-file concern one home yields an outline marked structure only, one candidate whose `asked` is the brief, a JOB ended at OUTLINE as handed off, a STRUCTURE job at DESIGN, its keeps lines GREEN at the red run and passing its gate, and a landed job with `uncovered` empty; when the owner's override on that outline sends the brief down the JOB path; and when a JOB-shape spec holding a keeps line fails a round. |
-
-## Decisions taken
-
-Each entry names the question put to the owner in bold, then the owner's ruling verbatim, then `Adds:`, each module, home and step the ruling adds, and `Written in:`, each section it touches.
-
-1. **Who marks a request as a refactor.** "Let me override the planner's choice of path in the refactor request design"
-   - Adds: `Outline.structure_only` in `gauntlet/core/verdicts.py`; `is_refactor` in `gauntlet/core/design.py`; the OUTLINE hand-off row in `gauntlet/core/decide.py`; `outline_screen` in `gauntlet/seams/screens.py`; the planner's structure-only duty in `roles/planner.md`; the `outline` builder in `tests/support/answers.py`; the home "Whether a request is a refactor"; steps RQ-C8 to RQ-C12.
-   - Written in: Why, Modules (`core/verdicts.py`, `core/design.py`, `core/decide.py`, `seams/cli.py`, `seams/screens.py`, `roles/`, `tests/support/answers.py`), Homes ("Whether a request is a refactor", "The candidate and copies a direct request opens with", "The owner's words on a STRUCTURE job", "Opening the STRUCTURE job a refactor request becomes"), Order (RQ-D1, RQ-C8 to RQ-C12, RQ-R1, RQ-S1 to RQ-S3, M3f), Decisions for the owner (6, 8).
-
-2. **Where a request's candidate and copies come from.** "Where you and the Architect both agree is fine with me. I want you to bring me conflicts."
-   - Adds: none; the surveyor's focused survey, `focus_problems` and `survey_screen`'s `asked` hold as recommended, the survey running after an approved refactor outline (decision 1).
-   - Written in: Modules (`core/causes.py`, `seams/cli.py`, `seams/screens.py`, `roles/`), Homes ("The candidate and copies a direct request opens with").
-
-3. **How a keeps test proves it bites.** "Where you and the Architect both agree is fine with me. I want you to bring me conflicts."
-   - Adds: none; `bite_problems`, `run_stubbed`, the examiner's duty and the bite row hold as recommended.
-   - Written in: Modules (`core/red.py`, `core/decide.py`, `seams/runner.py`, `roles/`), Homes ("Whether a keeps test bites"), Order (RQ-R2, RQ-S4 to RQ-S6, RQ-C6, RQ-C7, M4).
-
-4. **When the direct entry lands.** "Where you and the Architect both agree is fine with me. I want you to bring me conflicts."
-   - Adds: none. The recommended M3s entry rests on a `--structure` flag that ruling 1 leaves no place for: the planner's choice lives on the outline, which lands at M3f. That conflict goes to the owner as decision 7.
-   - Written in: Order (M3f), Decisions for the owner (7).
-
-5. **A refactor with no copy: a move, a rename or a split.** "Where you and the Architect both agree is fine with me. I want you to bring me conflicts."
-   - Adds: none; `Category.MISPLACED` and its `finding_problems` branch hold as recommended.
-   - Written in: Modules (`core/verdicts.py`, `roles/`), Homes ("A code move or rename as a finding"), Order (RQ-D1).
-
-6. **How an approved refactor outline becomes a STRUCTURE job.** "Where you and the Architect both agree is fine with me. I want you to bring me conflicts."
-   - Adds: none; the hand-off holds as recommended: the JOB ends at OUTLINE as handed off once the owner approves the focused survey's candidate, and `open_structure` opens a STRUCTURE job that starts at DESIGN by `FIRST`.
-   - Written in: Modules (`core/verdicts.py` `asked`, `core/decide.py` OUTLINE row, `seams/cli.py`), Homes ("The owner's words on a STRUCTURE job", "Opening the STRUCTURE job a refactor request becomes"), Order (M3f).
-
-7. **When the refactor path lands.** "Yes, we should definitely be doing that not twice. Do it once, do it properly."
-   - Adds: none; the refactor path lands once, at M3f, with `gauntlet run`'s Outline stage and the feature-phase outline steps C4a and C4b, as recommended, and no thin M3s `run` is built ahead of it.
-   - Written in: Order (the waits paragraph, RQ-C8 to RQ-C12, RQ-R1, RQ-S1 to RQ-S3, M3f).
-
-8. **Whether the owner may name the path up front.** "Where you and the Architect both agree is fine with me. I want you to bring me conflicts."
-   - Adds: none; `run` takes no flag that sets the path, and the outline screen is the one place the owner overrides the planner's choice, as recommended.
-   - Written in: Modules (`seams/cli.py`), Homes ("Whether a request is a refactor").
+| M1 | Uses the approved records/red/decide and unchanged-test contract from `docs/superpowers/specs/m1-core-records-design.md:1075`; this proposal adds no M1 work. |
+| M4 (proposed) | Examiner stubbed files, run_stubbed and bite_problems; the arbiter receives any kept line whose test remains GREEN with its copies stubbed. |
+| M3f (proposed) | Outline routing, owner override, focused survey, MISPLACED and hand-off. A refactor fixture reaches STRUCTURE/DESIGN with one candidate carrying the original request and lands with uncovered empty. Its approved GREEN tests pass unchanged on old and new code; RED lines start RED and finish GREEN. An owner override selects the JOB path without changing per-line marks. |
