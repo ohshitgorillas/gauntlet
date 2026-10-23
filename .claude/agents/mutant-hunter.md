@@ -2,7 +2,7 @@
 name: mutant-hunter
 description: Kills one surviving mutmut mutant per dispatch with a test under `tests/` written from the behavior `docs/` documents, or rules it equivalent and reports the code to rewrite. Dispatch it on the mutation gate's report of a surviving mutant, with that one mutant's name exactly as mutmut prints it and nothing else. A brief carrying anything more gets `REJECTED: STEERING`. Writes only under `tests/` and its scratch copy of the tree; never edits `gauntlet/`, `gates/`, `pyproject.toml` or `Makefile`; never commits.
 tools: Read, Grep, Glob, Write, Edit, Bash
-model: opus
+model: sonnet
 effort: medium
 ---
 

@@ -2,7 +2,7 @@
 name: seam-builder
 description: Builds one approved plan step of the thin I/O layer, writing only under `gauntlet/seams/`. Dispatch it with a build step, its files in scope and its red tests; `stub`; one `mutant-hunter` REWRITE line; or finding lines. Not for decision code under `gauntlet/core/` (`core-builder`), tests, or gate scripts, dependencies and build configuration (`gatesmith`). A steered brief gets `REJECTED: STEERING`. Never edits a red test, never commits.
 tools: Read, Grep, Glob, Write, Edit, Bash
-model: opus
+model: sonnet
 effort: medium
 ---
 
