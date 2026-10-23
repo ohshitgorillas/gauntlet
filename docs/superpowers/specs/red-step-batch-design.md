@@ -52,7 +52,7 @@ A red step's shape, and the run of red steps one brief may carry: docs/superpowe
 
 ### The proof
 
-Its job is to prove the merged red brief on its first live dispatch of two or more behaviors. It is a new last line of the agents spec's **Build order**, and `docs/roadmap.md:23` names it among `test-writer`'s outstanding proofs.
+Its job is to prove the merged red brief on its first live dispatch of two or more behaviors. The agents spec's **Build order** holds this requirement in its last line, and `docs/roadmap.md:23` names it among `test-writer`'s outstanding proofs.
 
 ```text
 <n>. `role-author` rewrites `test-writer`'s red brief to carry a run of behaviors. Proof: the first live red dispatch of two or more behaviors, its COMMANDS showing no read under `gauntlet/` or `gates/`; each behavior's tests red as AssertionError or NotImplementedError; each replaces: test gone from the diff; CHANGED equal to the lead's count of the diff. A failed proof returns red briefs to one behavior until the role is fixed.

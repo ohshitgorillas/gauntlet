@@ -1,3 +1,5 @@
+Status: approved by the owner.
+
 ## Why
 
 C7b is the mutation gate's process step: "processes and throttle". The gates core design gives it the worker cap of decision 30 and the suite of decision 28, and points here for the function that runs mutmut, its Command and the run's verdicts. The gate has no wall-clock cap and no cap on the mutants a run checks: it mutates only the changed functions and checks every mutant they yield, its scope alone drawing the line on its work. The gate holds the gap as a body that only raises (`gates/check_mutation.py:91`–`:100`). This design names the function that runs mutmut and what it hands back, so C7b, and C7c, which builds that function's input, are built against it.

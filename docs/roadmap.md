@@ -22,7 +22,7 @@ Throwaway code that answers the questions the design takes on trust. Answers liv
 
 ## Agents
 
-The roster in `.claude/agents/`, each agent written by `role-author` and accepted by one dispatch proof. All ten are written. Proofs passed: `diff-reviewer`, `test-reviewer`, `spiker`, and `gatesmith`, with the scaffold and the suppression gate landed and `make check` green. Proofs outstanding: `test-writer` passed only in its earlier stub-reading form, its `stubgen` interface-view form is unproven, and its merged red brief takes the last proof of the agents spec's Build order; `mutant-hunter` needs the mutation gate and a surviving mutant; `core-builder` and `seam-builder` take a scope test on the body now and a live dispatch at M1 and M2; `architect` takes the step-6 proof of the agents spec.
+The roster in `.claude/agents/` has ten agents, each written by `role-author` and accepted by one dispatch proof. Outstanding proofs: `test-writer` needs its `stubgen` interface-view proof, and its merged red brief takes the last proof of the agents spec's Build order; `mutant-hunter` needs the mutation gate and a surviving mutant; `core-builder` and `seam-builder` take a scope test on the body now and a live dispatch at M1 and M2; `architect` takes the step-6 proof of the agents spec.
 
 **Done when:** every agent has passed the dispatch proof its row in the spec names.
 
@@ -68,8 +68,8 @@ ruff, ruff format, import-linter, deptry, uv lock and vulture run directly from 
 - The survey screen shows candidates ranked by payoff and risk and what is sound; the owner selects, and one structure job opens per selected candidate, run as separate jobs one after another.
 - A structure job ports every copy and lands only when `uncovered` is empty at the end of its Review. The surveyor also runs in a structure job's Review.
 - Land merges only when the owner's uncommitted changes touch none of the landed files (§6).
-- `seams/git.py`: a worktree per running Build step, merged into the job branch as each step finishes (structure-first spec, decision 20).
-- Until M8 a DesignChange stops the job (decision 19); until M10 a bare `gauntlet audit` opens no job and fails (decision 21).
+- `seams/git.py`: a worktree per running Build step, merged into the job branch as each step finishes (structure-first spec).
+- Until M8 a DesignChange stops the job; until M10 a bare `gauntlet audit` opens no job and fails.
 
 **Done when:** a fixture repository with one concern copied in three files and no core yields three anchors in one cause and one candidate with its payoff, risk and keeps; a design whose `uncovered` is empty at Design; spec lines for the keeps locked before any port step; a landed job that adds the home, ports every caller and leaves `uncovered` empty at the end of Review; a fixture with two such concerns, both selected, yields two jobs, the second starting after the first ends; two port steps on disjoint files build at once and both reach the job branch; and the land screen lists every skipped stage.
 
