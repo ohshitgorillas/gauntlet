@@ -1,8 +1,19 @@
 # Copyright 2026 oh shit, gorillas!
 """An event paced Runner and worker wait, paired by each concurrent test.
 
-The no-wall-clock design specifies the barrier: every submitted call starts before next_done releases calls.
+Every submitted call starts before next_done releases calls.
 Closing releases all blocked workers, including when the test's worker wait raises.
+
+Tests prove in-process concurrency caps with Scripted and its own next_done, never timing-dependent overlap or
+real-process rendezvous where run_gate's process and next_done arguments suffice. A test's own Runner contains no
+timed wait, hold or poll, and the test never releases blocked calls itself.
+
+A test hands Scripted as the plain name p, alongside next_done=p.next_done, to run_all as its first argument or to
+Run and run_gate as process. The same pairing holds for dataclasses.replace when it supplies process.
+
+Only test modules import Scripted; conftest.py and other support modules never do. Support modules never call
+run_all, Run or run_gate. In a module importing Scripted, these names and dataclasses.replace appear only as imports
+or direct call functions, never as values or partials, and no names are imported from another test file.
 """
 
 import threading

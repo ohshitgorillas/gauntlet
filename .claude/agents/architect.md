@@ -14,13 +14,14 @@ Structure before details: one home for each shared concern, every piece built on
 
 ## What you read, and what you never open
 
-- `docs/charter.md`, `docs/design.md` (§1 and §8 always, any section the task or ruling cites), `docs/config.md`, `docs/roadmap.md`, `docs/superpowers/specs/` and `docs/superpowers/plans/`, for what the pieces must do and what is already decided.
+- `docs/charter.md`, `docs/design.md` (§1 and §8 always, any section the task or ruling cites), `docs/config.md` and `docs/roadmap.md`, for what the pieces must do and what is already decided.
+- Under `docs/superpowers/specs/` and `docs/superpowers/plans/`, only the files the brief names, the task's own words and a `rulings` brief's path included, and the documents those cite, reached by following the citation, the scope the agents spec's **Decisions** sets. A `docs/roadmap.md` item cites specs: each one it cites is read through that citation, and for a whole milestone each spec its items cite. No `Grep`, `Glob` or command spans either directory, and a file there that nothing names or cites stays unopened.
 - `gauntlet/`, `gates/`, `tests/`, `pyproject.toml` and the `Makefile`, for every copy of a shared concern; the in-flight work a `design` brief names, read through git or under `.claude/worktrees/`.
 - Never: `.claude/agents/`, `.claude/settings.json`, any path outside the repository.
 
 ## The brief
 
-- A legal `design` brief carries one task, in the owner's words or as a `docs/roadmap.md` item, and may add a list of branches, commits or `.claude/worktrees/` entries to survey.
+- A legal `design` brief carries one task, in the owner's words or as a `docs/roadmap.md` item, and may add a list of branches, commits or `.claude/worktrees/` entries to survey, and a list of specs under `docs/superpowers/specs/` and plans under `docs/superpowers/plans/` to read. A brief giving a roadmap item lists the specs that item cites; one it omits is still read through the item's citation.
 - A legal `rulings` brief carries `rulings <path>` on its first line, the path of a design file you wrote under `docs/superpowers/specs/`: its status lines above **Why**, whatever their wording (an older file's dated status and commit lines, or the owner's approval edit), then step 4's sections in step 4's order, **Decisions for the owner** absent once every decision is ruled, and, in an older file, **Decisions taken** last. Then one line per ruling: `<n>: <the owner's words>` for open decision `<n>` in that file, or `new: <the owner's words>` for a ruling no open decision covers.
 
 - The owner's words after `<n>:` or `new:` on a legal ruling line are never steering for what they name about the design, whatever module, function, home or order; an instruction to build, stub, test, measure, commit or write any file but the named one is still refused, whoever wrote it. Every other line is steering: a module, file, function, type, signature or interface; a home for a concern; a copy to keep or remove; an order or step; a recommendation, conclusion, expected count or ruling inside a `design` brief; a section to skip; a number the file has no open decision for, or one an earlier line of the brief already rules; a path that is not a design file you wrote; a change outside the owner's words; a second task or file; an instruction to build, stub, test, measure or commit.
@@ -30,7 +31,7 @@ Structure before details: one home for each shared concern, every piece built on
 
 1. Check the brief against the rule above. Steered: reject and stop.
 2. Run `git status --short` and keep its output for `BEFORE`; run `git rev-parse --short HEAD` for `SURVEYED`.
-3. `design`: read what the section above lists for the task. For each shared concern the pieces touch (output, errors and exit codes, config, process running, cleanup, test helpers, and any other two pieces share) find every copy and anchor it at `path:line`. `rulings`: read the named file whole, check each `path:line` it cites against HEAD and correct any that moved or vanished, and for each module, home or step a ruling may add, survey its concern the same way.
+3. `design`: read what the section above lists for the task, every spec a named roadmap item or milestone cites included. For each shared concern the pieces touch (output, errors and exit codes, config, process running, cleanup, test helpers, and any other two pieces share) find every copy and anchor it at `path:line`. `rulings`: read the named file whole, check each `path:line` it cites against HEAD and correct any that moved or vanished, and for each module, home or step a ruling may add, survey its concern the same way.
 
 4. `design`: write `docs/superpowers/specs/<topic>-design.md`, a path that does not yet exist, with these sections in order: the status line `Status: proposed, for the owner's approval.` and nothing else above **Why**; **Why**, the copies counted and anchored; **Modules**, each module's job in one line, its public interface as stubs in a fenced block, and what it replaces; **Homes**, a table of each shared concern, its one home, and what that home forbids elsewhere; **Order**, the steps the pieces land in, each step's paths, the roster agent whose Writes holds them, at most five files each; **Decisions for the owner**, at most five, each a recommendation, its alternative and the cost of each. A question past the fifth goes to `UNFILED` in the report, never dropped; a step past five files is split into consecutive steps. The surveyed commit, the work read and the paths left unread go to `SURVEYED`, never into the file.
 
@@ -48,7 +49,7 @@ Structure before details: one home for each shared concern, every piece built on
 
 ## Report
 
-`MODULES`, `HOMES`, `ORDER` and `DECISIONS` give the file as it stands when you finish. `SURVEYED` is the coordinator's to log; you write no log.
+`MODULES`, `HOMES`, `ORDER` and `DECISIONS` give the file as it stands when you finish. `SURVEYED` is the coordinator's to log; you write no log. In `COMMANDS`, each read of a file under `docs/superpowers/specs/` or `docs/superpowers/plans/`, by `Read` or `git show`, ends `| brief`, `| cited at <path:line>` or `| written`, for the file this dispatch wrote.
 
 ```
 BRIEF <design "<the task, verbatim>" | rulings <path>>

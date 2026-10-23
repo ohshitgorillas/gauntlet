@@ -1,27 +1,25 @@
 # Copyright 2026 oh shit, gorillas!
 """Red tests for the waits `run_all` makes on its workers: each one through the `next_done` it is handed.
 
-Source: the no-wall-clock design spec under docs/superpowers/specs/, the `gates/core/checker.py` module and decisions
-9 and 10: `run_all(process, commands, cap, *, next_done=first_done)` makes every wait on its workers, the wait for one
+Source: gates/core/checker.py: `run_all(process, commands, cap, *, next_done=first_done)` makes every wait on its workers, the wait for one
 to end included, through its `next_done` keyword, and never looks at its Runner to find a wait. The gates core design
 spec's decision 26: it takes the next Command only when fewer than `cap` are running, and a `NextDone` blocks until at
 least one future in `running` is done and gives back the done ones.
 
-Each checker here is a real child run through `run`, held by a `Lifeline` of its own (the `tests/support/lifeline.py`
-module of the no-wall-clock design spec), so it is certainly still running until the test lets it go. The test's
+Each checker here is a real child run through `run`, held by a `Lifeline` of its own (`tests/support/lifeline.py`), so it is certainly still running until the test lets it go. The test's
 `next_done` notes how many workers each call is handed, lets the next held checker go, and answers with `first_done`.
 With a cap of 1 and two Commands, `run_all` can take the second only after the first has ended, and can return only
 after the second has ended, so it must wait twice, each time on one worker. Code that waits on its own leaves the first
 checker held; it fails at pytest-timeout's bound, and the cleanup's kill ends the checker.
 
-The gates core design spec's decision 26 and the no-wall-clock design's decisions 9 and 10 also put the cleanup's wait
+The gates core design spec's decision 26 also puts the cleanup's wait
 through `next_done`: on any exception in a wait, `run_all` waits through `next_done` until no worker is running, and
 only then does the exception take its course. The test's `next_done` raises at its first call, with one worker running,
 and answers with `first_done` after that; the cleanup must hand that same worker to it once more. The worker runs its
 checker through a `Lingering` Runner, which returns only once the test's `next_done` lets it go at the cleanup's call,
 so the worker is certainly still running when the cleanup looks for running workers, whatever the kill has ended.
 
-The cleanup has no poll (decision 7 of the no-wall-clock design, decision 26 of the gates core design): while it waits,
+The cleanup has no poll (decision 26 of the gates core design): while it waits,
 each checker `run` starts is killed as it is added to the live set. The test's `next_done` raises at its first call,
 with its checker held, and at the cleanup's call runs through `run` a second checker its own `Lifeline` holds; `run`
 returns only because that checker is killed as it is added. The first worker runs through a `Lingering` Runner too, so

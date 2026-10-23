@@ -2,11 +2,10 @@ Status: proposed, for the owner's approval.
 
 ## Why
 
-A red brief carries one behavior, one `view:` and an optional `replaces:`. The agents spec, the structure-first plan and the no-wall-clock, mutmut run, mutation plan and test-writer designs restate this rule.
+A red brief carries one behavior, one `view:` and an optional `replaces:`. The agents spec, the structure-first plan and the mutmut run, mutation plan and test-writer designs restate this rule.
 
-The rule turns every Order in the tree into runs of one-behavior red steps that feed one build each, one dispatch per step. Eight such runs hold 42 red steps:
+The rule turns every Order in the tree into runs of one-behavior red steps that feed one build each, one dispatch per step. The remaining runs include:
 
-- no wall clock design: steps 7–8, 13–15, 37–43.
 - mutmut run design: steps 17–25, 28–33.
 - mutation plan design: steps 7–8, 14–19, 22–28.
 
@@ -76,4 +75,4 @@ Each step lands green under `make check` before the next starts. No lead merges 
 
 1. The red brief, the merge rule and the size bound into `test-writer`'s row and red-brief decision (`docs/superpowers/specs/agents-design.md:28`, `:61`); the proof as the **Build order**'s last line (`:79`); the outstanding proof at `docs/roadmap.md:23`. Agent: `general-purpose`, a change confined to `docs/` (`CLAUDE.md:33`). Paths: `docs/superpowers/specs/agents-design.md`, `docs/roadmap.md`.
 2. `test-writer`'s role file to match step 1, within the role file's 16,000-byte cap (`CLAUDE.md:43`); its headroom under the cap is unmeasured. Agent: `role-author`. Paths: `.claude/agents/test-writer.md`.
-3. The pointers in place of each restatement. Agent: `general-purpose`, a change confined to `docs/`. Paths: `docs/superpowers/plans/structure-first-plan.md`, `docs/superpowers/specs/no-wall-clock-design.md`, `docs/superpowers/specs/mutmut-run-design.md`, `docs/superpowers/specs/mutation-plan-design.md`, `docs/superpowers/specs/test-writer-design.md`.
+3. The pointers in place of each restatement. Agent: `general-purpose`, a change confined to `docs/`. Paths: `docs/superpowers/plans/structure-first-plan.md`, `docs/superpowers/specs/mutmut-run-design.md`, `docs/superpowers/specs/mutation-plan-design.md`, `docs/superpowers/specs/test-writer-design.md`.

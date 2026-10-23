@@ -1,8 +1,7 @@
 # Copyright 2026 oh shit, gorillas!
 """Tests for the test-support lifeline: child processes held, met and ended by pipes.
 
-Source: the no-wall-clock design spec under docs/superpowers/specs/, the `tests/support/lifeline.py` module. A
-`Lifeline` is a pipe whose write end only the test holds, so a child reading its read end to EOF lives until `release`;
+Source: tests/support/lifeline.py. `Lifeline` is a pipe whose write end only the test holds, so a child reading its read end to EOF lives until `release`;
 `release` closes the write end and a second call does nothing; leaving it releases, then closes the read end. A
 `Witness` makes a FIFO and opens its read end without blocking; every process that opens it to write is a holder, and
 `ended`, called after every holder's ready line, blocks until every holder has closed it and returns what they wrote.

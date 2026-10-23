@@ -1,8 +1,7 @@
 # Copyright 2026 oh shit, gorillas!
 """Red tests for the wrapper's wait on a lock another holder has.
 
-Source: the no-wall-clock design under docs/superpowers/specs/, "`gates/heavy.py`: a wait the test can see" and its
-step 26, and the agents design's bullet on heavy runs: "`acquire` asks for the lock without blocking first; when
+Source: gates/heavy.py and the agents design's bullet on heavy runs: "`acquire` asks for the lock without blocking first; when
 another process holds it, it writes `WAITING`, the one line `heavy: waiting for the lock <path>`, on the stream it is
 handed, then blocks until it gets the lock". Its stub: `acquire(handle, lock, err)`, "LOCK_EX | LOCK_NB on handle
 first; when refused, writes WAITING for lock and a line end on err, then blocks on LOCK_EX".

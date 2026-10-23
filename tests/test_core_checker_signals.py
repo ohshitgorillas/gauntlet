@@ -10,15 +10,15 @@ group is killed first and the signal then takes its course, so the process that 
 
 A signal that ends the process would end pytest too, so `run` is called in a driver: a Python child the test starts,
 which imports the core from the rootdir, sets the signal's action to the OS default, and calls `run` with the argv it is
-given. As in the group tests, the checker starts a child of its own that holds a `Witness` FIFO (the
-`tests/support/lifeline.py` module of the no-wall-clock design spec) and writes a marker into it; the test reads the
+given. As in the group tests, the checker starts a child of its own that holds a `Witness` FIFO (
+`tests/support/lifeline.py`) and writes a marker into it; the test reads the
 FIFO to its end, which comes only when every holder has closed it, so it comes promptly only when that child is dead.
 The checker and its child live on a `Lifeline` the test never releases before the end. The test reads the FIFO once the
 checker has written its line on a `Beacon`, after its child holds the FIFO and its pids are noted for the test's `Pids`
 to kill at teardown. The checker then sends the signal to the driver.
 
 A signal that arrives once the checker has exited, while `run` reads its output files back, takes its course only once
-`run` is done (the no-wall-clock design spec, decision 5, and its `checker.py` section). The checker here writes its two
+`run` is done (gates/core/checker.py). The checker here writes its two
 output files and exits. The driver hands `run` a reader that sends SIGTERM to its own process from inside the first read,
 which delivers the signal before `kill` returns, and writes a line on its stdout from the next read, which it reaches only
 when the signal was held past the first read and on through `run`'s reading. The test reads that line and the driver's

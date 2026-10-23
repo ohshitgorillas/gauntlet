@@ -1,8 +1,7 @@
 # Copyright 2026 oh shit, gorillas!
 """Red test for `check_with` handing `Run.next_done` to `run_all`.
 
-Source: the no-wall-clock design spec under docs/superpowers/specs/, section "gates/core/runner.py: a test's wait on
-`run_all`'s workers, carried explicitly", decision 10, and its step 17: `Run` has a `next_done` field beside `process`,
+Source: gates/core/runner.py: `Run` has a `next_done` field beside `process`,
 `first_done` by default, which `check_with` hands to `run_all` beside `run.process`; `run_all` makes every wait on its
 workers, the wait for one to end included, through that `next_done`. The test's `next_done` notes how many workers each
 call is handed and answers with `first_done`. The test's process holds its one call until that `next_done` is entered,

@@ -7,8 +7,7 @@ process group of every checker `run` has started, in any thread, and not yet rea
 handlers back, and only then do the exception and each signal take their course. `check_with` with a budget runs its
 batches through `run_all`, so on an interrupt every running batch's process group is killed before it goes on.
 
-Two checkers run at once. Each starts a child of its own that holds a `Witness` FIFO (the `tests/support/lifeline.py`
-module of the no-wall-clock design spec) and writes a marker into it; the test reads the FIFO to its end, which comes
+Two checkers run at once. Each starts a child of its own that holds a `Witness` FIFO (`tests/support/lifeline.py`) and writes a marker into it; the test reads the FIFO to its end, which comes
 only when every holder has closed it, so it comes promptly only when both children are dead. The checkers live on a
 `Lifeline` the test never releases before the end, and their pids are noted for the test's `Pids` to kill at teardown.
 The first checker, once its child holds the FIFO, opens a rendezvous FIFO to read and reads it to its end; the second
