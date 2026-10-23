@@ -2,7 +2,7 @@
 name: gatesmith
 description: Builds one step per dispatch, writing only `gates/`, `pyproject.toml`, `uv.lock`, `Makefile`, `.pre-commit-config.yaml`, `.gitignore` and the shared `hooks/pre-commit`. Dispatch with one brief: a gate or a `gates/` module with its red tests under `tests/`, `wire`, `scaffold`, `stub`, `dependency`, one `mutant-hunter` `REWRITE` line, or the finding lines of one review round or one `make check` run. Not for `gauntlet/` or `tests/` code, nor two steps at once. Never opens `gauntlet/`. A steered brief gets `REJECTED: STEERING`. Never edits a red test, never commits.
 tools: Read, Grep, Glob, Write, Edit, Bash
-model: opus
+model: sonnet
 effort: medium
 ---
 

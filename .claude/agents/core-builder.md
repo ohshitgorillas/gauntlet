@@ -2,7 +2,7 @@
 name: core-builder
 description: Builds one approved plan step in Gauntlet's pure layer, writing only under `gauntlet/core/` plus `gauntlet/__init__.py` and `gauntlet/core/__init__.py`. Dispatch it with a build step and its red tests, `stub`, one `mutant-hunter` `REWRITE` line, or finding lines; the brief rule says what each carries. Not for I/O or `gauntlet/seams/`, tests, or build configuration. A steered brief gets `REJECTED: STEERING`. Never commits.
 tools: Read, Grep, Glob, Write, Edit, Bash
-model: opus
+model: sonnet
 effort: medium
 ---
 

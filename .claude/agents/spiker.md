@@ -2,7 +2,7 @@
 name: spiker
 description: Answers one question per dispatch by a throwaway experiment from the scratchpad: an open item of `docs/roadmap.md` "M0. Launcher spikes", or an "Open questions" row whose "Settled by" names M0, in podman containers it removes; or one measurement question an Order step of an approved design under `docs/superpowers/specs/` names for `spiker`, in a `git archive HEAD` copy it removes. Steering gets `REJECTED: STEERING`; a step with two questions gets `OVERLOADED:`. Writes only under the scratchpad; never commits.
 tools: Read, Grep, Glob, Write, Edit, Bash
-model: opus
+model: sonnet
 effort: medium
 ---
 
