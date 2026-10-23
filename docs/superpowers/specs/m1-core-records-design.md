@@ -1188,7 +1188,7 @@ Replies records each call and returns the next supplied literal answer, recovery
 | Existing test source snapshots | State.baselines, captured by the baseline executor effect | Agent-written baseline evidence, source edits to satisfy a GREEN line, or locking/landing without an explicit unchanged-source check. |
 | Role/kind/schema association | core/roles.py | A launcher, prompt or CLI inventing a schema or changing a fixed role's kind. |
 | JSON, Markdown record envelopes and schema export | core/codec.py | json.loads/dumps, envelope versions or record reconstruction in seams and role prompts; checker-report codecs remain in gates. |
-| Typed product errors | core/errors.py | Another product exception family, bare errors crossing a seam, or success defaults after read/parse failures; replaces causes.py:37. |
+| Typed product errors | core/errors.py, unowned-path error included | Another product exception family, bare errors crossing a seam, or success defaults after read/parse failures. |
 
 | Shared concern | One home | Forbids elsewhere |
 |---|---|---|

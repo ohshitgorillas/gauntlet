@@ -4,9 +4,9 @@ Approved 2026-10-20 under `~/dev/CLAUDE.md` §7a; the decisions taken are in sec
 
 ## Why
 
-At a32db75 each gate module carried its own copy of the run contract: 8 count-line f-strings, 5 empty-run lines, 6 `BLOCKED = 2` constants, 5 config lookups relative to `gates/`, 4 output splitters, 3 "unfinished" error types and 40 direct writes; the G4 branch added more. The copies had drifted:
+The gates share one run contract for count lines, empty runs, exit constants, project config lookup, output splitting, unfinished errors and writes:
 
-- **(a) mypy exit 1 with no record** read as finished: with `MYPYPATH` set to site-packages, mypy refused and the gate ended `check_mypy: 0 finding(s) in 1 Python file(s)` with exit 0.
+- **(a) mypy exit 1 with no record** is unfinished: a refusal with `MYPYPATH` set to site-packages must not produce `check_mypy: 0 finding(s) in 1 Python file(s)` with exit 0.
 - Parse warnings, empty runs, files given twice, throttling on macOS and exit 2 on an environment failure were each handled differently from gate to gate, or fixed one site at a time.
 
 ## 1. Core modules
@@ -284,14 +284,14 @@ There are three helpers in `tests/support/`. The spec already names that directo
 - **`capture.py`.** `captured(call: Callable[[], T]) -> Captured[T]`, which has `.result`, `.out`, `.err` and `.merged`: `.out` and `.err` are the lines written to fd 1 and fd 2 (and to `sys.stdout` and `sys.stderr`), kept apart, and `.merged` is every line of both in the order written.
   - It sees writes to either Python stream in the order made, direct fd writes, and a checker child's output.
   - The gate's code runs in the test's own interpreter, so coverage and mutmut's trampolines reach it. g1l's child-interpreter helper cannot give that.
-  - It replaces 12 files using capsys, 11 using redirect_stdout, 4 using capfd and 10 that start a child.
+  - It is the shared capture helper for tests using capsys, redirect_stdout, capfd or a child process.
 - **`project.py`.** `scaffold(root, files: Mapping[str, str | bytes], *, pyproject: str | None = None, unreadable: tuple[str, ...] = (), git: bool = False) -> Project`.
   - The default pyproject.toml is the repository's own, found from this module's path, so a gate test runs under `make check`'s settings.
   - `git=True` initialises a repository and commits, for the mutation gate, G8 and G9.
-  - It replaces 58 `_seed` copies, the `_seed_tree` and `_layout` helpers, and the two `_tree` helpers that copy `gates/`.
+  - It is the shared scaffold helper in place of local `_seed`, `_seed_tree`, `_layout` and `_tree` helpers that copy `gates/`.
 - **`fake.py`.** `FakeRunner(replies: Sequence[Completed])` returns canned replies in order and appends each Command to the public `commands: list[Command]`; a call with no reply left raises AssertionError naming the Command's argv. `completed(status=0, stdout="", stderr="", outputs={}, *, timed_out=False) -> Completed` builds a reply.
   - Because the test seeds the checker's whole output, "prints what the checker reported and nothing else" becomes an exact list check, `lines == [*seeded, count]`, instead of a predicate over the printed lines.
-  - That removes the cause of G1l's T1 cluster (`_carries_report`, `_first_number`), which was filed three times.
+  - Report assertions compare exact lines rather than use `_carries_report` or `_first_number` predicates.
 
 **Contract suite, `tests/test_gate_contract.py`.** It holds a registry with one entry per gate script: the module, a clean source, a one-finding source with a fragment of its message, the checker's empty report, and whether the gate parses. Every case runs over every entry:
 
@@ -328,7 +328,7 @@ There are three helpers in `tests/support/`. The spec already names that directo
 
 That turns 7a.4, "copies are findings", into a red test.
 
-| Today (at a32db75) | Becomes |
+| Test sources | Destination |
 |---|---|
 | 31 contract-type files, about 3,000 lines: cast_{contract,count_line,end,python_files,settings,unfinished}, mypy_{count,files,neighbours,tree,unfinished,unfinished_count}, pyright_{count_line,end,one_count,pinned_version,parse_limits,parse_warning,python_files,tree,unfinished}, pytest_end, suppressions_{count_line,exit_status,last,parse_exhausted,pin,pyi,reach,unfinished}, json_report_unread; also g1l's mypy/pytest unfinished_quiet, unread_only and pytest_unfinished_output | test_gate_contract.py, with the pin and parse cases in test_core_source.py |
 | cast, cast_extensions, cast_reach | test_check_cast.py |
@@ -373,10 +373,10 @@ During the C steps, the old tests stay green because `main(paths)` keeps its sig
 
 In-flight work:
 
-- **g1l and mypy-cache: neither is committed.** Their code is harvested (A1, B2, C2, C3, C5). Left of g1l's tests: the two unfinished_quiet files, unread_only and pytest_unfinished_output become C8 cases with exact expected lines (D1-D5), and imported_blocker moves to test_check_mypy.py (D6). g1l's captured_output.py, which runs gate code in a child, and mypy-cache's write_recorder.py are dropped: a scratch root the test owns, plus C12, proves placement and cleanup.
-- **G4 branch (e46e613): pause G4-3b B1-B4 until C7.** Then re-judge each finding against the ported code. B2 (copy2's OSError escaping) and the macOS throttle failure both fall under core rules and should disappear.
+- **Test ports.** Integrate g1l and mypy-cache code through A1, B2, C2, C3 and C5. The two unfinished_quiet files, unread_only and pytest_unfinished_output become C8 cases with exact expected lines (D1-D5), and imported_blocker moves to test_check_mypy.py (D6). Capture runs gate code in the test's interpreter; a scratch root the test owns, plus C12, proves placement and cleanup without captured_output.py or write_recorder.py.
+- **G4-3b B1-B4 wait until C7.** Then judge each finding against the ported code. B2 (copy2's OSError escaping) and the macOS throttle failure both fall under core rules.
 - **Queue items:** G1e and G1h remain spec questions; each later changes one adapter, or `python_files` only.
-- **Worktrees:** each stays as a reference until its harvest step lands, then it is removed.
+- **Worktrees:** retain each as a reference until its harvest step lands, then remove it.
 
 ## 5. Structure first for M1-M3
 
@@ -412,15 +412,15 @@ What each milestone's design step must settle:
 
 ## 6. Decisions for the owner
 
-Decisions 1, 4 and 5 stand as section 7 records them. Of 1: the git top level, as G4's `tree_root` finds it, was weighed and refused, since it puts a repository in every test tree; the test-file rule's `tests` directory stays one constant in project.py.
+Decisions 1, 4 and 5 are in section 7. The project root is the working directory rather than the git top level, so test trees need no repository; the test-file rule's `tests` directory is one constant in project.py.
 
-2. **Spec amendments in A1.** I recommend all five:
+2. **Spec amendments in A1.** All five apply:
    - (i) a checker run counts as finished only when its exit status is the one its report calls for
    - (ii) a gate's own lines are a closed set: the empty-run line, the pin error, pytest's seed, and a GateError's report (temp space, cleanup, or a checker that could not start or ran past its cap). This reconciles g1l's "nothing of its own" with mypy-cache's "prints the error".
    - (iii) an empty run prints its count line, as "on every run" reads
    - (iv) a file given twice is one file in M
    - (v) G9's "nothing imports it except gate scripts and its own tests" also admits the core modules and `tests/support/`; as written, the core importing itself would be a finding
-3. **mypy as a child process.** I recommend running `python -m mypy` per file from the warm cache, replacing `mypy.api.run`. `api.run` let the MYPYPATH refusal escape its capture, shares the gate's interpreter state, and keeps mypy out of the single Checker driver.
+3. **mypy as a child process.** Run `python -m mypy` per file from the warm cache, subject to decision 3's measurement condition. A child process captures MYPYPATH refusals, isolates mypy's interpreter state and uses the shared Checker driver.
 
 ## 7. Decisions taken (2026-10-20)
 
@@ -428,7 +428,7 @@ Decisions 1, 4 and 5 stand as section 7 records them. Of 1: the git top level, a
 - 2, spec amendments: all five, (i) to (v), as written above, land in step A1. (Void, technical.)
 - 3, mypy as a child process (`python -m mypy` per file, from the warm cache), with its cost measured in C3; keep `mypy.api.run` only if that cost is large. (Void, technical.)
 - 4, the core lives in `gates/core/` inside Gauntlet for now: standard library only, nothing Gauntlet-specific, extractable later for HQPTuner. (Owner.)
-- 5, in-flight work: g1l and mypy-cache are not committed; their good parts are harvested as section 4 describes. G1l, G-mypy-cache, G-mypy-cache-gap, T-capture, G1f and G1m fold into the core steps and close. G4-3b B1-B4 pause until C7. (Owner.)
+- 5, integration scope: G1l, G-mypy-cache, G-mypy-cache-gap, T-capture, G1f and G1m close with their integration into the core steps in section 4. G4-3b B1-B4 wait until C7.
 - 6, GateError keeps `.report`, the report as given, and the runner reads that named field. (Void, technical.)
 - 7, `render` passes every Finding and Remark text through `one_line`, the one home for that rule. (Void, technical.)
 - 8, `render` passes each Unfinished text through `output_lines`, the one home for that rule. (Void, technical.)
