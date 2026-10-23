@@ -142,7 +142,7 @@ def uncovered(design: Design, copies: Sequence[Anchor], done: Collection[str]) -
 
 `uncovered` returns each copy that no step still to run ports. A copy counts as ported only while some `Module.replaces` names it and a step whose name is not in `done` writes its path. It is the one check behind "a structure job lands only when no copy remains" (decision 7), run twice. At DESIGN, with `done` empty and the copies the STRUCTURE job knows, it names each copy the design leaves unported. At the end of the job's REVIEW, with every step done and the copies the surveyor finds in the job tree, it names each copy that remains; the job lands only when that call returns nothing.
 
-**`gauntlet/core/causes.py`.** Findings that stand, grouped into causes, and each cause routed to one fix. It replaces the per-finding routing at `docs/design.md:74` and `docs/roadmap.md:81`, and it owns the drop rule that those two lines and `docs/design.md:46` state. It also checks a survey's candidates against the causes grouped from its findings.
+**`gauntlet/core/causes.py`.** Findings that stand, grouped into causes, and each cause routed to one fix. It owns routing by cause and the finding drop rule; `docs/design.md:74`, `docs/roadmap.md:81` and `docs/design.md:46` refer to these rules. It also checks a survey's candidates against the causes grouped from its findings.
 
 ```python
 @dataclass(frozen=True)
@@ -309,62 +309,60 @@ Each core step follows the repository's chain: stub, then red tests from `test-w
 | S5 red | M10 | `test-writer` | `tests/test_seams_cli_audit.py` |
 | S6 build | M10 | `seam-builder` | `gauntlet/seams/cli.py` |
 
-D1 writes the approved design into the documents. In `docs/design.md`, it adds the DESIGN row and note to §2, the shared-structure flag to the Outline row's returns at `:38`, stage names in place of numbers at `:84` and `:93`, rewrites the Review note at `:74` to say "by cause" and to run the structure reviewer on every job, gives Audit jobs their STRUCTURE shape, adds to "Reopening the spec" the STRUCTURE job a CoreMissing opens or offers, the four roles to the §3 Roles column, the new files to §7, and the modules and `startable` to §8, dropping "with their answer schemas" at `:284`. In `docs/config.md`, it adds `design` to `caps`. In `docs/roadmap.md`, it makes the changes below.
+D1 requires `docs/design.md` to state the DESIGN row and note in §2, the shared-structure flag in the Outline row's returns at `:38`, stage names at `:84` and `:93`, review by cause and the structure reviewer on every job in the Review note at `:74`, the STRUCTURE shape for Audit jobs, the STRUCTURE job a CoreMissing opens or offers in "Reopening the spec", the four roles in the §3 Roles column, the job-folder files in §7, and the modules and `startable` in §8. Answer schemas live outside `roles/` (`:284`). `docs/config.md` includes `design` in `caps`. `docs/roadmap.md` follows the milestone requirements below.
 
-Changes to roadmap milestones:
+Roadmap milestone requirements:
 
 | Milestone | Change |
 |---|---|
 | M1 | Builds `core/design.py`, `core/causes.py`, the records in `core/verdicts.py`, `startable` in `core/schedule.py`, and the DESIGN, review-by-cause and STRUCTURE-shape rows of `decide`. Done when every branch of `design_problems`, `uncovered`, `finding_problems`, `partition_problems`, `route`, `survey_problems` and `startable` also has a unit test. |
 | M3 | The planner's outline carries the shared-structure flag. The thin job runs DESIGN between OUTLINE and PLAN with one architect and no rounds when the flag is set, and STUBS writes the design's stubs first. Done when a fixture brief whose outline flags shared structure shows a design screen and leaves `design.md`, and a bug-fix fixture brief whose outline leaves the flag unset shows DESIGN skipped by rule on the land screen. |
 | M4 | Adds prosecutor rounds on the design under `caps.design` (decision 2). Done when a design citing a copy anchor that does not resolve fails a round. |
-| M6 | The structure reviewer joins every job's REVIEW, with the design on a job that has one and for COPY alone on a job that does not (decision 1), and the grouper and fixing by cause replace per-finding routing; the M6 line at `docs/roadmap.md:81` is rewritten. Done when a planted copy of a design home's logic yields one COPY finding anchored at both places, one cause and one fix step whose diff removes the copy, and the next round holds no instance of it; and when a job without a design that copies a function already in the tree yields one COPY finding and a fix step whose diff calls the existing function. |
+| M6 | The structure reviewer runs in every job's REVIEW, with the design on a job that has one and for COPY alone on a job that does not (decision 1), and the grouper groups findings into causes for routing one fix per cause (`docs/roadmap.md:81`). Done when a planted copy of a design home's logic yields one COPY finding anchored at both places, one cause and one fix step whose diff removes the copy, and the next round holds no instance of it; and when a job without a design that copies a function already in the tree yields one COPY finding and a fix step whose diff calls the existing function. |
 | M8 | Reopen covers DESIGN: a DesignChange amends the job's own design and reruns the touched steps. A CoreMissing on `blocked` opens a STRUCTURE job, shows its `why`, and holds only the steps `startable` withholds; one on `complete` or `partial` becomes an offer on the land screen. A STRUCTURE job ports every copy and lands only when `uncovered` is empty at the end of its REVIEW. Until M12 it starts when the feature job has no startable step left. Done when a DesignChange on one step reruns only the steps it touches; when a three-step fixture job whose second step is blocked on CoreMissing builds its disjoint third step, opens one STRUCTURE job, then runs the second step from STUBS and lands; and when a fixture job whose step offers a candidate lands, with no STRUCTURE job opened, once the owner declines. |
 | M10 | `gauntlet audit <scope> --structure`: the surveyor, the grouper, the survey screen with candidates ranked by payoff and risk and what is sound listed, owner selection, and one STRUCTURE job per selected candidate, run as separate jobs one after another. Done when a fixture repository with one concern copied in three files and no core yields three anchors in one cause and one candidate with its payoff, risk and keeps; a design whose `uncovered` is empty at DESIGN; spec lines for the keeps locked before any port step; and a landed job that adds the home, ports every caller and leaves `uncovered` empty at the end of REVIEW; and when a fixture with two such concerns, both selected, yields two jobs, the second starting when the first ends. |
 | M12 | STRUCTURE jobs, audit picks and spawns alike, run under `startable`: one job per candidate, in parallel on disjoint declared files and in sequence on overlapping ones (decisions 5, 6), and a spawned STRUCTURE job starts at once beside its feature job. Until M12 lands, M8 and M10 run them as separate sequential jobs. Done when two selected candidates on disjoint files run in parallel and two on overlapping files run in sequence. |
-
-M0, Agents, Gates, M2, M5, M7, M9, M11 and M13 do not change.
 
 ## Decisions taken
 
 Each decision names the question put to the owner, then the owner's ruling, which holds. Decisions 18 to 21 settle questions the build plan raised, within 1 to 17.
 
 1. **When DESIGN runs.** Design runs only when the planner flags that the job creates or changes shared structure. Bug fixes and ordinary features skip it but are still checked for copying what the core already has.
-   - Written in: Modules (`core/design.py`, `core/causes.py`, `core/decide.py`, `roles/`), Homes ("Whether a job needs a design", "Whether a diff copies what the core already has"), Order (D1, M3, M6).
+   - See: Modules (`core/design.py`, `core/causes.py`, `core/decide.py`, `roles/`), Homes ("Whether a job needs a design", "Whether a diff copies what the core already has"), Order (D1, M3, M6).
 2. **Adversarial rounds on the design.** Prosecutor review rounds on the design (`caps.design`, default 2), with every copy anchor resolved against the tree as plan citations are (`docs/design.md:53`), then owner approval.
 3. **Who checks diffs against the design.** One dedicated structure-reviewer that sees the diff plus the design, never the brief or plan. Repo reviewers stay unchanged.
 4. **Who groups findings into causes.** A grouper agent groups findings by cause, with the findings, the design and the previous round's causes in its prompt, checked by `partition_problems`.
 5. **What a structure audit becomes.** Not one big job. Each audit pick becomes its own job, for context management. If the epic feature isn't ready, run them as separate sequential jobs.
-   - Written in: Modules (`core/schedule.py`, `core/decide.py`, `seams/cli.py`), Order (M10, M12).
+   - See: Modules (`core/schedule.py`, `core/decide.py`, `seams/cli.py`), Order (M10, M12).
 6. **What a feature job does when it finds missing shared core.** It spawns a STRUCTURE job, the one job kind an audit pick also becomes. The feature job keeps running steps that do not depend on that core; only dependent steps wait for the STRUCTURE job to land. Independent STRUCTURE jobs on disjoint files run in parallel, dependent ones in sequence.
-   - Written in: Modules (`core/schedule.py`, `core/decide.py`, `seams/job.py`, `seams/cli.py`), Homes ("Which steps and structure jobs may run beside which", "Opening a STRUCTURE job"), Order (C1 to C3, C6, C7, M1, M8, M12).
+   - See: Modules (`core/schedule.py`, `core/decide.py`, `seams/job.py`, `seams/cli.py`), Homes ("Which steps and structure jobs may run beside which", "Opening a STRUCTURE job"), Order (C1 to C3, C6, C7, M1, M8, M12).
 7. **What a STRUCTURE job includes.** Porting every copy or caller onto the new core and deleting the copies, in small port steps, one caller group each, parallel where disjoint. It lands only when no copy remains.
-   - Written in: Modules (`core/design.py` `uncovered`, `core/decide.py`), Homes ("Whether a copy remains unported"), Order (M8, M10).
+   - See: Modules (`core/design.py` `uncovered`, `core/decide.py`), Homes ("Whether a copy remains unported"), Order (M8, M10).
 8. **How far a job grows past its request.** Gauntlet delivers the request at the size asked. Missing structure it spots is offered as a separate, optional STRUCTURE job with its payoff and risk. It is required only when the request cannot be done correctly without it, and then Gauntlet says why in a sentence.
-   - Written in: Modules (`core/verdicts.py` `Candidate` and `CoreMissing`, `core/decide.py`, `seams/screens.py`), Homes ("Whether missing structure is required or optional"), Order (M8).
+   - See: Modules (`core/verdicts.py` `Candidate` and `CoreMissing`, `core/decide.py`, `seams/screens.py`), Homes ("Whether missing structure is required or optional"), Order (M8).
 9. **What a structure audit reports.** It ranks candidates by payoff and risk, lists what is sound enough to keep, and records hard-won behaviors into the spec before any purge.
-   - Written in: Modules (`core/verdicts.py` `Survey`, `core/causes.py` `survey_problems`, `core/decide.py`, `seams/screens.py`), Homes ("Whether a survey stands, and its ranking", "Behaviors a purge must keep"), Order (M10).
+   - See: Modules (`core/verdicts.py` `Survey`, `core/causes.py` `survey_problems`, `core/decide.py`, `seams/screens.py`), Homes ("Whether a survey stands, and its ranking", "Behaviors a purge must keep"), Order (M10).
 10. **How a CoreMissing is treated.** On a blocked step it means the structure is required: it carries a one-sentence `why` and spawns a STRUCTURE job at once. On a complete or partial step it is an optional offer on the land screen.
-   - Written in: Modules (`core/verdicts.py` `CoreMissing`, `core/decide.py`, the BUILD answer of `blocked`), Homes ("Whether missing structure is required or optional"), Order (M8).
+   - See: Modules (`core/verdicts.py` `CoreMissing`, `core/decide.py`, the BUILD answer of `blocked`), Homes ("Whether missing structure is required or optional"), Order (M8).
 11. **When a spawned STRUCTURE job starts.** Until M12 it starts when the feature job has no startable step left; under M12 it runs beside it.
-   - Written in: Modules (`core/schedule.py`, the feature job's meanwhile bullet), Order (M8, M12).
+   - See: Modules (`core/schedule.py`, the feature job's meanwhile bullet), Order (M8, M12).
 12. **What dependent means.** Dependent means overlapping declared files, the epic rule (`docs/design.md:211`); `startable` is built at M1.
-   - Written in: Modules (`core/schedule.py`), Homes ("Which steps and structure jobs may run beside which"), Order (M1).
+   - See: Modules (`core/schedule.py`), Homes ("Which steps and structure jobs may run beside which"), Order (M1).
 13. **What a feature job holds and how it lands.** The held paths are the blocked step's files plus the CoreMissing's `also` paths, then the STRUCTURE plan's files. On land, `main` is merged into the feature branch, and a conflict stops the feature job.
-   - Written in: Modules (`core/schedule.py` `startable`, the feature job's meanwhile bullet), Order (M8).
+   - See: Modules (`core/schedule.py` `startable`, the feature job's meanwhile bullet), Order (M8).
 14. **When a DesignChange applies.** A DesignChange applies only to a gap inside the job's own paths. Any other gap goes the CoreMissing route.
-   - Written in: Modules (`core/causes.py` `route`), Homes ("Grouping findings into causes, and routing a cause to one fix"), Order (M8).
+   - See: Modules (`core/causes.py` `route`), Homes ("Grouping findings into causes, and routing a cause to one fix"), Order (M8).
 15. **Where the surveyor also runs.** The surveyor also runs in a STRUCTURE job's REVIEW, so R3 moves to M8.
-   - Written in: Modules (the STRUCTURE job's REVIEW bullet, `roles/surveyor.md`), Order (R3, M8).
+   - See: Modules (the STRUCTURE job's REVIEW bullet, `roles/surveyor.md`), Order (R3, M8).
 16. **What the arbiter rejects.** The arbiter rejects a STRUCTURE spec that drops a `keeps` line.
-   - Written in: Modules (the STRUCTURE job's SPEC bullet), Homes ("Behaviors a purge must keep"), Order (M10).
+   - See: Modules (the STRUCTURE job's SPEC bullet), Homes ("Behaviors a purge must keep"), Order (M10).
 17. **Where BUILD runs in parallel.** Parallel BUILD happens only in STRUCTURE jobs; any other job's BUILD starts one startable step at a time.
-   - Written in: Modules (the STRUCTURE job's BUILD bullet), Order (M8, M12).
+   - See: Modules (the STRUCTURE job's BUILD bullet), Order (M8, M12).
 18. **What a STRUCTURE job's PLAN reads.** A STRUCTURE job has no outline and no discovery table. Its planner reads the brief (candidate and copies), the approved design in the outline's place, and the prosecutor's objections. The plan keeps the design's steps one for one, with their names, implementers and paths, and adds to each the spec lines it serves and the stubs it needs; the prosecutor fails a plan that adds, drops or reorders a design step.
-   - Written in: Modules (the STRUCTURE job's opening bullet), plan Q9.
+   - See: Modules (the STRUCTURE job's opening bullet), plan Q9.
 19. **What a DesignChange does before M8.** Until M8 builds reopen, a DesignChange stops the job with its cause, as a reached round cap does: a stop row in `state.json` before M4, the stop screen from M4. M8 replaces the stop with the reopen of DESIGN.
-   - Written in: Modules (the REVIEW bullet), plan Q10, C4b, C6.
+   - See: Modules (the REVIEW bullet), plan Q10, C4b, C6.
 20. **How parallel BUILD steps commit.** Each running step of a STRUCTURE job's BUILD gets its own worktree and branch from the job branch head, mounted at `/work`, where its tests and gates run. When it finishes, the harness commits it and merges it into the job branch; a later step branches from the merged head. `startable` keeps running steps on disjoint declared files, so a merge conflict means a step wrote outside its files, and that step fails its gate.
-   - Written in: Modules (the STRUCTURE job's BUILD bullet), plan Q11, roadmap M3s.
+   - See: Modules (the STRUCTURE job's BUILD bullet), plan Q11, roadmap M3s.
 21. **What a bare `audit` does before M10.** Until M10 builds the test audit, `gauntlet audit <scope>` without `--structure` opens no job and returns a nonzero code, saying the test audit is not built: a check that did not run never passes. M10 replaces the refusal.
-   - Written in: Modules (`seams/cli.py`), plan S5.
+   - See: Modules (`seams/cli.py`), plan S5.
