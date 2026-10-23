@@ -18,7 +18,8 @@ from gauntlet.core.records import (
     State,
 )
 from gauntlet.core.red import binding_problems, red_problems
-from gauntlet.core.verdicts import Anchor, Candidate
+from gauntlet.core.schedule import startable
+from gauntlet.core.verdicts import Anchor, Candidate, core_missing_problems
 
 FIRST: Mapping[Shape, Stage] = {
     Shape.JOB: Stage.BRIEF,
@@ -181,10 +182,14 @@ def decide(state: State, answer: Answer) -> Action:
     if pending.status != "started":
         raise StateError(answer.effect, "execution answer requires started work")
     if isinstance(answer, records.Answered) and (
-        pending.effect.operation != "launch"
+        pending.effect.operation not in {"launch", "build"}
         or answer.role != pending.effect.role
         or answer.trace.id != pending.launch_id
         or answer.trace.role != pending.effect.role
+        or (
+            isinstance(answer.answer.payload, records.BuildAnswer)
+            and answer.answer.payload.step != pending.effect.step
+        )
     ):
         raise StateError(answer.effect, "answer does not match launch")
     if isinstance(answer, records.Answered):
@@ -221,6 +226,12 @@ def _tick(state: State) -> Action:
         return Action(
             replace(state, pending=pending), tuple(p.effect for p in interrupted)
         )
+    if (
+        state.status == "active"
+        and state.shape == Shape.STRUCTURE
+        and state.stage == Stage.BUILD
+    ):
+        return _build_tick(state)
     if state.pending:
         return Action(state, tuple(p.effect for p in state.pending))
     if state.status != "active":
@@ -315,6 +326,7 @@ def _recover(
 
 
 def _completed(state: State, event: records.Answered | records.Completed) -> Action:
+    pending = next(p for p in state.pending if p.effect.id == event.effect)
     completed = replace(
         state,
         pending=tuple(p for p in state.pending if p.effect.id != event.effect),
@@ -322,6 +334,16 @@ def _completed(state: State, event: records.Answered | records.Completed) -> Act
     )
     if isinstance(event, records.Answered):
         return _role_answer(completed, event)
+    if pending.effect.operation == "commit-step":
+        completed = replace(
+            completed,
+            steps=tuple(
+                replace(run, status="complete", partial_diff=None)
+                if run.name == pending.effect.step
+                else run
+                for run in completed.steps
+            ),
+        )
     return Action(completed, ())
 
 
@@ -339,6 +361,7 @@ def _request(
     role: str | None = None,
     payload: records.Payload | None = None,
     context: records.Artifact | None = None,
+    step: str | None = None,
 ) -> Action:
     identity = (
         state.job,
@@ -348,11 +371,11 @@ def _request(
         len(state.receipts),
     )
     effect = records.Effect(
-        repr((identity, operation, role)),
+        repr((identity, operation, role, step)),
         state.stage,
         operation,
         role,
-        None,
+        step,
         payload,
         state.artifacts + (() if context is None else (context,)),
     )
@@ -381,7 +404,7 @@ def _save(state: State, name: str, answer: records.RoleAnswer) -> State:
     )
 
 
-def _failed(state: State, loop: records.Loop, role: str) -> Action:
+def _consume_round(state: State, loop: records.Loop) -> tuple[State, bool]:
     used = 1 + sum(row.used for row in state.rounds if row.loop == loop)
     saved = replace(
         state,
@@ -395,10 +418,18 @@ def _failed(state: State, loop: records.Loop, role: str) -> Action:
         records.Loop.PLAN: state.config.caps.plan,
         records.Loop.SPEC: state.config.caps.spec,
         records.Loop.JUROR: state.config.caps.juror,
+        records.Loop.BUILD: state.config.caps.build,
     }
-    if used >= caps[loop]:
+    return saved, used >= caps[loop]
+
+
+def _failed(
+    state: State, loop: records.Loop, role: str, step: str | None = None
+) -> Action:
+    saved, exhausted = _consume_round(state, loop)
+    if exhausted:
         return _request(replace(saved, status="stopped"), "stop")
-    return _request(saved, "launch", role)
+    return _request(saved, "build" if step is not None else "launch", role, step=step)
 
 
 def _wait(state: State) -> Action:
@@ -408,6 +439,8 @@ def _wait(state: State) -> Action:
 def _role_answer(state: State, event: records.Answered) -> Action:
     payload = event.answer.payload
     saved = _save(state, state.stage.value, event.answer)
+    if isinstance(payload, records.BuildAnswer):
+        return _build_answer(saved, payload, event.role)
     if isinstance(payload, Design):
         candidate = state.candidate
         if (
@@ -524,7 +557,7 @@ def _checked(state: State, pending: records.Pending, event: records.Checked) -> 
         (
             artifact
             for artifact in reversed(pending.effect.inputs)
-            if artifact.name in {"runner-checks", "source-checks"}
+            if artifact.name in {"runner-checks", "source-checks", "build-checks"}
             and artifact.answer.payload == request
         ),
         None,
@@ -543,10 +576,96 @@ def _checked(state: State, pending: records.Pending, event: records.Checked) -> 
         != Counter(check.id for check in request.checks)
         or any(row.verdict != records.Verdict.PASS for row in event.rows)
     ):
+        if context.name == "build-checks":
+            step = next(
+                row.step
+                for row in _latest(state, records.Plan).steps
+                if row.step.name == pending.effect.step
+            )
+            return _failed(saved, records.Loop.BUILD, step.implementer, step.name)
         return _failed(saved, records.Loop.JUROR, "arbiter")
+    if context.name == "build-checks":
+        return _request(saved, "commit-step", step=pending.effect.step)
     if context.name == "runner-checks":
         return _request(saved, "launch", "juror", _latest(state, records.Spec))
     return _request(replace(saved, stage=Stage.LOCK), "commit-tests")
+
+
+def _build_tick(state: State) -> Action:
+    """Delegate file conflicts and retain independently pending build phases."""
+    plan = _latest(state, records.Plan)
+    names = startable(
+        tuple((row.step.name, frozenset(row.step.paths)) for row in plan.steps),
+        tuple(run.name for run in state.steps if run.status == "complete"),
+        tuple(run.name for run in state.steps if run.status == "running"),
+        state.held,
+    )
+    saved = state
+    for name in names:
+        step = next(row.step for row in plan.steps if row.step.name == name)
+        saved = replace(
+            saved,
+            steps=tuple(
+                replace(run, attempt=run.attempt + 1, status="running")
+                if run.name == name
+                else run
+                for run in saved.steps
+            ),
+        )
+        saved = _request(saved, "build", step.implementer, step=name).state
+    return Action(saved, tuple(p.effect for p in saved.pending))
+
+
+def _build_answer(state: State, answer: records.BuildAnswer, role: str) -> Action:
+    """Separate implementer results from harness checks and commit receipts."""
+    if answer.missing is not None and core_missing_problems(
+        answer.missing, blocked=answer.status == records.BuildStatus.BLOCKED
+    ):
+        return _failed(state, records.Loop.BUILD, role, answer.step)
+    if answer.status == records.BuildStatus.BLOCKED:
+        saved = replace(
+            state,
+            status="stopped",
+            steps=tuple(
+                replace(run, status="blocked") if run.name == answer.step else run
+                for run in state.steps
+            ),
+        )
+        return _request(saved, "stop")
+    if answer.status == records.BuildStatus.PARTIAL:
+        state, exhausted = _consume_round(state, records.Loop.BUILD)
+        saved = replace(
+            state,
+            steps=tuple(
+                replace(run, status="pending") if run.name == answer.step else run
+                for run in state.steps
+            ),
+        )
+        if exhausted:
+            return _request(replace(saved, status="stopped"), "stop")
+        return Action(saved, ())
+    checks = (
+        *(
+            records.Check(
+                f"build.runner.{index}",
+                records.Verdict.COULD_NOT_JUDGE,
+                command.run,
+                (),
+            )
+            for index, command in enumerate(state.config.tests)
+        ),
+        records.Check(
+            "build.gate", records.Verdict.COULD_NOT_JUDGE, state.config.gates, ()
+        ),
+    )
+    request = records.CheckSet(checks, "continue")
+    return _request(
+        state,
+        "checks",
+        payload=request,
+        step=answer.step,
+        context=records.Artifact("build-checks", 1, records.RoleAnswer(request)),
+    )
 
 
 def _baseline(
