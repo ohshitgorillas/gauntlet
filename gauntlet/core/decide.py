@@ -1,10 +1,12 @@
 # Copyright 2026 oh shit, gorillas!
 """Decide durable state and recovery without executing external work."""
 
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import replace
 
 from gauntlet.core import records
+from gauntlet.core.design import Design, design_problems, home_of, uncovered
 from gauntlet.core.errors import StateError
 from gauntlet.core.records import (
     Action,
@@ -15,7 +17,7 @@ from gauntlet.core.records import (
     StageRule,
     State,
 )
-from gauntlet.core.red import binding_problems
+from gauntlet.core.red import binding_problems, red_problems
 from gauntlet.core.verdicts import Anchor, Candidate
 
 FIRST: Mapping[Shape, Stage] = {
@@ -174,6 +176,8 @@ def decide(state: State, answer: Answer) -> Action:
         raise StateError(answer.effect, "event does not match pending dispatch")
     if isinstance(answer, records.Recovered):
         return _recover(state, pending, answer)
+    if isinstance(answer, records.Approved):
+        return _approve(state, pending, answer)
     if pending.status != "started":
         raise StateError(answer.effect, "execution answer requires started work")
     if isinstance(answer, records.Answered) and (
@@ -197,6 +201,8 @@ def decide(state: State, answer: Answer) -> Action:
         )
     if isinstance(answer, records.Baselined):
         return _baseline(state, pending, answer)
+    if isinstance(answer, records.Checked):
+        return _checked(state, pending, answer)
     if isinstance(answer, records.Completed) and pending.effect.operation in _GIT:
         point = pending.recovery
         if point is None or point.git is None or point.git.after != answer.commit:
@@ -219,6 +225,22 @@ def _tick(state: State) -> Action:
         return Action(state, tuple(p.effect for p in state.pending))
     if state.status != "active":
         return Action(state, ())
+    if state.shape == Shape.STRUCTURE:
+        if state.stage == Stage.DESIGN:
+            return _request(state, "launch", "architect")
+        if state.stage == Stage.PLAN:
+            return _request(state, "launch", "planner", _latest(state, Design))
+        if state.stage == Stage.RED_RUN:
+            checks = tuple(
+                records.Check(
+                    f"runner.{index}",
+                    records.Verdict.COULD_NOT_JUDGE,
+                    command.run,
+                    (),
+                )
+                for index, command in enumerate(state.config.tests)
+            )
+            return _request_checks(state, checks, "runner-checks")
     identity = (state.job, state.stage.value, state.rounds, state.steps, 0)
     effect = records.Effect(
         repr(identity),
@@ -298,7 +320,233 @@ def _completed(state: State, event: records.Answered | records.Completed) -> Act
         pending=tuple(p for p in state.pending if p.effect.id != event.effect),
         receipts=(*state.receipts, records.Receipt(event.effect, event)),
     )
+    if isinstance(event, records.Answered):
+        return _role_answer(completed, event)
     return Action(completed, ())
+
+
+def _latest[T](state: State, kind: type[T]) -> T:
+    return next(
+        payload
+        for artifact in reversed(state.artifacts)
+        if isinstance(payload := artifact.answer.payload, kind)
+    )
+
+
+def _request(
+    state: State,
+    operation: str,
+    role: str | None = None,
+    payload: records.Payload | None = None,
+    context: records.Artifact | None = None,
+) -> Action:
+    identity = (
+        state.job,
+        state.stage.value,
+        state.rounds,
+        state.steps,
+        len(state.receipts),
+    )
+    effect = records.Effect(
+        repr((identity, operation, role)),
+        state.stage,
+        operation,
+        role,
+        None,
+        payload,
+        state.artifacts + (() if context is None else (context,)),
+    )
+    saved = replace(
+        state, pending=(*state.pending, records.Pending(effect, "ready", None))
+    )
+    return Action(saved, (effect,))
+
+
+def _request_checks(
+    state: State, checks: tuple[records.Check, ...], purpose: str
+) -> Action:
+    request = records.CheckSet(checks, "continue")
+    return _request(
+        state,
+        "checks",
+        payload=request,
+        context=records.Artifact(purpose, 1, records.RoleAnswer(request)),
+    )
+
+
+def _save(state: State, name: str, answer: records.RoleAnswer) -> State:
+    revision = 1 + sum(a.name == name for a in state.artifacts)
+    return replace(
+        state, artifacts=(*state.artifacts, records.Artifact(name, revision, answer))
+    )
+
+
+def _failed(state: State, loop: records.Loop, role: str) -> Action:
+    used = 1 + sum(row.used for row in state.rounds if row.loop == loop)
+    saved = replace(
+        state,
+        rounds=(
+            *tuple(row for row in state.rounds if row.loop != loop),
+            records.Round(loop, used),
+        ),
+    )
+    caps = {
+        records.Loop.DESIGN: state.config.caps.design,
+        records.Loop.PLAN: state.config.caps.plan,
+        records.Loop.SPEC: state.config.caps.spec,
+        records.Loop.JUROR: state.config.caps.juror,
+    }
+    if used >= caps[loop]:
+        return _request(replace(saved, status="stopped"), "stop")
+    return _request(saved, "launch", role)
+
+
+def _wait(state: State) -> Action:
+    return _request(replace(state, status="waiting"), "owner")
+
+
+def _role_answer(state: State, event: records.Answered) -> Action:
+    payload = event.answer.payload
+    saved = _save(state, state.stage.value, event.answer)
+    if isinstance(payload, Design):
+        candidate = state.candidate
+        if (
+            design_problems(payload)
+            or candidate is None
+            or home_of(payload, candidate.concern) is None
+            or uncovered(payload, state.copies, ())
+        ):
+            return _failed(saved, records.Loop.DESIGN, "architect")
+        return _wait(saved)
+    if isinstance(payload, records.Plan):
+        if tuple(step.step for step in payload.steps) != _latest(state, Design).order:
+            return _failed(saved, records.Loop.PLAN, "planner")
+        return _request(saved, "launch", "prosecutor", payload)
+    if isinstance(payload, records.CheckSet):
+        if payload.disposition == "refuse":
+            return _request(replace(saved, status="stopped"), "stop", payload=payload)
+        if payload.disposition == "escalate-leave":
+            return _request(replace(saved, status="waiting"), "owner", payload=payload)
+        if not payload.checks or any(
+            check.verdict != records.Verdict.PASS for check in payload.checks
+        ):
+            return _failed(saved, records.Loop.PLAN, "planner")
+        return _wait(saved)
+    if isinstance(payload, records.Spec):
+        if _spec_problems(state, payload):
+            return _failed(saved, records.Loop.SPEC, "planner")
+        return _request(saved, "launch", "arbiter", payload)
+    if isinstance(payload, records.SpecJudgment):
+        spec = _latest(state, records.Spec)
+        if Counter(row.line for row in payload.rulings) != Counter(
+            line.id for line in spec.lines
+        ) or any(row.verdict != records.Verdict.PASS for row in payload.rulings):
+            return _failed(saved, records.Loop.SPEC, "planner")
+        return _wait(saved)
+    if isinstance(payload, records.TestAnswer):
+        if binding_problems(_latest(state, records.Spec), payload, state.baselines):
+            return _request(saved, "launch", "arbiter", payload)
+        return Action(replace(saved, stage=Stage.RED_RUN), ())
+    if isinstance(payload, records.RedJudgment):
+        if red_problems(
+            _latest(state, records.Spec),
+            payload,
+            _latest(state, records.TestAnswer).bindings,
+        ):
+            return _failed(saved, records.Loop.JUROR, "arbiter")
+        checks = tuple(
+            records.Check(
+                snapshot.test_id, records.Verdict.COULD_NOT_JUDGE, snapshot.source, ()
+            )
+            for snapshot in state.baselines
+        ) or (
+            records.Check(
+                "preserved-sources",
+                records.Verdict.COULD_NOT_JUDGE,
+                "Verify there are no preserved tests requiring source equality",
+                (),
+            ),
+        )
+        return _request_checks(saved, checks, "source-checks")
+    return Action(state, ())
+
+
+def _spec_problems(state: State, spec: records.Spec) -> bool:
+    ids = tuple(line.id for line in spec.lines)
+    keeps = () if state.candidate is None else state.candidate.keeps
+    return (
+        len(set(ids)) != len(ids)
+        or any(not line.claim.strip() or not line.bite.strip() for line in spec.lines)
+        or any(type(line.start) is not records.TestStart for line in spec.lines)
+        or any(
+            line.start == records.TestStart.GREEN
+            and (not line.tests or len(set(line.tests)) != len(line.tests))
+            for line in spec.lines
+        )
+        or any(claim not in {line.claim for line in spec.lines} for claim in keeps)
+    )
+
+
+def _approve(state: State, pending: records.Pending, event: records.Approved) -> Action:
+    if (
+        pending.effect.operation != "owner"
+        or state.status != "waiting"
+        or state.stage not in {Stage.DESIGN, Stage.PLAN, Stage.SPEC}
+    ):
+        raise StateError(event.effect, "approval requires a waiting owner request")
+    saved = replace(
+        state,
+        pending=tuple(p for p in state.pending if p != pending),
+        receipts=(*state.receipts, records.Receipt(event.effect, event)),
+        status="active",
+    )
+    if state.stage == Stage.DESIGN:
+        resolved = event.design
+        if resolved is None or resolved.choices or design_problems(resolved):
+            return Action(state, ())
+        saved = _save(saved, "design", records.RoleAnswer(resolved))
+        return Action(replace(saved, stage=Stage.PLAN), ())
+    if state.stage == Stage.PLAN:
+        return Action(replace(saved, stage=Stage.SPEC), ())
+    spec = _latest(state, records.Spec)
+    if any(line.start == records.TestStart.GREEN for line in spec.lines):
+        return _request(saved, "baseline", payload=spec)
+    return Action(replace(saved, stage=Stage.STUBS), ())
+
+
+def _checked(state: State, pending: records.Pending, event: records.Checked) -> Action:
+    request = pending.effect.input
+    if pending.effect.operation != "checks" or not isinstance(
+        request, records.CheckSet
+    ):
+        raise StateError(event.effect, "check results require requested checks")
+    context = next(
+        (
+            artifact
+            for artifact in reversed(pending.effect.inputs)
+            if artifact.name in {"runner-checks", "source-checks"}
+            and artifact.answer.payload == request
+        ),
+        None,
+    )
+    if context is None:
+        raise StateError(event.effect, "check request lacks its bound purpose")
+    saved = replace(
+        state,
+        pending=tuple(p for p in state.pending if p != pending),
+        receipts=(*state.receipts, records.Receipt(event.effect, event)),
+        checks=(*state.checks, *event.rows),
+    )
+    if (
+        not request.checks
+        or Counter(row.check for row in event.rows)
+        != Counter(check.id for check in request.checks)
+        or any(row.verdict != records.Verdict.PASS for row in event.rows)
+    ):
+        return _failed(saved, records.Loop.JUROR, "arbiter")
+    if context.name == "runner-checks":
+        return _request(saved, "launch", "juror", _latest(state, records.Spec))
+    return _request(replace(saved, stage=Stage.LOCK), "commit-tests")
 
 
 def _baseline(
