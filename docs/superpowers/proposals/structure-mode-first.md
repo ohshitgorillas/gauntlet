@@ -1,5 +1,7 @@
 # Proposal: structure mode first
 
+Status: approved by the owner.
+
 The governing order lives in `docs/roadmap.md` and `docs/superpowers/plans/structure-first-plan.md`; the roadmap's M6f and the spec's decisions 18 to 21 govern the questions below. "Inferred" marks a claim no document states.
 
 Sources: `docs/roadmap.md` (R), `docs/design.md` (DD), its plan `docs/superpowers/plans/structure-first-plan.md` (P).
