@@ -16,6 +16,7 @@ check:
 	git ls-files -z --cached --others --exclude-standard | xargs -0 uv run python -m gates.check_pyright
 	git ls-files -z --cached --others --exclude-standard | xargs -0 uv run python -m gates.check_cast
 	git ls-files -z --cached --others --exclude-standard | xargs -0 uv run python -m gates.check_pytest
+	git ls-files -z --cached --others --exclude-standard | xargs -0 uv run python -m gates.check_shell
 
 TEST_PATHS = $(or $(FILES),tests)
 
@@ -27,3 +28,4 @@ check-tests:
 	git ls-files -z --cached --others --exclude-standard -- $(TEST_PATHS) | xargs -0 uv run python -m gates.check_pyright
 	git ls-files -z --cached --others --exclude-standard -- $(TEST_PATHS) | xargs -0 uv run python -m gates.check_cast
 	git ls-files -z --cached --others --exclude-standard -- $(TEST_PATHS) | xargs -0 uv run python -m gates.check_pytest
+	git ls-files -z --cached --others --exclude-standard -- $(TEST_PATHS) | xargs -0 uv run python -m gates.check_shell

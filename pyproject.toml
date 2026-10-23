@@ -150,6 +150,7 @@ source_modules = [
     "gates.check_mypy",
     "gates.check_pyright",
     "gates.check_pytest",
+    "gates.check_shell",
     "gates.check_suppressions",
     "gates.heavy",
     "gates.no_type_check",
