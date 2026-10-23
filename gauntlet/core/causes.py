@@ -4,6 +4,7 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from gauntlet.core import errors
 from gauntlet.core.design import Design, home_of
 from gauntlet.core.verdicts import Category, Finding, Survey
 
@@ -34,15 +35,7 @@ class DesignChange:  # the fix needs a home the design lacks
     cause: Cause
 
 
-class UnownedPathError(Exception):
-    """Raise when a path has no owner to route a fix to."""
-
-    def __init__(self, path: str) -> None:
-        """Keep the path no owner holds."""
-        super().__init__(path)
-        self.path = path
-
-
+UnownedPathError = errors.UnownedPathError
 UnownedPath = UnownedPathError
 
 

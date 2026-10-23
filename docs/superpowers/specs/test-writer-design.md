@@ -2,17 +2,14 @@ Status: proposed, for the owner's approval.
 
 ## Why
 
-A red step writes the red test for one behavior against a `stubgen` view of a stub. A `finding` step fixes upheld findings, keeps every test green, and changes no expected value. Neither shape fits the test work of the no-wall-clock design, whose **Order** names `test-writer` for seven steps.
+A red step writes the red test for one behavior against a `stubgen` view of a stub. A `finding` step fixes upheld findings, keeps every test green, and changes no expected value. Support-helper ports and document-driven test changes use the shapes below.
 
-- Steps 2, 5 and 13 write or rewrite a helper under `tests/support/` or move existing tests onto one, green before and after. No behavior is new, so there is no red test, and no finding names them, so there is no `finding` step.
-- Steps 6, 9 and 11 mix that move with red tests for a production change. Step 6's red tests are for the clock seam step 4 stubs; steps 9 and 11 are for changes no step stubs first. `run` (`gates/core/checker.py:66`) takes no `read` parameter and `gates/heavy.py:20` has no `WAITING`, so a red test on either fails with a `TypeError` or an `AttributeError`, never the `AssertionError` or `NotImplementedError` the red-test proof reads.
-- Step 14 removes the held-fd tests, which only a `moved` step may do.
 
 A step no shape owns falls to `CLAUDE.md:33`: "A step no agent above owns goes to `general-purpose` with its red test from `test-writer`." The owner bars `general-purpose` from this work.
 
 Three places define or route test work outside the `test-writer` row. `docs/superpowers/plans/structure-first-plan.md:29` defines a support-helper step in a plan: a helper "written in C2a beside its own tests, which pass at once". The gates core design sends a test whose expected value a spec amendment moved to "the queued R-tw-moved shape", which no roster row holds. `CLAUDE.md:33` sends any step the roster does not own, test steps included, to `general-purpose`. `docs/roadmap.md:23` records the red-test step in its `stubgen` form as unproven.
 
-The precedent for a helper beside its own tests is in the tree: `tests/test_support_capture.py:55` imports the helper it tests. The two helpers the no-wall-clock steps rewrite have callers that stay green through the move: `tests/support/scripted.py` at `tests/test_core_checker_run_all.py:22` and `tests/test_core_runner_budget.py:25`.
+The precedent for a helper beside its own tests is in the tree: `tests/test_support_capture.py:55` imports the helper it tests. The shared helpers have callers: `tests/support/scripted.py` at `tests/test_core_checker_run_all.py:22` and `tests/test_core_runner_budget.py:25`.
 
 ## Modules
 
@@ -81,7 +78,7 @@ A step that writes under `tests/` goes to `test-writer`, or to `mutant-hunter` f
 
 ### `test-writer`'s proof (decision 5)
 
-Its job is to prove each shape on its first live dispatch, with no proof dispatch of its own. It is one line in the agents spec's **Build order**, after that order's step 6, and `docs/roadmap.md:23` names these proofs as outstanding where it records the `stubgen` form as unproven. Each shape's first live dispatch is the first step of that shape in the no-wall-clock design's **Order**, as step 5 re-cuts it (decision 6).
+Each shape requires proof on its first live dispatch, with no separate proof dispatch; the agents spec's **Build order** and `docs/roadmap.md` hold the proof requirements and outstanding status.
 
 ```text
 7. `role-author` rewrites `test-writer` with the `port` and `moved` shapes and red's `replaces:` line. Proof: the first live dispatch of each shape, its `COMMANDS` showing no read under `gauntlet/` or `gates/`; for `port`, each KEPT test's assert statements unchanged in the diff; for the red step on a `stubgen` view, each test's summary line showing `AssertionError` or `NotImplementedError`, as step 3 reads it. A failed proof stops the work its dispatch serves until the role is fixed.
@@ -98,29 +95,23 @@ Its job is to prove each shape on its first live dispatch, with no proof dispatc
 | Changing an expected value or removing a test | The `moved` step, each change resting on a quoted document line | A `port`, `finding` or red step that changes an expected value or removes a test, save a red step's `replaces:` of a test a port reported UNMOVED |
 | A production change a test needs | The builder's `stub` step, then a red step, then the build, in one commit (decision 2) | A port that writes outside `tests/`; a test that keeps a clock wait because the seam is missing; a red test against a name the tree lacks |
 | A test step's gate run | `make check-tests` with `FILES` set | `make check` from `test-writer` |
-| Who writes `CLAUDE.md`'s Roster section | `role-author`, its row widened at `CLAUDE.md:22` (decision 3) | A roster line written by any other agent; `role-author` writing any other section of `CLAUDE.md`, or its own role file |
+| Who writes `CLAUDE.md`'s Roster section | `role-author`, as scoped at `CLAUDE.md:22` (decision 3) | A roster line written by any other agent; `role-author` writing any other section of `CLAUDE.md`, or its own role file |
 | What proves `test-writer`'s shapes | The agents spec's **Build order** line 7, read on each shape's first live dispatch (decision 5) | A proof dispatch on a scratch test; a second dispatch of a shape whose first failed its proof |
-| The no-wall-clock work's step order | The no-wall-clock design's **Order**, as step 5 re-cuts it (decisions 1, 6) | A second list of its steps anywhere, this design's **Order** included (decision 6) |
 
 A test step that fits none of the four shapes stops and reports it. It goes to no `general-purpose` agent and no builder, and the shapes are extended only by a design change.
 
 ## Order
 
-Steps 1 to 4 land on `main`'s line; step 5 runs where the no-wall-clock design is. The no-wall-clock work's steps are listed only in the no-wall-clock design's **Order**, which step 5 re-cuts (decisions 1, 6). Each step lands green under `make check` before the next starts.
+Each step lands green under `make check` before the next starts.
 
 1. The shapes into the spec: `port` and `moved` in `test-writer`'s row and decisions (decision 4), red's `replaces:` line, the `stub` step on a live module in `gatesmith`'s row and the stub decision (`docs/superpowers/specs/agents-design.md:32`, `:47`, decision 2), `CLAUDE.md`'s Roster section in `role-author`'s row (`:26`, decision 3), the build-order proof line 7 and the outstanding proofs at `docs/roadmap.md:23` (decision 5), and pointers from the plan and the gates core design. Agent: `general-purpose`, a change confined to `docs/`. Paths: `docs/superpowers/specs/agents-design.md`, `docs/superpowers/specs/gates-core-design.md`, `docs/superpowers/plans/structure-first-plan.md`, `docs/roadmap.md`.
-2. `role-author`'s role file gains `CLAUDE.md`'s Roster section (decision 3). Agent: none; the owner, by hand, since `role-author` writes every other agent (`CLAUDE.md:18`) and was itself hand-written. Paths: `.claude/agents/role-author.md`.
+2. `role-author`'s role file gains `CLAUDE.md`'s Roster section (decision 3). Agent: none; the owner, by hand, since `role-author` writes every other agent (`CLAUDE.md:18`). Paths: `.claude/agents/role-author.md`.
 3. The routing line and `role-author`'s widened row at `CLAUDE.md:22` (decision 3). Agent: `role-author`. Paths: `CLAUDE.md`.
 4. The role files to match step 1. Agent: `role-author`. Paths: `.claude/agents/test-writer.md`, `.claude/agents/gatesmith.md`.
-5. The no-wall-clock design's **Order** (`docs/superpowers/specs/no-wall-clock-design.md:172`) re-cut to the four shapes: each of its steps that writes under `tests/` becomes one `port`, red or `moved` step; a `gatesmith` `stub` on a live module goes ahead of each red test on a name the tree lacks, landing with that red test and its build in one commit (decision 2); and each shape's first dispatch carries its proof read (decision 5). Agent: `architect`, on a `rulings` brief carrying the owner's ruling. Paths: `docs/superpowers/specs/no-wall-clock-design.md`.
 
 ## Decisions taken
 
 Each entry gives the question, or for a ruling no open decision covered a name for the structure, in bold; the owner's ruling verbatim; `Adds:` each module, home and step it adds; and `Written in:` each section it touches.
 
-1. **Where does the re-cut no-wall-clock order live?** Ruling: "Do whatever you recommend." Adds: the home "The no-wall-clock work's step order", the no-wall-clock design's **Order**; step 5, an `architect` `rulings` pass re-cutting that **Order** into the four shapes. Written in: **Homes**, **Order**. Replaced by 6.
-2. **How does a red test reach a change to a live module?** Ruling: "Do whatever you recommend." Adds: the module `gatesmith` `stub` on a live module, where a new function raises, a new keyword parameter is accepted and unused and a new constant takes the design's value; the home "A production change a test needs"; its spec lines in step 1, its role lines in step 4, and the stubs step 5 puts ahead of red tests in the no-wall-clock design's **Order**. Written in: **Modules**, **Homes**, **Order**. Replaced by 6.
-3. **Who writes `CLAUDE.md`'s roster lines?** Ruling: "Do whatever you recommend." Adds: the module `CLAUDE.md` roster lines, with `role-author`'s Writes gaining `CLAUDE.md`'s Roster section; the home "Who writes `CLAUDE.md`'s Roster section"; its row in step 1, step 2 for its role file by the owner's hand, and step 3 for `CLAUDE.md`. Written in: **Modules**, **Homes**, **Order**.
-4. **Two shapes or one for test rework?** Ruling: "Do whatever you recommend." Adds: none; the `port` and `moved` shapes stand as two in the `test-writer` module. Written in: **Modules**, **Order**.
-5. **What proves the fixed `test-writer`?** Ruling: "Do whatever you recommend." Adds: the module `test-writer`'s proof, line 7 of the agents spec's **Build order**; the home "What proves `test-writer`'s shapes"; that line and `docs/roadmap.md:23` in step 1, and the proof read on each shape's first dispatch in the no-wall-clock design's **Order**, as step 5 re-cuts it. Written in: **Modules**, **Homes**, **Order**. Replaced by 6.
-6. **One list of the no-wall-clock steps.** Ruling: "Asked "Can I delete the stale copy of the no-wall-clock step list in this design, so there's only one, in the no-wall-clock design?", the owner said: "Yes, that's totally fine."" Adds: none. Written in: **Modules**, **Homes**, **Order**.
+3. **Who writes `CLAUDE.md`'s roster lines?** `role-author`'s Writes includes `CLAUDE.md`'s Roster section, with the home "Who writes `CLAUDE.md`'s Roster section". Its row belongs in step 1, its role file is written by the owner's hand in step 2, and `CLAUDE.md` in step 3. Defined in: **Modules**, **Homes**, **Order**.
+4. **Two shapes or one for test rework?** `port` and `moved` are two shapes in the `test-writer` module. Defined in: **Modules**, **Order**.

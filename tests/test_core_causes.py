@@ -2,6 +2,7 @@
 """Cause checks from structure-first-design.md, Modules: core/causes.py."""
 
 from dataclasses import replace
+from typing import TypedDict
 
 import pytest
 
@@ -15,34 +16,52 @@ from gauntlet.core.causes import (
     route,
     survey_problems,
 )
-from gauntlet.core.design import Design, Home, Module, Step
-from gauntlet.core.verdicts import Anchor, Candidate, Category, Finding, Survey
+from gauntlet.core.design import Choice, Design, Home, Module, Step
+from gauntlet.core.verdicts import Anchor, Candidate, Category, Survey
+from tests.support.answers import design as d
+from tests.support.answers import finding as f
 
 
-def _finding(category: Category = Category.COPY) -> Finding:
-    return Finding(
-        Anchor("z.py", 7),
-        "Copies diverge",
-        category,
-        blocking=True,
-        concern="running",
-        also=(Anchor("other.py", 9),),
-    )
+class _DesignFields(TypedDict):
+    modules: tuple[Module, ...]
+    homes: tuple[Home, ...]
+    order: tuple[Step, ...]
+    choices: tuple[Choice, ...]
 
 
-def _design() -> Design:
-    return Design(
-        (Module("home.py", "Run processes", (), ()),),
-        (Home("running", "home.py", "process execution"),),
-        (Step("home", ("home.py",), "core-builder"),),
-        (),
-    )
+class _FindingFields(TypedDict):
+    anchor: Anchor
+    scenario: str
+    category: Category
+    blocking: bool
+    concern: str | None
+    also: tuple[Anchor, ...]
+
+
+_D: _DesignFields = {
+    "modules": (Module("home.py", "Run processes", (), ()),),
+    "homes": (Home("running", "home.py", "process execution"),),
+    "order": (Step("home", ("home.py",), "core-builder"),),
+    "choices": (),
+}
+_F: dict[Category, _FindingFields] = {
+    category: {
+        "anchor": Anchor("z.py", 7),
+        "scenario": "Copies diverge",
+        "category": category,
+        "blocking": True,
+        "concern": "running",
+        "also": (Anchor("other.py", 9),),
+    }
+    for category in Category
+}
+_C = _F[Category.COPY]
 
 
 @pytest.mark.parametrize("blank", ["", " \t\n"])
 def test_finding_reports_scenario_before_other_problems(blank: str) -> None:
     """Breaks when blank scenarios pass or check order changes."""
-    finding = replace(_finding(), scenario=blank, also=(), blocking=False, concern=None)
+    finding = replace(f(**_C), scenario=blank, also=(), blocking=False, concern=None)
     assert finding_problems(finding, None) == (
         "no scenario",
         "copy with no also",
@@ -54,7 +73,7 @@ def test_finding_reports_scenario_before_other_problems(blank: str) -> None:
 @pytest.mark.parametrize("category", [Category.COPY, Category.MISSING])
 def test_copy_and_missing_require_also(category: Category) -> None:
     """Breaks when either copying category accepts no other anchor."""
-    assert finding_problems(replace(_finding(category), also=()), None) == (
+    assert finding_problems(replace(f(**_F[category]), also=()), None) == (
         f"{category.value} with no also",
     )
 
@@ -64,17 +83,17 @@ def test_copy_and_missing_require_also(category: Category) -> None:
 )
 def test_nondefect_requires_blocking_and_concern(category: Category) -> None:
     """Breaks when any structural category accepts nonblocking or no concern."""
-    assert finding_problems(replace(_finding(category), blocking=False), _design()) == (
+    assert finding_problems(replace(f(**_F[category]), blocking=False), d(**_D)) == (
         f"{category.value} not blocking",
     )
-    assert finding_problems(replace(_finding(category), concern=None), None)[:1] == (
+    assert finding_problems(replace(f(**_F[category]), concern=None), None)[:1] == (
         f"{category.value} with no concern",
     )
 
 
 def test_defect_has_no_concern_and_need_not_block_or_have_also() -> None:
     """Breaks when defects require structural fields or allow a concern."""
-    finding = replace(_finding(Category.DEFECT), also=(), blocking=False)
+    finding = replace(f(**_F[Category.DEFECT]), also=(), blocking=False)
     assert finding_problems(finding, None) == ("defect with a concern",)
     assert finding_problems(replace(finding, concern=None), None) == ()
 
@@ -82,28 +101,28 @@ def test_defect_has_no_concern_and_need_not_block_or_have_also() -> None:
 @pytest.mark.parametrize("category", [Category.OWN_CORE, Category.DRIFT])
 def test_design_categories_need_design_and_exact_home(category: Category) -> None:
     """Breaks when design categories pass without a design or matching home."""
-    finding = _finding(category)
+    finding = f(**_F[category])
     assert finding_problems(finding, None) == (f"{category.value} with no design",)
-    absent = replace(_design(), homes=(Home("Running", "home.py", "copies"),))
+    absent = replace(d(**_D), homes=(Home("Running", "home.py", "copies"),))
     assert finding_problems(finding, absent) == (
         f"{category.value}: no home for running",
     )
-    assert finding_problems(replace(finding, also=()), _design()) == ()
+    assert finding_problems(replace(finding, also=()), d(**_D)) == ()
 
 
-@pytest.mark.parametrize("design", [None, Design((), (), (), ()), _design()])
+@pytest.mark.parametrize("design", [None, Design((), (), (), ()), d(**_D)])
 @pytest.mark.parametrize("category", [Category.COPY, Category.MISSING])
 def test_copy_and_missing_stand_independently_of_design(
     category: Category,
     design: Design | None,
 ) -> None:
     """Breaks when audit categories are incorrectly tied to design homes."""
-    assert finding_problems(_finding(category), design) == ()
+    assert finding_problems(f(**_F[category]), design) == ()
 
 
 def test_partition_lists_findings_then_empty_and_mismatched_causes() -> None:
     """Breaks when partition checks omit or reorder any failure kind."""
-    absent = _finding()
+    absent = f(**_C)
     repeated = replace(absent, anchor=Anchor("a.py", 2), concern="parsing")
     causes = (
         Cause("empty", "No instances", None, ()),
@@ -122,8 +141,8 @@ def test_partition_lists_findings_then_empty_and_mismatched_causes() -> None:
 
 def test_partition_accepts_one_cause_each_and_ignores_defect_concern() -> None:
     """Breaks when valid partitions fail or defects get structural checks."""
-    structural = _finding()
-    defect = replace(_finding(Category.DEFECT), concern=None)
+    structural = f(**_C)
+    defect = replace(f(**_F[Category.DEFECT]), concern=None)
     causes = (Cause("shared", "One cause", "running", (structural, defect)),)
     assert partition_problems((structural, defect), causes) == ()
 
@@ -134,13 +153,13 @@ def test_empty_partition_has_no_problem() -> None:
 
 
 @pytest.mark.parametrize("concern", [None, "unhomed"])
-@pytest.mark.parametrize("design", [None, _design()])
+@pytest.mark.parametrize("design", [None, d(**_D)])
 def test_route_uses_first_instance_owner_and_unique_instance_paths(
     concern: str | None,
     design: Design | None,
 ) -> None:
     """Breaks when routing uses also anchors, sorts paths or repeats a path."""
-    first = _finding()
+    first = f(**_C)
     second = replace(first, anchor=Anchor("a.py", 1))
     third = replace(first, anchor=Anchor("z.py", 8))
     cause = Cause("copies", "Repeated execution", concern, (first, second, third))
@@ -153,7 +172,7 @@ def test_route_uses_first_instance_owner_and_unique_instance_paths(
 
 def test_homed_route_uses_first_writer_and_module_then_instances() -> None:
     """Breaks when home routing uses owners, last writer or duplicate paths."""
-    first = _finding()
+    first = f(**_C)
     cause = Cause(
         "copies",
         "Repeated execution",
@@ -166,7 +185,7 @@ def test_homed_route_uses_first_writer_and_module_then_instances() -> None:
         ),
     )
     design = replace(
-        _design(),
+        d(**_D),
         order=(
             Step("unrelated", ("else.py",), "other"),
             Step("first", ("home.py",), "first-builder"),
@@ -182,36 +201,34 @@ def test_homed_route_uses_first_writer_and_module_then_instances() -> None:
 
 def test_unhomed_route_changes_design_when_all_also_paths_are_owned() -> None:
     """Breaks when instance ownership replaces the every-also ownership rule."""
-    first = _finding()
+    first = f(**_C)
     second = replace(first, also=(Anchor("more.py", 4),))
     cause = Cause("copies", "Repeated execution", "unhomed", (first, second))
-    assert route(cause, _design(), {"other.py": "one", "more.py": "two"}) == (
+    assert route(cause, d(**_D), {"other.py": "one", "more.py": "two"}) == (
         DesignChange(cause)
     )
 
 
 def test_unhomed_route_with_no_also_changes_design() -> None:
     """Breaks when every-also incorrectly requires a nonempty anchor list."""
-    cause = Cause(
-        "gap", "Missing structure", "unhomed", (replace(_finding(), also=()),)
-    )
-    assert route(cause, _design(), {}) == DesignChange(cause)
+    cause = Cause("gap", "Missing structure", "unhomed", (replace(f(**_C), also=()),))
+    assert route(cause, d(**_D), {}) == DesignChange(cause)
 
 
 def test_one_external_also_path_forces_instance_owner_route() -> None:
     """Breaks when any owned also path is enough to reopen a design."""
-    first = _finding()
+    first = f(**_C)
     second = replace(first, also=(Anchor("external.py", 4),))
     cause = Cause("copies", "Repeated execution", "unhomed", (first, second))
-    assert route(cause, _design(), {"z.py": "fixer", "other.py": "other"}) == (
+    assert route(cause, d(**_D), {"z.py": "fixer", "other.py": "other"}) == (
         FixStep(cause, "fixer", ("z.py",))
     )
 
 
 def test_no_concern_rule_precedes_design_change() -> None:
     """Breaks when owned also paths reopen a design for a concernless cause."""
-    cause = Cause("bug", "Incorrect result", None, (_finding(),))
-    assert route(cause, _design(), {"z.py": "fixer", "other.py": "other"}) == (
+    cause = Cause("bug", "Incorrect result", None, (f(**_C),))
+    assert route(cause, d(**_D), {"z.py": "fixer", "other.py": "other"}) == (
         FixStep(cause, "fixer", ("z.py",))
     )
 
@@ -219,7 +236,7 @@ def test_no_concern_rule_precedes_design_change() -> None:
 @pytest.mark.parametrize("concern", [None, "unhomed"])
 def test_unowned_first_instance_raises_with_its_path(concern: str | None) -> None:
     """Breaks when missing ownership is hidden or reports an also path."""
-    cause = Cause("copies", "Repeated execution", concern, (_finding(),))
+    cause = Cause("copies", "Repeated execution", concern, (f(**_C),))
     with pytest.raises(UnownedPath) as caught:
         route(cause, None, {"other.py": "other"})
     assert caught.value.path == "z.py"
@@ -229,8 +246,8 @@ def test_unowned_first_instance_raises_with_its_path(concern: str | None) -> Non
 def test_survey_reports_causes_then_candidates_in_order(blank: str) -> None:
     """Breaks when any survey failure is missed, reordered or deduplicated."""
     causes = (
-        Cause("missing", "No proposal", "absent", (_finding(),)),
-        Cause("covered", "Has proposals", "running", (_finding(),)),
+        Cause("missing", "No proposal", "absent", (f(**_C),)),
+        Cause("covered", "Has proposals", "running", (f(**_C),)),
     )
     unknown = Candidate("unknown", blank, blank, ())
     known = Candidate("running", "One home", "Porting risk", ())
@@ -252,8 +269,8 @@ def test_survey_reports_causes_then_candidates_in_order(blank: str) -> None:
 def test_survey_accepts_complete_candidates_for_every_cause() -> None:
     """Breaks when shared-concern causes require separate candidate records."""
     causes = (
-        Cause("first", "One instance", "running", (_finding(),)),
-        Cause("second", "Another instance", "running", (_finding(),)),
+        Cause("first", "One instance", "running", (f(**_C),)),
+        Cause("second", "Another instance", "running", (f(**_C),)),
     )
     candidate = Candidate("running", "One home", "Porting risk", ())
     assert survey_problems(Survey((), (candidate,), ()), causes) == ()

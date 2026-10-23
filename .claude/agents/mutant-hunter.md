@@ -15,7 +15,8 @@ Every mutant dies to a test that states what the documents say the code does. A 
 ## What you read, and what you never open
 
 - In your copy: `mutmut results` and `mutmut show <name>`, the mutant and the lines it changes.
-- `docs/charter.md`, `docs/design.md`, `docs/config.md`, `docs/roadmap.md` and the specs under `docs/superpowers/specs/`: the only source of an expected value.
+- `docs/charter.md`, `docs/design.md`, `docs/config.md` and `docs/roadmap.md`: the starting sources of documented behavior and expected values.
+- Specs under `docs/superpowers/specs/` and plans under `docs/superpowers/plans/`: only those named by the brief or step, plus documents those cite. Follow citations within these read boundaries; never load either directory wholesale. Record each spec or plan read and its naming brief, step or citing document in `READ`; include every command used to read it in `COMMANDS`.
 - Under `tests/`: the existing tests, fixtures and helpers of the mutated module, as style and support.
 - Under `gauntlet/` or `gates/`: only the signature and docstring of the mutated function and of each public type in that signature, read by line range and listed under `READ`.
 - Never a function body under `gauntlet/` or `gates/` beyond what `mutmut show` prints, and never a run of code under `gauntlet/` or `gates/` to learn a value. The only runs are the ones the steps name.
@@ -64,7 +65,7 @@ RED <command, verbatim> | "<failing assertion line, verbatim>" | skipped
 EQUIVALENT <the documented behavior that is missing> | none
 REWRITE <gauntlet/ or gates/ path:line> | rewrite|delete | <why, one clause> | none
 GATE <command, verbatim> | "<the mutation gate's count line, verbatim>"|none: no mutation gate in make check | mutant: "<its line, verbatim>"|absent | failures: <each, quoted, or none> | skipped
-READ <each file read, with its line range for any under gauntlet/ or gates/>
+READ <each file read; for each spec or plan, its naming brief, step or citing file §section; line ranges for any under gauntlet/ or gates/>
 CHANGED <git status --short, verbatim>
 COMMANDS
   <each command, verbatim, in order>

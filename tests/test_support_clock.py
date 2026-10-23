@@ -1,8 +1,7 @@
 # Copyright 2026 oh shit, gorillas!
 """Tests for the test-support virtual clock.
 
-Source: the no-wall-clock design spec under docs/superpowers/specs/, the `tests/support/clock.py` module, decisions 6
-and 14 (lines 141, 142, 145): `VirtualClock` is a Clock whose time moves only as the test sets it; `now` is the virtual
+Source: tests/support/clock.py: `VirtualClock` is a Clock whose time moves only as the test sets it; `now` is the virtual
 seconds passed, from 0; `passes` is the seconds that pass in a wait whose event has not come at its poll, None for time
 standing still; `after` blocks, with no timeout, until the event the test proves against has come, None for nothing to
 wait for. `wait` calls `ready(0)` first; when that is False and `passes` reaches `seconds`, it calls `after()`, then

@@ -22,7 +22,7 @@ Throwaway code that answers the questions the design takes on trust. Answers liv
 
 ## Agents
 
-The roster in `.claude/agents/`, each agent written by `role-author` and accepted by one dispatch proof. All ten are written. Proofs passed: `diff-reviewer`, `test-reviewer`, `spiker`, and `gatesmith`, with the scaffold and the suppression gate landed and `make check` green. Proofs outstanding: `test-writer` passed only in its earlier stub-reading form, its `stubgen` interface-view form is unproven, and its merged red brief takes the last proof of the agents spec's Build order; `mutant-hunter` needs the mutation gate and a surviving mutant; `core-builder` and `seam-builder` take a scope test on the body now and a live dispatch at M1 and M2; `architect` takes the step-6 proof of the agents spec.
+The roster in `.claude/agents/` has ten agents, each written by `role-author` and accepted by one dispatch proof. Outstanding proofs: `test-writer` needs its `stubgen` interface-view proof, and its merged red brief takes the last proof of the agents spec's Build order; `mutant-hunter` needs the mutation gate and a surviving mutant; `core-builder` and `seam-builder` take a scope test on the body now and a live dispatch at M1 and M2; `architect` takes the step-6 proof of the agents spec.
 
 **Done when:** every agent has passed the dispatch proof its row in the spec names.
 
@@ -36,16 +36,19 @@ ruff, ruff format, import-linter, deptry, uv lock and vulture run directly from 
 
 ## M1. Core and records
 
-- `core/verdicts.py`: every answer schema and the anchor type, `COULD NOT JUDGE` blocking like a failure; the `Anchor`, `Finding`, `Candidate`, `CoreMissing` and `Survey` records.
-- `core/design.py`: the design record and `design_problems`, `home_of`, `uncovered`.
-- `core/causes.py`: findings grouped into causes and routed to one fix each: `finding_problems`, `partition_problems`, `route`, `survey_problems`.
+- `core/verdicts.py`: answer primitives and the anchor type, `COULD NOT JUDGE` blocking like a failure; the `Anchor`, `Finding`, `Candidate`, `CoreMissing` and `Survey` records.
+- `core/design.py`: canonical design records and `design_problems`, `home_of`, `uncovered`.
+- `core/causes.py`: canonical cause records; findings grouped into causes and routed to one fix each: `finding_problems`, `partition_problems`, `route`, `survey_problems`.
+- `core/records.py`: composite answers, workflow state, explicit spec-line start marks, preserved-test baselines and recovery records. Each domain record keeps one definition in its own module; `core/codec.py` catalogs them once for wire envelopes and schema export.
+- `core/errors.py`, `core/roles.py` and `core/config.py`: typed product errors, fixed role/kind/schema associations and pure configuration validation; `seams/config.py` supplies explicit-root YAML access.
+- `core/red.py`: exact starting-verdict and test-binding validation. Each spec line must declare a RED/GREEN mark and preserved test ids for owner approval. GREEN requires identical existing tests, including inputs and assertions, to pass before and after. Harness source baselines must precede edits; source identity checks must pass before Lock and Land. Every line must pass the final runs.
 - `core/schedule.py`: `startable`, which of a job's steps or of the structure jobs may run beside which.
 - `core/decide.py`: `decide(state, answer)` for the stage table of §2, round caps included, with the Design, review-by-cause and structure-job rows. The structure-job rows are the ones its tests walk; `FIRST` and `SKIPPED` hold all three shapes as data.
-- `seams/job.py`: `state.json` with a row per check run, `trace.jsonl` per launch.
-- `gauntlet resume` from `state.json` after a killed harness.
+- `seams/job.py`: authoritative `state.json` with a row per check run and the launch ledger, repairable `trace.jsonl` per dispatched launch, durable checkpoints and single-writer locking.
+- `seams/resume.py` and `gauntlet resume`: continue ready work or automatically restore/replay interrupted work from `state.json`, without spending a round or requesting owner approval. Saved git intents reconcile lost receipts without duplicate commits or land effects. M1 proves the injected executor protocol; M2/M3s supply actual process, workspace, git and check/land adapters.
 - The gate that blocks shell-command parsing in Gauntlet's own code (§1, the one exception).
 
-**Done when:** every branch of `design_problems`, `uncovered`, `finding_problems`, `partition_problems`, `route`, `survey_problems` and `startable`, and of `decide` on the rows a structure job walks, has a unit test; a harness killed mid-stage resumes to the same next action.
+**Done when:** every branch of `design_problems`, `uncovered`, `finding_problems`, `partition_problems`, `route`, `survey_problems` and `startable`, and of `decide` on structure-job rows, has a unit test; every new structure, marking and recovery branch has red-to-green proof; a mixed RED/GREEN structure job preserves its approved tests unchanged through final GREEN runs; killed-harness probes continue ready work or automatically restore/replay interrupted work without spending a round, preserve completed work and approvals, and reconcile lost commit/land receipts without duplicate effects. See [`m1-core-records-design.md`](superpowers/specs/m1-core-records-design.md).
 
 ## M2. Launcher and kinds
 
@@ -65,8 +68,8 @@ ruff, ruff format, import-linter, deptry, uv lock and vulture run directly from 
 - The survey screen shows candidates ranked by payoff and risk and what is sound; the owner selects, and one structure job opens per selected candidate, run as separate jobs one after another.
 - A structure job ports every copy and lands only when `uncovered` is empty at the end of its Review. The surveyor also runs in a structure job's Review.
 - Land merges only when the owner's uncommitted changes touch none of the landed files (§6).
-- `seams/git.py`: a worktree per running Build step, merged into the job branch as each step finishes (structure-first spec, decision 20).
-- Until M8 a DesignChange stops the job (decision 19); until M10 a bare `gauntlet audit` opens no job and fails (decision 21).
+- `seams/git.py`: a worktree per running Build step, merged into the job branch as each step finishes (structure-first spec).
+- Until M8 a DesignChange stops the job; until M10 a bare `gauntlet audit` opens no job and fails.
 
 **Done when:** a fixture repository with one concern copied in three files and no core yields three anchors in one cause and one candidate with its payoff, risk and keeps; a design whose `uncovered` is empty at Design; spec lines for the keeps locked before any port step; a landed job that adds the home, ports every caller and leaves `uncovered` empty at the end of Review; a fixture with two such concerns, both selected, yields two jobs, the second starting after the first ends; two port steps on disjoint files build at once and both reach the job branch; and the land screen lists every skipped stage.
 

@@ -14,9 +14,9 @@ Each step that depends on a question says so and is built on the recommendation 
 6. **`route` with a path `owners` lacks.** Recommend a typed error `UnownedPath(path: str)` in `causes.py`, moved into M1's error family when M1's design names it.
 7. **Where `survey.md` lives.** `write_survey` takes an audit folder that `docs/design.md` §7 lacks. Recommend `.gauntlet/audits/<id>/survey.md`, added to §7 by D1.
 8. **role-author against the one schema home.** role-author's description and its agents-spec row say a `roles/` role is written "with its answer schema", and the four roles have no agents-spec row. Recommend: before R1, the owner amends the row to "naming its answer schema in `gauntlet/core/verdicts.py`", and R briefs give the role's line from the spec's `roles/` block and the paragraph under it as its row.
-9. **PLAN input for a STRUCTURE job.** Settled by the spec's decision 18.
-10. **`DesignChange` before M8.** Settled by decision 19: it stops the job.
-11. **Parallel BUILD commits.** Settled by decision 20: a worktree per running step.
+9. **PLAN input for a STRUCTURE job.** Follows the spec's decision 18.
+10. **`DesignChange` before M8.** Stops the job (spec decision 19).
+11. **Parallel BUILD commits.** Use a worktree per running step (spec decision 20).
 
 ## When steps may start
 

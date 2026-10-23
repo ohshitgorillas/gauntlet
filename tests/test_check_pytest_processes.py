@@ -7,7 +7,7 @@ floor(C / 2) and never fewer than one, where C counts the CPUs the gate's proces
 process and never from a command: the CPUs its affinity allows where the host keeps an affinity, and the host's CPU
 count elsewhere, as on macOS. The exit codes come from the "Gates" intro paragraph.
 
-The no-wall-clock design Order steps 42-43 measure concurrency through Scripted and its own next_done.
+Concurrency follows tests/support/scripted.py: Scripted pairs with its own next_done.
 """
 
 from pathlib import Path

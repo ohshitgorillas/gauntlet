@@ -1,17 +1,17 @@
 # Gates core design
 
-Approved 2026-10-20 under `~/dev/CLAUDE.md` §7a; the decisions taken are in section 7. It is based on a read-only survey of `~/dev/gauntlet` at a32db75, the uncommitted `g1l` and `mypy-cache` worktrees, and the G4 mutation branch (e46e613).
+Status: approved.
 
 ## Why
 
-At a32db75 each gate module carried its own copy of the run contract: 8 count-line f-strings, 5 empty-run lines, 6 `BLOCKED = 2` constants, 5 config lookups relative to `gates/`, 4 output splitters, 3 "unfinished" error types and 40 direct writes; the G4 branch added more. The copies had drifted:
+The gates share one run contract for findings, unfinished checks, file counts, configuration, process execution and cleanup. Each concern has one home; every gate uses it.
 
-- **(a) mypy exit 1 with no record** read as finished: with `MYPYPATH` set to site-packages, mypy refused and the gate ended `check_mypy: 0 finding(s) in 1 Python file(s)` with exit 0.
-- Parse warnings, empty runs, files given twice, throttling on macOS and exit 2 on an environment failure were each handled differently from gate to gate, or fixed one site at a time.
+- **(a) mypy exit 1 with no record** is unfinished: the checker's exit status must agree with its report before the gate can pass.
+- Parse warnings, empty runs, files given twice, throttling on macOS and environment failures follow the same core rules in every gate.
 
 ## 1. Core modules
 
-There are five modules under `gates/core/`. They use the standard library only, import nothing from `gauntlet`, and hold no path of this repository. The imports form a chain with no cycles: report ← checker ← project ← source ← runner.
+There are six modules under `gates/core/`. They use the standard library only, import nothing from `gauntlet`, and hold no path of this repository. The imports form a chain with no cycles: report ← checker ← project ← source ← runner.
 
 Each checker's own record types stay in its gate: mypy's Record, pyright's Diagnostic, ruff's Violation and pytest's JUnit Case. A reader that two sibling gates share goes in `gates/<checker>_report.py`, for example ruff's for check_cast and G2.
 
@@ -30,7 +30,7 @@ def one_line(text: str) -> str                          # every str.splitlines b
 def output_lines(text: str) -> list[str]                # a checker's console output, one printed line per str.splitlines line
 def render(gate: str, outcome: Outcome, files: int) -> list[str]  # notes, lines in order, each Unfinished text once per run, count line last; passes every Finding and Remark text through one_line, the one home for that rule; passes each Unfinished text through output_lines, the one home for that rule
 def nothing_checked(gate: str, selects: str, given: int) -> list[str]
-def time_cap(checker: str, seconds: float) -> str       # decision 22's line naming the cap, its one home (decision 29)
+def time_cap(checker: str, seconds: float) -> str       # the line naming the cap, its one home
 def timed_out(output: str, checker: str, seconds: float) -> tuple[Unfinished, Unfinished]  # a checker its cap ended: its whole output, then time_cap
 def write(lines: Sequence[str], *, error: bool = False) -> None  # the only writer: looks up sys.stdout/stderr at call time, flushes
 ```
@@ -74,9 +74,12 @@ def python_script(script: Path, *arguments: str | Path, cwd: Path, timeout: floa
 def environment(*, drop_prefixes: tuple[str, ...] = (), drop: frozenset[str] = frozenset()) -> dict[str, str]
 def throttle_line(platform: str, niceness: int, path: str | None = None) -> list[str]  # heavy's line; GateError on a host with none, or a tool not on `path` (None: os.environ's PATH)
 def cpu_budget(cpus: int | None = None) -> int   # floor(cpus / 2), the mutation and backstop cap; None: the CPUs this process may run on (its affinity where the host keeps one, else the host's count), so a test sets the count in-process
+```
+
+```python
 type NextDone = Callable[[Collection[Future[Completed]]], set[Future[Completed]]]  # blocks until at least one future in running is done; the done ones
 def first_done(running: Collection[Future[Completed]]) -> set[Future[Completed]]  # concurrent.futures.wait(running, return_when=FIRST_COMPLETED), no timeout; the done ones
-def run_all(process: Runner, commands: Iterable[Command], cap: int, *, next_done: NextDone = first_done) -> list[Completed | GateError | OSError]  # at most cap at once, results in command order; every wait on its workers, the cleanup's included, through next_done, which only a test hands in (decision 26)
+def run_all(process: Runner, commands: Iterable[Command], cap: int, *, next_done: NextDone = first_done) -> list[Completed | GateError | OSError]  # at most cap at once, results in command order; every wait on its workers, the cleanup's included, through next_done, which only a test hands in
 ```
 
 `run` closes in the checker every descriptor of the running process except `pass_fds` and fds 0, 1 and 2. `capture=False` lets the checker inherit the run's own fds 1 and 2 and write straight to them; `Completed.stdout` and `.stderr` come back `""`. A throttled `run` looks its tools up on the PATH of `Command.env`, and on os.environ's PATH when `env` is None, so a test sets PATH in-process through `env`.
@@ -86,10 +89,14 @@ def run_all(process: Runner, commands: Iterable[Command], cap: int, *, next_done
 **Replaces:**
 
 - the subprocess calls in cast, pyright and pytest
-- mypy's `api.run` (decision 3)
+- mypy's `api.run`
 - `mutation_run`'s probe, mutate, stop, workers and NICE
 - heavy's `wrapped`, `missing` and `status`, and its subprocess call
 - `check_pytest.pytest_environment`
+
+Concurrent batches are a core feature, so check_pytest keeps running its modules in parallel: `run_all(process, commands, cap, *, next_done=first_done)` runs each Command through `process` in worker threads, at most `cap` (1 or more) at once. It takes the next Command from `commands`, in the main thread, only when fewer than `cap` are running, so Commands are made and started in their order. Every wait on its workers, for one to end and in the cleanup for all of them, goes through `next_done`, with no timeout; it never looks at its Runner to find a wait. It returns one result per Command started, in the order of `commands` whatever the order they finish in: the Completed, or the GateError or OSError that taking the Command or calling `process` raised. Such an error stops it: no Command is taken once one is seen, the ones running are waited for, and the list ends at the first error in command order, so what stands never depends on finish order. Any other exception from `process` goes on after the cleanup below.
+
+While it runs, the main thread answers ENDING_SIGNALS as `run` does; on any exception there, a signal's included, it holds signals, kills once the process group of every checker `run` has started, in any thread, and not yet reaped, waits through `next_done` until no worker is running, puts the handlers back, and only then do the exception and each signal recorded take their course. While it waits, each checker `run` starts is killed as it is added to the live set, under the lock that add takes, so the cleanup has no poll and no poll interval.
 
 ### project.py: the project, its config and its files
 
@@ -99,7 +106,7 @@ def python_files(paths: Sequence[Path]) -> list[Source]  # the spec's Python-fil
 def test_files(sources: Sequence[Source]) -> list[Source]  # the spec's one test-file definition
 def non_test_files(sources: Sequence[Source]) -> list[Source]
 Project(root: Path)
-    Project.current() -> Project  # the working directory (decision 1); GateError if it holds no pyproject.toml
+    Project.current() -> Project  # the working directory; GateError if it holds no pyproject.toml
     .config -> Path  # root / "pyproject.toml", the one file that holds every checker's settings
     .settings() -> Mapping[str, object]  # read once per run; GateError naming the file if unreadable or not TOML
     .setting(*keys: str) -> object | None
@@ -118,6 +125,18 @@ def key_findings(project: Project, rules: Sequence[KeyRule]) -> list[Finding]  #
 - `mutation_settings`
 
 Config suppressions are scanned here as KeyRule tables. The mutation and backstop narrowing keys, G2's ignore list and G10's ignore lists across every tool become table rows, not code.
+
+Project root is the working directory, with a `project=` parameter for tests and other callers; never relative to `gates/`, never a nearer pyproject.toml. The test-file rule's `tests` directory is one constant in project.py.
+
+`python_files` on a path it cannot read: a path that names nothing (it or a directory on it does not exist) or that is no regular file is no Python file; a `.py` or `.pyi` whose kind cannot be read, or an extensionless file whose kind or first line cannot be read, is taken as one, so the checker reports it unreadable and the run exits 2 rather than dropping it. This keeps `is_python_source`'s rule.
+
+`setting(*keys)` is None when any key is absent or a value on the way to the last key is no table.
+
+`settings()` and `config_text()` come from one read of the file per Project, as UTF-8: a file that cannot be read or decoded is a GateError naming the file from either, and a change after the first read is not seen.
+
+`git` drops every variable whose name starts with `GIT_`, through `environment(drop_prefixes=("GIT_",))`, not a list of the variables a hook exports.
+
+`key_findings`: a rule whose key is absent is no finding and its `breaks` is not called; each broken rule gives one Finding, in the order of the rules, reading `pyproject.toml: <keys joined by .>: <says>`.
 
 ### source.py: reading a Python file under the pinned version
 
@@ -143,19 +162,28 @@ def comment_markers(parsed: Parsed, markers: Mapping[str, re.Pattern[str]]) -> l
 - G9's import scan
 - M1.5's shell gate
 
+`pinned_version` also refuses a version the parser has no grammar for, outside 3.7 to the running interpreter's own, as `pinned_grammar` did, since `ast.parse` takes such a version and parses with another grammar. Its GateError names `tool.pyright.pythonVersion` and the file.
+
+`parse`'s report names the file as given: `<given>: <ErrorType>: <error>` for an error, and one `<given>:<line>: <Category>: <message>` line per warning, recorded whatever the caller's warning filters say, which are left as they were. It parses before it tokenizes: the tokenizer copies a token's whole line into every token, about 10 GB for a 100,000-deep one-line source, so a file too deep to parse stops at the parse.
+
+`comment_markers` gives one entry per comment token that carries any marker: its start line, then the names of the markers it carries in the order of `markers`. Strings are never searched.
+
 ### runner.py: one gate run, from start to exit
 
 ```python
 Gate(name: str, check: Callable[[Run], Outcome],
      select: Callable[[Sequence[Source]], list[Source]] = list, selects: str = "Python file")
 Run(project: Project, sources: tuple[Source, ...], scratch: Scratch, process: Runner,
-    given: tuple[Source, ...] = (), next_done: NextDone = first_done)  # given: every Python file given, test files included; sources is select(given) (decision 28); next_done: the wait run_all makes on its workers, which check_with hands to run_all beside process; only a test hands in another
+    given: tuple[Source, ...] = (), next_done: NextDone = first_done)  # given: every Python file given, test files included; sources is select(given); next_done: the wait run_all makes on its workers, which check_with hands to run_all beside process; only a test hands in another
 class Scratch:  # one per run
     __init__(self, root: Path | None = None)  # None: tempfile.gettempdir(), so TMPDIR moves it; never in the tree
     directory(self, name: str) -> Path  # a fresh dir inside the run's own temp dir; GateError on OSError
     copy(self, tree: Path, name: str) -> Path  # GateError on OSError
     once(self, name: str, make: Callable[[Path], None]) -> Path  # built the first time, the same path after (mypy's warm cache)
     close(self) -> str | None  # deletes everything, read-only entries included; returns the failure, never raises
+```
+
+```python
 class Checker[R](Protocol):
     stopped: frozenset[int]  # statuses where the checker stopped but its report stands (mypy: {2})
     def batches(self, run: Run) -> Sequence[Sequence[Source]]
@@ -163,7 +191,7 @@ class Checker[R](Protocol):
     def read(self, completed: Completed) -> R  # GateError if the output holds no report the gate can read
     def expected_status(self, report: R) -> int  # the exit status this report calls for
     def lines(self, report: R, batch: Sequence[Source], *, stopped: bool) -> Sequence[Line]
-def check_with(checker: Checker[R], *, budget: Callable[[], int] | None = None) -> Callable[[Run], Outcome]  # budget: batches at once (decision 27)
+def check_with(checker: Checker[R], *, budget: Callable[[], int] | None = None) -> Callable[[Run], Outcome]  # budget: batches at once
 def run_gate(gate: Gate, paths: Sequence[Path], *, project: Project | None = None,
              process: Runner = run, next_done: NextDone = first_done, scratch_root: Path | None = None) -> int  # puts process and next_done in the Run it builds
 def main(gate: Gate) -> NoReturn
@@ -193,6 +221,28 @@ A stopped batch always ends unfinished. This is the exit rule (a) needs, and it 
 - the TemporaryDirectory handling in pytest and the mutation gate
 - `json_report.load`'s FINISHED set
 - `check_pytest.verdict`'s exit agreement
+
+`Scratch` makes the run's own temp dir, with `tempfile.mkdtemp` in its root, at the first `directory`, `copy` or `once`, not in `__init__`: a run that asks for no temp space makes none, so a missing scratch root fails only a gate that uses one, and `close` then deletes nothing and returns None. A root it cannot make the run's temp dir in is a GateError naming the root and the OS error.
+
+`directory(name)` and `copy(tree, name)` give a new path on every call, its last component starting with `name`, so one name twice gives two paths, as mypy's one cache copy per file needs. `copy` puts the tree's contents at that path, following symlinks, so no entry of the copy links back into the tree; a tree it cannot copy is a GateError naming the tree and the OS error.
+
+`once(name, make)` keeps a path only after `make` returns: a `make` that raises is not kept, its error goes to the caller, and the next call with that name builds again. Each name is built apart from the others.
+
+`close` deletes the run's temp dir and all it holds, making a read-only directory inside it writable on the way, and changes no mode outside it. A deletion that fails returns `cannot delete the temp space <path>: <error>`; after `close` the Scratch holds nothing, so a second `close` returns None.
+
+`check_with` reads a status in `stopped` before it compares it with `expected_status`, so a stop is never a finish; a stopped batch whose `lines` hold no Unfinished gets one more, the checker's whole output, so a stopped batch always ends unfinished.
+
+After a timeout `check_with` reads no report: its lines are an Unfinished of the checker's whole output, then an Unfinished of the gate's own line `the checker <argv[0]> ran past its time cap of <timeout> seconds`.
+
+A GateError or OSError from `command` or from `run.process` ends `check_with` at that batch: the lines of the batches before it stand, then an Unfinished of the error's report, and no later batch runs. An OSError's report, here and in `run_gate`, is `str(error)`.
+
+`run_gate`: the `given` of `nothing_checked` is `len(paths)`, every path as given; an error before or in `gate.check` gives an Outcome of its one Unfinished line; a failure `close` returns is an Unfinished after the Outcome's lines; on an interrupt `close` runs and the interrupt goes on, nothing printed. Every line goes to stdout. `main` runs `run_gate` over `sys.argv[1:]` and exits with its code.
+
+`check_with(checker, *, budget=None)`: `budget` is the CPU budget the cap is sized by, `cpu_budget` for check_pytest; None runs one batch at a time, so every gate built before it keeps its order and its tests. `budget` is called once per check, after `batches` and before the first `command`; the cap is `max(1, budget())`, so a host of 0 or 1 CPUs still runs one batch at a time, and a GateError or OSError from it is the Outcome of its one Unfinished, with no batch run. The batches run through `run_all`, each batch's command made in batch order; each batch's lines follow the lines of the batch before it, whatever the order they finished in. A GateError or OSError ends the check at the first error, at the first failing batch in batch order: no batch starts once it is seen, and no later batch gives a line, even one that finished. On an interrupt every running batch's process group is killed before the interrupt goes on, through run_all's cleanup.
+
+`Run.given` carries every Python file given, test files included, as `python_files` returns them; `run_gate` selects `sources` from it, so M and the empty run are unchanged. The mutation and backstop suites are `test_files(run.given)`; a mutation run with a changed function and no test file there is unfinished. The default `()` keeps hand-built Runs valid and fails closed.
+
+`check_with` calls `report.timed_out(output, argv[0], timeout)` for the timeout pair. The mutation gate calls neither `time_cap` nor `timed_out` and defines no separate cap line or `AT_THE_CAP` constant.
 
 **Two rules come with the core:**
 
@@ -260,18 +310,24 @@ def main(paths: list[Path]) -> int:
 
 `warm_cache(run, directory)` runs mypy on an empty program through `run.process`. It raises GateError unless mypy exits 0, prints nothing and leaves a file. No count line, exit constant, printer, temp handling or OSError handling is left in the gate. `main(paths)` keeps today's signature, so the existing tests stay green during the port.
 
+C3 measures the cost of mypy as a child process (`python -m mypy` per file, from the warm cache); it keeps `mypy.api.run` only if that cost is large.
+
 How the planned gates plug in:
 
 - **ruff lint and format (G2).** One Checker each, with one batch. check_cast's ruff JSON reader moves to `gates/ruff_report.py`, shared with check_ruff. `expected_status` is `1 if entries else 0`, and E902 and invalid-syntax entries are Unfinished. The format check reads ruff's "Would reformat" lines. The ignore list, its reason comments and per-file-ignores become KeyRules, using `config_text`, in the suppression gate, where the spec lists them.
 - **mutmut (G4) and the backstop.** These are plain `check(run)` functions, not Checkers. Each uses these core pieces:
-  - `select=non_test_files`, and the suite is `test_files(run.given)` (decision 28)
+  - `select=non_test_files`, and the suite is `test_files(run.given)`
   - `key_findings` over `[tool.mutmut]` or `[tool.coverage]`
   - `project.git("diff", "HEAD")` and `source.parse` to find changed functions
   - `scratch.copy` for the work copy
   - for mutmut, `check_mutation.run_mutmut(run, plan, *, budget)`, which runs it once through `run.process` with no timeout and no cap on the mutants it checks; its interface and its Command are the mutmut run design's (`docs/superpowers/specs/mutmut-run-design.md`)
-  - a GateError when `cpu_budget() == 0`, and `--max-children` set to `cpu_budget()` on every mutmut run (decision 30)
+  - a GateError when `cpu_budget() == 0`, and `--max-children` set to `cpu_budget()` on every mutmut run
 
-  The mutation run has no time cap and no cap on the mutants it checks: it checks every mutant of the changed functions, its scope alone drawing the line on its work, and its interface and the run's verdicts are the mutmut run design's (its decisions 1, 9 and 11). An unfinished run returns the checker's error as Unfinished first, then the findings. The branch's `mutation_gate.py`, count line, `finish`, NICE, `workers`, `stop`, git environment and its separate exit-2 paths all go.
+  `run_mutmut` calls its `budget` once, using `cpu_budget` by default, and sets `run --max-children` to that number. Zero raises GateError without starting a process. Its Command has no timeout, and the gate imposes no time cap or mutant-count cap. Each mutant's hang limit is pytest-timeout's 30 seconds under mutmut's default time limit; settings that alter that limit are findings.
+
+  The mutation gate supplies its own mutmut settings rather than the project's `[tool.mutmut]`; its dependency lock excludes pytest-xdist. A parallelism key gets a KeyRule only when the pinned checker reads it. That rule is built in `check(run)` from `cpu_budget()` and reports `pyproject.toml: <key>: raises the parallelism above the cap of <cap> workers; the run uses <cap>`. The backstop follows the same rule. C7b's FakeRunner tests assert the worker flag and budget in the recorded Command.
+
+  The mutation run has no time cap and no cap on the mutants it checks: it checks every mutant of the changed functions, its scope alone drawing the line on its work, and its interface and the run's verdicts are the mutmut run design's. An unfinished run returns the checker's error as Unfinished first, then the findings. The branch's `mutation_gate.py`, count line, `finish`, NICE, `workers`, `stop`, git environment and its separate exit-2 paths all go.
 - **pytest (G3, already built).** A Checker with one batch per test module and `outputs={"junit": ...}`; the seed line is an Outcome note.
 - **filepawl (G5), import-linter and vulture (G7), deptry and the lock check (G8).** Checkers. Each `read` guards its JSON and `expected_status` states the tool's documented exit rule. The runner makes M the Python files given, whatever else the checker reads.
 - **test-shape (G6) and wiring (G9).** In-process `check(run)` over `source.parse` of `test_files`, the Makefile and `git ls-files`. No process runs.
@@ -293,6 +349,8 @@ There are three helpers in `tests/support/`. The spec already names that directo
   - Because the test seeds the checker's whole output, "prints what the checker reported and nothing else" becomes an exact list check, `lines == [*seeded, count]`, instead of a predicate over the printed lines.
   - That removes the cause of G1l's T1 cluster (`_carries_report`, `_first_number`), which was filed three times.
 
+`scaffold` writes the config first, then `files`, so a `files` entry named `pyproject.toml` replaces it, bytes included; with `git=True` it initialises the repository and commits everything through `Project.git`, a failing git step raising `ScaffoldError` with that Completed; the `unreadable` paths lose every permission last, after the commit. Its tests sit in `tests/test_core_runner.py`, B5's one test file.
+
 **Contract suite, `tests/test_gate_contract.py`.** It holds a registry with one entry per gate script: the module, a clean source, a one-finding source with a fragment of its message, the checker's empty report, and whether the gate parses. Every case runs over every entry:
 
 - **C1** A clean run exits 0 with the count line last.
@@ -302,7 +360,7 @@ There are three helpers in `tests/support/`. The spec already names that directo
 - **C5** The empty run.
 - **C6** An unreadable file exits 2, and the other files' findings still print.
 - **C7** An unparseable file exits 2.
-- **C8** No readable report, through FakeRunner (garbage, a refusal, nonzero with an empty report, death by signal, a timeout): exit 2, and the output is exactly the checker's output followed by the count line; after a timeout, one gate line naming the cap comes between them (decision 2(ii)).
+- **C8** No readable report, through FakeRunner (garbage, a refusal, nonzero with an empty report, death by signal, a timeout): exit 2, and the output is exactly the checker's output followed by the count line; after a timeout, one gate line naming the cap comes between them.
 - **C9** A file's verdict is unchanged beside a broken file or one sharing its module name.
 - **C10** Settings come only from the project's pyproject.toml.
 - **C11** For parsing gates: a missing or malformed pin, a parse warning, or a parse too deep exits 2.
@@ -328,7 +386,7 @@ There are three helpers in `tests/support/`. The spec already names that directo
 
 That turns 7a.4, "copies are findings", into a red test.
 
-| Today (at a32db75) | Becomes |
+| Today | Becomes |
 |---|---|
 | 31 contract-type files, about 3,000 lines: cast_{contract,count_line,end,python_files,settings,unfinished}, mypy_{count,files,neighbours,tree,unfinished,unfinished_count}, pyright_{count_line,end,one_count,pinned_version,parse_limits,parse_warning,python_files,tree,unfinished}, pytest_end, suppressions_{count_line,exit_status,last,parse_exhausted,pin,pyi,reach,unfinished}, json_report_unread; also g1l's mypy/pytest unfinished_quiet, unread_only and pytest_unfinished_output | test_gate_contract.py, with the pin and parse cases in test_core_source.py |
 | cast, cast_extensions, cast_reach | test_check_cast.py |
@@ -345,27 +403,35 @@ The result is about 20 test files and about 5,000 lines, down from about 81 file
 
 Each step follows the usual chain: stub, red tests from test-writer (reading this design and the stubgen view), build, blind reviews, `make check`, one commit. Sizes count the files written; deleted test files are listed but not counted.
 
-| Step | Writes | Files |
-|---|---|---|
-| A1 | This design into `docs/superpowers/specs/`, and the decision-2 amendments into the gates spec (docs only) | 2 |
-| B1 | tests/support/capture.py, tests/test_support_capture.py | 2 |
-| B2 | gates/core/__init__.py, report.py, tests/test_core_report.py | 3 |
-| B3 | gates/core/checker.py, tests/support/fake.py, tests/test_core_checker.py | 3 |
-| B4 | gates/core/project.py, source.py, tests/test_core_project.py, tests/test_core_source.py | 4 |
-| B5 | gates/core/runner.py, tests/support/project.py, tests/test_core_runner.py | 3 |
-| C1 | check_cast onto the core | 1-3 |
-| C2 | check_pyright; json_report.py deleted | 2-3 |
-| C3 | check_mypy, with the warm cache, the child process (measured first) and a red test for (a) | 2-3 |
-| C4 | check_suppressions on source.py; parse warnings become unfinished, as the spec says | 2-3 |
-| C5 | check_pytest, with g1l's whole console output for a module pytest did not finish | 2-3 |
-| C6 | heavy.py on `checker.run` and `throttle_line` | 2-3 |
-| C7a-c | The G4 branch rebased onto the core: first gate and outcome, then processes and throttle, then copy, git and parse; C7b's interface, the mutation run having no time cap and no cap on the mutants it checks: `docs/superpowers/specs/mutmut-run-design.md` | 2-4 each |
-| D1 | test_gate_contract.py with check_cast's entry; deletes cast's 6 contract files | 1 |
-| D2-D5 | One registry entry each for pyright, mypy, suppressions and pytest; deletes their 9, 6, 8 and 1 contract files, plus json_report_unread | 1 each |
-| D6 | Behavior-file merges for cast, mypy, pyright and pytest | 4 |
-| D7-D9 | Suppressions' 23 files into 3, one topic per step | 1 each |
-| D10 | Heavy's 6 files into 1 | 1 |
-| D11 | tests/test_gates_structure.py, last, once it is green | 1 |
+A1 applies these five spec amendments:
+
+- A checker run counts as finished only when its exit status is the one its report calls for.
+- A gate's own lines are a closed set: the empty-run line, the pin error, pytest's seed, and a GateError's report (temp space, cleanup, or a checker that could not start or ran past its cap).
+- An empty run prints its count line.
+- A file given twice is one file in M.
+- G9 admits the core modules and `tests/support/` as importers alongside gate scripts and their own tests.
+
+| Step | Agent | Writes | Files |
+|---|---|---|---|
+| A1 | architect (design); general-purpose (gates spec) | This design into `docs/superpowers/specs/`, and the five spec amendments into the gates spec (docs only) | 2 |
+| B1 | test-writer | tests/support/capture.py, tests/test_support_capture.py | 2 |
+| B2 | gatesmith (source); test-writer (tests) | gates/core/__init__.py, report.py, tests/test_core_report.py | 3 |
+| B3 | gatesmith (source); test-writer (tests) | gates/core/checker.py, tests/support/fake.py, tests/test_core_checker.py | 3 |
+| B4 | gatesmith (source); test-writer (tests) | gates/core/project.py, source.py, tests/test_core_project.py, tests/test_core_source.py | 4 |
+| B5 | gatesmith (source); test-writer (tests) | gates/core/runner.py, tests/support/project.py, tests/test_core_runner.py | 3 |
+| C1 | gatesmith (source); test-writer (tests) | check_cast onto the core | 1-3 |
+| C2 | gatesmith (source); test-writer (tests) | check_pyright; json_report.py deleted | 2-3 |
+| C3 | gatesmith (source); test-writer (tests) | check_mypy, with the warm cache, the child process (measured first) and a red test for (a) | 2-3 |
+| C4 | gatesmith (source); test-writer (tests) | check_suppressions on source.py; parse warnings become unfinished, as the spec says | 2-3 |
+| C5 | gatesmith (source); test-writer (tests) | check_pytest, with g1l's whole console output for a module pytest did not finish | 2-3 |
+| C6 | gatesmith (source); test-writer (tests) | heavy.py on `checker.run` and `throttle_line` | 2-3 |
+| C7a-c | gatesmith (source); test-writer (tests) | The G4 branch rebased onto the core: first gate and outcome, then processes and throttle, then copy, git and parse; C7b's interface, the mutation run having no time cap and no cap on the mutants it checks: `docs/superpowers/specs/mutmut-run-design.md` | 2-4 each |
+| D1 | test-writer | test_gate_contract.py with check_cast's entry; deletes cast's 6 contract files | 1 |
+| D2-D5 | test-writer | One registry entry each for pyright, mypy, suppressions and pytest; deletes their 9, 6, 8 and 1 contract files, plus json_report_unread | 1 each |
+| D6 | test-writer | Behavior-file merges for cast, mypy, pyright and pytest | 4 |
+| D7-D9 | test-writer | Suppressions' 23 files into 3, one topic per step | 1 each |
+| D10 | test-writer | Heavy's 6 files into 1 | 1 |
+| D11 | test-writer | tests/test_gates_structure.py, last, once it is green | 1 |
 
 That is 26 steps.
 
@@ -374,7 +440,7 @@ During the C steps, the old tests stay green because `main(paths)` keeps its sig
 In-flight work:
 
 - **g1l and mypy-cache: neither is committed.** Their code is harvested (A1, B2, C2, C3, C5). Left of g1l's tests: the two unfinished_quiet files, unread_only and pytest_unfinished_output become C8 cases with exact expected lines (D1-D5), and imported_blocker moves to test_check_mypy.py (D6). g1l's captured_output.py, which runs gate code in a child, and mypy-cache's write_recorder.py are dropped: a scratch root the test owns, plus C12, proves placement and cleanup.
-- **G4 branch (e46e613): pause G4-3b B1-B4 until C7.** Then re-judge each finding against the ported code. B2 (copy2's OSError escaping) and the macOS throttle failure both fall under core rules and should disappear.
+- **G4 branch: pause G4-3b B1-B4 until C7.** Then re-judge each finding against the ported code. B2 (copy2's OSError escaping) and the macOS throttle failure both fall under core rules and should disappear.
 - **Queue items:** G1e and G1h remain spec questions; each later changes one adapter, or `python_files` only.
 - **Worktrees:** each stays as a reference until its harvest step lands, then it is removed.
 
@@ -391,7 +457,7 @@ Before each milestone's first chunk, one design step produces a document like th
 What each milestone's design step must settle:
 
 - **M1:**
-  - one record-type module and one JSON codec for `state.json` and `trace.jsonl`
+  - one definition per record in its domain module: answer primitives in `gauntlet/core/verdicts.py`, design records in `gauntlet/core/design.py`, cause records in `gauntlet/core/causes.py`, and workflow/recovery records in `gauntlet/core/records.py`; design and cause records retain their existing homes (`gauntlet/core/design.py:15`, `gauntlet/core/causes.py:12`); one JSON codec and catalog covers every domain for `state.json` and `trace.jsonl` (`docs/superpowers/specs/m1-core-records-design.md:673`)
   - one family of typed errors that carry data (the "No copy" bullet)
   - the stage table and round caps as data that `decide` reads
   - a role registry, so "every role has a schema" is a contract test over it, as C13 is here
@@ -410,47 +476,12 @@ What each milestone's design step must settle:
   - the land decision's inputs as one record
   - the layout of the fixture repository and the end-to-end harness
 
-## 6. Decisions for the owner
+M1 record homes follow the module map and interfaces in `docs/superpowers/specs/m1-core-records-design.md:25`, `docs/superpowers/specs/m1-core-records-design.md:79`, `docs/superpowers/specs/m1-core-records-design.md:537` and `docs/superpowers/specs/m1-core-records-design.md:673`:
 
-Decisions 1, 4 and 5 stand as section 7 records them. Of 1: the git top level, as G4's `tree_root` finds it, was weighed and refused, since it puts a repository in every test tree; the test-file rule's `tests` directory stays one constant in project.py.
-
-2. **Spec amendments in A1.** I recommend all five:
-   - (i) a checker run counts as finished only when its exit status is the one its report calls for
-   - (ii) a gate's own lines are a closed set: the empty-run line, the pin error, pytest's seed, and a GateError's report (temp space, cleanup, or a checker that could not start or ran past its cap). This reconciles g1l's "nothing of its own" with mypy-cache's "prints the error".
-   - (iii) an empty run prints its count line, as "on every run" reads
-   - (iv) a file given twice is one file in M
-   - (v) G9's "nothing imports it except gate scripts and its own tests" also admits the core modules and `tests/support/`; as written, the core importing itself would be a finding
-3. **mypy as a child process.** I recommend running `python -m mypy` per file from the warm cache, replacing `mypy.api.run`. `api.run` let the MYPYPATH refusal escape its capture, shares the gate's interpreter state, and keeps mypy out of the single Checker driver.
-
-## 7. Decisions taken (2026-10-20)
-
-- 1, project root: the working directory, with a `project=` parameter for tests and other callers; never relative to `gates/`, never a nearer pyproject.toml. (Void, technical.)
-- 2, spec amendments: all five, (i) to (v), as written above, land in step A1. (Void, technical.)
-- 3, mypy as a child process (`python -m mypy` per file, from the warm cache), with its cost measured in C3; keep `mypy.api.run` only if that cost is large. (Void, technical.)
-- 4, the core lives in `gates/core/` inside Gauntlet for now: standard library only, nothing Gauntlet-specific, extractable later for HQPTuner. (Owner.)
-- 5, in-flight work: g1l and mypy-cache are not committed; their good parts are harvested as section 4 describes. G1l, G-mypy-cache, G-mypy-cache-gap, T-capture, G1f and G1m fold into the core steps and close. G4-3b B1-B4 pause until C7. (Owner.)
-- 6, GateError keeps `.report`, the report as given, and the runner reads that named field. (Void, technical.)
-- 7, `render` passes every Finding and Remark text through `one_line`, the one home for that rule. (Void, technical.)
-- 8, `render` passes each Unfinished text through `output_lines`, the one home for that rule. (Void, technical.)
-- 9, `python_files` on a path it cannot read: a path that names nothing (it or a directory on it does not exist) or that is no regular file is no Python file; a `.py` or `.pyi` whose kind cannot be read, or an extensionless file whose kind or first line cannot be read, is taken as one, so the checker reports it unreadable and the run exits 2 rather than dropping it. This keeps `is_python_source`'s rule. (Void, technical, B4.)
-- 10, `setting(*keys)` is None when any key is absent or a value on the way to the last key is no table. (Void, technical, B4.)
-- 11, `settings()` and `config_text()` come from one read of the file per Project, as UTF-8: a file that cannot be read or decoded is a GateError naming the file from either, and a change after the first read is not seen. (Void, technical, B4.)
-- 12, `git` drops every variable whose name starts with `GIT_`, through `environment(drop_prefixes=("GIT_",))`, not a list of the variables a hook exports. (Void, technical, B4.)
-- 13, `key_findings`: a rule whose key is absent is no finding and its `breaks` is not called; each broken rule gives one Finding, in the order of the rules, reading `pyproject.toml: <keys joined by .>: <says>`. (Void, technical, B4.)
-- 14, `pinned_version` also refuses a version the parser has no grammar for, outside 3.7 to the running interpreter's own, as `pinned_grammar` did, since `ast.parse` takes such a version and parses with another grammar. Its GateError names `tool.pyright.pythonVersion` and the file. (Void, technical, B4.)
-- 15, `parse`'s report names the file as given: `<given>: <ErrorType>: <error>` for an error, and one `<given>:<line>: <Category>: <message>` line per warning, recorded whatever the caller's warning filters say, which are left as they were. It parses before it tokenizes: the tokenizer copies a token's whole line into every token, about 10 GB for a 100,000-deep one-line source, so a file too deep to parse stops at the parse. (Void, technical, B4.)
-- 16, `comment_markers` gives one entry per comment token that carries any marker: its start line, then the names of the markers it carries in the order of `markers`. Strings are never searched. (Void, technical, B4.)
-- 17, `Scratch` makes the run's own temp dir, with `tempfile.mkdtemp` in its root, at the first `directory`, `copy` or `once`, not in `__init__`: a run that asks for no temp space makes none, so a missing scratch root fails only a gate that uses one, and `close` then deletes nothing and returns None. A root it cannot make the run's temp dir in is a GateError naming the root and the OS error. (Void, technical, B5.)
-- 18, `directory(name)` and `copy(tree, name)` give a new path on every call, its last component starting with `name`, so one name twice gives two paths, as mypy's one cache copy per file needs. `copy` puts the tree's contents at that path, following symlinks, so no entry of the copy links back into the tree; a tree it cannot copy is a GateError naming the tree and the OS error. (Void, technical, B5.)
-- 19, `once(name, make)` keeps a path only after `make` returns: a `make` that raises is not kept, its error goes to the caller, and the next call with that name builds again. Each name is built apart from the others. (Void, technical, B5.)
-- 20, `close` deletes the run's temp dir and all it holds, making a read-only directory inside it writable on the way, and changes no mode outside it. A deletion that fails returns `cannot delete the temp space <path>: <error>`; after `close` the Scratch holds nothing, so a second `close` returns None. (Void, technical, B5.)
-- 21, `check_with` reads a status in `stopped` before it compares it with `expected_status`, so a stop is never a finish; a stopped batch whose `lines` hold no Unfinished gets one more, the checker's whole output, so a stopped batch always ends unfinished. (Void, technical, B5.)
-- 22, after a timeout `check_with` reads no report: its lines are an Unfinished of the checker's whole output, then an Unfinished of the gate's own line `the checker <argv[0]> ran past its time cap of <timeout> seconds`. (Void, technical, B5.)
-- 23, a GateError or OSError from `command` or from `run.process` ends `check_with` at that batch: the lines of the batches before it stand, then an Unfinished of the error's report, and no later batch runs. An OSError's report, here and in `run_gate`, is `str(error)`. (Void, technical, B5.)
-- 24, `run_gate`: the `given` of `nothing_checked` is `len(paths)`, every path as given; an error before or in `gate.check` gives an Outcome of its one Unfinished line; a failure `close` returns is an Unfinished after the Outcome's lines; on an interrupt `close` runs and the interrupt goes on, nothing printed. Every line goes to stdout. `main` runs `run_gate` over `sys.argv[1:]` and exits with its code. (Void, technical, B5.)
-- 25, `scaffold` writes the config first, then `files`, so a `files` entry named `pyproject.toml` replaces it, bytes included; with `git=True` it initialises the repository and commits everything through `Project.git`, a failing git step raising `ScaffoldError` with that Completed; the `unreadable` paths lose every permission last, after the commit. Its tests sit in `tests/test_core_runner.py`, B5's one test file. (Void, technical, B5.)
-- 26, concurrent batches are a core feature, so check_pytest keeps running its modules in parallel: `run_all(process, commands, cap, *, next_done=first_done)` runs each Command through `process` in worker threads, at most `cap` (1 or more) at once. It takes the next Command from `commands`, in the main thread, only when fewer than `cap` are running, so Commands are made and started in their order. Every wait on its workers, for one to end and in the cleanup for all of them, goes through `next_done`, with no timeout; it never looks at its Runner to find a wait. It returns one result per Command started, in the order of `commands` whatever the order they finish in: the Completed, or the GateError or OSError that taking the Command or calling `process` raised. Such an error stops it: no Command is taken once one is seen, the ones running are waited for, and the list ends at the first error in command order, so what stands never depends on finish order. Any other exception from `process` goes on after the cleanup below. While it runs, the main thread answers ENDING_SIGNALS as `run` does; on any exception there, a signal's included, it holds signals, kills once the process group of every checker `run` has started, in any thread, and not yet reaped, waits through `next_done` until no worker is running, puts the handlers back, and only then do the exception and each signal recorded take their course. While it waits, each checker `run` starts is killed as it is added to the live set, under the lock that add takes, so the cleanup has no poll and no poll interval. (Coordinator ruling; technical, core-batches. Waits and cleanup: no-wall-clock design, decisions 7, 9 and 10.)
-- 27, `check_with(checker, *, budget=None)`: `budget` is the CPU budget the cap is sized by, `cpu_budget` for check_pytest; None runs one batch at a time, so every gate built before it keeps its order and its tests. `budget` is called once per check, after `batches` and before the first `command`; the cap is `max(1, budget())`, so a host of 0 or 1 CPUs still runs one batch at a time, and a GateError or OSError from it is the Outcome of its one Unfinished, with no batch run. The batches run through `run_all`, each batch's command made in batch order; each batch's lines follow the lines of the batch before it, whatever the order they finished in. A GateError or OSError ends the check as decision 23 says, at the first failing batch in batch order: no batch starts once it is seen, and no later batch gives a line, even one that finished. On an interrupt every running batch's process group is killed before the interrupt goes on, as decision 26 says. (Coordinator ruling; technical, core-batches.)
-- 28, `Run.given` carries every Python file given, test files included, as `python_files` returns them; `run_gate` selects `sources` from it, so M and the empty run are unchanged. The mutation and backstop suites are `test_files(run.given)`; a mutation run with a changed function and no test file there is unfinished. The default `()` keeps hand-built Runs valid and fails closed. Refused: `select` returning two lists, selecting inside `check`, re-reading the paths. Reason: two gates need it. (Void, technical, C7b.)
-- 29, `report.time_cap` is the one home of the cap line and `report.timed_out` of a capped checker's pair, its whole output then that line; `check_with` calls `timed_out(output, argv[0], timeout)`, so decision 22's output is unchanged. The mutation gate has no time cap and calls neither, and has no cap on the mutants it checks. C7a's `AT_THE_CAP` goes. Refused: the gate's own wording, a second copy. (Void, technical, C7b.)
-- 30, mutmut 3.8.0 takes its workers only from `run --max-children`, which `run_mutmut` sets to its `budget`'s number, `cpu_budget` by default, called once, 0 a GateError with no process run; mutmut has no wall-clock key, and the gate has no wall-clock cap: its driver Command has no timeout and so no cap line, it has no cap on the mutants it checks, and each mutant's hang limit is pytest-timeout's 30 seconds under mutmut's default time limit, whose keys are findings. The gate never hands mutmut the tree's `[tool.mutmut]`, and the lock holds no pytest-xdist, so no key can raise the worker cap and no row is written for one; C7b proves the flag in the Command FakeRunner records. A key a pinned tool gains later is a KeyRule row built in `check(run)` from `cpu_budget()`, reading `pyproject.toml: <key>: raises the parallelism above the cap of <cap> workers; the run uses <cap>`, the backstop alike. Refused: a row for `max_children`, which mutmut never reads. Reason: a finding names a key that sets something. (Void, technical, C7b.)
+| Shared concern | One home | Forbids elsewhere |
+|---|---|---|
+| Answer primitives | gauntlet/core/verdicts.py | Duplicate answer primitives in any domain or consumer. |
+| Design record definitions | gauntlet/core/design.py | Moving or copying design records into verdicts, records or a consumer. |
+| Cause record definitions | gauntlet/core/causes.py | Moving or copying cause records into verdicts, records or a consumer. |
+| Workflow and recovery records | gauntlet/core/records.py | A second definition of a workflow or recovery record. |
+| Record serialization | gauntlet/core/codec.py | Domain-specific codecs or duplicate record catalogs. |

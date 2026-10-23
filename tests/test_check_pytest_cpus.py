@@ -7,7 +7,7 @@ are test modules up to floor(C / 2) and never fewer than one, where C counts the
 read in the gate's own process: the CPUs its affinity allows where the host keeps an affinity. The exit codes come from
 the "Gates" intro paragraph.
 
-The no-wall-clock design Order steps 37-41 measure concurrency through Scripted and its own next_done.
+Concurrency follows tests/support/scripted.py: Scripted pairs with its own next_done.
 """
 
 import os

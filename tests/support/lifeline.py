@@ -1,8 +1,7 @@
 # Copyright 2026 oh shit, gorillas!
 """Child processes held, met and ended by pipes: every wait a test makes on a real process.
 
-Design: the no-wall-clock design spec under docs/superpowers/specs/, the `tests/support/lifeline.py` module. Each wait
-is an event on a pipe or FIFO, blocked on with no timeout: pytest-timeout is the one bound on a test that hangs. A
+Each wait is an event on a pipe or FIFO, blocked on with no timeout: pytest-timeout is the one bound on a test that hangs. A
 `Lifeline` is a pipe whose write end only the test holds, so a child reading its read end to end of file lives until
 the test releases it. A `Witness` is a FIFO the test reads; every process that opens it to write is a holder, and its
 end of file comes only when every holder has closed it. A `Beacon` is a pipe a child writes one ready line on, its write
@@ -17,6 +16,15 @@ until both ends are open, so it returns once the other side has opened it.
 
 `Beacon.seen` closes the test's write end before it reads, so its read ends on the child's line or, when every child
 holding the write end has closed it without writing, at once on end of file; neither path waits on time.
+
+Tests and their child or seeded code use events, never sleeps, deadline loops, file polls or positive blocking-wait
+timeouts; a Clock's cap is passed only as the seconds keyword. Pids owns leftover cleanup by PID: per-file
+_kill_leftovers helpers and kills by name are forbidden.
+
+pytest-timeout is the sole bound, using its default signal method; pyproject.toml sets no timeout_method. A thread
+blocked by a test must be releasable from that test's thread, unless Scripted owns and closes the wait.
+
+test-reviewer enforces child-code wait rules and, until G6 enforces it, Scripted's pairing with its own next_done.
 """
 
 import contextlib

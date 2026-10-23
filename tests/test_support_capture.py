@@ -1,21 +1,20 @@
 # Copyright 2026 oh shit, gorillas!
 """Red tests for the test-support capture helper.
 
-Source: the capture design spec under docs/superpowers/specs/, its Modules and Decisions sections: each
+Source: tests/support/capture.py: each
 of fds 1 and 2 points at a pipe of its own for the length of the call, so a write blocks as it would on a pipe, is never
 cut and never fails for size; a call that raises propagates unchanged, as itself, and its `Output` is read as data
 through `output_of(exc)`, not through an attribute on the exception, while `output_of` on an exception `captured` never
-recorded raises `CaptureUnrecordedError` carrying that exception (decision 2). Once the call has ended, `captured`
-keeps no bound of its own on a holder of fd 1 or 2: pytest-timeout is the one bound (the capture design's "A holder left
-behind" bullet and decision 3), so no test here holds the fds past the call.
+recorded raises `CaptureUnrecordedError` carrying that exception. Once the call has ended, `captured`
+keeps no bound of its own on a holder of fd 1 or 2: pytest-timeout is the one bound (tests/support/capture.py), so no test here holds the fds past the call.
 
-Order, decision 1: `.out` and `.err` hold each fd's lines exactly in the order written, and `.merged` holds every line of
+Order: `.out` and `.err` hold each fd's lines exactly in the order written, and `.merged` holds every line of
 both, each placed by the arrival of its first byte, so a line one stream interrupts mid-line is whole and placed where
 it began. A write through this process's `sys.stdout` or `sys.stderr` is placed exactly; raw writes to the two fds, from
 `os.write` or a child, with no stream write between them, may be merged in either fd's order. A write that works
 uncaptured works captured, bytes that are not UTF-8 included.
 
-Lines, the capture design's paragraph after the Modules bullets: "`_lines` is the one place captured bytes become lines.
+Lines, tests/support/capture.py: "`_lines` is the one place captured bytes become lines.
 It splits each fd's text at every `str.splitlines` boundary, each line keeping its line end", so the lines of each fd are
 those `str.splitlines(keepends=True)` makes of what it was written.
 
@@ -26,11 +25,11 @@ the file-descriptor level, and everything is restored in `finally`, then its rea
 none of its threads is left running once it returns or raises. It sees writes to either Python stream in the order
 made, direct fd writes, and a checker child's output.
 
-Cleanup, the capture design's "Cleanup" bullet: on every exit path, an interrupt included, the `sys` streams are restored,
+Cleanup, tests/support/capture.py: on every exit path, an interrupt included, the `sys` streams are restored,
 fds 1 and 2 are restored from saved duplicates, every fd capture opened is closed, since a `ResourceWarning` is an error,
 and the reader is joined before `captured` returns or raises. A failure partway through setting up is an exit path too:
 here it is the process running out of fds, which Python reports as `OSError` with errno `EMFILE` (`os.pipe`, `os.dup`).
-The capture design's "Setup failure" bullet: after that same cleanup, `captured` raises `CaptureSetupError`, carrying the
+Setup failure, tests/support/capture.py: after that same cleanup, `captured` raises `CaptureSetupError`, carrying the
 errno and the step that failed, making a pipe (`pipe`), a dup (`dup`) or the reader thread (`reader`); no bare `OSError`
 leaves the helper.
 """
@@ -312,7 +311,7 @@ def test_captured_keeps_a_line_another_stream_interrupts_mid_line_whole_and_plac
 def test_captured_splits_what_each_fd_was_written_into_lines_as_str_splitlines_does() -> (
     None
 ):
-    """Capture design, the `_lines` paragraph: each fd's text splits at every `str.splitlines` boundary."""
+    """tests/support/capture.py: each fd's text splits at every `str.splitlines` boundary."""
 
     def call() -> None:
         sys.stdout.write(_SPLIT_HEAD)

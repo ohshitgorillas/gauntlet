@@ -23,7 +23,7 @@ Each section states a mechanism, then lists the approaches it replaces under **N
 
 **Loops are capped by a counter.** Every review loop has a round cap (default 2). Each round is a fresh agent that reads the current files from the job record; no agent is resumed. At the cap the job stops and shows you both sides.
 
-- Not instead: review until convergence. The arbiter loops never converged, and they burned tokens agreeing with themselves.
+- Not instead: review until convergence. Arbiter loops have no convergence guarantee and can spend tokens agreeing with themselves.
 
 **Decisions are pure functions.** Every decision the harness makes, such as the next stage, whether a job may land, or which jobs may start, is a pure function of the job state and the latest answer, with a unit test for every branch. The code that touches disk, git, containers and the API is a thin layer around them.
 
@@ -38,10 +38,10 @@ A job runs these stages in order. "You approve" means the job waits at a screen 
 | Outline | planner (reader) | brief, discovery table | steps, the implementer for each, the areas each touches, a shared-structure flag | you approve or redirect |
 | Design | architect (reader) | brief, outline, discovery table | modules with stubs, a home for each shared concern, step order, choices; only when the outline carries the flag | `design_problems` empty, then you rule each choice and approve |
 | Plan | planner and prosecutor (readers), in rounds | brief, outline (a structure job: the approved design instead), discovery, objections | plan; per-check `PASS` / `FAIL` / `COULD NOT JUDGE` | prosecutor passes every check, then you approve |
-| Spec | planner, examiner (scratch), arbiter (judge), in rounds | brief, plan | behavior lines `S1…` with `bite:` values, collateral rows; per-line rulings | arbiter accepts every line, then you approve |
+| Spec | planner, examiner (scratch), arbiter (judge), in rounds | brief, plan | behavior lines `S1…` with `bite:` values, explicit RED/GREEN start marks and preserved test ids, collateral rows; per-line rulings | arbiter accepts every line, then you approve |
 | Stubs | implementer | the plan's stub step | signatures whose bodies only raise | — |
 | Tests | scriveners (tester) | spec lines routed to them, interface view | tests, with test ids per spec line | — |
-| Red run | harness, then juror (judge) | every configured test runner; spec, tests, red output | `RED` / `ERROR` / `GREEN` / `INVALID` / `COULD NOT JUDGE` per line | every line `RED` |
+| Red run | harness, then juror (judge) | every configured test runner; spec, tests, red output | `RED` / `ERROR` / `GREEN` / `INVALID` / `COULD NOT JUDGE` per line | every line matches its approved start mark and bound test ids |
 | Lock | harness | — | commit of the tests on the job branch | — |
 | Build | implementers, one plan step each | the step, the locked tests | `complete` / `partial` / `blocked`, with a reason, or a CoreMissing | step's tests and gates green |
 | Review | repo reviewers and the structure reviewer (readers), the grouper (judge) | the diff, supplied by the harness; the approved design, if any | `Finding` records (`core/verdicts.py`), grouped into causes | no blocking findings |
@@ -58,17 +58,19 @@ Notes on the stages:
   - Each plan step lists the spec lines it serves (filled in at the Spec stage), the stubs it needs, and the files it expects to touch.
 - **Spec.**
   - A `bite:` value is the measured behavior a test pins. The examiner measures any `bite:` value that needs a script or a rendered state space. It runs on a throwaway copy of the tree.
+  - Every line explicitly declares RED for new behavior or GREEN for existing behavior with a nonempty, unique set of existing test ids. You approve the mark and preserved ids with the claim and bite; changing them requires approval again. A structure job includes every candidate keeps claim verbatim, with either mark as its behavior requires.
+  - Before stub or test edits, the harness captures the complete decorated source and parametrization of every preserved test. GREEN tests retain every input and assertion and pass on both implementations; the harness checks exact source identity before Lock and Land. All lines must pass the final runs.
   - Collateral rows name existing tests that the change alters or retires, and quote the assertion that must survive.
   - The planner routes each line to a tester by the testers' one-line descriptions.
 - **Design.** The stage runs only when the planner's outline flags that the job creates or changes shared structure. Any other job goes from Outline to Plan, and the land screen shows Design as skipped by rule. A design with any `design_problems` is a failed round under `caps.design`. The owner rules each choice and approves.
-- **Stubs.** The approved design's stubs are written before any plan step's own. Stubs let the red run fail on assertions (`RED`) instead of on missing imports (`ERROR`). A `GREEN` verdict at the red run sends the line to the arbiter, which rules whether the spec or the stub is at fault.
+- **Stubs.** The approved design's stubs are written before any plan step's own. Stubs let new behavior fail on assertions (`RED`) instead of on missing imports (`ERROR`). Existing implementations exercised by GREEN lines remain until the starting runs finish. A verdict that differs from the approved mark goes to the arbiter under the juror cap; it never changes the mark.
 - **Tests.**
   - A line the scrivener cannot test goes back to the arbiter instead of getting a weak test.
   - For a collateral row, the scrivener repairs the code around the quoted assertion. The harness checks that the assertion is byte-identical.
-- **Red run.** The harness runs every runner in `gauntlet.yaml`, not just one. A test that passes before any implementation exists reopens its spec line.
-  - Not instead: a pytest-only red run. It once ignored the JS tests entirely.
+- **Red run.** The harness runs every runner in `gauntlet.yaml`, not just one. Every approved line requires exactly one verdict row with its exact bound ids: RED requires failing behavioral assertions, GREEN requires its preserved tests to pass. Missing, duplicate or unknown rows, wrong ids, ERROR, INVALID and COULD NOT JUDGE block. GREEN on a RED line fails just as RED on a GREEN line does; mismatches go to the arbiter under the juror cap.
+  - Not instead: a pytest-only red run. It ignores JS tests.
 - **Juror.** Its verdict stops the pipeline. The juror cannot be overruled by any agent; only you can, through `accept`.
-  - Not instead: a juror whose verdict advises. A juror without teeth was ignored.
+  - Not instead: a juror whose verdict advises. Its verdict must stop the pipeline.
 - **Build.**
   - When a test fails, the implementer either fixes the code or returns `spec_defect`.
   - A `partial` step goes to a fresh implementer, starting from that step's diff. A step is never re-run on top of its own partial work.
@@ -137,7 +139,7 @@ Harness tools (`run_tests`, `open_job`, `job_status`, `job_record`) are in-proce
 
 Launches load no host settings, hooks or instruction files (`setting_sources=[]`, `strict_mcp_config=True`, `permission_mode="dontAsk"`, a tmpfs home). Every container but a judge's sees the job tree at `/work`; every container runs as a non-root user with all capabilities dropped and `no-new-privileges`, and is removed when the launch ends. Job folders are mounted with `:z` so SELinux labels allow access.
 
-Mounts that are bound into a container are locked. Measured on Fedora 44 with podman 5.8.9: unmounting, remounting and new namespaces from inside all fail to make a read-only path writable.
+Mounts that are bound into a container are locked: unmounting, remounting and new namespaces from inside all fail to make a read-only path writable. The platform and version scope of this evidence is in [`measured.md`](measured.md).
 
 ### Measured
 
@@ -154,7 +156,7 @@ The measured evidence behind this section (versions, commands, decisive outputs)
 
 The job checkout is a git worktree at `.gauntlet/jobs/<id>/tree`. Containers see it only as `/work`. The harness alone knows the host path, and it runs every git command on the host with an explicit `--git-dir` and `--work-tree`. Agents never run git; inside a container, `.git` points at a host path that is not mounted.
 
-- Not instead: each tool resolving which checkout it is in. The old resolvers (worktree, symlink, `CLAUDE_PROJECT_DIR`) disagreed with each other.
+- Not instead: each tool resolving which checkout it is in. Worktree, symlink and `CLAUDE_PROJECT_DIR` resolvers can disagree with each other.
 - The old read-only mounts broke git, pre-commit, worktrees and fixtures with EROFS. Agents no longer run any of them. What still breaks under a read-only `tests/` is a test that writes into `tests/` (snapshot updates, fixtures written in place). Those tests are fixed to write elsewhere.
 
 ### Implementer containers
@@ -162,12 +164,12 @@ The job checkout is a git worktree at `.gauntlet/jobs/<id>/tree`. Containers see
 - The job tree is mounted writable, with `tests/` and the protected set mounted read-only on top.
 - `.git` is mounted read-only. A writable `.git` file could be pointed at a directory the implementer controls, with settings such as `core.fsmonitor`, and the harness's next git command on the host would run the implementer's code.
 - No credentials are inside. The harness runs a forwarding proxy that adds the API key to each request, and the container reaches it through `ANTHROPIC_BASE_URL`. The container has no other network access unless `gauntlet.yaml` allows it.
-- A CLI with no credential refuses before it sends anything (measured, `measured.md`), so `ANTHROPIC_BASE_URL` alone is not enough. The launcher gives the container a placeholder credential that the CLI accepts and that is worth nothing outside the proxy. The proxy drops it and adds the real key to each request. The placeholder is `ANTHROPIC_API_KEY` set to a fixed dummy value. With it set and the proxy unreachable, the CLI prints no refusal (measured, `measured.md`). The CLI sends its requests to the proxy with the placeholder as `x-api-key` (measured, `measured.md`).
-- Default rootless networking cannot reach a proxy bound to host loopback (measured, `measured.md`). The proxy opens no TCP port on the host. It listens on a unix socket in a harness-owned folder, bound into the container with `:z`. A process on the host cannot hold that socket: a `container_t` process connecting to a socket held by a host process gets `Permission denied`, even with mode 666, the same uid and a `container_file_t` label (measured, `measured.md`).
+- A CLI with no credential refuses before it sends anything, so `ANTHROPIC_BASE_URL` alone is not enough. The launcher gives the container a placeholder credential that the CLI accepts and that is worth nothing outside the proxy. The proxy drops it and adds the real key to each request. The placeholder is `ANTHROPIC_API_KEY` set to a fixed dummy value. With it set and the proxy unreachable, the CLI prints no refusal. The CLI sends its requests to the proxy with the placeholder as `x-api-key`. Evidence: [`measured.md`](measured.md).
+- Default rootless networking cannot reach a proxy bound to host loopback. The proxy opens no TCP port on the host. It listens on a unix socket in a harness-owned folder, bound into the container with `:z`. A process on the host cannot hold that socket: a `container_t` process connecting to a socket held by a host process gets `Permission denied`, even with mode 666, the same uid and a `container_file_t` label. Evidence: [`measured.md`](measured.md).
 - So the proxy runs in its own sidecar container, one per launch. The sidecar does not run the pinned image: that image carries the repository's toolchain, and no repository code runs next to the key. It runs the proxy image, which the harness builds from `docker.io/library/python:3.13-slim` pinned by digest plus the harness's own `gauntlet` wheel, built from the installed Gauntlet. Its command is `python -m gauntlet.seams.proxy /run/gauntlet/proxy.sock`. The sidecar runs with podman's default rootless network and the API key as a podman secret that only it mounts.
 - Both containers bind the socket folder and run under the same SELinux level, which the harness picks per launch and passes to both as `--security-opt label=level:s0:<cA>,<cB>`. Inside the role's container, a relay from the pinned image listens on container `127.0.0.1:<port>` and forwards to that socket, and `ANTHROPIC_BASE_URL` is `http://127.0.0.1:<port>`.
 - Every role container, judges included, and the harness's gate and test containers run with `--network none`, so they have loopback and, for role containers, the socket, and nothing else. The proxy sidecar is the only container on a network, apart from implementer containers under `implementer_network: true` below. That is how the tester's "No network", a judge's launch and `implementer_network: false` are enforced: there is no interface to reach anything through. `implementer_network: true` swaps `--network none` for podman's default rootless network for implementer containers only, and the proxy still comes through the socket.
-- pasta with `-T` was rejected: it adds a forwarded port on top of ordinary outbound access, and with every capability dropped the container cannot filter that access itself. `--network none` leaves a container only `lo` and nothing off the box (measured, `measured.md`). A role container at the sidecar's SELinux level reaches the proxy through the socket (measured, `measured.md`).
+- pasta with `-T` adds a forwarded port on top of ordinary outbound access, and with every capability dropped the container cannot filter that access itself. `--network none` leaves a container only `lo` and nothing off the box. A role container at the sidecar's SELinux level reaches the proxy through the socket. Evidence: [`measured.md`](measured.md).
 - An implementer may run tests while it works. Those runs are only advisory. The harness's own gate run is the one that counts.
 
 ### The protected set
@@ -233,7 +235,7 @@ Every stop shows one screen: what stopped, both sides of any disagreement, and y
 | `gauntlet edit <id>` | Edit the stage's file or the tree, then `resume`. The harness commits your edit as an owner commit. |
 | `gauntlet skip <id> <stage>` | Drop a stage |
 | `gauntlet eject <id>` | The harness steps out and leaves branch `gauntlet/<id>` and the job folder for you |
-| `gauntlet resume <id>` | Continue from `state.json` |
+| `gauntlet resume <id>` | Continue from `state.json`, automatically recovering interrupted background work |
 
 These commands exist only on the host CLI, which no container contains. Every use is recorded and shown on the land screen. A bypassed job can land, but the screen says exactly what did not go through.
 
@@ -270,7 +272,9 @@ All records live in `.gauntlet/`, which the harness adds to `.git/info/exclude`.
   trace.jsonl      coordinator launches, plus a total of each job's cost
 ```
 
-Every file is plain text, so a job survives a harness crash. `resume` restarts from `state.json`, and `eject` hands you everything as is.
+Every file is plain text, so a job survives a harness crash. `state.json` is authoritative, including the launch ledger; `trace.jsonl` is its repairable projection. `resume` continues ready work with its saved identity and inputs. For started work it automatically restores the effect's workspace checkpoint, discards unfinished output and dispatches fresh agent/check work with the same logical inputs, without spending a round or requesting owner approval. Completed work and approvals survive; interrupted launch and check rows remain visible.
+
+Before commit or land work, the executor saves the exact git intent. Recovery verifies the reference and prepared commit, reconstructs a lost receipt when the intent already happened, or restores the checkpoint before retrying it. An unreferenced commit object alone proves nothing; a lost receipt never causes a duplicate git effect. Recovery is idempotent across another crash. Missing executor capabilities stop explicitly, and corrupt state or contradictory recovery evidence raises a typed error. `eject` hands you everything as is.
 
 ## 8. Harness layout
 
@@ -278,12 +282,22 @@ Every file is plain text, so a job survives a harness crash. `resume` restarts f
 gauntlet/
   core/              pure, no I/O, one unit test per branch
     decide.py        decide(state, answer) -> next action
-    verdicts.py      every answer schema and the anchor type, COULD NOT JUDGE handling
-    design.py        the design record and what makes it valid
-    causes.py        findings grouped into causes, each routed to one fix
+    verdicts.py      answer primitives and anchors, COULD NOT JUDGE handling
+    design.py        canonical design records and what makes them valid
+    causes.py        canonical cause records; findings grouped and routed to one fix
+    records.py       composite answers, workflow state, spec marks and recovery records
+    codec.py         one catalog of domain records, wire envelopes and schema export
+    errors.py        typed product errors
+    red.py           required starting verdicts and preserved-test binding validation
+    roles.py         role/kind/schema associations
+    config.py        pure configuration validation and defaults
     reopen.py        spec line -> affected tests and steps
     schedule.py      which epic jobs, plan steps and structure jobs may start (`startable`)
     land.py          land or refuse
+```
+
+```
+gauntlet/
   seams/             thin I/O around the core
     cli.py           every command in §6, plus new, run, epic, audit, status, reopen
     git.py           worktrees, commits, land; the only place git runs
@@ -291,10 +305,14 @@ gauntlet/
     proxy.py         the credential proxy
     tools.py         run_tests, open_job, job_status, job_record
     runner.py        harness-owned test and gate runs
-    job.py           job, epic, design, cause, offer and survey records; opens structure jobs
+    job.py           durable state/trace I/O, checkpoints, locking and owned temporary cleanup
+    config.py        explicit-root YAML access through the pure validator
+    resume.py        dispatch and automatic recovery through an injected executor
     screens.py       everything you see
 roles/               fixed role prompts, each naming its answer schema, plus
                      the general implementer and general tester
 ```
 
 Each role's rules live in its prompt file and nowhere else.
+
+Each record has one definition in its domain home; records.py imports domain records without re-exporting them, and codec.py catalogs them once. The M1 contracts and recovery protocol are specified in [`superpowers/specs/m1-core-records-design.md`](superpowers/specs/m1-core-records-design.md). M1 proves the injected protocol with real durable job files; M2 and M3s supply actual process, workspace, git and check/land adapters.
