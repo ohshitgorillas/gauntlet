@@ -6,8 +6,6 @@
 
 2. Step 1: "Steps 1 to 4 run beside C7b" (P:165), while step 1 writes `R` (P:167) and C7b's step 7 is an architect `rulings` pass writing the same file (R:154, "Paths: the mutmut run design"). Two concurrent writers of one design file collide, and the architect role edits only its own design file per dispatch.
 
-3. Step 2: fits.
-
 4. Step 3: "Red tests for `place`, `located` and `files`. Agent: `test-writer`. Paths: `tests/test_core_runner_place.py`, `tests/test_core_project_files.py`." (P:169) against "`red`: the word `red`; `behavior:`, one behavior …; `view:`, one `.pyi`" and "So is a brief that … holds two behaviors" (T:26, T:31). Three behaviors over two stub modules need two views, and the red shape has no file line, so test-writer returns `REJECTED: STEERING`.
 
 5. Step 4: "`place`, `located` and `files`. Agent: `gatesmith` … Paths: `gates/core/runner.py`, `gates/core/project.py`." (P:170) against "Module: one path under `gates/` no gates-spec bullet builds … Scope: that path." (G:28) and "a brief carrying more than one gate, module or step is one [OVERLOADED]" (G:40). Two core modules fit no single gatesmith shape, and a split leaves step 2's one stub without the single build step it must land with.
