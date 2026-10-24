@@ -30,6 +30,7 @@ _SECOND_TEXT = (
     '"role":"architect","model":"model-é","effort":"high","tokens":19,'
     '"cost":"0.004","outcome":"complete"}}\n'
 )
+# Config's last three fields: docs/superpowers/specs/m2-launcher-kinds-design.md:159-161.
 _STATE_TEXT = (
     '{"format":1,"schema":"state","data":{"job":"j1","revision":0,'
     '"shape":"structure","stage":"design","status":"active","config":{'
@@ -38,7 +39,9 @@ _STATE_TEXT = (
     '"interface":[{"language":"py","run":"stubgen -o {out} {modules}"}],'
     '"test_helpers":[],"protected":[],"test_lint":null,"implementer_network":false,'
     '"caps":{"design":2,"plan":2,"spec":2,"juror":2,"build":2,"review":2,'
-    '"reopen":2},"roles":[]},"candidate":{"concern":"process running",'
+    '"reopen":2},"roles":[],"readiness_timeout_seconds":10,"proxy_limits":{'
+    '"header_bytes":65536,"body_bytes":33554432,"connections":8},'
+    '"proxy_extra_routes":[]},"candidate":{"concern":"process running",'
     '"payoff":"one runner","risk":"a caller breaks","keeps":[],"why":null},'
     '"copies":[],"artifacts":[],"rounds":[],"steps":[],"owners":[],"cause_rounds":[],'
     '"held":[],"checks":[],"bypasses":[],"amendments":[],"controls":[],"launches":['

@@ -94,6 +94,8 @@ _RECORDS: tuple[type[_Dataclass], ...] = (
     records.EpicJob,
     records.RoleAnswer,
     records.Caps,
+    records.ProxyLimits,
+    records.ProxyRoute,
     records.TestCommand,
     records.InterfaceCommand,
     records.RoleSetting,

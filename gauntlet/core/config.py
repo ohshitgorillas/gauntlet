@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import fields, replace
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dataclasses import Field
+    from typing import TypeGuard
 
 from gauntlet.core.codec import json_value
 from gauntlet.core.errors import ConfigError, RecordError
@@ -16,9 +18,20 @@ from gauntlet.core.records import (
     Config,
     InterfaceCommand,
     Json,
+    ProxyLimits,
+    ProxyRoute,
     RoleSetting,
     TestCommand,
 )
+
+_CAPS_KEY = "$.caps"
+_LIMITS_KEY = "$.proxy_limits"
+_ROUTES_KEY = "$.proxy_extra_routes"
+_METHOD = re.compile(r"[!#$%&'*+.^_`|~0-9A-Z-]+")
+_SEGMENT = r"(?:[A-Za-z0-9._~!$&'()+,;=:-]|%(?!2[eEfF]|5[cC]|25)[0-9A-Fa-f]{2})+"
+_PATH = re.compile(rf"(?:/{_SEGMENT})+")
+_QUERY_NAME = re.compile(r"[A-Za-z0-9._~-]+")
+_DOT_SEGMENTS = frozenset({".", ".."})
 
 
 def _mapping(value: Json, key: str) -> dict[str, Json]:
@@ -82,18 +95,62 @@ def _commands(value: Json, key: str, identity: str) -> tuple[tuple[str, str], ..
     return tuple(commands)
 
 
+def _is_positive(value: object) -> TypeGuard[int]:
+    """Accept only genuine positive integers, never booleans."""
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _positive(value: Json, key: str) -> int:
+    """Require a positive integer with a located failure."""
+    if not _is_positive(value):
+        raise ConfigError(key, "expected a positive integer")
+    return value
+
+
+def _overrides[Record: (Caps, ProxyLimits)](
+    defaults: Record, value: Json, key: str
+) -> Record:
+    """Override supplied positive fields of a record's canonical defaults."""
+    entry = _mapping(value, key)
+    record_fields: tuple[Field[object], ...] = fields(defaults)
+    _keys(entry, {field.name for field in record_fields}, key)
+    record = defaults
+    for name, number in entry.items():
+        record = replace(record, **{name: _positive(number, f"{key}.{name}")})
+    return record
+
+
 def _caps(value: Json) -> Caps:
     """Override supplied caps using the canonical record defaults."""
-    caps = Caps()
-    entry = _mapping(value, "$.caps")
-    cap_fields: tuple[Field[object], ...] = fields(caps)
-    _keys(entry, {field.name for field in cap_fields}, "$.caps")
-    for name, cap in entry.items():
-        if isinstance(cap, bool) or not isinstance(cap, int) or cap <= 0:
-            path = f"$.caps.{name}"
-            raise ConfigError(path, "expected a positive integer")
-        caps = replace(caps, **{name: cap})
-    return caps
+    return _overrides(Caps(), value, _CAPS_KEY)
+
+
+def proxy_limits_from_json(value: Json) -> ProxyLimits:
+    """Override supplied proxy limits using the canonical record defaults."""
+    return _overrides(ProxyLimits(), value, _LIMITS_KEY)
+
+
+def proxy_routes_from_json(value: Json) -> tuple[ProxyRoute, ...]:
+    """Read extension routes, then apply the shared route grammar."""
+    routes: list[ProxyRoute] = []
+    for index, child in enumerate(_array(value, _ROUTES_KEY)):
+        path = f"{_ROUTES_KEY}[{index}]"
+        entry = _mapping(child, path)
+        _keys(entry, {"method", "path", "query_parameters"}, path)
+        route = ProxyRoute(
+            _text(_required(entry, "method", path), f"{path}.method"),
+            _text(_required(entry, "path", path), f"{path}.path"),
+        )
+        if "query_parameters" in entry:
+            names = _strings(entry["query_parameters"], f"{path}.query_parameters")
+            route = replace(route, query_parameters=names)
+        routes.append(route)
+    result = tuple(routes)
+    issues = _route_issues(result)
+    if issues:
+        key, reason = issues[0]
+        raise ConfigError(key, reason)
+    return result
 
 
 def _roles(value: Json) -> tuple[RoleSetting, ...]:
@@ -173,7 +230,57 @@ def _options(config: Config, entry: dict[str, Json]) -> Config:
         implementer_network=network,
         caps=_caps(entry["caps"]) if "caps" in entry else config.caps,
         roles=_roles(entry["roles"]) if "roles" in entry else config.roles,
+        readiness_timeout_seconds=(
+            _positive(entry["readiness_timeout_seconds"], "$.readiness_timeout_seconds")
+            if "readiness_timeout_seconds" in entry
+            else config.readiness_timeout_seconds
+        ),
+        proxy_limits=(
+            proxy_limits_from_json(entry["proxy_limits"])
+            if "proxy_limits" in entry
+            else config.proxy_limits
+        ),
+        proxy_extra_routes=(
+            proxy_routes_from_json(entry["proxy_extra_routes"])
+            if "proxy_extra_routes" in entry
+            else config.proxy_extra_routes
+        ),
     )
+
+
+def _positive_issues(
+    prefix: str, record: Caps | ProxyLimits
+) -> tuple[tuple[str, str], ...]:
+    """Locate every non-positive integer among a record's own fields."""
+    record_fields: tuple[Field[object], ...] = fields(record)
+    issues: list[tuple[str, str]] = []
+    for field in record_fields:
+        value: object = getattr(record, field.name)
+        if not _is_positive(value):
+            issues.append((f"{prefix}.{field.name}", "expected a positive integer"))
+    return tuple(issues)
+
+
+def _route_issues(routes: tuple[ProxyRoute, ...]) -> tuple[tuple[str, str], ...]:
+    """Locate route grammar problems and repeated method/path pairs."""
+    issues: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for index, route in enumerate(routes):
+        base = f"{_ROUTES_KEY}[{index}]"
+        if _METHOD.fullmatch(route.method) is None:
+            issues.append((f"{base}.method", "expected an uppercase HTTP method"))
+        segments = set(route.path.split("/"))
+        if _PATH.fullmatch(route.path) is None or segments & _DOT_SEGMENTS:
+            issues.append((f"{base}.path", "expected one exact origin-form path"))
+        for position, name in enumerate(route.query_parameters):
+            if _QUERY_NAME.fullmatch(name) is None:
+                key = f"{base}.query_parameters[{position}]"
+                issues.append((key, "expected a literal query name"))
+        identity = (route.method, route.path)
+        if identity in seen:
+            issues.append((base, "duplicate method and path"))
+        seen.add(identity)
+    return tuple(issues)
 
 
 def _issues(config: Config) -> tuple[tuple[str, str], ...]:
@@ -190,11 +297,11 @@ def _issues(config: Config) -> tuple[tuple[str, str], ...]:
     names = tuple(role.name for role in config.roles)
     if len(set(names)) != len(names):
         issues.append(("$.roles", "duplicate role override"))
-    cap_fields: tuple[Field[object], ...] = fields(config.caps)
-    for field in cap_fields:
-        cap: int = getattr(config.caps, field.name)
-        if isinstance(cap, bool) or cap <= 0:
-            issues.append((f"$.caps.{field.name}", "expected a positive integer"))
+    issues.extend(_positive_issues(_CAPS_KEY, config.caps))
+    if not _is_positive(config.readiness_timeout_seconds):
+        issues.append(("$.readiness_timeout_seconds", "expected a positive integer"))
+    issues.extend(_positive_issues(_LIMITS_KEY, config.proxy_limits))
+    issues.extend(_route_issues(config.proxy_extra_routes))
     return tuple(issues)
 
 

@@ -4,7 +4,7 @@
 from collections.abc import Callable
 from errno import EACCES, EISDIR, ELOOP, ENOENT
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import NamedTuple, Protocol, runtime_checkable
 
 import pytest
 
@@ -338,3 +338,177 @@ def test_schema(tmp_path: Path, text: str, key: str) -> None:
     """Carry the core validator's located failure out of the reader."""
     error = _config_failure(_write(tmp_path / "repo", text))
     assert key in error.key
+
+
+# Startup, proxy-limit and route settings from m2-launcher-kinds-design.md.
+
+_TEN_SECONDS = 10
+_SET_SECONDS = 25
+_SHORT_SECONDS = 3
+
+
+class _Settings(NamedTuple):
+    readiness: int
+    limits: tuple[int, int, int]
+    routes: list[tuple[str, str, tuple[str, ...]]]
+
+
+def _read(root: Path) -> _Settings:
+    """Read the new settings; a typed rejection of accepted keys is a failure."""
+    try:
+        result = seams_config.read_config(root)
+    except Exception as error:
+        if type(error).__module__ != "gauntlet.core.errors":
+            raise
+        message = f"read_config rejected an accepted setting: {type(error).__name__}"
+        raise AssertionError(message) from error
+    limits = result.proxy_limits
+    return _Settings(
+        result.readiness_timeout_seconds,
+        (limits.header_bytes, limits.body_bytes, limits.connections),
+        [
+            (route.method, route.path, route.query_parameters)
+            for route in result.proxy_extra_routes
+        ],
+    )
+
+
+def _rejected(root: Path) -> _Keyed:
+    """Return the located ConfigError; accepting the document is a failure."""
+    caught: BaseException | None = None
+    try:
+        seams_config.read_config(root)
+    except Exception as error:
+        if type(error).__module__ != "gauntlet.core.errors":
+            raise AssertionError from error
+        caught = error
+    if caught is None:
+        message = "read_config accepted an invalid setting"
+        raise AssertionError(message)
+    _typed(caught, "ConfigError")
+    assert isinstance(caught, _Keyed)
+    return caught
+
+
+# Dropping or replacing a supplied readiness_timeout_seconds breaks this.
+def test_readiness_read(tmp_path: Path) -> None:
+    """Carry readiness_timeout_seconds from gauntlet.yaml into the record."""
+    text = _document() + "readiness_timeout_seconds: 25\n"
+    result = _read(_write(tmp_path / "repo", text))
+    assert result.readiness == _SET_SECONDS
+
+
+# Rejecting the key, or defaulting the omitted members to anything but 64 KiB,
+# 32 MiB and eight, breaks this.
+def test_readiness_keeps_limits(tmp_path: Path) -> None:
+    """Keep every canonical proxy limit when only readiness is supplied."""
+    text = _document() + "readiness_timeout_seconds: 3\n"
+    result = _read(_write(tmp_path / "repo", text))
+    assert result.readiness == _SHORT_SECONDS
+    assert result.limits == (65536, 33554432, 8)
+
+
+# Ignoring one supplied limit, or losing a default for an omitted member, breaks this.
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("proxy_limits: {header_bytes: 1024}\n", (1024, 33554432, 8)),
+        ("proxy_limits: {body_bytes: 2048}\n", (65536, 2048, 8)),
+        ("proxy_limits: {connections: 3}\n", (65536, 33554432, 3)),
+        (
+            "proxy_limits: {header_bytes: 100, body_bytes: 200, connections: 2}\n",
+            (100, 200, 2),
+        ),
+    ],
+    ids=["headers", "body", "connections", "all"],
+)
+def test_limits_partial(
+    tmp_path: Path, line: str, expected: tuple[int, int, int]
+) -> None:
+    """Adjust each limit independently; missing members keep their defaults."""
+    result = _read(_write(tmp_path / "repo", _document() + line))
+    assert result.limits == expected
+    assert result.readiness == _TEN_SECONDS
+
+
+# Accepting a non-positive, fractional, boolean or unknown limit member breaks this.
+@pytest.mark.parametrize(
+    ("line", "field"),
+    [
+        ("proxy_limits: {header_bytes: 0}\n", "header_bytes"),
+        ("proxy_limits: {body_bytes: -1}\n", "body_bytes"),
+        ("proxy_limits: {connections: 1.5}\n", "connections"),
+        ("proxy_limits: {connections: true}\n", "connections"),
+        ("proxy_limits: {streams: 4}\n", "streams"),
+    ],
+    ids=["zero", "negative", "fraction", "bool", "unknown"],
+)
+def test_limits_invalid(tmp_path: Path, line: str, field: str) -> None:
+    """Locate a rejected limit member at $.proxy_limits.<field>."""
+    error = _rejected(_write(tmp_path / "repo", _document() + line))
+    assert f"proxy_limits.{field}" in error.key
+
+
+# Treating omitted routes as the default routes, or rejecting the other new
+# settings, breaks this.
+def test_routes_omitted(tmp_path: Path) -> None:
+    """Add no routes when proxy_extra_routes is omitted."""
+    text = _document() + "proxy_limits: {connections: 4}\n"
+    result = _read(_write(tmp_path / "repo", text))
+    assert result.routes == []
+    assert result.limits == (65536, 33554432, 4)
+
+
+# Dropping, reordering or merging defaults into the supplied routes breaks this.
+def test_routes_read(tmp_path: Path) -> None:
+    """Carry each route object in order, query_parameters defaulting to none."""
+    text = _document() + (
+        "proxy_extra_routes:\n"
+        "  - {method: GET, path: /v1/models}\n"
+        "  - {method: POST, path: /v1/files, query_parameters: [beta, purpose]}\n"
+        "  - {method: POST, path: /v1/messages, query_parameters: [trace]}\n"
+    )
+    result = _read(_write(tmp_path / "repo", text))
+    assert result.routes == [
+        ("GET", "/v1/models", ()),
+        ("POST", "/v1/files", ("beta", "purpose")),
+        ("POST", "/v1/messages", ("trace",)),
+    ]
+    assert result.readiness == _TEN_SECONDS
+    assert result.limits == (65536, 33554432, 8)
+
+
+# Accepting a route without its required fields, or with a malformed or
+# unknown field, breaks this.
+@pytest.mark.parametrize(
+    ("entry", "field"),
+    [
+        ("{path: /v1/files}", "method"),
+        ("{method: POST}", "path"),
+        ("{method: post, path: /v1/files}", "method"),
+        ("{method: POST, path: '/v1/files?purpose=x'}", "path"),
+        ("{method: POST, path: /v1/files, query_parameters: beta}", "query_parameters"),
+        ("{method: POST, path: /v1/files, origin: example.com}", "origin"),
+    ],
+    ids=["no-method", "no-path", "lower", "query", "params", "unknown"],
+)
+def test_routes_invalid(tmp_path: Path, entry: str, field: str) -> None:
+    """Locate a rejected route at $.proxy_extra_routes[index].<field>."""
+    text = _document() + (
+        f"proxy_extra_routes:\n  - {{method: GET, path: /v1/models}}\n  - {entry}\n"
+    )
+    error = _rejected(_write(tmp_path / "repo", text))
+    assert "proxy_extra_routes[1]" in error.key
+    assert field in error.key
+
+
+# Accepting the same method/path twice in the extension list breaks this.
+def test_routes_duplicate(tmp_path: Path) -> None:
+    """Reject a repeated method/path pair at an indexed route location."""
+    text = _document() + (
+        "proxy_extra_routes:\n"
+        "  - {method: POST, path: /v1/files}\n"
+        "  - {method: POST, path: /v1/files, query_parameters: [beta]}\n"
+    )
+    error = _rejected(_write(tmp_path / "repo", text))
+    assert "proxy_extra_routes[" in error.key
