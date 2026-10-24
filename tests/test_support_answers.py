@@ -209,11 +209,29 @@ def test_config_defaults() -> None:
         {"implementer_network": True},
         {"caps": records.Caps(build=7)},
         {"roles": (records.RoleSetting("architect", "other", "high"),)},
+        {"readiness_timeout_seconds": 1},
+        {"proxy_limits": records.ProxyLimits(connections=1)},
+        {
+            "proxy_extra_routes": (
+                records.ProxyRoute("GET", "/v1/models"),
+                records.ProxyRoute("GET", "/v1/models"),
+            )
+        },
     ],
 )
 def test_config_independent_overrides(changes: ConfigChanges) -> None:
     """Each supplied field replaces only that field."""
     assert config(**changes) == replace(config(), **changes)
+
+
+# Seeding a local readiness, limit or route default instead of Config's breaks this.
+def test_config_launcher_setting_defaults() -> None:
+    """Omitted settings keep ten seconds, canonical limits and no routes."""
+    value = config()
+    readiness_seconds = 10
+    assert value.readiness_timeout_seconds == readiness_seconds
+    assert value.proxy_limits == records.ProxyLimits(65536, 33554432, 8)
+    assert value.proxy_extra_routes == ()
 
 
 # Inferring state from configuration or populating history alters the literal seed.
