@@ -214,6 +214,16 @@ def test_state_exact_envelope_and_literal_decode() -> None:
     expected = state(copies=(anchor("./pkg/../exact.py", 4), anchor("z.py", 3)))
     encoded = codec.encode_state(expected)
     expected_data = _state_data()
+    config_data = expected_data["config"]
+    assert isinstance(config_data, dict)
+    # m2-launcher-kinds-design.md:159-161: Config carries three defaulted settings.
+    config_data["readiness_timeout_seconds"] = 10
+    config_data["proxy_limits"] = {
+        "header_bytes": 65536,
+        "body_bytes": 33554432,
+        "connections": 8,
+    }
+    config_data["proxy_extra_routes"] = []
     expected_data["copies"] = [
         {"path": "./pkg/../exact.py", "line": 4},
         {"path": "z.py", "line": 3},
@@ -621,4 +631,146 @@ def test_missing_required_config_fields(field: str) -> None:
     del config_data[field]
     text = _state_data_wire(data)
     failure = _error(text, trace=False)
+    assert field in failure.location
+
+
+def _proxy_state_data() -> dict[str, records.Json]:
+    data = _state_data()
+    config_data = data["config"]
+    assert isinstance(config_data, dict)
+    config_data["readiness_timeout_seconds"] = 30
+    config_data["proxy_limits"] = {
+        "header_bytes": 1024,
+        "body_bytes": 2048,
+        "connections": 3,
+    }
+    config_data["proxy_extra_routes"] = [
+        {
+            "method": "GET",
+            "path": "/v1/models",
+            "query_parameters": ["limit", "after_id"],
+        },
+        {"method": "POST", "path": "/v1/messages", "query_parameters": []},
+    ]
+    return data
+
+
+def _accepted(data: dict[str, records.Json]) -> records.State:
+    try:
+        decoded: records.State | RecordError = codec.decode_state(
+            _state_data_wire(data)
+        )
+    except RecordError as error:
+        decoded = error
+    assert isinstance(decoded, records.State), decoded
+    return decoded
+
+
+def _proxy_settings(decoded: records.State) -> tuple[object, ...]:
+    config = decoded.config
+    limits = config.proxy_limits
+    return (
+        config.readiness_timeout_seconds,
+        (limits.header_bytes, limits.body_bytes, limits.connections),
+        [
+            (route.method, route.path, route.query_parameters)
+            for route in config.proxy_extra_routes
+        ],
+    )
+
+
+# Dropping, renaming or reshaping any startup/proxy setting loses persisted configuration.
+def test_proxy_settings_roundtrip() -> None:
+    """Carry the three settings inside State.config through the state envelope."""
+    data = _proxy_state_data()
+    decoded = _accepted(data)
+    assert _proxy_settings(decoded) == (
+        30,
+        (1024, 2048, 3),
+        [
+            ("GET", "/v1/models", ("limit", "after_id")),
+            ("POST", "/v1/messages", ()),
+        ],
+    )
+    encoded = codec.encode_state(decoded)
+    assert _json_object(encoded) == {"format": 1, "schema": "state", "data": data}
+    assert codec.decode_state(encoded) == decoded
+
+
+_OMITTED_PROXY_SETTINGS: list[tuple[str, tuple[object, ...], records.Json]] = [
+    (
+        "readiness_timeout_seconds",
+        (
+            10,
+            (1024, 2048, 3),
+            [
+                ("GET", "/v1/models", ("limit", "after_id")),
+                ("POST", "/v1/messages", ()),
+            ],
+        ),
+        10,
+    ),
+    (
+        "proxy_limits",
+        (
+            30,
+            (65536, 33554432, 8),
+            [
+                ("GET", "/v1/models", ("limit", "after_id")),
+                ("POST", "/v1/messages", ()),
+            ],
+        ),
+        {"header_bytes": 65536, "body_bytes": 33554432, "connections": 8},
+    ),
+    ("proxy_extra_routes", (30, (1024, 2048, 3), []), []),
+]
+
+
+# Requiring an omitted setting, or inventing a nondefault value, breaks older state.
+@pytest.mark.parametrize(("field", "expected", "wire"), _OMITTED_PROXY_SETTINGS)
+def test_omitted_proxy_settings_defaults(
+    field: str, expected: tuple[object, ...], wire: records.Json
+) -> None:
+    """Default each omitted setting to its declared value and persist it."""
+    data = _proxy_state_data()
+    config_data = data["config"]
+    assert isinstance(config_data, dict)
+    del config_data[field]
+    decoded = _accepted(data)
+    assert _proxy_settings(decoded) == expected
+    encoded = codec.encode_state(decoded)
+    config_data[field] = wire
+    assert _json_object(encoded) == {"format": 1, "schema": "state", "data": data}
+    assert codec.decode_state(encoded) == decoded
+
+
+# Requiring optional nested members rejects a partial limits mapping or a bare route.
+def test_omitted_proxy_nested_defaults() -> None:
+    """Default omitted limit members and an omitted route query list."""
+    data = _proxy_state_data()
+    config_data = data["config"]
+    assert isinstance(config_data, dict)
+    config_data["proxy_limits"] = {"body_bytes": 2048}
+    config_data["proxy_extra_routes"] = [{"method": "GET", "path": "/v1/models"}]
+    decoded = _accepted(data)
+    assert _proxy_settings(decoded) == (
+        30,
+        (65536, 2048, 8),
+        [("GET", "/v1/models", ())],
+    )
+
+
+# Filling a route's method or path would accept an incomplete persisted permission.
+@pytest.mark.parametrize("field", ["method", "path"])
+def test_missing_required_proxy_route_fields(field: str) -> None:
+    """Require each ProxyRoute constructor field in persisted config."""
+    data = _proxy_state_data()
+    config_data = data["config"]
+    assert isinstance(config_data, dict)
+    routes = config_data["proxy_extra_routes"]
+    assert isinstance(routes, list)
+    route = routes[0]
+    assert isinstance(route, dict)
+    del route[field]
+    failure = _error(_state_data_wire(data), trace=False)
     assert field in failure.location

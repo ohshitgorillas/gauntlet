@@ -117,6 +117,9 @@ class ConfigChanges(TypedDict, total=False):
     implementer_network: bool
     caps: records.Caps
     roles: tuple[records.RoleSetting, ...]
+    readiness_timeout_seconds: int
+    proxy_limits: records.ProxyLimits
+    proxy_extra_routes: tuple[records.ProxyRoute, ...]
 
 
 class StateChanges(TypedDict, total=False):

@@ -414,6 +414,33 @@ class RoleSetting:
     effort: str | None
 
 
+DEFAULT_READINESS_TIMEOUT_SECONDS: int = 10
+
+
+@dataclass(frozen=True)
+class ProxyRoute:
+    """Record one permitted proxy method, path and query names."""
+
+    method: str
+    path: str
+    query_parameters: tuple[str, ...] = ()
+
+
+DEFAULT_PROXY_ROUTES: tuple[ProxyRoute, ...] = (
+    ProxyRoute("POST", "/v1/messages", ("beta",)),
+    ProxyRoute("POST", "/v1/messages/count_tokens", ("beta",)),
+)
+
+
+@dataclass(frozen=True)
+class ProxyLimits:
+    """Record proxy header, body and connection limits."""
+
+    header_bytes: int = 65536
+    body_bytes: int = 33554432
+    connections: int = 8
+
+
 @dataclass(frozen=True)
 class Config:
     """Record harness configuration."""
@@ -429,6 +456,9 @@ class Config:
     implementer_network: bool = False
     caps: Caps = Caps()
     roles: tuple[RoleSetting, ...] = ()
+    readiness_timeout_seconds: int = DEFAULT_READINESS_TIMEOUT_SECONDS
+    proxy_limits: ProxyLimits = ProxyLimits()
+    proxy_extra_routes: tuple[ProxyRoute, ...] = ()
 
 
 @dataclass(frozen=True)
