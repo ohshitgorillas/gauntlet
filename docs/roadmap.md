@@ -59,6 +59,14 @@ ruff, ruff format, import-linter, deptry, uv lock and vulture run directly from 
 
 **Done when:** a unit test per kind asserts the mount table and tool list `launch.py` builds match §3 and §4 exactly, with no container started.
 
+**Parked follow-ups (2026-10-24, waiting on budget):**
+
+- Run cloud sessions in the Gauntlet environment. m2-g5 and m2-g6 ran in the HQPTuner one, so the setup script never ran (no `tester` user, system Python 3.12.3, no uv shim).
+- Proxy: reject malformed `%` escapes and CR/LF in permitted routes' query values. Needs a design line, then a red/build pair.
+- `seams/job.py`: two concurrent launches can hash to the same SELinux level and silently lose isolation. Needs a design change.
+- `seams/job.py`: decode the checkpoint manifest as a record through `codec`; add tests for repeatable checkpoint, the `mode`/`target` checks before restore, what release removes, repeated release, and reopen's error type.
+- Merge `cloud/m2-g5` (2a1125e, steps 16-18) and `cloud/m2-g6` (proxy request policy) into `main`.
+
 ## M3s. Thin structure job
 
 `gauntlet audit <scope> --structure` on a fixture repository drives surveyor, grouper, survey screen, owner selection, and one structure job through design, plan, spec with the keeps lines, stubs, tests, red run, lock, build under `startable`, review and land. Design runs one architect and no rounds. Prosecutor, arbiter, examiner, repo reviewers, structure reviewer and bailiff are skipped and shown as bypasses.
