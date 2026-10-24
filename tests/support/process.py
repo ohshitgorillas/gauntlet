@@ -12,6 +12,8 @@ from types import MappingProxyType
 from gauntlet.core.errors import ProcessError
 from gauntlet.seams.process import Command, Completed
 
+_COLLABORATOR = "FakeRunner"
+
 
 class RepliesExhaustedError(Exception):
     """A literal reply stream ended, naming its collaborator and the attempted-call count."""
@@ -21,7 +23,9 @@ class RepliesExhaustedError(Exception):
 
     def __init__(self, collaborator: str, count: int) -> None:
         """Keep the collaborator identity and attempted-call count at exhaustion."""
-        raise NotImplementedError
+        super().__init__(f"{collaborator} replies exhausted at call {count}")
+        self.collaborator = collaborator
+        self.count = count
 
 
 class FakeRunner:
@@ -31,11 +35,19 @@ class FakeRunner:
 
     def __init__(self, replies: Sequence[Completed | ProcessError]) -> None:
         """Seed the literal replies."""
-        raise NotImplementedError
+        self._replies = tuple(replies)
+        self.commands = []
 
     def __call__(self, command: Command) -> Completed:
         """Return, or raise, the next seeded reply for this call."""
-        raise NotImplementedError
+        self.commands.append(command)
+        attempt = len(self.commands)
+        if attempt > len(self._replies):
+            raise RepliesExhaustedError(_COLLABORATOR, attempt)
+        reply = self._replies[attempt - 1]
+        if isinstance(reply, ProcessError):
+            raise reply
+        return reply
 
 
 def completed(
@@ -47,4 +59,4 @@ def completed(
     outputs: Mapping[str, str | None] = MappingProxyType({}),
 ) -> Completed:
     """Return a Completed carrying exactly the supplied literal fields."""
-    raise NotImplementedError
+    return Completed(status, stdout, stderr, timed_out=timed_out, outputs=outputs)

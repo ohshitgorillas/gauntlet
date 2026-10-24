@@ -13,7 +13,9 @@ from tests.support.process import FakeRunner, RepliesExhaustedError, completed
 _FIRST = Command(("git", "status"), Path("/literal/repo"))
 _SECOND = Command(("podman", "inspect", "role-7"), Path("/literal/job"), timeout=4.5)
 _THIRD = Command(("podman", "rm", "proxy-7"), Path("/literal/job"), capture=False)
-_ONE = Completed(0, "first out", "first err", timed_out=False, outputs=MappingProxyType({}))
+_ONE = Completed(
+    0, "first out", "first err", timed_out=False, outputs=MappingProxyType({})
+)
 _TWO = Completed(125, "", "no such container", timed_out=True, outputs={"report": None})
 _THREE = Completed(3, "third", "", timed_out=False, outputs={"result": "written text"})
 
@@ -54,7 +56,12 @@ def test_runner_retains_typed_call_history() -> None:
     runner(_SECOND)
     assert (
         runner.commands,
-        [command is expected for command, expected in zip(runner.commands, (_SECOND, _FIRST, _SECOND), strict=True)],
+        [
+            command is expected
+            for command, expected in zip(
+                runner.commands, (_SECOND, _FIRST, _SECOND), strict=True
+            )
+        ],
     ) == ([_SECOND, _FIRST, _SECOND], [True, True, True])
 
 
@@ -111,7 +118,13 @@ def test_completed_carries_its_literal_fields() -> None:
 def test_completed_defaults_are_a_clean_success() -> None:
     """completed() with no arguments is status 0, empty streams, no timeout, no outputs."""
     built = completed()
-    assert (built.status, built.stdout, built.stderr, built.timed_out, dict(built.outputs)) == (
+    assert (
+        built.status,
+        built.stdout,
+        built.stderr,
+        built.timed_out,
+        dict(built.outputs),
+    ) == (
         0,
         "",
         "",
