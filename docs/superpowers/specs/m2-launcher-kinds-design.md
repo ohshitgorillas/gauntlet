@@ -705,7 +705,7 @@ Each row binds one implementation unit to an agent, at most five written paths a
 | 1 stub | core-builder | gauntlet/core/errors.py | New typed constructors raise only. |
 | 2 red | test-writer | tests/test_core_errors.py | New errors preserve safe data and hierarchy; require behavioral failure against stubs. |
 | 3 build | core-builder | gauntlet/core/errors.py | Typed-error constructor and hierarchy tests must pass. |
-| 3a stub | seam-builder | gauntlet/seams/readiness.py | Complete Clock/Readiness interfaces before process consumers. |
+| 3a stub | seam-builder | gauntlet/seams/readiness.py | Complete Clock and SocketReadiness interfaces before process consumers; the Readiness protocol waits for its first consumer at step 22. |
 | 3b red | test-writer | tests/test_seams_readiness.py | Start callback and socket events share one deadline; expiry and cleanup fail against stubs using VirtualClock. |
 | 3c build | seam-builder | gauntlet/seams/readiness.py | Shared startup-budget, socket-event, expiry and probe-cleanup tests must pass. |
 | 3d declaration | core-builder | gauntlet/core/records.py | Add ProxyLimits, ProxyRoute, DEFAULT_PROXY_ROUTES, the ten-second readiness default and all three Config fields. |
@@ -747,7 +747,7 @@ Each row binds one implementation unit to an agent, at most five written paths a
 | Step | Agent | Paths written | Required check / dependency |
 |---|---|---|---|
 | 21 build | seam-builder | gauntlet/seams/images.py | Current/installed-version, image-isolation, acquisition-failure and confirmed-identity tests must pass. |
-| 22 stub | seam-builder | gauntlet/seams/entrypoint.py | Relay and readiness interfaces. |
+| 22 stub | seam-builder | gauntlet/seams/entrypoint.py, gauntlet/seams/readiness.py | Relay and readiness interfaces, adding the Readiness protocol with its first consumer. |
 | 23 red | test-writer | tests/test_seams_entrypoint.py | Relay-start callback, shared timeout, readiness-before-exec and failed-start cleanup fail against stubs. |
 | 24 build | seam-builder | gauntlet/seams/entrypoint.py | Relay-start ordering, shared startup budget and cleanup tests must pass. |
 | 24a stub | core-builder | gauntlet/core/proxy.py | Fixed-origin request-policy interfaces, canonical route descriptors and extension inputs. |
