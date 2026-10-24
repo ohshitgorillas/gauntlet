@@ -9,6 +9,8 @@ from gauntlet.core.errors import (
     CapabilityError,
     ConfigError,
     GauntletError,
+    LaunchError,
+    ProcessError,
     RecordError,
     RecoveryError,
     StateError,
@@ -89,3 +91,24 @@ def test_causes_unowned_path_names_are_the_product_error_class() -> None:
     aliases: tuple[type[Exception], ...] = (UnownedPath, CauseUnownedPathError)
     for alias in aliases:
         assert alias is UnownedPathError
+
+
+@pytest.mark.parametrize("status", [None, 0, 23])
+def test_process_error_preserves_safe_data_and_product_hierarchy(
+    status: int | None,
+) -> None:
+    """Breaks when process failures alter evidence or lose their product parent."""
+    error = ProcessError("image-inspect", status, "process unavailable")
+    assert (error.operation, error.status, error.reason) == (
+        "image-inspect",
+        status,
+        "process unavailable",
+    )
+    assert isinstance(error, GauntletError)
+
+
+def test_launch_error_preserves_safe_data_and_product_hierarchy() -> None:
+    """Breaks when launch failures alter safe data or lose their product parent."""
+    error = LaunchError("relay", "readiness expired")
+    assert (error.component, error.reason) == ("relay", "readiness expired")
+    assert isinstance(error, GauntletError)

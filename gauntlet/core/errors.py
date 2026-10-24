@@ -93,3 +93,31 @@ class CapabilityError(GauntletError):
         """Keep the unavailable operation."""
         super().__init__(operation)
         self.operation = operation
+
+
+class ProcessError(GauntletError):
+    """Report safe evidence from a failed process operation."""
+
+    operation: str
+    status: int | None
+    reason: str
+
+    def __init__(self, operation: str, status: int | None, reason: str) -> None:
+        """Keep the operation, observed status and bounded explanation."""
+        super().__init__(operation, status, reason)
+        self.operation = operation
+        self.status = status
+        self.reason = reason
+
+
+class LaunchError(GauntletError):
+    """Report a failed launch component."""
+
+    component: str
+    reason: str
+
+    def __init__(self, component: str, reason: str) -> None:
+        """Keep the affected component and safe explanation."""
+        super().__init__(component, reason)
+        self.component = component
+        self.reason = reason
