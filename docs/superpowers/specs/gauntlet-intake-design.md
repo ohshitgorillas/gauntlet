@@ -6,21 +6,24 @@ Status: proposed.
 
 Intake turns the owner's task into one concrete, well-specced task file and hands its path to the planning round. Two routes reach it: the owner hands in a markdown file they wrote, or the owner hammers the task out with Clerk, the task specialist. Text typed into the Archon web UI ("What should Archon work on?") always takes the Clerk route. Both routes end in the same hand-off, so the planner never knows which route a task took.
 
-What the tree already holds for the concerns intake touches:
+Gauntlet is its own git repository, cloned by each user into `$ARCHON_HOME/workflows/gauntlet/` (by default `~/.archon/workflows/gauntlet/`), the pack root, which Archon scans for every repository on the host. Script nodes run on Bun. Intake runs in any repository's checkout. Every path below is relative to the pack root unless it names `archon-workflows` (`~/dev/archon-workflows`) or the run's checkout.
 
-- Task intake: no live copy. The removed `feature` workflow read a request file by a `request` input; nothing of it remains but its fixtures under `.archon/workflows/feature-pipeline/feature/fixtures/`, which intake does not touch.
-- Gauntlet-written state: one folder outside `gauntlet/` already carries the name, `.gauntlet/jobs/` (excluded through `.git/info/exclude`), written by the owner's job chain, not by any workflow in the tree. Intake writes only under `gauntlet/`.
+What the trees already hold for the concerns intake touches:
+
+- Task intake: no live copy. The removed `feature` workflow read a request file by a `request` input; nothing of it remains but its fixtures under archon-workflows `.archon/workflows/feature-pipeline/feature/fixtures/`, which intake does not touch.
+- Gauntlet-written state: no Gauntlet workflow writes anything yet. archon-workflows ignores `.gauntlet/` through `.git/info/exclude` for the owner's job chain; that pattern does not cover `gauntlet/`.
 - Task format: no home yet.
-- File confinement: one copy, `.archon/workflows/feature-pipeline/fence/`, in the pack being dismantled: `files.py` (stdio MCP file server confined by `FENCE_*` folders under `CLAUDE_PROJECT_DIR`), `checks.py` (stdio MCP test runner), `files_helpers.py`, `test_files.py`, `test_files_write.py`. No workflow in the tree attaches it. `docs/testing.md` cites its path as its Python-suite example.
+- File confinement: two copies. `fence/` in the pack: `files.py` (stdio MCP file server confined by `FENCE_*` folders under `CLAUDE_PROJECT_DIR`), `checks.py` (stdio MCP test runner), `files_helpers.py`, `test_files.py`, `test_files_write.py`; `docs/testing.md` cites `fence/test_*.py`. The older copy stays in archon-workflows `.archon/workflows/feature-pipeline/fence/` (the same five files, its `test_files_write.py` behind the pack's, plus `__pycache__`), cited by archon-workflows `docs/testing.md`. No workflow attaches either.
+- This design: a second copy sits in archon-workflows `docs/superpowers/specs/gauntlet-intake-design.md`.
 
 ## Modules
 
-### `.archon/workflows/gauntlet/fence/`
+### `fence/`
 
-Gauntlet's file confinement: the stdio MCP servers that give an agent node exactly the reads, writes and checks its role allows. Moved unchanged from `.archon/workflows/feature-pipeline/fence/`, which it replaces: `files.py`, `checks.py`, `files_helpers.py`, `test_files.py`, `test_files_write.py`. Intake uses only `files.py`; `checks.py` moves with it and nothing in intake attaches it. Its suite runs as `docs/testing.md` states, with the folder `.archon/workflows/gauntlet/fence`.
+Gauntlet's file confinement: the stdio MCP servers that give an agent node exactly the reads, writes and checks its role allows. It holds `files.py`, `checks.py`, `files_helpers.py`, `test_files.py`, `test_files_write.py`, and replaces archon-workflows `.archon/workflows/feature-pipeline/fence/`. Intake uses only `files.py`; nothing in intake attaches `checks.py`. Its suite runs as `docs/testing.md` states, with the folder `fence`.
 
 ```python
-# files.py — server "fence-files"; run as: uv run --script .archon/workflows/gauntlet/fence/files.py
+# files.py — server "fence-files"; run as: uv run --script "${ARCHON_HOME:-$HOME/.archon}/workflows/gauntlet/fence/files.py"
 # Environment (colon-separated folders, relative to the root; "." is the whole root; unset or empty allows nothing):
 #   CLAUDE_PROJECT_DIR  root; must name an existing directory, else exit 2
 #   FENCE_READ          readable folders
@@ -41,7 +44,20 @@ def delete_file(path: str) -> str: ...
 async def run_tests() -> str: ...
 ```
 
-### `.archon/workflows/gauntlet/.shared/task-format.md`
+### `.shared/working-folder.ts`
+
+Gauntlet's working-folder guard: the one check that the checkout keeps `gauntlet/` out of git, and the one failure message when it does not. Every Gauntlet workflow calls it from its first node, before anything writes under `gauntlet/`. Replaces nothing.
+
+```typescript
+// Run from the checkout (a script node's working directory).
+// Passes when git reports gauntlet/ ignored in the checkout: .gitignore, .git/info/exclude
+// and the global excludes file all count. A file under gauntlet/ that git tracks fails it.
+// Fails by writing one line to stderr and exiting 1, <root> being `git rev-parse --show-toplevel`:
+//   Gauntlet failed because its working folder, <root>/gauntlet/, sits in the main repo. Add it to .gitignore and restart the run.
+export function requireIgnored(): void;
+```
+
+### `.shared/task-format.md`
 
 The one statement of what a task file holds. Clerk works to it; the file route is not checked against it.
 
@@ -61,7 +77,7 @@ Rules:
 - Plain present tense; no history of the conversation that produced it.
 ```
 
-### `.archon/workflows/gauntlet/intake/commands/clerk.md`
+### `intake/commands/clerk.md`
 
 Clerk's role: hammer a vague idea into a task file that meets `task-format.md`, in one continuing conversation with the owner. Replaces nothing.
 
@@ -79,7 +95,7 @@ Never: writes outside gauntlet/tasks/<slug>.md, copies or deletes a file, names 
 Tools: the fence-files server only (read_file, list_directory, find_files, grep, write_file, edit_file); no built-in tool.
 ```
 
-### `.archon/workflows/gauntlet/intake/clerk.mcp.json`
+### `intake/clerk.mcp.json`
 
 Clerk's fence: the one MCP config both Clerk nodes attach. Replaces nothing.
 
@@ -87,8 +103,8 @@ Clerk's fence: the one MCP config both Clerk nodes attach. Replaces nothing.
 {
   "mcpServers": {
     "fence-files": {
-      "command": "uv",
-      "args": ["run", "--script", ".archon/workflows/gauntlet/fence/files.py"],
+      "command": "sh",
+      "args": ["-c", "exec uv run --script \"${ARCHON_HOME:-$HOME/.archon}/workflows/gauntlet/fence/files.py\""],
       "env": {
         "FENCE_READ": ".",
         "FENCE_WRITE": "gauntlet/tasks"
@@ -98,9 +114,22 @@ Clerk's fence: the one MCP config both Clerk nodes attach. Replaces nothing.
 }
 ```
 
-Claude Code sets the server's `CLAUDE_PROJECT_DIR` to its own working directory, the run's checkout, and overrides any value the config gives, so the config sets none. `FENCE_DENY`, `FENCE_ONCE` and `FENCE_COPY` stay unset.
+Claude Code sets the server's `CLAUDE_PROJECT_DIR` to its own working directory, the run's checkout, and overrides any value the config gives, so the config sets none. `FENCE_DENY`, `FENCE_ONCE` and `FENCE_COPY` stay unset. The checkout is any repository, so the server is found in the pack wherever its user cloned it into their Archon home: `sh` resolves `$ARCHON_HOME`, else `$HOME/.archon`, on every host, and `exec` leaves `uv` as the server process.
 
-### `.archon/workflows/gauntlet/intake/intake.yaml`
+### `intake/scripts/guard.ts` and `intake/scripts/ground.ts`
+
+The two named scripts of intake's opening nodes. Replace nothing.
+
+```typescript
+// guard.ts — node `guard`
+import { requireIgnored } from "../../.shared/working-folder.ts";
+requireIgnored();
+
+// ground.ts — node `ground`: prints task-format.md, then the names in gauntlet/tasks/ of the checkout (none when absent)
+import taskFormat from "../../.shared/task-format.md" with { type: "text" };
+```
+
+### `intake/intake.yaml`
 
 The intake workflow: both routes, the owner's approval on the Clerk route, and the hand-off. Replaces nothing.
 
@@ -120,22 +149,30 @@ inputs:
 returns: handoff
 
 nodes:
+  # Both routes: the checkout must keep gauntlet/ out of git.
+  - id: guard
+    runtime: bun
+    script: guard
+
   # File route: the owner's file, unchecked, copied verbatim to gauntlet/tasks/<slug>.md.
   - id: from-file
+    depends_on: [guard]
     when: "$INPUTS.file != ''"
     bash: <realpath -e the file (fails, naming the path, when it is missing); slug = its file name without extension, lowercased, each run of characters outside [a-z0-9] made one "-", "-" trimmed from both ends; the file already at gauntlet/tasks/<slug>.md: task is that path, nothing copied; else gauntlet/tasks/<slug>.md free: copy (cp -n), task is its absolute path; else (target taken, or empty slug) exit non-zero, the conflict and both paths on stderr; nothing renamed, suffixed or overwritten>
     output_format: { type: object, properties: { task: { type: string } }, required: [task] }
 
   # Clerk route.
   - id: ground
+    depends_on: [guard]
     when: "$INPUTS.file == ''"
-    bash: <print .shared/task-format.md, then the names in gauntlet/tasks/ (none when absent)>
+    runtime: bun
+    script: ground
 
   - id: clerk                                    # opening turn; the session's source
     depends_on: [ground]
     command: clerk
     allowed_tools: []                            # no built-in tool; files only through the fence
-    mcp: .archon/workflows/gauntlet/intake/clerk.mcp.json
+    mcp: clerk.mcp.json                          # found beside this YAML
     output_format: { type: object, properties: { slug: { type: string, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$" }, reply: { type: string } }, required: [slug, reply] }
 
   - id: talk
@@ -151,7 +188,7 @@ nodes:
           when: "$LOOP_PREV.answer.output.decision != ''"
           context: { resume: clerk }             # one continuing session for the whole conversation
           allowed_tools: []
-          mcp: .archon/workflows/gauntlet/intake/clerk.mcp.json
+          mcp: clerk.mcp.json
           prompt: <the owner's choice $LOOP_PREV.answer.output.decision and words $LOOP_PREV.answer.output.text; the task path>
           output_format: { type: object, properties: { reply: { type: string } }, required: [reply] }
         - id: show
@@ -184,34 +221,36 @@ nodes:
     output_format: { type: object, properties: { task: { type: string } }, required: [task] }
 ```
 
-Routing reads only the `file` input, never the typed text. With `file` blank, `$ARGUMENTS` (the text typed in the web UI, or the CLI message) is Clerk's starting idea, and may be empty. The `talk` group's session is Clerk's, forked once from `clerk` and continued across every pause; no turn starts a fresh agent and no conversation log is kept. The opening turn is Clerk's first reply to the owner; `turn` is skipped in the first iteration and runs in every later one. An answer of `approve` ends the conversation only when the task file exists; otherwise the next turn writes it and asks again. A file-route conflict fails the run at `from-file`; the owner corrects it on disk and resumes the run, which re-runs `from-file`.
+Intake is launched as `intake` from any repository's checkout and writes only in that checkout. `guard` runs first on both routes; when it fails, nothing is written and the run ends with its message. Routing reads only the `file` input, never the typed text. With `file` blank, `$ARGUMENTS` (the text typed in the web UI, or the CLI message) is Clerk's starting idea, and may be empty. The `talk` group's session is Clerk's, forked once from `clerk` and continued across every pause; no turn starts a fresh agent and no conversation log is kept. The opening turn is Clerk's first reply to the owner; `turn` is skipped in the first iteration and runs in every later one. An answer of `approve` ends the conversation only when the task file exists; otherwise the next turn writes it and asks again. A file-route conflict fails the run at `from-file`; the owner corrects it on disk and resumes the run, which re-runs `from-file`.
 
-### `.archon/workflows/gauntlet/intake/fixtures/`
+### `intake/fixtures/`
 
-`file.stubs.yaml` (the `file` input set: `from-file` and `handoff` reached, `ground` not) and `clerk.stubs.yaml` (blank `file`, the opening reply approved: `ground`, `clerk`, `talk`, `handoff` reached, `from-file` and `turn` not), under `docs/testing.md`. A route needing a second turn is not fixture-tested: a dry run ends a loop after one iteration. The conflict route is not fixture-tested: its deciding logic is `from-file`'s own bash, which a stub replaces.
+`file.stubs.yaml` (the `file` input set: `guard`, `from-file` and `handoff` reached, `ground` not) and `clerk.stubs.yaml` (blank `file`, the opening reply approved: `guard`, `ground`, `clerk`, `talk`, `handoff` reached, `from-file` and `turn` not), under `docs/testing.md`. A route needing a second turn is not fixture-tested: a dry run ends a loop after one iteration. The conflict route and the guard's failure are not fixture-tested: their deciding logic is `from-file`'s own bash and `requireIgnored`, which stubs replace.
 
-### `.gitignore`
+### The run's checkout
 
-Adds `gauntlet/`. Intake commits nothing; a task file lives in the live checkout and the hand-off carries its absolute path.
+The owner keeps `gauntlet/` out of git in each repository Gauntlet runs in, by a `gauntlet/` line in its `.gitignore`. No Gauntlet node writes that line. Intake commits nothing; a task file lives in the live checkout and the hand-off carries its absolute path.
 
 ## Homes
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| What a task file holds | `.archon/workflows/gauntlet/.shared/task-format.md` | Restating the sections or rules in a command, prompt or workflow; `ground` prints the file instead |
-| Where Gauntlet writes | `gauntlet/`, tasks at `gauntlet/tasks/<slug>.md` | Any Gauntlet node writing outside `gauntlet/`; `$ARTIFACTS_DIR` or `$STATE_DIR` holding a task |
+| Gauntlet's files | the Gauntlet repository at `$ARCHON_HOME/workflows/gauntlet/` | Any Gauntlet file, fence or design in archon-workflows or in a run's checkout |
+| Reaching a pack file from a run in any repository | `mcp:` named beside the workflow YAML; `.shared/` imported relative to the script's own file; the fence server under `${ARCHON_HOME:-$HOME/.archon}/workflows/gauntlet/` in `clerk.mcp.json` | A checkout-relative path to any pack file; a path naming one user's home |
+| What a task file holds | `.shared/task-format.md` | Restating the sections or rules in a command, prompt or workflow; `ground` prints the file instead |
+| Where Gauntlet writes | `gauntlet/` in the run's checkout, tasks at `gauntlet/tasks/<slug>.md` | Any Gauntlet node writing outside `gauntlet/`; `$ARTIFACTS_DIR` or `$STATE_DIR` holding a task |
+| Keeping `gauntlet/` out of git | the owner's `.gitignore` line in each repository; `requireIgnored` in `.shared/working-folder.ts`, called by the first node of every Gauntlet workflow (intake: `guard`) | A node writing the ignore line; a write under `gauntlet/` before the guard passes; a second statement of the check or its message; a check that accepts only `.gitignore` |
 | Choosing the route | `intake.yaml`, `when:` on `$INPUTS.file` | Routing on the typed text; a second intake workflow |
 | A handed-in file's slug and copy | `from-file` | Renaming, suffixing or overwriting a task |
 | Raising a file-route conflict | `from-file` failing the run with the conflict on stderr; the owner corrects it and resumes | A conflict resolved, skipped or only logged; a wait asking for a new slug |
 | The owner's approval of a Clerk task | the `answer` wait in `talk` | Any other approval before hand-off; an approval of a handed-in file |
 | Clerk's memory | the `clerk` session, continued by `turn` | A fresh agent per turn; a conversation log file; `persist_session` |
-| File confinement for a Gauntlet agent | `.archon/workflows/gauntlet/fence/files.py` | A second file server; a copy left under `.archon/workflows/feature-pipeline/`; a hook or prompt rule standing in for it |
+| File confinement for a Gauntlet agent | `fence/files.py` | A second file server; a copy left in archon-workflows `.archon/workflows/feature-pipeline/`; a hook or prompt rule standing in for it |
 | Clerk's file access | `clerk.mcp.json` (`FENCE_READ=.`, `FENCE_WRITE=gauntlet/tasks`), attached by `mcp:` on `clerk` and `turn`, both with `allowed_tools: []` | Any built-in tool on either node; `FENCE_*` set anywhere but `clerk.mcp.json`; a non-agent node writing the task file for Clerk |
 | The hand-off to planning | `handoff` output `{ task }`, the workflow's `returns:` | Any other node or file telling planning where the task is, or how it was made |
 
 ## Order
 
-1. Relocate the fence: `.archon/workflows/feature-pipeline/fence/` moved by `git mv` to `.archon/workflows/gauntlet/fence/` (`files.py`, `checks.py`, `files_helpers.py`, `test_files.py`, `test_files_write.py`, contents unchanged), the old folder gone with its `__pycache__`; `docs/testing.md` cites the new path. The moved suite passes as `docs/testing.md` runs it. Agent: `builder`.
-2. Task format and Clerk's role: `.archon/workflows/gauntlet/.shared/task-format.md`, `.archon/workflows/gauntlet/intake/commands/clerk.md`. Agent: `role-author`.
-3. Intake workflow: `.archon/workflows/gauntlet/intake/intake.yaml`, `.archon/workflows/gauntlet/intake/clerk.mcp.json`, `.archon/workflows/gauntlet/intake/fixtures/file.stubs.yaml`, `.archon/workflows/gauntlet/intake/fixtures/clerk.stubs.yaml`. Agent: `workflow-builder`.
-4. Ignore Gauntlet's folder: `.gitignore`. Agent: `builder`.
+1. Clear the moved copies out of archon-workflows: `.archon/workflows/feature-pipeline/fence/` removed with its `__pycache__`, `docs/superpowers/specs/gauntlet-intake-design.md` removed, and `docs/testing.md` there citing no removed path. Agent: `builder`.
+2. Task format and Clerk's role: `.shared/task-format.md`, `intake/commands/clerk.md`. Agent: `role-author`.
+3. Working-folder guard and intake workflow: `.shared/working-folder.ts`, `intake/scripts/guard.ts`, `intake/scripts/ground.ts`, `intake/intake.yaml`, `intake/clerk.mcp.json`, `intake/fixtures/file.stubs.yaml`, `intake/fixtures/clerk.stubs.yaml`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
