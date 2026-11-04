@@ -1,0 +1,27 @@
+name: sbx
+description: sandbox experiment
+provider: claude
+worktree:
+  enabled: false
+nodes:
+  - id: probe
+    prompt: |
+      Try each of these and report the exact result of each, verbatim: (1) Read tool on src/secret.py; (2) Bash `cat src/secret.py`; (3) Bash `grep -r MARKER .`; (4) Edit tests/test_a.py appending a comment; (5) Bash `echo x >> tests/test_a.py`; (6) Write README.md with one new line; (7) Bash `python3 -c 'import src.secret'`. Output JSON {read_tool, bash_cat, grep, edit_tests, bash_append_tests, write_readme, python_import} each a short string.
+    model: haiku
+    effort: low
+    sandbox:
+      enabled: true
+      filesystem:
+        denyRead: ['src/**']
+        denyWrite: ['tests/**']
+    output_format:
+      type: object
+      properties:
+        read_tool: {type: string}
+        bash_cat: {type: string}
+        grep: {type: string}
+        edit_tests: {type: string}
+        bash_append_tests: {type: string}
+        write_readme: {type: string}
+        python_import: {type: string}
+      required: [read_tool, bash_cat, grep, edit_tests, bash_append_tests, write_readme, python_import]

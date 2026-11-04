@@ -1,0 +1,12 @@
+# filepawl reads the whole tree through `git ls-files`: the stale-allowance
+# audit is meaningless over a subset, because an entry is stale by the absence
+# of its file. Wired against the checkout's venv so the pinned version judges.
+repos:
+  - repo: local
+    hooks:
+      - id: filepawl
+        name: filepawl check
+        entry: .venv/bin/filepawl check
+        language: system
+        pass_filenames: false
+        always_run: true

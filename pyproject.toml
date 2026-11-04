@@ -1,0 +1,30 @@
+# Not a package: this file pins the dev tools the repository's gates run and
+# holds their policy. `uv sync` builds .venv, which the filepawl Claude Code
+# plugin prefers over any filepawl on PATH.
+[project]
+name = "gauntlet"
+version = "0"
+requires-python = ">=3.12"
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "filepawl @ git+https://github.com/ohshitgorillas/filepawl.git@v0.11.0",
+    "pre-commit",
+]
+
+[tool.filepawl]
+languages = ["python"]
+tests = ["**/test_*.py"]
+
+[tool.filepawl.length]
+cap = 500
+cap_tests = 800
+watch = 400
+
+[tool.filepawl.dircount]
+cap = 15
+cap_tests = 30
+exclude = ["__init__.py"]
