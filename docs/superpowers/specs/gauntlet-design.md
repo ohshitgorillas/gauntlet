@@ -94,7 +94,7 @@ nodes:
 
 The description is the worktree cut design's, with writing and landing named among the phases it takes the task through.
 
-The run's message (`$ARGUMENTS`) reaches Clerk unchanged, because an included block runs inside the run. The pauses of intake, plan review, spec review and landing are answered on the run's own id, and writing's on the tree run's id. A failed phase fails the run, and `archon workflow resume <run id>` picks the run up there. A defective plan cancels the run at `kill`; the tree and its branch stay where they are, for the owner to inspect or remove with `archon isolation cleanup`. An owner's leave at landing ends the run with the tree and its branch kept the same way.
+The run's message (`$ARGUMENTS`) reaches Clerk unchanged, because an included block runs inside the run. The pauses of intake, plan review, spec review and landing are answered on the run's own id, and writing's on the tree run's id. A failed phase fails the run, and `archon workflow resume <run id>` picks the run up there. A defective plan cancels the run at `kill`; the tree and its branch stay where they are, for the owner to inspect or remove with `archon complete <branch> --force`. An owner's leave at landing ends the run with the tree and its branch kept the same way.
 
 ### `gauntlet-run/scripts/guard.ts`
 
