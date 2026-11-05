@@ -10,17 +10,19 @@ Sources: (1) Archon feature verdicts, (2) the seven build orders as one graph, (
 
 ## 1. Archon feature verdicts
 
-Verdicts come from the vendored documentation only (D-03). The verdict and its `docs/reference/archon/` citations sit in the verdict column of `contracts.md` section A; this table repeats the outcome.
+Verdicts come from the vendored documentation (D-03) and, for the two rows no doc covers, from the probe record `.planning/phases/1/PROBES.md` (cited below as PROBES.md, section P1-P3; the main session ran the `spiker` probes). The verdict and its citations sit in the verdict column of `contracts.md` section A; this table repeats the outcome.
 
 | Row | Verdict | Finding |
 |---|---|---|
 | A1-A4, A6-A9 | documented | - |
-| A5 | pending probe | 1.04, 1.05 |
-| A10 | pending probe | 1.03 |
+| A5 | probed (PROBES.md P2) | 1.04 (in section 4), 1.05 withdrawn (section 9) |
+| A10 | probed (PROBES.md P1) | 1.03 (in section 6) |
 | A11 | unsupported | 1.01, 1.02 |
-| A12-A28 | documented | - |
+| A12-A18 | documented | - |
+| A19 | unsupported (PROBES.md side finding) | 1.07, 1.08 |
+| A20-A28 | documented | - |
 
-Counts: 28 rows; 25 documented, 1 unsupported (A11), 2 pending probe (A5, A10). The equality "unsupported rows = distinct rows the findings below cite" is open until the probes return: the findings cite A5, A10 and A11. A row whose probe finds the feature works has its finding withdrawn and is recorded `probed`; a row whose probe finds it does not work becomes `unsupported` and keeps its finding.
+Counts: 28 rows; 24 documented, 2 unsupported (A11, A19), 2 probed (A5, A10). The features findings below cite A11 and A19: the equality "unsupported rows = distinct rows the features findings cite" holds (2 = 2). A `probed` row whose probe contradicts a design's stated form carries its finding in that design's section (1.03 in section 6, 1.04 in section 4), as 1.06 does in section 5, because the finding is about that design's text and not about whether Archon has the feature.
 
 Notes that stay inside a documented verdict (no finding, recorded so Plan 3 does not rediscover them):
 
@@ -39,17 +41,15 @@ Fence launch forms judged against `mcp-servers.md`: F1-F7 use literal `env` valu
 Text: "launched by `sh -c` with every `FENCE_*` built from the repository's `env:` in the launch line". `landing-design.md:15`: "the repository's `env:` is measured to reach bash nodes only".
 Finding: as 1.01 for the mend's fences. The design also contradicts itself: line 15 records the repository's `env:` as measured to reach bash nodes only, and line 332 builds the mend's `FENCE_*` from it for agent nodes' MCP servers.
 
-**1.03** `spec-review-design.md:361`, row A10.
-Text: "sandbox: <enabled; filesystem writes allowed only under gauntlet/scratch/ of the checkout>". Also `:482`, `:499`.
-Finding: the only documented `sandbox:` filesystem key is `denyWrite` (`workflow-language.md:250-261`); `sandbox:` passes unknown keys through unchecked (`workflow-language.md:2967`); no doc line gives a write allow-list or says the sandbox confines the `Bash` of a `Task` sub-agent (the spiker). Status: probe requested of the main session (spiker); the result becomes the verdict `probed`.
+**1.07** `plan-review-design.md:264`, row A19 (also `:301`, `:165`, `:170`).
+Text: `allowed_tools: [Task, "Bash(uv run --script *cite.py *)"]`; `:165` "Detectives: dispatch through Task to `detective` for code reading."
+Finding: `archon validate` warns "Tool 'Task' was renamed to 'Agent' in the claude SDK — the old name is silently ignored at runtime" (PROBES.md, side finding), while the vendored docs still show `Task` (`workflow-language.md:657`). With `Task` ignored, the defense node gets no sub-agent dispatch and the `detective` never runs. The probe's working form is `Agent` (PROBES.md section P1). Confidence: the warning text is the tool's own; a run with `Task` alone was not made.
 
-**1.04** `gauntlet-intake-design.md:117`, row A5.
-Text: "Claude Code sets the server's `CLAUDE_PROJECT_DIR` to its own working directory ... and overrides any value the config gives".
-Finding: no file under `docs/reference/archon/` names `CLAUDE_PROJECT_DIR`. The fence root of every fence rests on it (`plan-review-design.md:226`, `spec-review-design.md:269`, `writing-design.md:268`). Status: probe requested.
+**1.08** `spec-review-design.md:359`, row A19 (also `:24`, `:239`, `:243`).
+Text: `allowed_tools: [Task, Bash]  # Bash for the spikers; the role forbids the speccer's own Bash`; `:239` "Spikers: dispatch through Task to `spiker`".
+Finding: as 1.07, for the `spiker`. `writing-design.md:530` names `Task` as a tool a writer node must not hold: with the name renamed, the row should name both words or the new one.
 
-**1.05** `landing-design.md:11`, row A5.
-Text: "`fence/files.py` and `fence/checks.py` root at `CLAUDE_PROJECT_DIR`, the agent's folder".
-Finding: as 1.04.
+Findings raised by the probes (1.03, 1.04, 1.06) are filed in their design sections because they concern that design's text: 1.03 in section 6, 1.04 in section 4, 1.06 in section 5. 1.05 is withdrawn; it is listed in section 9.
 
 ## 2. Build orders as one graph
 
@@ -63,19 +63,31 @@ Finding: as 1.04.
 
 (Plan 2 Task 4.)
 
+Seeded by Task 2 from the probe record, to be kept when the reviewer returns:
+
+**1.04** `gauntlet-intake-design.md:117`, row A5.
+Text: "Claude Code sets the server's `CLAUDE_PROJECT_DIR` to its own working directory, the run's checkout, and overrides any value the config gives, so the config sets none."
+Finding: false as written. PROBES.md section P2: Claude Code sets `CLAUDE_PROJECT_DIR` to the cwd only when the MCP config gives no value; a config `env` value wins (`/bogus` stayed `/bogus`). The pack still works because every config sets none, but the stated reason does not hold: nothing in Claude Code stops a config from relocating the fence root of F1-F11, so "the config sets none" is a rule the pack must keep and test, not a guarantee. Same claim stands behind `plan-review-design.md:226`, `spec-review-design.md:269`, `writing-design.md:268` ("sets no `CLAUDE_PROJECT_DIR`").
+
 ## 5. plan-review-design.md
 
 (Plan 2 Task 4.)
 
 Seeded by Task 2, to be kept or dropped when the reviewer returns:
 
-**1.06** `plan-review-design.md:264`, internal to plan-review-design.md.
-Text: `allowed_tools: [Task, "Bash(uv run --script *cite.py *)"]` (also `:301`).
-Finding: no doc under `docs/reference/archon/` shows a `Bash(<pattern>)` specifier in `allowed_tools` (`workflow-language.md:621-643` lists plain tool names). The defense's confinement to `cite.py` rests on it. One design names it, so it has no `contracts.md` row.
+**1.06** `plan-review-design.md:264`, row A19 (the `allowed_tools` row naming this line; the `Bash(<pattern>)` form itself has no row of its own).
+Text: `allowed_tools: [Task, "Bash(uv run --script *cite.py *)"]` (also `:301`, and `:170` "Bash for exactly the cite.py command above and no other command").
+Finding: no doc under `docs/reference/archon/` shows a `Bash(<pattern>)` specifier in `allowed_tools` (`workflow-language.md:621-643` lists plain tool names). PROBES.md section P3: `archon validate` accepts the specifier, but at runtime Bash is removed entirely ("No such tool available: Bash"), not limited to matching commands. The defense can run no command, `cite.py` included, so the cite check cannot run and the confinement the design builds on it does not exist. A `Bash(...)` rule set through `settings`/permissions was not tested.
 
 ## 6. spec-review-design.md
 
 (Plan 2 Task 4.)
+
+Seeded by Task 2 from the probe record, to be kept when the reviewer returns:
+
+**1.03** `spec-review-design.md:361`, row A10.
+Text: "sandbox: <enabled; filesystem writes allowed only under gauntlet/scratch/ of the checkout>". Also `:482`, `:499`.
+Finding: PROBES.md section P1: there is no pure write allow-list. `filesystem.allowWrite` is accepted but only adds writable paths; the checkout stays writable (a direct and a sub-agent `echo > outside.txt` both succeeded). Confinement holds only with `denyWrite` listing every other path (deny beats allow), and it does reach the Bash of a sub-agent spawned from the node. The design's form cannot confine the spiker to `gauntlet/scratch/` as written, and a new top-level file not on a `denyWrite` list stays writable. Globs in `denyWrite` were not tested. The documented keys are `workflow-language.md:250-261`. `:499` already tells the builder to stop and report if the sandbox cannot limit the writes.
 
 ## 7. worktree-cut-design.md
 
@@ -88,6 +100,10 @@ Finding: no doc under `docs/reference/archon/` shows a `Bash(<pattern>)` specifi
 ## 9. landing-design.md
 
 (Plan 2 Task 4.)
+
+Withdrawn by Task 2:
+
+**1.05** `landing-design.md:11`, row A5. Dropped: the quoted text "`fence/files.py` and `fence/checks.py` root at `CLAUDE_PROJECT_DIR`, the agent's folder" states only the part PROBES.md section P2 confirms (the variable is the cwd when the config gives none). The false clause is in `gauntlet-intake-design.md:117` (finding 1.04).
 
 ## 10. Groups
 
