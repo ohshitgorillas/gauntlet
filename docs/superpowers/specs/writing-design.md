@@ -405,7 +405,9 @@ nodes:
           depends_on: [state]
           when: "$state.output.next == 'seal'"
           bash: <git status --porcelain empty: write gauntlet/write/<slug>.seal.$state.output.move.txt "exit=0", "nothing".
-                Else git add -A, git commit -m "<slug>: final", hooks run; write the file: "exit=<n>", then the output; exit 0>
+                Else git add -A, git commit -F - with the message on stdin, hooks run: line 1 "<slug>: final", a blank line,
+                gauntlet/plans/approved/<slug>-summary.md when plan is not "", then each gauntlet/revisions/<slug>-summary.N.md
+                in order of N, each separated by a blank line; write the file: "exit=<n>", then the output; exit 0>
 
         - id: juror
           depends_on: [state]
@@ -520,7 +522,7 @@ env:
 | Ruling on a red, a contest or a failed commit | the juror's verdict file | a writer, node or script deciding who is wrong; a writer retrying a failed commit |
 | A wrong spec or plan | a revision round in `gauntlet/revisions/`, tried by the reviewer, approved at `bench`, entered by `enter` | any other edit of the approved files; the reviser revising past the quoted clause or the affected specs |
 | Ending on a defective plan | the juror's `DEFECTIVE`, read by `stage.py close` | a size or line-count threshold; any other node ending writing |
-| Commits | the writer's own message through `commit` of `fence/files.py`; node `seal` for the final commit | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |
+| Commits | the writer's own message through `commit` of `fence/files.py`; node `seal` for the final commit and its message, as `gauntlet-design.md` gives it | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |
 | Test output a test writer sees | `fence/checks.py` running `GAUNTLET_TEST_BRIEF_COMMAND` | the test writer reaching `GAUNTLET_TEST_COMMAND` or the full baseline |
 | The per-test listing and red | `GAUNTLET_TEST_BRIEF_COMMAND`'s `PASSED`, `FAILED` and `ERROR` lines, read by `.shared/red.py` (`gauntlet-design.md`), which `stage.py red` calls | parsing a runner's full output; a comparison computed in `stage.py`, a node, prompt or role |
 | What a test writer can see | `write-tests/test-writer.mcp.json`: `tests/`, the approved spec, `GAUNTLET_TEST_BASE` | a test writer handed the plan, code or a CODE section |
