@@ -126,49 +126,307 @@ Finding: not unordered (writing:8 needs gauntlet:4; gauntlet:10 needs both), and
 
 ## 3. gauntlet-design.md
 
-(Plan 2 Task 4.)
+Source: opus `cad-reviewer` dispatch saved as `.planning/phases/1/reviews/pass2-gauntlet.json` (9 findings). Anchors checked with `sed -n`: 9 of 9 hold the quoted text; no line corrected, none dropped. Severities are the reviewer's.
+
+**1.13** `gauntlet-design.md:121`, rows A3, A14; missing contract: where `$INPUTS` may appear inside a phase block (also `:123`, `:341`). High.
+Text: "`$INPUTS.<name>` appears only in prompts and `bash:` bodies." `:341` "`$INPUTS.<name>` in prompts and `bash:`; `INPUTS_<NAME>` in scripts".
+Finding: the rule binds `write/` and `mend/` through `:123` ("follow the same rules"), yet `writing-design.md:492` ("`<slug>`, plan files and spec files in prompts and `with:` come from `$INPUTS.slug`", used at `:434`, `:441`) and `landing-design.md:73`, `:91`, `:155` (`brief: $INPUTS.brief`) put `$INPUTS.<name>` in `with:` bindings. A builder who follows this design rewrites the `screen`, `flag`, `red`, `confirm` and `recheck` bindings the phase designs give verbatim; one who follows the phase designs breaks this home rule.
+
+**1.14** `gauntlet-design.md:290`, row S4 (internal to the red rule). Medium.
+Text: "True when run timed out; or a test FAILED or ERROR in run is failing in neither brief nor head"; `:292` "A failure in brief or head that passes in run is not red."
+Finding: a timeout is red unconditionally, while failures already present in brief or head are exempt. A timeout already present in the brief baseline or on the checkout's HEAD still counts as red. Case 1: the brief baseline timed out at the cut, so every writing test run is red, the juror is called on every cut, and the run can reach `stalled` or DEFECTIVE over a condition the writers did not cause. Case 2: new checkout commits make the suite hang; the mend's `confirm` is red though `test-head` timed out the same way, so `repair` opens and the owner is asked about a red the tree did not cause (CLAUDE.md 1.4).
+
+**1.15** `gauntlet-design.md:348`, row F4 (also P10). Medium.
+Text: "hidden from every other checkout role by `FENCE_HIDE=gauntlet/failed`"; `:355` "Refusing a read inside a readable folder | `FENCE_HIDE`".
+Finding: does not hold for spec review. Node `file` holds `allowed_tools: [Task, Bash]` (`spec-review-design.md:359`) and its `spiker` holds `Bash` (`:370`); their sandbox limits writes only (`:361`), and `FENCE_HIDE` covers fence tools only. During spec review the speccer, or a spiker it dispatches, can `cat gauntlet/failed/<slug>.txt` through Bash: the "no other role reads it" home is breached while `speccer.mcp.json`'s `FENCE_HIDE` gives the appearance of confinement.
+
+**1.16** `gauntlet-design.md:247`, row H33 (also `:350`). Medium.
+Text: "then each `gauntlet/revisions/<slug>-summary.<N>.md` in order of N"; `:350` "each revision summary in order of N".
+Finding: every revision summary goes into the final commit message, but the reporter writes a summary for every SOUND round (`writing-design.md:89`, `:219`), including rounds the owner sends back with `revise` (`writing-design.md:494`). Round 1 SOUND writes `<slug>-summary.1.md`; the owner revises; round 2 is approved and only round 2 becomes `.rev1.txt`; `seal` still lists summary 1 and 2, so the landing gate shows a commit message describing a revision that was never entered.
+
+**1.17** `gauntlet-design.md:19`, rows H25, A18 (also H18; `:98`). Medium.
+Text: "The run ends at block `land` ..., after `cut` ..., and at node `kill`, cancelled".
+Finding: `:19` and `:98` omit the `vacate` cancel inside writing (`writing-design.md:353-356`, `cancel: "... The run stops."`), which cancels the tree run, not gauntlet-run, and the `vacate` nodes of plan review and spec review. The design does not say what node `tree`, `cut`, `fail` or `kill` do when the child run ends cancelled. After twelve `OBJECTION: LEADING` verdicts `vacate` cancels gauntlet-tree, its `handoff` never runs, `cut` has no `$tree.output`, and the route is undefined: `:98` treats a failed `tree` as a resumable failed phase, which reruns writing straight back into `vacate`.
+
+**1.18** `gauntlet-design.md:26`, rows H13, H14, H15, A1, H1, S13, H4, H5, H6, A2, H8, R12, S4, H12; copy-list bullets at `:23-34` (D-06). Medium.
+Text: `:26` "Plan review's and spec review's declare none"; `:23` "Each description invites direct use"; `:24` "`worktree: enabled: false`: 4"; `:25` "Working-folder guard nodes in the checkout: 3"; `:27` "`$INPUTS` left of a `when:` comparison: 2"; `:28` "Inline `script:` handoffs that print an input: 2".
+Finding: the copy list states as current fact copies the other designs no longer hold. `:23` against `gauntlet-intake-design.md:137`, `plan-review-design.md:244`, `spec-review-design.md:298` ("Not for direct use"); `:24` against `gauntlet-intake-design.md:221`, `plan-review-design.md:239`, `spec-review-design.md:293` (no `worktree:`); `:25` against `plan-review-design.md:12`, `spec-review-design.md:293`; `:26` against `plan-review-design.md:406`, `spec-review-design.md:460-463` (both declare an `output_format`); `:27` against `gauntlet-intake-design.md:157`, `:164`; `:28` against `spec-review-design.md:456`; `:29`, `:32`, `:33`, `:34` name needs this design's own `:228`, `writing-design.md:19`, `:279` and `landing-design.md:256` now meet. About 10 of 12 bullets are false for the current designs; a reader checking them spends tokens on claims already settled (CLAUDE.md 1.3). Task 5 maps each bullet to a group.
+
+**1.19** `gauntlet-design.md:371`, row H33 (also `:247`). Low (CLAUDE.md 1.3).
+Text: "9. The final commit's message: `write/write.yaml` (node `seal`), `write/fixtures/written.stubs.yaml`." `:247` "Node `seal` is the writing design's, with one change: it commits with `git commit -F -`".
+Finding: `writing-design.md:408-410` already commits with `git commit -F -` and the same message, and `writing-design.md:494`, `:541` already build the sealed `written` fixture. Step 9 (after writing:7) finds `seal` and the fixture as specified and spends a `workflow-builder` dispatch and a validate cycle to change nothing, or rewrites a correct node.
+
+**1.20** `gauntlet-design.md:243`, row P3. Low.
+Text: "Each holds only its revision: the clauses it changes, each as it now reads"; `:229` `enter` does `cp -n` of the approved round file.
+Finding: `writing-design.md:31` gives the round file the lines `Revises: plan|spec` and `Answers: <tree path>` before the clauses, and `writing-design.md:344` confirms `enter` copies `$record.output.enter`. `.rev1.txt` therefore carries those header lines, and the rule "the approved plan is `<slug>.txt` with every revision applied" hands agents a header that is not plan text, pointing at a tree file the mend's agents and the checkout record may not carry.
+
+**1.21** `gauntlet-design.md:184`, row H34. Low.
+Text: "Its only agent nodes are `mend-juror`, `mend-code`, `mend-tests` and `mend-review`".
+Finding: the landing design's nodes are `juror` and `review` with `command: mend-juror` and `command: mend-review` (`landing-design.md:109-112`, `:157-159`). A builder or fixture author who keys the gauntlet-tree mend stubs, or a check of "only these agent nodes", on this design's ids finds no `mend-juror` or `mend-review` node in `mend/mend.yaml`.
 
 ## 4. gauntlet-intake-design.md
 
-(Plan 2 Task 4.)
+Source: opus `cad-reviewer` dispatch saved as `.planning/phases/1/reviews/pass2-gauntlet-intake.json` (6 findings). Anchors checked with `sed -n`: 6 of 6 hold the quoted text; none dropped. 1.25 is anchored in `gauntlet-design.md`, the line the reviewer gave, because the finding is about that copy list's claims on the intake design. 1.26 quotes a script spanning lines; the tracked-file sentence is at `:54`, the message at `:56`.
 
-Seeded by Task 2 from the probe record, to be kept when the reviewer returns:
+Seeded by Task 2 from the probe record, kept:
 
 **1.04** `gauntlet-intake-design.md:117`, row A5.
 Text: "Claude Code sets the server's `CLAUDE_PROJECT_DIR` to its own working directory, the run's checkout, and overrides any value the config gives, so the config sets none."
 Finding: false as written. PROBES.md section P2: Claude Code sets `CLAUDE_PROJECT_DIR` to the cwd only when the MCP config gives no value; a config `env` value wins (`/bogus` stayed `/bogus`). The pack still works because every config sets none, but the stated reason does not hold: nothing in Claude Code stops a config from relocating the fence root of F1-F11, so "the config sets none" is a rule the pack must keep and test, not a guarantee. Same claim stands behind `plan-review-design.md:226`, `spec-review-design.md:269`, `writing-design.md:268` ("sets no `CLAUDE_PROJECT_DIR`").
 
+From the reviewer:
+
+**1.22** `gauntlet-intake-design.md:238`, row P10. Medium.
+Text: the Homes row "Where Gauntlet writes" forbids "Any Gauntlet node writing outside `gauntlet/`".
+Finding: other designs place core writes outside `gauntlet/`: `gauntlet-design.md:352` makes landing's `git merge --ff-only` the home for writing the checkout's tracked files, `gauntlet-design.md:275` says tracked files change only by that merge, `landing-design.md:252` runs the merge, and the coder fence writes `.` in the tree (`writing-design.md:294`, F9). Applied pack-wide as its wording says, the intake Homes table forbids landing's merge, the coder's and the mend's writes to tracked files, and seal's commit. Either the Homes rule is false or the pack cannot land any work; two designs rule opposite ways and nothing decides.
+
+**1.23** `gauntlet-intake-design.md:110`, rows F5, R5. Medium.
+Text: `"FENCE_WRITE": "gauntlet/tasks"`; `:94` "Never: writes outside gauntlet/tasks/<slug>.md, copies or deletes a file".
+Finding: the fence gives Clerk write, edit, copy_file and delete_file on every task file; only the role's prose confines it to its own `<slug>.md`. That is what the Homes row `:245` forbids ("a hook or prompt rule standing in for" file confinement). Nothing checks the chosen slug is free (`:86` "pick a kebab-case slug not among the taken ones"). `gauntlet-design.md:307` tells Clerk to read `gauntlet/tasks/<failed-slug>.md`; Clerk can then edit or delete another run's task. If Clerk picks a taken slug, `until_bash` at `:182` (`[ -s "gauntlet/tasks/$slug.md" ]`) passes at once on the old file, so an approve on the opening turn hands off a previous run's task.
+
+**1.24** `gauntlet-intake-design.md:56`, rows S3 (also H1, H2). Medium.
+Text: "Gauntlet failed because its working folder, <root>/gauntlet/, sits in the main repo. Add it to .gitignore and restart the run."; `:54` "A file under gauntlet/ that git tracks fails it."
+Finding: the single failure message cannot clear the tracked-file case. If the checkout already tracks `gauntlet/notes.md`, the owner adds `gauntlet/` to `.gitignore`, restarts, and git still tracks the file, so the guard fails again with the same line (in gauntlet-run's guard and gauntlet-tree's alike) until the owner works out `git rm --cached` alone.
+
+**1.25** `gauntlet-design.md:24`, rows H1, H6, H13, S13 (copy-list bullets `:21-27`; seeds B01, B03, B05). Low.
+Text: `:24` "`worktree: enabled: false`: 4, in `intake/intake.yaml`, ..."; `:23` "Each description invites direct use".
+Finding: the gauntlet design says in the present tense that the intake design holds copies it does not hold: no `worktree:` key (`gauntlet-intake-design.md:221`), no `intake/scripts/guard.ts` (`:239` forbids one), no `$INPUTS` in a `when:` (`:157`, `:164` read `$route.output.file`), and a description "Not for direct use" (`:137`). A builder at gauntlet step 1 searches for a guard node, a `worktree:` key and `$INPUTS` `when:` lines the intake design never had (same copy-list disagreement as 1.18).
+
+**1.26** `gauntlet-intake-design.md:158`, internal to gauntlet-intake-design.md (CLAUDE.md 1.4). Medium.
+Text: "else (target taken, or empty slug) exit non-zero ... nothing renamed, suffixed or overwritten".
+Finding: `from-file` fails on any occupied target; the only exemption is the handed-in path being the target itself. A target holding byte-identical content also stops the run: `--input file=~/notes/fix-login.md` run twice finds `gauntlet/tasks/fix-login.md` with the same bytes and exits non-zero, though no copy is needed.
+
+**1.27** `gauntlet-intake-design.md:86`, rows P6, H16. Low.
+Text: "Opening turn (node `clerk`): read the idea; pick a kebab-case slug ..."; `:173` requires `slug`; `:221` "may be empty".
+Finding: the opening turn must output `slug` before any conversation, and it stays fixed for the whole talk group (`:181`, `:199`, `:217`), while the idea may be empty (`:7`, `:221`). With a blank message Clerk emits a meaningless slug, and the hand-off path, pin's branch (`worktree-cut-design.md:61`) and `gauntlet/failed/<slug>.txt` carry it ten turns later when the task is about something else.
+
 ## 5. plan-review-design.md
 
-(Plan 2 Task 4.)
+Source: opus `cad-reviewer` dispatch saved as `.planning/phases/1/reviews/pass2-plan-review.md` (10 findings). Anchors checked with `sed -n`: 10 of 10 hold the quoted text after two line corrections: 1.31 (reviewer `:93-94`, text at `:94`), 1.32 (reviewer `:323-326`, the `when:` at `:325`). 1.37 is anchored in `gauntlet-design.md` (the reviewer's line). None dropped.
 
-Seeded by Task 2, to be kept or dropped when the reviewer returns:
+Seeded by Task 2, kept (the reviewer did not return it):
 
 **1.06** `plan-review-design.md:264`, row A19 (the `allowed_tools` row naming this line; the `Bash(<pattern>)` form itself has no row of its own).
 Text: `allowed_tools: [Task, "Bash(uv run --script *cite.py *)"]` (also `:301`, and `:170` "Bash for exactly the cite.py command above and no other command").
 Finding: no doc under `docs/reference/archon/` shows a `Bash(<pattern>)` specifier in `allowed_tools` (`workflow-language.md:621-643` lists plain tool names). PROBES.md section P3: `archon validate` accepts the specifier, but at runtime Bash is removed entirely ("No such tool available: Bash"), not limited to matching commands. The defense can run no command, `cite.py` included, so the cite check cannot run and the confinement the design builds on it does not exist. A `Bash(...)` rule set through `settings`/permissions was not tested.
 
+From the reviewer:
+
+**1.28** `plan-review-design.md:294`, rows H29, S9 (also `:321`; `spec-review-design.md:351`, `:378`). High.
+Text: `:91-92` "mode "state" inside the loop also passes INPUTS_START, the latest tried round when the run began ($docket-in.output.start)"; but `:294` and `:321` pass only `with: { mode: state, slug: <slug> }`.
+Finding: without START the ledger cannot compute "next" (`:106`) or "run_rounds" (`:111`). If START defaults to 0, a rerun counts LEADING reviews and rounds from earlier runs: slots start past p1, `vacate` can cancel a fresh run on its first round, and the cap fires early. If START is recomputed on each call, the slot never moves after LEADING and the cap and vacancy never fire. Spec review copies the omission (`spec-review-design.md:351`, `:378`; same finding as 1.41).
+
+**1.29** `plan-review-design.md:409`, row P1 (also `:150-151`, `:397-398`). High.
+Text: "A rerun on the same task starts the sessions afresh and continues the rounds from the files."
+Finding: intake's file route reuses an existing `gauntlet/tasks/<slug>.md` (`gauntlet-intake-design.md:159`, "task is that path, nothing copied"), so a fresh run can reach plan review for a slug whose plan is already approved. `state` returns latest+1 owed to the defense, the run pays for a full new hearing, then `enter`'s `cp -n` finds `approved/<slug>.txt` and exits non-zero, failing the run. No node reads "already approved" from the ledger (CLAUDE.md 1.3, 1.4). Same shape as 1.44 for spec review.
+
+**1.30** `plan-review-design.md:95`, row S9 (also `:71-76`, `:26`, `:126`). Medium.
+Text: "A plan is cited when it holds no "[cite:" marker."
+Finding: a substring test, while `cite.py` uses a marker grammar `[cite: <path> | <quote>]` and does not say how it treats text that does not fit it. A malformed marker (`[cite: a.py]` with no `|`) or a resolved quote copied from a code line containing `[cite:` leaves `cite.py` exiting 0 while the ledger still says owed `defense`. `screen` and every prosecutor are skipped, `case` is "none", nobody asks the owner, and each iteration spends a fresh Opus `defend` turn until `max_iterations: 200` fails the run, against `:26` "the loop never ends on max_iterations".
+
+**1.31** `plan-review-design.md:94`, rows S9, S7. Medium (CLAUDE.md 1.4).
+Text: "read from the first line of <slug>.review.N.txt, "Verdict: <verdict>". Any other first line: exit 1 naming the file."
+Finding: the shared core matches leniently, "by the longest known name the text after `Verdict: ` starts with" (`spec-review-design.md:31`). Plan review's exact match fails the whole run on a prosecutor formatting slip such as `Verdict: REJECTED - three flaws` or a bold first line, where the round could go back to the prosecutor. The two ledger forms parse the same file differently.
+
+**1.32** `plan-review-design.md:325`, row H29 (also `:323`, `:104-106`, `:419`, `:28`). Medium (CLAUDE.md 1.3, 1.4).
+Text: `vacate` ... `when: "$ready.output.next == 'vacant'"`; `:419` forbids "any other bound on the hearing but `max_iterations: 200`".
+Finding: `filing` returns `next: "defense"` whenever the defense owes, so a vacancy shows only in `ready`, after `defend` and `cite`. After the twelfth LEADING review the next iteration still runs a full Opus defense repair turn with detectives that nothing reads before the cancel; if that LEADING also reached the stretch guard the owner is asked first and the answer is discarded. The vacancy cancels the run without asking the owner, which contradicts the Homes row at `:419`.
+
+**1.33** `plan-review-design.md:310`, internal to plan-review-design.md (CLAUDE.md 1.4). Medium.
+Text: "`cite` # the plan reaches the prosecutor only resolved; an error fails here".
+Finding: the ledger already returns an uncited plan to the defense ("owed": defense, `:103`) and the defense role already handles "Plan N already there and unresolved: fix it" (`:155`), so the loop would correct an unresolved marker itself. Failing the whole run on one is a stop on a technicality. With 1.06 in force (the defense has no Bash) every unresolved marker reaches this node.
+
+**1.34** `plan-review-design.md:137`, row H27 (also `:397`). Medium.
+Text: `{ "plan": "<slug>.N.txt", "summary": "<slug>-summary.N.md" }` "for the latest round N with a summary"; `enter` reads `$close.output.plan`.
+Finding: the spec review design gives `{ outcome, file, summary }`, "for the latest ruling whose decision is an OwnerCase "ends"" (`spec-review-design.md:113-115`, `:124`), and states "`enter` and `handoff` read `$close.output.file`" (`:470`). The plan review design is not amended: its YAML reads a field the shared core never prints, and the two designs pick the closing round by different rules.
+
+**1.35** `plan-review-design.md:259`, missing contract: where a phase block gets its slug (also H29; `:287`, `:294`, `:314`, `:321`, `:345`, `:363`, `:379`, `:393`). Medium.
+Text: `with: { mode: state, slug: <slug> }`; the block's only input is `task` (`:250-252`).
+Finding: only the `open` prompt names the slug ("slug = its file name without .md", `:266`) and no node outputs it. `docket-in`, the entry node, needs the slug before any agent runs, and a `with:` binding cannot take a basename. Every ledger node and `cite`'s path binds a value nothing produces. Spec review avoids the gap only for `handoff.ts`, which derives the slug from `INPUTS_TASK` (`spec-review-design.md:285`); same finding as 1.42.
+
+**1.36** `plan-review-design.md:178`, rows R2, R4 (no row holds what a sworn-in reviewer reads; also `:179`, `:189`). Low.
+Text: "read the task file, every ruling and every earlier review except OBJECTION: LEADING and SCREENED ones; read no earlier plan."
+Finding: the spec review's amended arbiter reads "the latest block and review only when the latest verdict is neither `OBJECTION: LEADING` nor `SCREENED`" (`spec-review-design.md:263`). In plan review a slot forked after a retirement, or any slot on a rerun, never read the plan an earlier review demanded clarification of, so it cannot tell whether the new plan "drops or changes a part to avoid a demand" (`:189`) and the two-NON-RESPONSIVE owner call cannot fire there.
+
+**1.37** `gauntlet-design.md:23`, rows H4, H14, A1, S13 (copy-list bullets `:23-28`). Low.
+Text: "Each description invites direct use" (`:23`); "`worktree: enabled: false` ... in ... `plan-review/plan-review.yaml`" (`:24`); "`plan-review/scripts/guard.ts`" (`:25`); "Plan review's and spec review's declare none" (`:26`); "Inline `script:` handoffs that print an input: 2, plan review's" (`:28`).
+Finding: the plan review design already contradicts each: `:244` "Not for direct use", `:239` "declares no `worktree:` and holds no guard node", `:12` "plan review holds none", `:406` `output_format` on `handoff`, `:404` reading `INPUTS_TASK`. The gauntlet design's "changes" at `:110-121` are no-ops on plan review, and the two designs disagree on what this file holds (same copy-list disagreement as 1.18).
+
 ## 6. spec-review-design.md
 
-(Plan 2 Task 4.)
+Source: opus `cad-reviewer` dispatch saved as `.planning/phases/1/reviews/pass2-spec-review.json` (10 findings; 3 marked blocker). Anchors checked with `sed -n`: 10 of 10 hold the quoted text; none corrected, none dropped. For 1.40 the ledger write is node `record` at `:340-341`.
 
-Seeded by Task 2 from the probe record, to be kept when the reviewer returns:
+Seeded by Task 2 from the probe record, kept (the reviewer did not return it):
 
 **1.03** `spec-review-design.md:361`, row A10.
 Text: "sandbox: <enabled; filesystem writes allowed only under gauntlet/scratch/ of the checkout>". Also `:482`, `:499`.
 Finding: PROBES.md section P1: there is no pure write allow-list. `filesystem.allowWrite` is accepted but only adds writable paths; the checkout stays writable (a direct and a sub-agent `echo > outside.txt` both succeeded). Confinement holds only with `denyWrite` listing every other path (deny beats allow), and it does reach the Bash of a sub-agent spawned from the node. The design's form cannot confine the spiker to `gauntlet/scratch/` as written, and a new top-level file not on a `denyWrite` list stays writable. Globs in `denyWrite` were not tested. The documented keys are `workflow-language.md:250-261`. `:499` already tells the builder to stop and report if the sandbox cannot limit the writes.
 
+From the reviewer:
+
+**1.38** `spec-review-design.md:338`, row A15 (also `plan-review-design.md:281`). Blocker.
+Text: `until_bash: '[ "$bench.output.decision" = "approve" ] || [ "$bench.output.decision" = "confirm" ]'` over a wait whose own `when: "$docket.output.ask == true"` (`:434`) skips it on most rounds.
+Finding: `loop-nodes.md:695-697` "A skipped wait has no output, so an `until_bash` that reads a wait its own `when:` can skip fails the group." Round 1 with ANOTHER PASS and attempts < 5 gives case none and ask false, `bench` is skipped, `until_bash` reads a skipped wait, and the hearing group fails: spec-review and gauntlet-run fail on an ordinary revise round. `plan-review-design.md:281` has the same form.
+
+**1.39** `spec-review-design.md:338`, row A15 (also `plan-review-design.md:281`). Blocker.
+Text: the same `until_bash` wraps the substituted reference in double quotes.
+Finding: `loop-nodes.md:667-670` "Archon already single-quotes a substituted value, so `"$review.output.decision"` compares `'approve'` with the quotes included and never matches". When the owner picks approve on a READY round, or confirm on an INVALID round, the test compares `'approve'` with `approve` and is false; the loop never ends on approval, each answer allows one more iteration (`workflow-language.md:773`), and the speccer files another round after every approval.
+
+**1.40** `spec-review-design.md:115`, row H27 (also `:341`, `:448`; `plan-review-design.md:137`). Blocker.
+Text: `close` returns its result "for the latest ruling whose decision is an OwnerCase "ends"".
+Finding: a ruling is written only by node `record` (`:341`, `when: "$LOOP_PREV.bench.output.decision != ''"`) at the start of the NEXT iteration. When the owner approves or confirms, `until_bash` ends the loop, no next iteration runs and the ending ruling is never written. `close` finds no ending ruling, `enter` (`:448`) does not copy, and `handoff` reports outcome "" with spec "" for an approved spec. The core also replaces plan review's working close rule ("latest round N with a summary", `plan-review-design.md:137`), so plan review breaks the same way once it runs on `rounds.py` (`:124`).
+
+**1.41** `spec-review-design.md:351`, row H29 (also `:378`, `:90`, `:98`, `:23`). High.
+Text: `:90` "mode "state" inside the loop also passes INPUTS_START"; `:351` and `:378` pass only `with: { mode: state, slug: <slug> }`.
+Finding: no `start: $docket-in.output.start`. On a rerun of a slug with 12 earlier LEADING reviews, if start is None and read as 0, `ready` says next = vacant and `vacate` cancels the new run at once, against "A rerun starts again at arbitrate-1" (`:23`); old rounds also fill run_rounds so the cap fires early. If None means "latest tried round", each call resets start: slot stays a1 after a LEADING and run_rounds stays 0. Same finding as 1.28.
+
+**1.42** `spec-review-design.md:390`, rows H26, H29 (also `plan-review-design.md:314`, `:337`). Medium.
+Text: `with: { file: gauntlet/specs/<slug>.$ready.output.round.txt }`; `:293` bars `$INPUTS` outside prompts and `bash:`.
+Finding: every ledger `with:` passes `slug: <slug>` and `screen` builds a round-file name, but no node of the block outputs the slug (the state output at `:95-97` has none) and the Homes row at `:476` assigns round-file names to `rounds.py` only. The YAML cannot be built without a new state field or a node outside the design. Same finding as 1.35.
+
+**1.43** `spec-review-design.md:359`, internal to spec-review-design.md (also `:482`, `:483`). Medium.
+Text: `allowed_tools: [Task, Bash]  # Bash for the spikers; the role forbids the speccer's own Bash`.
+Finding: the speccer itself holds Bash and only its prompt keeps it from using it, against the Homes rows "the speccer or any other agent running Bash" (`:482`) and "any role reaching files by a built-in tool other than the spiker's Bash" (`:483`). The speccer can `cat src/...` or write under `tests/` through its own Bash and bypass `speccer.mcp.json`; per 1.03 the `file` sandbox does not limit writes to `gauntlet/scratch/`.
+
+**1.44** `spec-review-design.md:449`, row P2 (CLAUDE.md 1.3, 1.4; also `:59`, `:215`). Medium.
+Text: `enter`: "cp -n gauntlet/specs/$close.output.file to gauntlet/specs/approved/<slug>.txt ... either target present: exit non-zero naming it"; `:215` "Spec files already there: needed is true".
+Finding: a fresh run on a task whose spec was already approved hears the whole spec again, then fails at `enter`. The speccer's opening rule and the ledger (round = latest tried + 1) have no branch for an existing `approved/<slug>.txt`. After an earlier run approved the spec and stopped in a later phase, gauntlet-run on the same task spends Opus rounds, the owner approves again, `enter` exits "target present", `handoff` is skipped and the run stops over a file that already holds the approved spec. Same shape as 1.29.
+
+**1.45** `spec-review-design.md:277`, row F4 (also `:273`, `:53`, `:370`). Low.
+Text: "No agent can reach `gauntlet/specs/approved/` or `gauntlet/scratch/` through the fence"; `:273` gives `speccer.mcp.json` `FENCE_READ` `.`.
+Finding: the speccer, and a spiker holding the same server's read tools, can call `mcp__fence-files__read_file` on `gauntlet/scratch/<slug>/...` or `gauntlet/specs/approved/<slug>.txt` and the fence allows it. A builder or fence test that pins the stated rule finds it false. (`:53` "No other agent reads it" has the same exposure.)
+
+**1.46** `spec-review-design.md:423`, internal to spec-review-design.md (also `:161-162`, `:251`). Low.
+Text: `prompt: <round $case.output.round; verdict $case.output.case>`.
+Finding: `$case.output.case` takes the values "review" or "invalid" (`:161-162`), while the reporter role (`:251`) takes "its verdict, READY or INVALID" and branches on READY. On a READY round the reporter gets "review", a value its role does not name.
+
+**1.47** `spec-review-design.md:470`, row H27 (also `plan-review-design.md:400-405`). Low.
+Text: "`enter` and `handoff` read `$close.output.file`. The plan review design is otherwise unchanged."
+Finding: plan review's `handoff` (`plan-review-design.md:400-405`) depends on [open, enter], reads no close output and builds the plan path itself. The builder of spec-review step 7 cannot make it read `$close.output.file` without changing its `depends_on` and script body; the design specifies no such change while claiming nothing else changes.
+
 ## 7. worktree-cut-design.md
 
-(Plan 2 Task 4.)
+Source: opus `cad-reviewer` dispatch saved as `.planning/phases/1/reviews/pass2-worktree-cut.json` (9 findings). Anchors checked with `sed -n`: 9 of 9 hold the quoted text; none corrected, none dropped. Where a quote wraps (1.48 at `:117-118`, 1.51 at `:159-160`, 1.55 at `:152-153`) the anchor is the line holding its first words.
+
+**1.48** `worktree-cut-design.md:117`, rows H16, H17, H18. High.
+Text: node `cut` prints "branch, base and uncommitted from $pin.output, the rest from $tree.output"; `:168-169` the tree's `handoff` takes "branch from git branch --show-current"; Homes `:194` "the tree run reads it from git".
+Finding: `cut` takes `branch` from pin's predicted name and drops the tree's real branch, and no node checks the two match (also `gauntlet-design.md:155`). If Archon's naming differs from pin's `norm`, Archon finds no local branch with that name and cuts the tree from `origin/<baseBranch>`, a start point `:195` forbids. Writing and the mend commit on the real branch; landing gets pin's empty branch at base (`gauntlet-design.md:82`), `onto` sees an ancestor, `merge --ff-only` does nothing and the run reports `landed`; `archon complete <pin branch>` then targets the wrong branch and the work never reaches the checkout.
+
+**1.49** `worktree-cut-design.md:161`, rows H20, P8. Medium (CLAUDE.md 1.3).
+Text: node `baseline` runs the full `GAUNTLET_TEST_COMMAND` into `gauntlet/baseline/<slug>.txt`.
+Finding: no node in any design reads that file. Red uses only the brief baseline (`writing-design.md:30`, `:145`; `landing-design.md:16`); `writing-design.md:14` calls the full file "unparsed, with no per-test listing" and `:526` forbids the test writer from reaching it. It travels only as a required pass-through field (`gauntlet-design.md:163`, `:222`). Every run pays a full test-suite run of up to 15 minutes on the production host for output never compared, shown or parsed.
+
+**1.50** `worktree-cut-design.md:158`, row A27 (design text; also `writing-design.md:399`, `landing-design.md:61`, `:79`, `:146`). Medium (CLAUDE.md 1.4).
+Text: "timeout: <GAUNTLET_TEST_TIMEOUT plus 60 s, in ms; 960000 when unset>".
+Finding: the documented `timeout` is a fixed ms value in YAML (`workflow-language.md:93`) with no env expansion, so the builder can only write a literal, in practice 960000. A repository setting `GAUNTLET_TEST_TIMEOUT: "1800"` with a 1200 s suite has `baseline` killed at 960 s and the tree run fails though the repository's own limit was not reached. The bash body already bounds the command with `timeout -k 10 "${GAUNTLET_TEST_TIMEOUT:-900}"`, so omitting the node timeout loses nothing.
+
+**1.51** `worktree-cut-design.md:159`, rows P11, H20 (also `writing-design.md:512`, `:107`, `:502`; `landing-design.md:62`). Medium (CLAUDE.md 1.3).
+Text: "GAUNTLET_TEST_COMMAND unset or blank: write the file with the one line "no test command"".
+Finding: the cut carries on without a test command, but `writing-design.md:512` says "Writing needs `GAUNTLET_TEST_COMMAND` and `GAUNTLET_TEST_BRIEF_COMMAND` to be set" and `:107` says "blank: every mode exits 1 naming it". `landing-design.md:62` also exits 1 on a blank brief command while `writing-design.md:502` writes "no test command" for it. A repository with no test command pays for intake, plan review, spec review and the cut before `stage.py` exits 1. Same finding as 1.63.
+
+**1.52** `worktree-cut-design.md:200`, row H20 (also P8). Medium.
+Text: the Homes row "The test baseline | gauntlet/baseline/<slug>.txt of the tree, written once by node baseline" forbids "any other baseline file".
+Finding: `writing-design.md:502` makes the same node also write `gauntlet/baseline/<slug>.brief.txt`, the file red is judged against (`writing-design.md:30`; `landing-design.md:40`, `:64`; `gauntlet-design.md:156`, `:194`). A checker enforcing this Homes table rejects writing:step 8's brief file, the only baseline any red check reads; the design never gives the brief file a home.
+
+**1.53** `worktree-cut-design.md:23`, rows H16, H17. Medium.
+Text: "Node pin lists the changed tracked paths in uncommitted, the cut hands them off, and the run goes on." `:9` "because the plan and spec were reviewed against that code".
+Finding: `uncommitted` (and `base`) reach no reader: the readers of `$cut.output` (`gauntlet-design.md:80-88`) take outcome, worktree, branch, line and verdict. `:9`'s reason is false when uncommitted edits exist, because plan and spec agents read the live working tree (`gauntlet-design.md:31`, `FENCE_READ=.`), and untracked new files are not listed at all (`:69` "tracked paths"). Writing builds against code the plan was not reviewed on, with no owner gate.
+
+**1.54** `worktree-cut-design.md:111`, rows H9, H16 (also `gauntlet-design.md:156`, `:169`). Low.
+Text: the `tree` node's `with: { checkout: <the checkout's absolute root>, ...`.
+Finding: `checkout` has no source: pin's output (`:66-69`, `:105`) carries no checkout field and the documented standard variables include no checkout path. `workflow-builder` at step 3 has no expression to bind; a guessed literal or missing binding gives `copy-in` (`:153`) and the mend's `git -C $INPUTS.checkout` a wrong or empty root. The fix is for pin to print the checkout root.
+
+**1.55** `worktree-cut-design.md:152`, internal to worktree-cut-design.md; row H7. Low.
+Text: copy-in copies "each present in the checkout ... target absent: cp -n" (`:152-153`; also `:48` "each only when present there").
+Finding: a plan or spec that is named by the input but missing in the checkout is skipped silently, and `handoff` (`:168-170`) still prints a tree path for any non-empty input. If `gauntlet/plans/approved/<slug>.txt` was moved after plan review, copy-in exits 0 and writing is handed a path to a file that does not exist, with no plan, instead of the run failing at the cut.
+
+**1.56** `worktree-cut-design.md:197`, row H23 (also `gauntlet-design.md:354` which has no contracts row; `:343`; the reviewer cited `landing-design.md:262` for the `archon complete` line, it is at `:265`). Low.
+Text: Homes row forbids "any write in the tree by a `gauntlet-run` node".
+Finding: landing, a gauntlet-run block, removes the tree with `archon complete $INPUTS.branch --force` (`landing-design.md:265`; `gauntlet-design.md:354`). `gauntlet-design.md:343` forbids only "a rebase, test run or commit in the tree from gauntlet-run", the narrower rule. A checker applying this Homes table to `land/land.yaml` flags `remove`, the documented home for removing the tree.
 
 ## 8. writing-design.md
 
-(Plan 2 Task 4.)
+Source: opus `cad-reviewer` dispatch saved as `.planning/phases/1/reviews/pass2-writing.json` (12 findings). Anchors checked with `sed -n`: 12 of 12 hold the quoted text after one correction: 1.58 (reviewer `:127`, the quoted opening is at `:126`, the text continues at `:127`). None dropped. Where the reviewer cites a range, the anchor is the line holding the quote.
+
+**1.57** `writing-design.md:356`, row H29 (also A18; `:353-355`, `:96`). High (CLAUDE.md 1.4).
+Text: `cancel: "Twelve OBJECTION: LEADING verdicts passed the screener on revisions in this run; no reviewer is left. The run stops."`
+Finding: writing keeps the hearing's slot retirement and its vacancy cancel, but its reviewer is one `context: fresh` node (`review-plan`/`review-spec`, `:443-452`; "tried by a fresh reviewer", `:9`). There are no slot sessions to contaminate; nothing is retired, yet the counter still cancels the whole tree run. Over a long run the reviser draws 12 LEADING reviews, each fixed by the next round; `rounds.state` returns `vacant`, `vacate` cancels gauntlet-tree, and every committed block is thrown away.
+
+**1.58** `writing-design.md:126`, row S5 (write/scripts/stage.py; also `:127`, `:164`). High.
+Text: "a case for the juror: the latest blocks file holds a contest or commit-failed; the latest run is red; the latest seal exit is not 0; a writing ruling newer than the latest verdict."
+Finding: only the last trigger is bounded by "newer than the latest verdict", and the rule takes precedence over `divvy` and over "the latest cut has an unrun wave". After the juror rules TESTS or CODE the same older contest, red run or seal still matches, so `state` returns `juror` again and never reaches `divvy`. The suite "pins each rule of `state` in its precedence" (`:164`), so the as-written rule gets built and tested. Each iteration spends an opus juror call writing a fresh verdict until `stalled` asks the owner, whose reply sends it to the juror again.
+
+**1.59** `writing-design.md:28`, internal to writing-design.md; missing contract: coverage of the approved spec and plan across cuts (also `:130`, `:138`, `:175-176`). High.
+Text: "A later cut covers only what its cause affects."
+Finding: `state` reads only the latest cut's first unrun wave (`:130`), so a cut that answers a verdict or a revision drops every unrun wave of the cut it replaces. The only coverage check is "a step of an uncommitted earlier block missing from a code cut" (`:138`); no check exists for spec ids of unwritten test blocks, and a missing test never turns a run red. Cut 1 has test waves W1, W2 and code wave W3; a contest in W1 ruled TESTS yields a cut 2 of the contested tests only; W2 and W3 never run, and the run seals as `written` with approved specs untested.
+
+**1.60** `writing-design.md:407`, row H33. High.
+Text: "`git status --porcelain` empty: write ... "exit=0", "nothing"."
+Finding: every writer commits its own block through `commit`, which refuses any recorded path left out of `paths` (`:71-72`), so the tree is normally clean at `seal` and no `<slug>: final` commit is made. This contradicts `gauntlet-design.md:247` (`seal` "commits with `git commit -F -`", message carrying the plan summary and the revision summaries; home `:350`) and `landing-design.md:205` ("Mend commits sit on top of `<slug>: final`"). Landing's gate shows commit messages (`landing-design.md:9`, `:373`), so the owner never sees the summaries. Related to 1.19.
+
+**1.61** `writing-design.md:151`, internal to writing-design.md (S5; also `:127`). Medium (CLAUDE.md 1.3, 1.4).
+Text: "stalled (verdicts and rejected cuts since the latest writing ruling >= 5); cap (moves since start >= rounds.CAP)" and juror case "a writing ruling newer than the latest verdict".
+Finding: the owner's reply to `stalled` or `cap` is written as a writing ruling, which always opens a juror case even when nothing is red or contested, and the juror has no "carry on" verdict: it must pick TESTS, CODE, SPEC, PLAN or DEFECTIVE. `stalled` also counts verdicts that each fixed their red, so a healthy run with 5 rulings pauses for the owner. After `cap` every iteration asks and then calls the juror. The opus juror invents a verdict and triggers a needless cut.
+
+**1.62** `writing-design.md:330`, internal to writing-design.md (rounds.CAP; S7, S5; also `:29`). Medium.
+Text: "max_iterations: 200  # rounds.py CAP; from 200 moves every iteration asks, so this never fails the run".
+Finding: revise and review iterations write no move (moves are only `gauntlet/write/` files, `:29`; rounds go to `gauntlet/revisions/`), and `cap` counts moves while rounds' own cap counts run rounds. Iterations equal moves plus about two per revision round, so 200 iterations can pass with neither count at 200. `loop-nodes.md:203-205` says the node then fails: a run with 150 moves and 25 revision rounds reaches iteration 200 with no ask pending, and loop `work` fails gauntlet-tree and gauntlet-run after all the work is done.
+
+**1.63** `writing-design.md:107`, rows P11, H20 (also `:512`, `:502`). Medium (CLAUDE.md 1.3).
+Text: "`GAUNTLET_TEST_COMMAND` or `GAUNTLET_TEST_BRIEF_COMMAND` blank: every mode exits 1 naming it."
+Finding: the cut design treats a blank command as supported ("write the file with the one line "no test command"", `worktree-cut-design.md:159-160`) and writing's own brief baseline does too (`:502`). Writing then fails at `open`, the first node of phase 5, after intake, plan review and spec review spent their tokens; nothing earlier, such as the run's guard, checks the variable. Same finding as 1.51.
+
+**1.64** `writing-design.md:152`, row H28 (docket output read by bench; also `:148-151`, `:331`, `:479`). Medium (CLAUDE.md 1.4).
+Text: "stalled and cap offer one option, reply. end follows the first rule of state."
+Finding: `docket` can return `ask` true together with a non-empty `end`, but `bench` waits before `until_bash` ends the loop, and the reply is then discarded. If the 5th verdict since the last ruling is DEFECTIVE, `docket` returns case stalled, ask true and end defective: the owner is asked to reply to a stall of a run that has ended. The same happens when `cap` is reached on the iteration where `seal` succeeds.
+
+**1.65** `writing-design.md:272`, rows F8, P12 (also `:256`). Medium.
+Text: `FENCE_READ=tests:gauntlet/specs/approved plus :$GAUNTLET_TEST_BASE when set`; `:256` test-writer.md "Write a test for each spec of the block, in the block's paths, as docs/testing.md or the repository's testing policy".
+Finding: the test writer's fence does not cover `docs/testing.md`, so it cannot read the policy it is told to follow, while the arbiter's fence (`spec-review-design.md:274`) and writing's reviewer-spec fence (`:309`) both list `docs/testing.md`. The writer gets a PermissionError, writes tests without the policy's rules, and the reviewer and juror judge against a policy it never saw.
+
+**1.66** `writing-design.md:295`, rows F9, P14 (also `:13`, `:18`, `:187`, `:529`). Medium.
+Text: `fence-checks | FENCE_TEST_COMMAND=$GAUNTLET_TEST_COMMAND`; `:13` "`fence/checks.py`, which runs `FENCE_TEST_COMMAND` and returns its last 200 lines, tracebacks included".
+Finding: the coder's blindness to `tests/` is the design's stated goal (`FENCE_HIDE`, `:18`; Homes `:529`; the juror "quotes no spec text or test source", `:187`), yet the coder's own check tool returns full tracebacks, which print the failing test's source lines and assertion values. The coder runs `fence-checks` after a pytest failure and sees test source `FENCE_HIDE=tests` was meant to hide.
+
+**1.67** `writing-design.md:337`, internal to writing-design.md (S5; also `:154-155`). Low.
+Text: `with: { mode: record, start: $open.output.start, round: ..., case: ..., decision: ..., text: ... }` against `:154` `record(move: int, round: int, case: str, ...)` and `:155` "stalled and cap: writes <slug>.ruling.<move>.txt".
+Finding: node `record` passes no `move`. On the owner's reply to a `stalled` ask `record` runs with `INPUTS_MOVE` unset, so it has no N for `<slug>.ruling.<move>.txt`; it fails or writes a misnamed file that `state`'s "ruling newer than the latest verdict" cannot order.
+
+**1.68** `writing-design.md:428`, internal to writing-design.md (R12 reviser.md; also `:197-198`, `:117`). Low.
+Text: `prompt: <round $state.output.round; kind $state.output.kind; plan files; spec files>` against reviser.md "Inputs: round N, kind (plan or spec), the tree path the round answers, ... the latest review (may be "")".
+Finding: `state` gives no answers path for `revise` (`cause` is defined for divvy and juror only, `:117`), so the reviser must find for itself the path it writes on its `Answers:` line. After a PLAN verdict it cannot tell whether it answers verdict N or `approved/<slug>.revK.txt`; a wrong `Answers:` line breaks `state`'s "no spec round answering it closed" test and the revision stays owed.
 
 ## 9. landing-design.md
 
-(Plan 2 Task 4.)
+Source: opus `cad-reviewer` dispatch saved as `.planning/phases/1/reviews/pass2-landing.md` (7 findings; 1 blocker). Anchors checked with `sed -n`: 7 of 7 hold the quoted text; none corrected, none dropped. The reviewer listed what it dropped itself (skip cascade on the `still` route, `land`'s branch-absent route, record-copy collisions, the brief-versus-full test command in the mend's fence-checks, multi-iteration fixtures, anything covered by 1.01-1.12); those are not findings and are not recorded here.
+
+**1.69** `landing-design.md:47`, rows H22 (also H17; `:30`, `:55`, `:195`, `:205`, `:368`). Blocker.
+Text: "moved = not (git merge-base --is-ancestor head tip)"; `:30` "a resume rebases, verifies and mends against the checkout as it then stands".
+Finding: once the first pass has rebased the branch, the checkout's head is an ancestor of tip, so on any resume `onto` (always_run) prints `moved` false. `test-tree` is skipped, and the skip passes on to `red`, `test-head`, `confirm` and `repair` (`workflow-language.md:83`, `:324-332`). (a) After a rebase conflict (`:55`) the owner runs `git rebase --continue` and resumes: the resolved rebase is never tested and `handoff` prints "Checkout not moved past the tree's base: not rerun." (b) If any repair node fails and the owner resumes, the confirmed red is never mended and `handoff` hands off `ready` with the same false line. In both cases `land` shows that line at `gate` and the owner lands an untested or still-red branch. The claim at `:205` that "a resumed `repair` starts at iteration 1" never comes true because `repair`'s `when:` reads a skipped `confirm`. The Homes rule at `:368` forbids "a test run when the checkout's HEAD is in the branch's history", writing the same mistake into the rules.
+
+**1.70** `landing-design.md:172`, row H34 (also H22; `:143-147`, `:326-327`, `:55`). High.
+Text: "First that holds. hear left: end "left". recheck not red and review SOUND: end "done"."
+Finding: `pose` ends the repair without checking that the mender committed. `mend-code` returns `commit-failed` with its edits left uncommitted; `retest` (`:143-147`, `none_failed_min_one_success`) tests the dirty tree and `recheck` finds it not red. `mend-review`'s UNSOUND list (`:326-327`) does not cover a mend that was never committed, so the reviewer can rule SOUND, `pose` ends "done", `handoff` prints "Mended on <head>: no new failure.", and `land` fast-forwards a branch lacking the tested fix. On a later resume `rebase` meets the dirty tree and git refuses ("cannot rebase: You have unstaged changes"), while the stop message at `:55` tells the owner to run `git rebase --continue` with no rebase in progress.
+
+**1.71** `landing-design.md:147`, row P9 (also `:63`, `:30`, `:116`). Medium.
+Text: "as test-tree, unconditionally, into gauntlet/mend/$INPUTS.slug.run.$onto.output.head.<tip>.txt".
+Finding: when the mender does not commit (`contest` or `commit-failed`) tip is unchanged, so `retest` writes to the same path as `test-tree`'s file (`:63`) and overwrites it, possibly with a run on a dirty tree. That breaks the promise at `:30` that files are "keyed by the commits they ran on, so a rerun on the same commits reuses its file", and changes what the juror's fallback `$test-tree.output.file` (`:116`) shows from then on.
+
+**1.72** `landing-design.md:143`, internal to landing-design.md (CLAUDE.md 1.3; also `:157`, `:327`). Medium.
+Text: `:143` "retest ... skipped when no mender ran"; `:157` "review # every mend read before it can end the repair"; `:327` "UNSOUND when ... leaves the tree red".
+Finding: after a `contest` nothing was mended, yet `retest` runs a full brief-suite run (up to 900 s) on the same commit and `review` spends an agent session. When `recheck` is red the review's verdict is fixed in advance (UNSOUND by its own role) and `pose` ends on `recheck` alone, so that agent call buys nothing the sequence needs. The reviewer's fix: gate `retest` and `recheck` on `outcome == committed`, and `review` on `recheck` not being red.
+
+**1.73** `landing-design.md:172`, internal to landing-design.md (also `:116`, `:129`, `:173-174`). Medium.
+Text: "case = newline-separated tree paths the next juror reads: the latest run file when red ..." (`:172-173`) and `:116` "the case: $LOOP_PREV.pose.output.case, or $test-tree.output.file when empty".
+Finding: in an iteration where the juror rules DEFECTIVE, `retest` and `recheck` are skipped, so `pose` has no "latest run file" and no red to test, and the case comes out empty or undefined. After the owner's reply the next juror falls back to `$test-tree.output.file`, the run from before any mend, even when an earlier iteration already committed a mend; the same happens at iteration 1 after a resume. The juror and the mender (`:129` "the latest run file") work from a red that no longer matches the branch.
+
+**1.74** `landing-design.md:178`, row H31. Medium (CLAUDE.md 1.4).
+Text: "options [ { id: reply, label: "Guide the juror (your guidance in the text)" }, { id: leave, label: Leave } ]".
+Finding: the owner cannot accept the rebased tree or ask for a rerun. A flaky or environment-only failure on the rebased tree is red by `.shared/red.py`; the juror cannot mend it and rules DEFECTIVE; the owner can only send guidance into a loop that cannot reach "not red and SOUND", or `leave`, which ends the run with no landing and leaves the record copy and tree removal to the owner.
+
+**1.75** `landing-design.md:373`, row H31 (also `:175-176`, `:98`). Low.
+Text: "`repair`'s `ask`, only on DEFECTIVE or 5 verdicts since the latest reply".
+Finding: omits the third ask condition `pose` states at `:175-176` ("or hear.n >= 200") and `:98` relies on ("from iteration 200 every iteration asks, so the bound never fails the run"). A builder working from the Homes table drops the ask that keeps `max_iterations` from failing the run.
 
 Withdrawn by Task 2:
 
