@@ -4,7 +4,7 @@ Status: proposed.
 
 ## Why
 
-Spec review is phase 3. It takes intake's task file and planning's approved plan, or the task file alone when planning found that the task only edits `tests/`. The speccer decides whether tests need speccing, writes the test specs with spikers' measurements, and the arbiter tries them round by round. A spec block the arbiter rules `READY` goes to the owner in plain English; on approval it is copied to `gauntlet/specs/approved/<slug>.txt`. A block the arbiter rules `INVALID` (nothing to test) goes to the owner to confirm; on confirmation the phase ends with no spec. The arbiter never reads source code. What it needs from the code it asks for through its three request forms, and the speccer answers them. Every path is relative to the pack root unless it names the run's checkout; `gauntlet/` always sits in the checkout.
+Spec review is phase 3 of the one run `gauntlet-run`, which includes it as node `spec-review` after `plan-review` (gauntlet design). It is a block, never run on its own. It takes plan review's hand-off: the task file and planning's approved plan, or the task file alone when planning found that the task only edits `tests/`. It hands `{ task, plan, spec, outcome }` to the worktree cut. The speccer decides whether tests need speccing, writes the test specs with spikers' measurements, and the arbiter tries them round by round. A spec block the arbiter rules `READY` goes to the owner in plain English; on approval it is copied to `gauntlet/specs/approved/<slug>.txt`. A block the arbiter rules `INVALID` (nothing to test) goes to the owner to confirm; on confirmation the phase ends with no spec. The arbiter never reads source code. What it needs from the code it asks for through its three request forms, and the speccer answers them. Every path is relative to the pack root unless it names the run's checkout; `gauntlet/` always sits in the checkout.
 
 What the tree already holds for the concerns spec review touches:
 
@@ -12,7 +12,7 @@ What the tree already holds for the concerns spec review touches:
 - Steering screening: one copy, designed and unbuilt, as `plan-review/commands/screener.md` with `plan-review/screener.mcp.json`, worded for plan files only. Commands resolve only from a workflow's own `commands/` folder, so spec review cannot call it.
 - The arbiter's role: built, `spec-review/commands/arbiter.md`. It names rulings `<slug>-ruling.*.txt` and reviews `<slug>-review.N.txt` (three places). Planning names them `<slug>.ruling.N.txt` and `<slug>.review.N.txt`. It reads `gauntlet/plans/approved/<slug>.txt` with no rule for a run that has no plan, and skips no `SCREENED` review.
 - Fence name patterns: designed and unbuilt, in the plan review design (`fence/files.py` extended). `fence/files.py` today confines by whole folders only. A folder entry that names a file, such as `docs/testing.md`, already confines to that one file.
-- Working-folder guard: designed and unbuilt, `.shared/working-folder.ts` (intake design).
+- Working-folder guard: designed and unbuilt, node `guard` of `gauntlet-run` (gauntlet design) on `.shared/working-folder.ts` (intake design), once per run ahead of every phase.
 - Fence launch line: designed and unbuilt, one copy per role fence file (`intake/clerk.mcp.json`, four in plan review).
 - Running test commands under a timeout: `fence/checks.py` runs one fixed `FENCE_TEST_COMMAND` with a process-group kill. Spikers need arbitrary commands, so `checks.py` does not serve them.
 - Spikers, spec files, the speccer and spec reporter roles, the spec-review workflow: no copy anywhere.
@@ -276,49 +276,42 @@ Each role's fence. Each names one server, `fence-files`, launched by `sh` with `
 
 `FENCE_COPY` stays unset in all three. No agent can reach `gauntlet/specs/approved/` or `gauntlet/scratch/` through the fence. The arbiter's fence holds no source folder.
 
-### `spec-review/scripts/guard.ts`
+### `spec-review/scripts/handoff.ts`
 
-The opening check. Replaces nothing.
+The block's hand-off, node `handoff`. A named script, because an inline `script:` inside an `include:` block cannot read the block's inputs. Replaces nothing.
 
 ```typescript
-// node `guard`
-import { requireIgnored } from "../../.shared/working-folder.ts";
-requireIgnored();
+// env: INPUTS_TASK, INPUTS_PLAN (the block's inputs); INPUTS_NEEDED, INPUTS_OUTCOME (node bindings)
+// slug: the file name of INPUTS_TASK without .md
+// stdout: { "task": INPUTS_TASK, "plan": INPUTS_PLAN,
+//           "spec": absolute path of gauntlet/specs/approved/<slug>.txt when outcome is "approved", else "",
+//           "outcome": "not needed" when INPUTS_NEEDED is false, else INPUTS_OUTCOME ("approved" | "invalid") }
 ```
 
 ### `spec-review/spec-review.yaml`
 
-The spec review workflow. Replaces nothing.
+The spec review block, included by `gauntlet-run` only. It declares no `worktree:` key and no guard node; the run owns both. `docket-in` and `policy` are its entry nodes. `$INPUTS.<name>` appears only in prompts and `bash:` bodies, a `script:` reads `INPUTS_<NAME>`, and no `when:` reads `$INPUTS`. Replaces nothing.
 
 ```yaml
 name: spec-review
 description: >-
-  Gauntlet spec review. Takes a task file and planning's approved plan (or no plan when the task only edits tests/);
-  the speccer decides whether tests need speccing, writes test specs with spikers' measurements, and the arbiter tries
-  them round by round. The owner approves the plain-English summary, which is copied to gauntlet/specs/approved/<slug>.txt,
-  or confirms that nothing is testable. Use after plan-review; not for writing tests or code.
+  Gauntlet spec review, included by gauntlet-run only. Not for direct use. Takes a task file and planning's approved
+  plan (or no plan when the task only edits tests/); the speccer writes test specs with spikers' measurements, the
+  arbiter tries them round by round, and the owner approves them or confirms that nothing is testable.
 provider: claude
 model: claude-opus-5-5
-worktree:
-  enabled: false                       # specs land in the live checkout
 inputs:
   task: { description: Path of a task file under gauntlet/tasks/. }
   plan: { description: Path of gauntlet/plans/approved/<slug>.txt, or "" when planning found no plan needed. }
 returns: handoff
 
 nodes:
-  - id: guard
-    runtime: bun
-    script: guard
-
-  - id: docket-in
-    depends_on: [guard]
+  - id: docket-in                      # entry node
     runtime: uv
     script: ledger
     with: { mode: state, slug: <slug> }
 
-  - id: policy                         # the arbiter's opening prompt
-    depends_on: [guard]
+  - id: policy                         # entry node; the arbiter's opening prompt
     bash: <print docs/testing.md of the checkout, or nothing when absent>
 
   - id: open                           # the speccer's session for the whole run
@@ -456,12 +449,18 @@ nodes:
     bash: <cp -n gauntlet/specs/$close.output.file to gauntlet/specs/approved/<slug>.txt and gauntlet/specs/$close.output.summary
           to gauntlet/specs/approved/<slug>-summary.md; either target present: exit non-zero naming it, nothing copied>
 
-  - id: handoff
+  - id: handoff                        # the block's returns: node
     depends_on: [open, close, enter]
     trigger_rule: none_failed_min_one_success
     runtime: bun
-    script: <print { task, plan, spec, outcome }: outcome "not needed" when open said so, else $close.output.outcome
-            ("approved" | "invalid"); spec the absolute path of gauntlet/specs/approved/<slug>.txt when approved, else "">
+    script: handoff
+    with:
+      needed: $open.output.needed
+      outcome: { from: $close.output.outcome, if_skipped: "" }
+    output_format:
+      type: object
+      properties: { task: { type: string }, plan: { type: string }, spec: { type: string }, outcome: { type: string } }
+      required: [task, plan, spec, outcome]
 ```
 
 Fixtures: `spec-review/fixtures/<route>.stubs.yaml`, one per route: not needed; no plan, `READY` then owner approves; owner revises a `READY`; `INVALID` confirmed; `INVALID` sent back; bench; deadlock at 5 attempts; two `NON-RESPONSIVE`; one `LEADING` handing the repaired block to `arbitrate-2`; one `SCREENED` repaired with no slot retired; guard at 12 rounds since the last ruling; all twelve slots retired, `vacate` cancelling the run; past 200 run rounds, every round asking.
@@ -484,9 +483,11 @@ Planning's `screen` node is `include: screen` with `with: { file: gauntlet/plans
 | File confinement, including name patterns | `fence/files.py` (plan review design) | any role reaching files by a built-in tool other than the spiker's Bash |
 | Writing to `gauntlet/specs/approved/` | node `enter`, by `cp -n` | any agent or other node writing there; a move of a round file |
 | Agent sessions | `open` and `swear-in` before `hearing`; slots `arbitrate-1` to `arbitrate-12` fork `swear-in` | any agent node in the body starting its own session, `screen` and `report` excepted |
-| Working-folder check | `.shared/working-folder.ts` (intake design) | any other check of `gauntlet/` being ignored |
+| How spec review runs | an `include: spec-review` block of `gauntlet-run`, node id `spec-review` (gauntlet design) | a standalone run of spec review; a `worktree:` key or other run-owned setting in `spec-review.yaml`; a description inviting direct use |
+| Working-folder check | node `guard` of `gauntlet-run` (gauntlet design), on `.shared/working-folder.ts` (intake design) | a guard node or `guard.ts` in `spec-review/`; any other check of `gauntlet/` being ignored |
+| Inputs inside the block | `$INPUTS.<name>` in prompts and `bash:`; `INPUTS_<NAME>` in scripts; a node output in `when:` | `$INPUTS` in a `when:`; `$INPUTS.<name>` in an inline `script:` |
 | Each role's rules | `<workflow>/commands/<role>.md` | role rules restated in node prompts; node prompts carry only the turn's inputs |
-| The hand-off to the next phase | `handoff` output `{ task, plan, spec, outcome }`, the workflow's `returns:` | any other node or file telling the next phase what was specced |
+| The hand-off to the next phase | node `handoff`, the block's `returns:`, whose `output_format` declares `{ task, plan, spec, outcome }`, read by `gauntlet-run` as `$spec-review.output.<field>` | any other node or file telling the next phase what was specced |
 
 ## Order
 
@@ -495,5 +496,5 @@ Planning's `screen` node is `include: screen` with `with: { file: gauntlet/plans
 3. Spec review's ledger: `spec-review/scripts/ledger.py`, `spec-review/tests/test_ledger.py`. Needs step 1. Agent: `builder`.
 4. Roles: `screen/commands/screener.md`, `spec-review/commands/speccer.md`, `spec-review/commands/reporter.md`, `spec-review/commands/arbiter.md`. Agent: `role-author`.
 5. Shared steering check: `screen/screen.yaml`, `screen/screener.mcp.json`, `screen/fixtures/steering.stubs.yaml`, `screen/fixtures/clean.stubs.yaml`. Needs step 4 and the plan review design's fence name patterns. Agent: `workflow-builder`.
-6. Spec review workflow: `spec-review/spec-review.yaml`, `spec-review/scripts/guard.ts`, `spec-review/speccer.mcp.json`, `spec-review/arbiter.mcp.json`, `spec-review/reporter.mcp.json`, `spec-review/fixtures/*.stubs.yaml`. Needs steps 3 to 5 and the intake design's `.shared/working-folder.ts`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. If Archon's `sandbox:` cannot limit the `file` node's writes to `gauntlet/scratch/`, the builder stops and reports the gap. Agent: `workflow-builder`.
+6. Spec review block: `spec-review/spec-review.yaml`, `spec-review/scripts/handoff.ts`, `spec-review/speccer.mcp.json`, `spec-review/arbiter.mcp.json`, `spec-review/reporter.mcp.json`, `spec-review/fixtures/*.stubs.yaml`. Needs steps 3 to 5. `archon workflow list --json` and `archon validate workflows` pass from the pack root. If Archon's `sandbox:` cannot limit the `file` node's writes to `gauntlet/scratch/`, the builder stops and reports the gap. Agent: `workflow-builder`.
 7. Planning on the shared screen: `plan-review/plan-review.yaml` with `screen` as `include: screen`; `plan-review/commands/screener.md` and `plan-review/screener.mcp.json` are not written. Needs step 5. Agent: `workflow-builder`.

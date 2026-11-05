@@ -4,9 +4,9 @@ Status: proposed.
 
 ## Why
 
-Intake turns the owner's task into one concrete, well-specced task file and hands its path to the planning round. Two routes reach it: the owner hands in a markdown file they wrote, or the owner hammers the task out with Clerk, the task specialist. Text typed into the Archon web UI ("What should Archon work on?") always takes the Clerk route. Both routes end in the same hand-off, so the planner never knows which route a task took.
+Intake turns the owner's task into one concrete, well-specced task file and hands its path to plan review. It is the first phase of `gauntlet-run`, included as block `intake`; `gauntlet-design.md` gives the run, its `guard` node and how phases join. Two routes reach intake: the run's `file` input names a markdown file the owner wrote, or the owner hammers the task out with Clerk, the task specialist. A run started from the Archon web UI ("What should Archon work on?") has a blank `file` and takes the Clerk route. Both routes end in the same hand-off, so plan review never knows which route a task took.
 
-Gauntlet is its own git repository, cloned by each user into `$ARCHON_HOME/workflows/gauntlet/` (by default `~/.archon/workflows/gauntlet/`), the pack root, which Archon scans for every repository on the host. Script nodes run on Bun. Intake runs in any repository's checkout. Every path below is relative to the pack root unless it names `archon-workflows` (`~/dev/archon-workflows`) or the run's checkout.
+Gauntlet is its own git repository, cloned by each user into `$ARCHON_HOME/workflows/gauntlet/` (by default `~/.archon/workflows/gauntlet/`), the pack root, which Archon scans for every repository on the host. Script nodes run on Bun. Intake runs in any repository's checkout, inside `gauntlet-run`. Every path below is relative to the pack root unless it names `archon-workflows` (`~/dev/archon-workflows`) or the run's checkout.
 
 What the trees already hold for the concerns intake touches:
 
@@ -46,7 +46,7 @@ async def run_tests() -> str: ...
 
 ### `.shared/working-folder.ts`
 
-Gauntlet's working-folder guard: the one check that the checkout keeps `gauntlet/` out of git, and the one failure message when it does not. Every Gauntlet workflow calls it from its first node, before anything writes under `gauntlet/`. Replaces nothing.
+Gauntlet's working-folder guard: the one check that the checkout keeps `gauntlet/` out of git, and the one failure message when it does not. `gauntlet-run/scripts/guard.ts`, the run's `guard` node, calls it once per run in the checkout, before any phase writes under `gauntlet/`. Replaces nothing.
 
 ```typescript
 // Run from the checkout (a script node's working directory).
@@ -116,14 +116,12 @@ Clerk's fence: the one MCP config both Clerk nodes attach. Replaces nothing.
 
 Claude Code sets the server's `CLAUDE_PROJECT_DIR` to its own working directory, the run's checkout, and overrides any value the config gives, so the config sets none. `FENCE_DENY`, `FENCE_ONCE` and `FENCE_COPY` stay unset. The checkout is any repository, so the server is found in the pack wherever its user cloned it into their Archon home: `sh` resolves `$ARCHON_HOME`, else `$HOME/.archon`, on every host, and `exec` leaves `uv` as the server process.
 
-### `intake/scripts/guard.ts` and `intake/scripts/ground.ts`
+### `intake/scripts/route.ts` and `intake/scripts/ground.ts`
 
 The two named scripts of intake's opening nodes. Replace nothing.
 
 ```typescript
-// guard.ts — node `guard`
-import { requireIgnored } from "../../.shared/working-folder.ts";
-requireIgnored();
+// route.ts — node `route`, the block's entry node: stdout { "file": process.env.INPUTS_FILE ?? "" }
 
 // ground.ts — node `ground`: prints task-format.md, then the names in gauntlet/tasks/ of the checkout (none when absent)
 import taskFormat from "../../.shared/task-format.md" with { type: "text" };
@@ -131,40 +129,39 @@ import taskFormat from "../../.shared/task-format.md" with { type: "text" };
 
 ### `intake/intake.yaml`
 
-The intake workflow: both routes, the owner's approval on the Clerk route, and the hand-off. Replaces nothing.
+The intake block: both routes, the owner's approval on the Clerk route, and the hand-off. `gauntlet-run` includes it as node `intake`. Replaces nothing.
 
 ```yaml
 name: intake
 description: >-
-  Gauntlet intake. Turns what the owner describes into a task file under gauntlet/tasks/ through a conversation with Clerk, the task specialist, ending when the owner approves the task file as written; with the `file` input, copies a task file the owner wrote, as written, into gauntlet/tasks/, failing on any name conflict for the owner to correct and resume. Use for any new piece of work the owner types or hands in; not for planning or building.
+  Gauntlet intake, included by gauntlet-run only. Not for direct use. Turns the run's message into a task file under gauntlet/tasks/ through a conversation with Clerk, the task specialist, ending when the owner approves the task file as written; with the `file` input, copies a task file the owner wrote, as written, into gauntlet/tasks/, failing on any name conflict for the owner to correct and resume.
 provider: claude
 model: claude-opus-5-5
 effort: medium
-worktree:
-  enabled: false            # task files land in the live checkout
 inputs:
   file:
     default: ""
-    description: Path of a task file the owner wrote. Blank sends the run to Clerk.
+    description: Path of a task file the owner wrote, passed in by gauntlet-run. Blank sends the run's message to Clerk.
 returns: handoff
 
 nodes:
-  # Both routes: the checkout must keep gauntlet/ out of git.
-  - id: guard
+  # Entry node: the file input as a node output, so no when: reads $INPUTS.
+  - id: route
     runtime: bun
-    script: guard
+    script: route
+    output_format: { type: object, properties: { file: { type: string } }, required: [file] }
 
   # File route: the owner's file, unchecked, copied verbatim to gauntlet/tasks/<slug>.md.
   - id: from-file
-    depends_on: [guard]
-    when: "$INPUTS.file != ''"
-    bash: <realpath -e the file (fails, naming the path, when it is missing); slug = its file name without extension, lowercased, each run of characters outside [a-z0-9] made one "-", "-" trimmed from both ends; the file already at gauntlet/tasks/<slug>.md: task is that path, nothing copied; else gauntlet/tasks/<slug>.md free: copy (cp -n), task is its absolute path; else (target taken, or empty slug) exit non-zero, the conflict and both paths on stderr; nothing renamed, suffixed or overwritten>
+    depends_on: [route]
+    when: "$route.output.file != ''"
+    bash: <realpath -e the file $route.output.file (fails, naming the path, when it is missing); slug = its file name without extension, lowercased, each run of characters outside [a-z0-9] made one "-", "-" trimmed from both ends; the file already at gauntlet/tasks/<slug>.md: task is that path, nothing copied; else gauntlet/tasks/<slug>.md free: copy (cp -n), task is its absolute path; else (target taken, or empty slug) exit non-zero, the conflict and both paths on stderr; nothing renamed, suffixed or overwritten>
     output_format: { type: object, properties: { task: { type: string } }, required: [task] }
 
   # Clerk route.
   - id: ground
-    depends_on: [guard]
-    when: "$INPUTS.file == ''"
+    depends_on: [route]
+    when: "$route.output.file == ''"
     runtime: bun
     script: ground
 
@@ -221,11 +218,11 @@ nodes:
     output_format: { type: object, properties: { task: { type: string } }, required: [task] }
 ```
 
-Intake is launched as `intake` from any repository's checkout and writes only in that checkout. `guard` runs first on both routes; when it fails, nothing is written and the run ends with its message. Routing reads only the `file` input, never the typed text. With `file` blank, `$ARGUMENTS` (the text typed in the web UI, or the CLI message) is Clerk's starting idea, and may be empty. The `talk` group's session is Clerk's, forked once from `clerk` and continued across every pause; no turn starts a fresh agent and no conversation log is kept. The opening turn is Clerk's first reply to the owner; `turn` is skipped in the first iteration and runs in every later one. An answer of `approve` ends the conversation only when the task file exists; otherwise the next turn writes it and asks again. A file-route conflict fails the run at `from-file`; the owner corrects it on disk and resumes the run, which re-runs `from-file`.
+Intake runs only as block `intake` of `gauntlet-run`, after the run's `guard` has passed, and writes only in the run's checkout. The block carries no `worktree:` key and no guard node. Routing reads only `route`'s output, the `file` input `gauntlet-run` passes in by `with:`, never the typed text. With `file` blank, `$ARGUMENTS` (the run's message: the text typed in the web UI, or the CLI message) is Clerk's starting idea, and may be empty. The `talk` group's session is Clerk's, forked once from `clerk` and continued across every pause; no turn starts a fresh agent and no conversation log is kept. The opening turn is Clerk's first reply to the owner; `turn` is skipped in the first iteration and runs in every later one. An answer of `approve` ends the conversation only when the task file exists; otherwise the next turn writes it and asks again. A file-route conflict fails the run at `from-file`; the owner corrects it on disk and resumes the run with `archon workflow resume <run id>`, which re-runs `from-file`.
 
 ### `intake/fixtures/`
 
-`file.stubs.yaml` (the `file` input set: `guard`, `from-file` and `handoff` reached, `ground` not) and `clerk.stubs.yaml` (blank `file`, the opening reply approved: `guard`, `ground`, `clerk`, `talk`, `handoff` reached, `from-file` and `turn` not), under `docs/testing.md`. A route needing a second turn is not fixture-tested: a dry run ends a loop after one iteration. The conflict route and the guard's failure are not fixture-tested: their deciding logic is `from-file`'s own bash and `requireIgnored`, which stubs replace.
+`file.stubs.yaml` (`route` stubbed with a `file`: `route`, `from-file` and `handoff` reached, `ground` not) and `clerk.stubs.yaml` (`route` stubbed with a blank `file`, the opening reply approved: `route`, `ground`, `clerk`, `talk`, `handoff` reached, `from-file` and `turn` not), under `docs/testing.md`. A route needing a second turn is not fixture-tested: a dry run ends a loop after one iteration. The conflict route is not fixture-tested: its deciding logic is `from-file`'s own bash, which stubs replace.
 
 ### The run's checkout
 
@@ -239,18 +236,18 @@ The owner keeps `gauntlet/` out of git in each repository Gauntlet runs in, by a
 | Reaching a pack file from a run in any repository | `mcp:` named beside the workflow YAML; `.shared/` imported relative to the script's own file; the fence server under `${ARCHON_HOME:-$HOME/.archon}/workflows/gauntlet/` in `clerk.mcp.json` | A checkout-relative path to any pack file; a path naming one user's home |
 | What a task file holds | `.shared/task-format.md` | Restating the sections or rules in a command, prompt or workflow; `ground` prints the file instead |
 | Where Gauntlet writes | `gauntlet/` in the run's checkout, tasks at `gauntlet/tasks/<slug>.md` | Any Gauntlet node writing outside `gauntlet/`; `$ARTIFACTS_DIR` or `$STATE_DIR` holding a task |
-| Keeping `gauntlet/` out of git | the owner's `.gitignore` line in each repository; `requireIgnored` in `.shared/working-folder.ts`, called by the first node of every Gauntlet workflow (intake: `guard`) | A node writing the ignore line; a write under `gauntlet/` before the guard passes; a second statement of the check or its message; a check that accepts only `.gitignore` |
-| Choosing the route | `intake.yaml`, `when:` on `$INPUTS.file` | Routing on the typed text; a second intake workflow |
+| Keeping `gauntlet/` out of git | the owner's `.gitignore` line in each repository; `requireIgnored` in `.shared/working-folder.ts`, called by node `guard` of `gauntlet-run` before any phase | A node writing the ignore line; a write under `gauntlet/` before the guard passes; a guard node or `guard.ts` in `intake/`; a second statement of the check or its message; a check that accepts only `.gitignore` |
+| Choosing the route | `intake.yaml`, `when:` on `$route.output.file` | Routing on the typed text; `$INPUTS` in a `when:`; a second intake workflow |
 | A handed-in file's slug and copy | `from-file` | Renaming, suffixing or overwriting a task |
 | Raising a file-route conflict | `from-file` failing the run with the conflict on stderr; the owner corrects it and resumes | A conflict resolved, skipped or only logged; a wait asking for a new slug |
 | The owner's approval of a Clerk task | the `answer` wait in `talk` | Any other approval before hand-off; an approval of a handed-in file |
 | Clerk's memory | the `clerk` session, continued by `turn` | A fresh agent per turn; a conversation log file; `persist_session` |
 | File confinement for a Gauntlet agent | `fence/files.py` | A second file server; a copy left in archon-workflows `.archon/workflows/feature-pipeline/`; a hook or prompt rule standing in for it |
 | Clerk's file access | `clerk.mcp.json` (`FENCE_READ=.`, `FENCE_WRITE=gauntlet/tasks`), attached by `mcp:` on `clerk` and `turn`, both with `allowed_tools: []` | Any built-in tool on either node; `FENCE_*` set anywhere but `clerk.mcp.json`; a non-agent node writing the task file for Clerk |
-| The hand-off to planning | `handoff` output `{ task }`, the workflow's `returns:` | Any other node or file telling planning where the task is, or how it was made |
+| The hand-off to plan review | `handoff` output `{ task }`, the block's `returns:`, read by `gauntlet-run` as `$intake.output.task` | Any other node or file telling plan review where the task is, or how it was made |
 
 ## Order
 
 1. Clear the moved copies out of archon-workflows: `.archon/workflows/feature-pipeline/fence/` removed with its `__pycache__`, `docs/superpowers/specs/gauntlet-intake-design.md` removed, and `docs/testing.md` there citing no removed path. Agent: `builder`.
 2. Task format and Clerk's role: `.shared/task-format.md`, `intake/commands/clerk.md`. Agent: `role-author`.
-3. Working-folder guard and intake workflow: `.shared/working-folder.ts`, `intake/scripts/guard.ts`, `intake/scripts/ground.ts`, `intake/intake.yaml`, `intake/clerk.mcp.json`, `intake/fixtures/file.stubs.yaml`, `intake/fixtures/clerk.stubs.yaml`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
+3. Working-folder guard and intake block: `.shared/working-folder.ts`, `intake/scripts/route.ts`, `intake/scripts/ground.ts`, `intake/intake.yaml`, `intake/clerk.mcp.json`, `intake/fixtures/file.stubs.yaml`, `intake/fixtures/clerk.stubs.yaml`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.

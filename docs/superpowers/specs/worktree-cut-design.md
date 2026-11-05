@@ -4,17 +4,17 @@ Status: proposed.
 
 ## Why
 
-Gauntlet is one workflow, `gauntlet-run`, started once by the owner; no phase is started on its own. The cut is its phase 4, after spec review and before test writing. It takes the task file, planning's approved plan (optional) and spec review's approved spec (optional) from the phases before it in the same run, has Archon cut one worktree from the commit the owner's checkout holds, lets the repository's own `.archon/config.yaml` set it up, records the test baseline, copies the approved files in, and hands off the worktree path, branch, base commit and artifact paths. Test writing, coding and the blind-runner fence belong to later phases. Every path is relative to the pack root unless it names the checkout (the owner's live checkout the run executes in) or the tree (the new worktree). `gauntlet/` always sits in the checkout or the tree.
+Gauntlet is one run, `gauntlet-run`; the run, its head and how phases join are `gauntlet-design.md`'s. The cut is phase 4, after spec review, and the run ends at its node `cut`. It takes `task`, `plan` and `spec` from spec review's hand-off `{ task, plan, spec, outcome }` (`plan` and `spec` `""` when absent), has Archon cut one worktree from the commit the owner's checkout holds, lets the repository's own `.archon/config.yaml` set it up, records the test baseline, copies the approved files in, and hands off the worktree path, branch, base commit and artifact paths. Every path is relative to the pack root unless it names the checkout (the owner's live checkout the run executes in) or the tree (the new worktree). `gauntlet/` always sits in the checkout or the tree.
 
 The cut never starts from `main` or from the repository's default branch. It starts from the checkout's `HEAD` commit at the first cut, whatever branch that is, because the plan and spec were reviewed against that code. A repository such as hqptuner2, worked on a refactor branch off `v2`, gets a tree cut from the refactor branch.
 
 What the tree already holds for the concerns the cut touches:
 
-- The one Gauntlet workflow: no copy. The intake, plan review and spec review designs each write their phase as a workflow of its own, ending in its own `returns: handoff`; nothing joins them.
-- Worktree cutting and setup: no copy. Every Gauntlet phase designed so far pins `worktree.enabled: false` and runs in the checkout.
+- The one Gauntlet workflow: no copy. `gauntlet-design.md` gives `gauntlet-run/gauntlet-run.yaml`'s head, which includes intake, plan review and spec review as blocks.
+- Worktree cutting and setup: no copy. The run's one `worktree: enabled: false` sits in the head, and every phase before the cut runs in the checkout.
 - The repository's test command: one copy, `fence/checks.py`, which runs the one command in `FENCE_TEST_COMMAND` (timeout `FENCE_TEST_TIMEOUT`, default 900 s) with a process-group kill, as an MCP tool for agents. No Gauntlet file says where a repository declares its command.
 - Test baseline: no copy.
-- Working-folder guard: designed and unbuilt, `.shared/working-folder.ts` (intake design).
+- Working-folder guard: designed and unbuilt, `.shared/working-folder.ts` (intake design). The checkout's check is node `guard` of the head; the tree's is node `guard` of `gauntlet-tree`.
 - Slug from a task path: stated as a prompt rule in the spec review design (`slug = the task's file name without .md`) and as the file route's rule in the intake design. This phase derives it in `gauntlet-run/scripts/pin.py` alone.
 - Approved artifact paths: `gauntlet/plans/approved/<slug>.txt` and `<slug>-summary.md` (plan review design), `gauntlet/specs/approved/<slug>.txt` and `<slug>-summary.md` (spec review design). Git does not carry the ignored `gauntlet/` into a worktree.
 
@@ -82,18 +82,18 @@ requireIgnored();
 
 ### `gauntlet-run/gauntlet-run.yaml`
 
-The one Gauntlet workflow the owner starts. It holds the phases in order in one run; the earlier phases enter it as their own designs give them, each ending in its `{ task, plan, spec }` hand-off. This design gives its cut nodes. Replaces nothing.
+The one Gauntlet workflow the owner starts. Its head (`name`, `inputs`, `worktree`, nodes `guard`, `intake`, `plan-review`, `spec-review`) is `gauntlet-design.md`'s. This design gives its `description` and its last nodes `pin`, `tree` and `cut`. Replaces nothing.
 
 ```yaml
 name: gauntlet-run
 description: >-
-  Gauntlet: takes the owner's task through intake, planning, test speccing, the worktree cut and the phases after it,
+  Gauntlet: takes the owner's task through intake, planning, test speccing and the worktree cut,
   in one run started once. Use for any piece of work the owner wants built.
-worktree:
-  enabled: false                       # runs in the live checkout; only node tree's child runs in the worktree
+# inputs, worktree: as gauntlet-design.md gives them
 
 nodes:
-  # ... intake, plan review and spec review nodes; spec-review's hand-off is $spec-review.output { task, plan, spec }
+  # guard, intake, plan-review, spec-review: as gauntlet-design.md gives them;
+  # spec-review's hand-off is $spec-review.output { task, plan, spec, outcome }
 
   - id: pin
     depends_on: [spec-review]
@@ -114,8 +114,10 @@ nodes:
     runtime: bun
     script: <print { worktree, branch, base, task, plan, spec, baseline, uncommitted }: branch, base and uncommitted
             from $pin.output, the rest from $tree.output>
+    output_format: <object: worktree, branch, base, task, plan, spec, baseline (strings), uncommitted (array of
+                   strings), all required>
 
-  # ... the phases after the cut read $cut.output
+  # the run ends at node cut
 ```
 
 Fixtures: `gauntlet-run/fixtures/cut.stubs.yaml` (`pin`, `tree` and `cut` run, `cut` reached); `gauntlet-run/fixtures/tree-failed.stubs.yaml` (`tree` fails, `cut` not reached).
@@ -162,7 +164,8 @@ nodes:
     runtime: bun
     script: <print { worktree, branch, task, plan, spec, baseline }: worktree the tree's absolute root; branch from
             git branch --show-current; task, plan, spec and baseline as absolute tree paths, plan and spec "" when
-            their input is "">
+            their input is ""; inputs read as INPUTS_<NAME> from the environment, never $INPUTS.<name>>
+    output_format: <object: worktree, branch, task, plan, spec, baseline (strings), all required>
 ```
 
 Fixtures: `gauntlet-tree/fixtures/tree.stubs.yaml` (`handoff` reached); `gauntlet-tree/fixtures/conflict.stubs.yaml` (`copy-in` fails, `handoff` not reached).
@@ -185,7 +188,6 @@ env:
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| Running Gauntlet | `gauntlet-run/gauntlet-run.yaml`, started once by the owner | any phase started on its own; a phase handing off to the next outside the one run |
 | Slug and branch name | `gauntlet-run/scripts/pin.py` | any node, prompt or other script composing the branch; the tree run reads it from git |
 | The commit the tree starts from | node `pin`, creating the branch at the checkout's `HEAD` | `main`, `worktree.baseBranch`, `--base` or the remote default as a start point; any other `git branch` in a Gauntlet file |
 | Cutting the tree | Archon, through node `tree`'s `isolation: worktree` | `git worktree add` in any Gauntlet file; `archon workflow run` from inside the run; a second isolated node |
@@ -193,11 +195,12 @@ env:
 | The repository's test command and its timeout | `GAUNTLET_TEST_COMMAND` and `GAUNTLET_TEST_TIMEOUT` in the repository's `env:` | a test command written, guessed or detected by any Gauntlet file |
 | The test baseline | `gauntlet/baseline/<slug>.txt` of the tree, written once by node `baseline` | a red baseline stopping the run; a rerun rewriting it; any other baseline file |
 | Approved files in the tree | node `copy-in`, by `cp -n` | any agent or other node writing the tree's `gauntlet/tasks`, `gauntlet/plans` or `gauntlet/specs`; a move or edit of a checkout file |
-| Working-folder check | `.shared/working-folder.ts` (intake design), first node of `gauntlet-tree` | any other check of `gauntlet/` being ignored |
-| The hand-off to the next phase | node `cut`'s output `{ worktree, branch, base, task, plan, spec, baseline, uncommitted }` | any other node or file telling the next phase where the tree is |
+| Working-folder check in the tree | node `guard` of `gauntlet-tree`, through `.shared/working-folder.ts` (intake design) | any other check of `gauntlet/` being ignored in the tree |
+| The tree run's hand-off | node `handoff` of `gauntlet-tree`, whose `output_format` declares every field, read by node `cut` as `$tree.output.<field>` | node `cut` reading any other node of the tree run, or a file |
+| The cut's hand-off | node `cut`, whose `output_format` declares `{ worktree, branch, base, task, plan, spec, baseline, uncommitted }` | any other node or file telling where the tree is |
 
 ## Order
 
 1. Branch pin: `gauntlet-run/scripts/pin.py`, `gauntlet-run/tests/test_pin.py`. Agent: `builder`.
 2. Tree run: `gauntlet-tree/gauntlet-tree.yaml`, `gauntlet-tree/scripts/guard.ts`, `gauntlet-tree/fixtures/tree.stubs.yaml`, `gauntlet-tree/fixtures/conflict.stubs.yaml`. Needs the intake design's `.shared/working-folder.ts`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
-3. Cut nodes of the Gauntlet workflow: `gauntlet-run/gauntlet-run.yaml` (nodes `pin`, `tree`, `cut`), `gauntlet-run/fixtures/cut.stubs.yaml`, `gauntlet-run/fixtures/tree-failed.stubs.yaml`. Needs steps 1 and 2. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
+3. Cut nodes of the Gauntlet workflow: `gauntlet-run/gauntlet-run.yaml` (nodes `pin`, `tree`, `cut`), `gauntlet-run/fixtures/cut.stubs.yaml`, `gauntlet-run/fixtures/tree-failed.stubs.yaml`. Needs steps 1 and 2 and the run's head from `gauntlet-design.md`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.

@@ -4,12 +4,12 @@ Status: proposed.
 
 ## Why
 
-Plan review takes one task file from `gauntlet/tasks/<slug>.md`, has the defense plan it and the prosecutor try it, puts the plan the prosecutor passes before the owner in plain English, and on the owner's approval copies it to `gauntlet/plans/approved/<slug>.txt` for the test-speccing phase. Every path is relative to the pack root unless it names the run's checkout; `gauntlet/` always sits in the checkout.
+Plan review takes one task file from `gauntlet/tasks/<slug>.md`, has the defense plan it and the prosecutor try it, puts the plan the prosecutor passes before the owner in plain English, and on the owner's approval copies it to `gauntlet/plans/approved/<slug>.txt` for the test-speccing phase. It runs only as block `plan-review` of the run `gauntlet-run` (`gauntlet-design.md`), between intake and spec review: `task` arrives through `with:` as `$intake.output.task`, `{ task, plan }` leaves from node `handoff`, and every pause is answered on the run's id. Every path is relative to the pack root unless it names the run's checkout; `gauntlet/` always sits in the checkout.
 
 What the tree already holds for the concerns plan review touches:
 
 - File confinement: one copy, `fence/` (`files.py`, `checks.py`, `files_helpers.py`, `test_files.py`, `test_files_write.py`). `files.py` confines by whole folders only, so it cannot give the defense and the prosecutor separate files inside `gauntlet/plans/`.
-- Working-folder guard: no live copy; the intake design gives it its one home, `.shared/working-folder.ts`, not yet built.
+- Working-folder check: runs once per run as node `guard` of `gauntlet-run` (`gauntlet-design.md`); plan review holds none.
 - Fence launch line (`sh -c 'exec uv run --script "${ARCHON_HOME:-$HOME/.archon}/workflows/gauntlet/fence/files.py"'`): one copy, in the intake design's `intake/clerk.mcp.json`, not yet built.
 - Citation resolving, plan-file naming, round and verdict counting, steering screening, the runaway guard, the owner's rulings: no copy anywhere.
 
@@ -234,43 +234,26 @@ Each role's fence. Each names one server, `fence-files`, launched by `sh` with `
 
 `FENCE_COPY` stays unset in all four; no agent can reach `gauntlet/plans/approved/`.
 
-### `plan-review/scripts/guard.ts`
-
-The opening check. Replaces nothing.
-
-```typescript
-// node `guard`
-import { requireIgnored } from "../../.shared/working-folder.ts";
-requireIgnored();
-```
-
 ### `plan-review/plan-review.yaml`
 
-The plan review workflow. Replaces nothing.
+The plan review block, included by `gauntlet-run` as node `plan-review`. It declares no `worktree:` and holds no guard node; `inputs:` and `returns: handoff` are its signature. `$INPUTS.<name>` appears only in prompts and `bash:` bodies; a `script:` reads `INPUTS_<NAME>` from the environment; no `when:` reads `$INPUTS`. Replaces nothing.
 
 ```yaml
 name: plan-review
 description: >-
-  Gauntlet plan review. Takes a task file from gauntlet/tasks/; the defense decides whether it needs a plan, writes one
-  with detectives' help, and the prosecutor tries it round by round until it passes; the owner then approves the plain-English
-  summary or sends it back, and the approved plan is copied to gauntlet/plans/approved/<slug>.txt. Use after intake; not for
-  writing tests or code.
+  Gauntlet plan review, included by gauntlet-run only. Not for direct use. Takes a task file from gauntlet/tasks/; the
+  defense decides whether it needs a plan, writes one with detectives' help, and the prosecutor tries it round by round
+  until it passes; the owner then approves the plain-English summary or sends it back, and the approved plan is copied
+  to gauntlet/plans/approved/<slug>.txt.
 provider: claude
 model: claude-opus-5-5
-worktree:
-  enabled: false                       # plans land in the live checkout
 inputs:
   task:
-    description: Path of a task file under gauntlet/tasks/ (intake's handoff).
+    description: Path of a task file under gauntlet/tasks/ (intake's handoff, through with:).
 returns: handoff
 
 nodes:
-  - id: guard
-    runtime: bun
-    script: guard
-
-  - id: docket-in                      # state of any earlier rounds for this task
-    depends_on: [guard]
+  - id: docket-in                      # the block's entry node: state of any earlier rounds for this task
     runtime: uv
     script: ledger
     with: { mode: state, slug: <slug> }
@@ -414,11 +397,13 @@ nodes:
     bash: <cp -n gauntlet/plans/$close.output.plan to gauntlet/plans/approved/<slug>.txt and gauntlet/plans/$close.output.summary
           to gauntlet/plans/approved/<slug>-summary.md; either target present: exit non-zero naming it, nothing copied>
 
-  - id: handoff                        # the one result: plan "" when no plan was needed
+  - id: handoff                        # the block's one result, read by spec-review as $plan-review.output.<field>
     depends_on: [open, enter]
     trigger_rule: none_failed_min_one_success
     runtime: bun
-    script: <print { task, plan }: plan is the absolute path of gauntlet/plans/approved/<slug>.txt, or "" when open said not needed>
+    script: <print { task, plan }: task from INPUTS_TASK in the environment, never $INPUTS.task; plan is the absolute path
+            of gauntlet/plans/approved/<slug>.txt, or "" when open said not needed>
+    output_format: { type: object, properties: { task: { type: string }, plan: { type: string } }, required: [task, plan] }
 ```
 
 One loop, no nesting. `open` and `swear-in` start before `hearing`, so every `defend` turn continues the one defense session and each `prosecute-<k>` slot continues its own fork of the sworn-in session, across rounds and across the owner's answers; `bench`, the body's last node, is skipped by `when:` on rounds that need no answer. The owner's answer reaches every agent as a ruling file. Plans, reviews and summaries pass between nodes only as paths. A rerun on the same task starts the sessions afresh and continues the rounds from the files.
@@ -435,7 +420,10 @@ Fixtures: `plan-review/fixtures/<route>.stubs.yaml`, one per route: not needed; 
 | Agent sessions | `open` and `swear-in`, before `hearing`; slots `prosecute-1` to `prosecute-12` fork `swear-in` | any agent node in the body starting its own session, `screen` and `report` excepted |
 | Steering screening | node `screen` with `plan-review/commands/screener.md` | any other steering check before a prosecutor reads a plan |
 | Writing to `gauntlet/plans/approved/` | node `enter` | any agent or other node writing there |
-| Working-folder check | `.shared/working-folder.ts` (intake design) | any other check of `gauntlet/` being ignored |
+| Working-folder check | node `guard` of `gauntlet-run` (`gauntlet-design.md`) | a guard node or `guard.ts` in `plan-review/`; any other check of `gauntlet/` being ignored |
+| How plan review enters the run | `include: plan-review` in `gauntlet-run.yaml`; `task` through `with:` | `plan-review.yaml` run on its own or as a `workflow:` child; a description inviting direct use; a `worktree:` key or other run-owned setting in `plan-review.yaml` |
+| The hand-off to spec review | node `handoff`, whose `output_format` declares `task` and `plan` | spec review reading any other node, file or path of this block |
+| Inputs inside the block | `$INPUTS.<name>` in prompts and `bash:`; `INPUTS_<NAME>` in scripts | `$INPUTS` in a `when:`; `$INPUTS.<name>` in an inline `script:` |
 | Each role's rules | `plan-review/commands/<role>.md` | role rules restated in node prompts; node prompts carry only the turn's inputs |
 | Verdict names | `prosecutor.md` and `ledger.py` | any other spelling |
 
@@ -445,4 +433,4 @@ Fixtures: `plan-review/fixtures/<route>.stubs.yaml`, one per route: not needed; 
 2. Citations: `plan-review/scripts/cite.py`, `plan-review/tests/test_cite.py`. Agent: the roster's Python implementer for `plan-review/`.
 3. Ledger: `plan-review/scripts/ledger.py`, `plan-review/tests/test_ledger.py`. Agent: the roster's Python implementer for `plan-review/`.
 4. Roles and fences: `plan-review/commands/defense.md`, `plan-review/commands/prosecutor.md`, `plan-review/commands/reporter.md`, `plan-review/commands/screener.md`, `plan-review/defense.mcp.json`, `plan-review/prosecutor.mcp.json`, `plan-review/reporter.mcp.json`, `plan-review/screener.mcp.json`. Agent: the roster's workflow implementer for `plan-review/`. Needs step 1.
-5. Workflow: `plan-review/plan-review.yaml`, `plan-review/scripts/guard.ts`, `plan-review/fixtures/*.stubs.yaml`. Agent: the roster's workflow implementer for `plan-review/`. Needs steps 2 to 4 and the intake design's `.shared/working-folder.ts`.
+5. Workflow: `plan-review/plan-review.yaml`, `plan-review/fixtures/*.stubs.yaml`. Agent: the roster's workflow implementer for `plan-review/`. Needs steps 2 to 4.
