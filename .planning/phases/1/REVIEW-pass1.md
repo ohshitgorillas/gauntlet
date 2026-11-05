@@ -445,66 +445,77 @@ Members: 1.01, 1.02.
 Where: `writing-design.md:22`, `:268`; `landing-design.md:15`, `:332`; `mcp-servers.md:190-194`, `:210-211`.
 Statement: two designs build the `FENCE_*` values of the test-running fences from the repository's `env:` in an `sh -c` launch line, a route the vendored MCP guide does not document and the designs themselves call unmeasured or contradict.
 Options: (a) the designs' form, `FENCE_TEST_COMMAND=$GAUNTLET_TEST_COMMAND`, `FENCE_TEST_TIMEOUT=${GAUNTLET_TEST_TIMEOUT:-900}`, `:$GAUNTLET_TEST_BASE` when set, read from the repository `env:` (`writing-design.md:268`, `landing-design.md:332`), which `landing-design.md:15` says reaches bash nodes only and `writing-design.md:22` calls unmeasured; (b) the documented route, `env` values in the config expanded from Archon's own process environment with codebase env on Codex nodes only (`mcp-servers.md:192-194`) and `command` and `args` never expanded (`:211`); F1 to F7 already fit (b).
+Route: load-bearing, D-11 in CONTEXT.md.
 
 **G-02** `CLAUDE_PROJECT_DIR` and the fence root (row A5; copy-list bullet B08).
 Members: 1.04, 1.05 (withdrawn, kept here so its id sits in a group).
 Where: `gauntlet-intake-design.md:117`; `plan-review-design.md:226`; `spec-review-design.md:269`; `writing-design.md:268`; `landing-design.md:11` (withdrawn); `gauntlet-design.md:30`.
 Statement: the designs say Claude Code overrides any `CLAUDE_PROJECT_DIR` a config gives, so the fence root cannot move; the probe shows a config value wins.
 Options: (a) keep the claim as written (false per PROBES.md P2); (b) restate it as a rule the pack keeps, "every config sets none", and pin it with a fence test; (c) have the fences refuse a config that sets it. B08's remaining clauses (`isolation:`, one folder per run) are documented at `workflow-language.md:2075-2083` and need no ruling.
+Route: load-bearing, D-12 in CONTEXT.md.
 
 **G-03** What confines the speccer and the spiker (rows A10, F4; copy-list bullet B09).
 Members: 1.03, 1.15, 1.43, 1.45.
 Where: `spec-review-design.md:53`, `:273`, `:277`, `:359`, `:361`, `:370`, `:482`, `:483`, `:499`; `gauntlet-design.md:329`, `:348`, `:355`.
 Statement: the designs state that `FENCE_HIDE`, the sandbox and the Homes rows keep the speccer and spiker out of `gauntlet/failed/`, `gauntlet/scratch/`, `gauntlet/specs/approved/` and `tests/`, but the nodes hold Bash and the speccer's fence reads `.`.
 Options: (a) as written: `sandbox: <enabled; filesystem writes allowed only under gauntlet/scratch/ of the checkout>` (`spec-review-design.md:361`), which cannot confine writes (`allowWrite` only adds; `denyWrite` is needed, PROBES.md P1); (b) `denyWrite` listing every other path, globs untested; (c) take Bash from the speccer (`:359`, `:482`) and leave it to the spiker alone; reads of `failed/`, `scratch/` and `approved/` through Bash stay open under any of the three, so the Homes rows `gauntlet-design.md:348` and `spec-review-design.md:277` need rewording or the Bash reads need a fence of their own.
+Route: load-bearing, D-13 in CONTEXT.md.
 
 **G-04** `allowed_tools` spellings (row A19).
 Members: 1.06, 1.07, 1.08.
 Where: `plan-review-design.md:165`, `:170`, `:264`, `:301`; `spec-review-design.md:24`, `:239`, `:243`, `:359`; `writing-design.md:530`.
 Statement: `Task` is renamed `Agent` (the old name silently ignored, per `archon validate`), and `Bash(<pattern>)` removes Bash entirely at runtime.
 Options: (a) `[Task, "Bash(uv run --script *cite.py *)"]` as written (`plan-review-design.md:264`); (b) `[Agent, ...]` with the working probe form (PROBES.md P1) and some other confinement of the defense's Bash (a permissions rule, untested); (c) move the cite check to a node and give the defense no Bash. `writing-design.md:530` names `Task` as forbidden for a writer node and would name `Agent` too.
+Route: load-bearing, D-14 in CONTEXT.md.
 
 **G-05** Plan review's ledger: its own body or the shared core's (row S9; also S7).
 Members: 1.09, 1.31.
 Where: `plan-review-design.md:86-140`, `:94`, `:434`, `:436`; `spec-review-design.md:31`, `:495`.
 Statement: `plan-review/scripts/ledger.py` is built by two steps in two forms, and the two forms read the verdict line differently.
 Options: (a) plan-review step 3 builds the standalone body and parses `Verdict: <verdict>` exactly, any other first line exit 1 (`plan-review-design.md:94`, `:434`); (b) spec-review step 2 replaces it with the `Profile` form on `.shared/rounds.py`, matching "by the longest known name the text after `Verdict: ` starts with" (`spec-review-design.md:31`, `:495`), with plan-review step 5 told it needs that step, not step 3.
+Route: load-bearing, D-15 in CONTEXT.md.
 
 **G-06** Spec review step 7 rewrites plan review's files (rows P16, R6, F6; also F7).
 Members: 1.10, 1.11.
 Where: `spec-review-design.md:497`, `:500`; `plan-review-design.md:211-235`, `:326-336`, `:421`, `:435`, `:436`.
 Statement: spec-review step 7 edits `plan-review/plan-review.yaml` without needing plan-review step 5, and declares `plan-review/commands/screener.md` and `plan-review/screener.mcp.json` not written while plan-review step 4 writes them and the plan review design still specifies both.
 Options: (a) plan review keeps its own `screen` node, screener role and fence (`plan-review-design.md:326-336`, `:211-235`) and spec-review step 7 is dropped; (b) spec-review step 7 stands, needs plan-review step 5 and step 4's screener files, and the plan review design is amended to include `screen` and drop its screener role and fixtures (`spec-review-design.md:500`).
+Route: load-bearing, D-16 in CONTEXT.md.
 
 **G-07** Four steps write `gauntlet-tree/gauntlet-tree.yaml` nodes (row H19; D-07's known case).
 Members: 1.12.
 Where: `gauntlet-design.md:146`, `:366`, `:372`; `writing-design.md:502`, `:542`; `worktree-cut-design.md` step 2.
 Statement: gauntlet step 4, writing step 8 and gauntlet step 10 list overlapping node lists (`paths`, `write`, `handoff`, `baseline`, the description) for one file, ordered but with no owner per field.
 Options: (a) gauntlet step 4 owns `paths` and `write`'s `brief` input, writing step 8 adds only the `baseline` brief file; (b) writing step 8 owns the `brief` field and gauntlet step 4 prints it without the baseline; (c) each step lists only the fields it adds.
+Route: load-bearing, D-17 in CONTEXT.md.
 
 **G-08** `$INPUTS` in a phase block's `with:` (rows H35, A3, A14).
 Members: 1.13.
 Where: `gauntlet-design.md:121`, `:123`, `:341`; `writing-design.md:434`, `:441`, `:492`; `landing-design.md:73`, `:91`, `:155`.
 Statement: the home rule allows `$INPUTS.<name>` only in prompts and `bash:`; writing and landing use it in `with:` bindings.
 Options: (a) `gauntlet-design.md:121`/`:341` as written, and write/ and mend/ rewrite their `screen`, `flag`, `red`, `confirm` and `recheck` bindings; (b) widen the rule to prompts, `bash:` and `with:` (`writing-design.md:492`, `landing-design.md:73`).
+Route: load-bearing, D-18 in CONTEXT.md.
 
 **G-09** A timeout counts as red unconditionally (row S4).
 Members: 1.14.
 Where: `gauntlet-design.md:290`, `:292`.
 Statement: `.shared/red.py` exempts failures already present in brief or head but not a timeout already present there.
 Options: (a) as written: run timed out is red (`:290`); (b) exempt a timeout when the brief or head run timed out too, as `:292` does for failures.
+Route: ask-user seam.
 
 **G-10** The final commit by `seal` (row H33).
 Members: 1.16, 1.19, 1.60.
 Where: `gauntlet-design.md:247`, `:350`, `:371`; `writing-design.md:89`, `:219`, `:407-410`, `:494`, `:541`; `landing-design.md:205`.
 Statement: the gauntlet design assigns `seal` a change (commit with `git commit -F -`, summaries of every round) that the writing design already holds, while writing's `seal` writes `nothing` when the tree is clean, which is the normal case, and lists summaries of rounds the owner sent back.
 Options: (a) `gauntlet-design.md:247`, `:350`, `:371`: every `seal` makes the `<slug>: final` commit whose message lists the plan summary and each revision summary, and gauntlet step 9 restates what `writing-design.md:408-410` already does and is dropped; (b) `writing-design.md:407`: `seal` writes "exit=0", "nothing" on a clean tree, so with every block committed no final commit exists, and `landing-design.md:205` ("Mend commits sit on top of `<slug>: final`") and the Homes row `gauntlet-design.md:350` are reworded. Either way the summaries listed are those of rounds the owner approved, not of every SOUND round (`writing-design.md:89`, `:219`, `:494`).
+Route: load-bearing, D-19 in CONTEXT.md.
 
 **G-11** The twelve-LEADING vacancy cancel (rows H38, A18, H25, H29; also H18).
 Members: 1.17, 1.32, 1.57.
 Where: `gauntlet-design.md:19`, `:98`; `plan-review-design.md:323-326`, `:419`; `spec-review-design.md:380-383`; `writing-design.md:353-356`, `:443-452`.
 Statement: three blocks cancel the run at the twelfth LEADING review; gauntlet-run defines no route when a child run ends cancelled, plan review detects vacancy only after a full defense turn, and writing cancels although its reviewer is a fresh node with no session to retire.
 Options: (a) all three keep `vacate` as written and the gauntlet design adds the route for a cancelled `tree` or phase; (b) writing drops `vacate` (its reviewer is `context: fresh`, `writing-design.md:9`); (c) plan review computes the vacancy in `filing`, before `defend`, and asks the owner before cancelling (`plan-review-design.md:419` forbids any other bound than `max_iterations: 200`).
+Route: load-bearing, D-20 in CONTEXT.md.
 
 **G-12** The copy list (D-06) states as current what the designs have resolved (rows H13, H14, H15, A1, H1, H2, S13, H4, H5, H6, A2, A3, H7, H8, R12, S4, S5, S6, H12; seeds B01 to B07, B10 to B12; D-02 planning contradictions).
 Members: 1.18, 1.25, 1.37.
@@ -513,231 +524,270 @@ Statement: ten of the twelve bullets describe copies, gaps or needs the phase de
 Resolving lines: B01 standalone phases: `gauntlet-design.md:114` "included by gauntlet-run only. Not for direct use.", `gauntlet-intake-design.md:137`, `plan-review-design.md:12`, `:244`, `spec-review-design.md:15`, `:298`. B02 `worktree:`: `gauntlet-design.md:115` "No `worktree:` key.", `gauntlet-intake-design.md:221`, `plan-review-design.md:239`, `spec-review-design.md:293`. B03 guard nodes: `gauntlet-design.md:102`, `gauntlet-intake-design.md:239`, `plan-review-design.md:12`, `:423`, `spec-review-design.md:15`, `:487`. B04 hand-off contracts: `plan-review-design.md:406`, `spec-review-design.md:460-463`, `gauntlet-design.md:118-120`. B05 `$INPUTS` before `when:`: `gauntlet-intake-design.md:157`, `:164`. B06 inline handoff scripts: `plan-review-design.md:404`, `spec-review-design.md:456`. B07 writers of `approved/`: `gauntlet-design.md:228`, `writing-design.md:341`. B10 role files: `writing-design.md:19`, `gauntlet-design.md:359`. B11 comparisons against the brief baseline: `gauntlet-design.md:281`, `landing-design.md:345`. B12 copies of the tree's records: `landing-design.md:256`, `gauntlet-design.md:353`.
 Planning contradictions (D-02): `PROJECT.md:31` "Intake, plan review and spec review usable standalone and as blocks of `gauntlet-run`" and `ROADMAP.md:61` (Phase 4 criterion 1, `archon workflow run intake --input file=<path>`; also the goal at `ROADMAP.md:57`) against `gauntlet-design.md:114` and `spec-review-design.md:298`.
 Options: (a) the designs' value: each phase is included by `gauntlet-run` only (`gauntlet-design.md:114`), the copy list is spent, and the same commit edits `PROJECT.md:31` and `ROADMAP.md:57`, `:61` (D-02); whether the list is deleted or rewritten to what the designs now state is editorial; (b) the planning documents' value: phases usable standalone (`PROJECT.md:31`, `ROADMAP.md:61`), which reverses the "Not for direct use" descriptions at the lines above.
+Route: load-bearing, D-21 in CONTEXT.md.
 
 **G-13** Header lines in the revision files (row P3).
 Members: 1.20.
 Where: `gauntlet-design.md:229`, `:243`; `writing-design.md:31`, `:344`.
 Statement: `enter` copies a round file that starts with `Revises:` and `Answers:` lines into `<slug>.rev<N>.txt`, which the gauntlet design says holds only the changed clauses.
 Options: (a) `enter` strips the two header lines when copying; (b) the revision files keep the header and `gauntlet-design.md:243` says so, with the `Answers:` path stated to be a tree path the mend does not read.
+Route: ask-user seam.
 
 **G-14** Node ids of the mend's agent nodes (row H34).
 Members: 1.21.
 Where: `gauntlet-design.md:184`; `landing-design.md:109-112`, `:157-159`.
 Statement: the gauntlet design names `mend-juror` and `mend-review` as node ids; the landing design uses `juror` and `review` with those names as commands.
 Options: (a) node ids `juror` and `review` (`landing-design.md:109`, `:157`) and `gauntlet-design.md:184` reworded; (b) rename the nodes to `mend-juror` and `mend-review`.
+Route: load-bearing, D-22 in CONTEXT.md.
 
 **G-15** The Homes row "outside `gauntlet/`" (row P10).
 Members: 1.22.
 Where: `gauntlet-intake-design.md:238`; `gauntlet-design.md:275`, `:352`; `landing-design.md:252`; `writing-design.md:294`.
 Statement: the intake Homes table forbids any Gauntlet node writing outside `gauntlet/`, while landing's merge, the coder, the mend and `seal` write tracked files.
 Options: (a) the intake row is scoped to intake's own nodes (`gauntlet-intake-design.md:221`, "writes only in the run's checkout"); (b) the row is widened to name landing's `merge`, the coder fence and `seal`'s commit as the other homes (`gauntlet-design.md:352`).
+Route: ask-user seam.
 
 **G-16** Clerk's write fence (rows F5, R5).
 Members: 1.23.
 Where: `gauntlet-intake-design.md:86`, `:94`, `:95`, `:110`, `:182`, `:245`; `gauntlet-design.md:307`.
 Statement: `FENCE_WRITE=gauntlet/tasks` lets Clerk write, copy and delete every task file; only the role's prose confines it to its own `<slug>.md`, which the Homes row calls a forbidden stand-in, and nothing checks that a chosen slug is free.
 Options: (a) as written, prose confinement; (b) `FENCE_WRITE` narrowed to the slug's file once chosen (a per-turn fence or `FENCE_ONCE`), with a script node checking the slug is free before the first turn.
+Route: load-bearing, D-23 in CONTEXT.md.
 
 **G-17** The guard's failure message for a tracked file (row S3; also H1, H2).
 Members: 1.24.
 Where: `gauntlet-intake-design.md:54`, `:56`; `gauntlet-design.md:105`.
 Statement: the one message says "Add it to .gitignore and restart the run", which cannot clear a file git already tracks.
 Options: (a) one message as written; (b) a second message for the tracked case naming `git rm --cached`.
+Route: ask-user seam.
 
 **G-18** `from-file` on an identical occupied target (internal to gauntlet-intake-design.md).
 Members: 1.26.
 Where: `gauntlet-intake-design.md:158`.
 Statement: any occupied target stops the run, byte-identical content included.
 Options: (a) as written, exit non-zero on every occupied target but the handed-in path itself; (b) treat a byte-identical target as the task and carry on.
+Route: ask-user seam.
 
 **G-19** The slug fixed on Clerk's opening turn (rows P6, H16).
 Members: 1.27.
 Where: `gauntlet-intake-design.md:7`, `:86`, `:173`, `:181`, `:199`, `:217`, `:221`; `worktree-cut-design.md:61`.
 Statement: the slug must be output before any conversation and stays fixed, but the idea may be empty.
 Options: (a) as written; (b) with an empty idea, Clerk asks first and picks the slug on the first reply that holds a task; (c) the slug is output on the turn the draft is written.
+Route: ask-user seam.
 
 **G-20** The cite check (row S9; internal to plan-review-design.md).
 Members: 1.30, 1.33.
 Where: `plan-review-design.md:26`, `:71-76`, `:95`, `:103`, `:126`, `:155`, `:170`, `:264`, `:310`.
 Statement: the ledger tests "holds no `[cite:` marker" while `cite.py` parses a grammar and fails the run on an error, so a malformed marker either loops to `max_iterations` or stops the run, where the ledger already returns an unresolved plan to the defense.
 Options: (a) as written; (b) `cite.py` exits 0 and prints the unresolved markers, the ledger owes the defense until none remain; (c) the ledger tests for unresolved markers by the same grammar `cite.py` uses.
+Route: ask-user seam.
 
 **G-21** The ledger's `state` mode needs `start` (row H29).
 Members: 1.28, 1.41.
 Where: `plan-review-design.md:91-92`, `:106`, `:111`, `:294`, `:321`; `spec-review-design.md:23`, `:90`, `:98`, `:351`, `:378`.
 Statement: the design says in-loop `state` also passes `INPUTS_START`; `filing` and `ready` pass only `mode` and `slug`, so slot choice, `run_rounds` and vacancy are computed against an undefined start.
 Options: (a) add `start: $docket-in.output.start` to `filing` and `ready` in both blocks; (b) the ledger derives start itself and `INPUTS_START` is dropped from the text.
+Route: load-bearing, D-24 in CONTEXT.md.
 
 **G-22** Mode `close`: what it returns and from which file (row H27).
 Members: 1.34, 1.40, 1.47.
 Where: `plan-review-design.md:137`, `:397`, `:400-405`; `spec-review-design.md:113-115`, `:124`, `:341`, `:448`, `:470`.
 Statement: plan review's `close` returns `{ plan, summary }` for the latest round with a summary; the shared core returns `{ outcome, file, summary }` for the latest ruling whose decision ends the case, a ruling the loop never writes when the owner's approval ends it, and plan review's `handoff` is not changed to read it.
 Options: (a) plan review keeps its own `close` (`plan-review-design.md:137`) and the core gives the spec review its own; (b) the core's `close` (`spec-review-design.md:115`) with the final ruling written before the loop ends and plan review's `enter` and `handoff` amended to read `$close.output.file`.
+Route: load-bearing, D-25 in CONTEXT.md.
 
 **G-23** Where a phase block gets its slug (rows H36, H26).
 Members: 1.35, 1.42.
 Where: `plan-review-design.md:250-252`, `:259`, `:266`, `:287`, `:294`, `:314`, `:321`, `:345`, `:363`, `:379`, `:393`; `spec-review-design.md:285`, `:293`, `:351`, `:378`, `:390`, `:397`, `:476`.
 Statement: every ledger node and the `screen` and `cite` bindings take `<slug>`, but the block's only input is the task path and no node outputs the slug.
 Options: (a) the first node prints the slug from `INPUTS_TASK` (as `spec-review-design.md:285` does for `handoff`) and later nodes bind `$<node>.output.slug`; (b) the block takes `slug` as a second input from `intake` (H3 adds it to the hand-off).
+Route: load-bearing, D-26 in CONTEXT.md.
 
 **G-24** What a sworn-in reviewer reads (rows R2, R4).
 Members: 1.36.
 Where: `plan-review-design.md:178`, `:179`, `:189`; `spec-review-design.md:263`.
 Statement: the arbiter reads the latest block and review unless the latest verdict is LEADING or SCREENED; plan review's swear-in reads no earlier plan, so a forked slot never read the plan an earlier review demanded clarification of.
 Options: (a) plan review as written (`plan-review-design.md:178-179`); (b) plan review reads the latest plan on the arbiter's rule (`spec-review-design.md:263`).
+Route: ask-user seam.
 
 **G-25** A rerun on a slug whose plan or spec is already approved (rows P1, P2).
 Members: 1.29, 1.44.
 Where: `plan-review-design.md:150-151`, `:397-398`, `:409`; `spec-review-design.md:59`, `:215`, `:449`; `gauntlet-intake-design.md:159`.
 Statement: the ledger has no branch for an existing `approved/<slug>.txt`; a full new hearing runs and `enter`'s `cp -n` then exits non-zero.
 Options: (a) as written, the run fails at `enter` after the hearing; (b) the ledger returns a case "already approved" and the block hands off the existing file; (c) `open` fails at once, naming the file, before any agent runs.
+Route: load-bearing, D-27 in CONTEXT.md.
 
 **G-26** The `until_bash` form of the hearing loops (row A15).
 Members: 1.38, 1.39.
 Where: `spec-review-design.md:338`, `:434`; `plan-review-design.md:281`; `loop-nodes.md:667-670`, `:695-697`.
 Statement: `until_bash` reads a wait its own `when:` can skip, and double-quotes a substituted reference that Archon already single-quotes.
 Options: (a) as written (the loop fails on an ordinary round and never ends on approval); (b) assign the reference to a shell variable, test it with `[ -n ... ]` guards, and make `bench` unconditional or read it through `$LOOP_PREV` (the forms `loop-nodes.md:667-697` give).
+Route: load-bearing, D-28 in CONTEXT.md.
 
 **G-27** The report prompt's verdict value (internal to spec-review-design.md).
 Members: 1.46.
 Where: `spec-review-design.md:161-162`, `:251`, `:423`.
 Statement: the `report` node passes `$case.output.case` ("review" or "invalid") where the reporter role takes READY or INVALID.
 Options: (a) pass the verdict from `$ready.output` instead; (b) the role names "review" and "invalid".
+Route: ask-user seam.
 
 **G-28** The branch the cut hands off (rows H16, H17, H18).
 Members: 1.48.
 Where: `worktree-cut-design.md:117`, `:168-169`, `:194`, `:195`; `gauntlet-design.md:82`, `:155`.
 Statement: `cut` takes `branch` from `pin`'s predicted name while the tree run reads the real one from git, and nothing compares them.
 Options: (a) `cut` takes `branch` from `$tree.output` and `pin`'s name becomes a check; (b) keep `pin`'s name and add a node failing when the two differ.
+Route: load-bearing, D-29 in CONTEXT.md.
 
 **G-29** What node `baseline` writes (rows H20, P8, P4).
 Members: 1.49, 1.52.
 Where: `worktree-cut-design.md:159-161`, `:200`; `writing-design.md:14`, `:30`, `:145`, `:502`, `:526`; `landing-design.md:16`, `:40`, `:64`; `gauntlet-design.md:156`, `:163`, `:194`, `:222`.
 Statement: the full-suite file `gauntlet/baseline/<slug>.txt` is written by a run of up to 15 minutes that nothing reads, and the Homes row forbids the brief file `<slug>.brief.txt` that the same node writes and every red check reads.
 Options: (a) drop the full baseline file and its pass-through fields, `baseline` writes the brief file only and the Homes row names it; (b) keep both and give the full file a reader; (c) keep both and add the brief file to the Homes row.
+Route: load-bearing, D-30 in CONTEXT.md.
 
 **G-30** The node `timeout` from the repository's env (row A27).
 Members: 1.50.
 Where: `worktree-cut-design.md:158`; `writing-design.md:399`; `landing-design.md:61`, `:79`, `:146`; `workflow-language.md:93`.
 Statement: the designs write a node timeout as `GAUNTLET_TEST_TIMEOUT` plus 60 s, but a node `timeout` is a literal in milliseconds.
 Options: (a) a literal 960000 (kills a repository that raises `GAUNTLET_TEST_TIMEOUT`); (b) no node `timeout`, the inner `timeout -k` bounds the process.
+Route: load-bearing, D-31 in CONTEXT.md.
 
 **G-31** A repository with no test command (rows P11, H20).
 Members: 1.51, 1.63.
 Where: `worktree-cut-design.md:159-160`; `writing-design.md:107`, `:502`, `:512`; `landing-design.md:62`.
 Statement: the cut and the writing baseline accept a blank command and write "no test command"; `stage.py` and the mend refuse it, after the earlier phases have been paid for.
 Options: (a) a blank command is refused: `writing-design.md:107` ("every mode exits 1 naming it"), `:512`, `landing-design.md:62`; (b) a blank command is accepted and recorded: `worktree-cut-design.md:159-160` (the one line "no test command"), `writing-design.md:502`. Under (a) the refusal stands where the first paid phase begins; the designs name no node for it.
+Route: load-bearing, D-32 in CONTEXT.md.
 
 **G-32** `uncommitted` reaches no reader (rows H16, H17).
 Members: 1.53.
 Where: `worktree-cut-design.md:9`, `:23`, `:69`; `gauntlet-design.md:31`, `:80-88`.
 Statement: the cut lists the checkout's changed tracked paths and hands them on, but no node or owner gate reads them, and untracked files are not listed.
 Options: (a) as written; (b) `cut` fails or asks the owner when `uncommitted` is non-empty; (c) drop `uncommitted` and the sentence at `:9`.
+Route: load-bearing, D-33 in CONTEXT.md.
 
 **G-33** The tree node's `checkout` input has no source (rows H9, H16).
 Members: 1.54.
 Where: `worktree-cut-design.md:66-69`, `:105`, `:111`, `:153`; `gauntlet-design.md:156`, `:169`.
 Statement: `with: { checkout: <the checkout's absolute root> }` binds a value no node prints.
 Options: (a) `pin` prints the checkout root; (b) a bash node before `tree` prints it.
+Route: load-bearing, D-34 in CONTEXT.md.
 
 **G-34** `copy-in` skips a missing input silently (row H7; internal to worktree-cut-design.md).
 Members: 1.55.
 Where: `worktree-cut-design.md:48`, `:152-153`, `:168-170`.
 Statement: a plan or spec named by the input but absent from the checkout is skipped, and `handoff` prints a tree path for it.
 Options: (a) as written; (b) `copy-in` fails naming the missing file when the input is non-empty.
+Route: ask-user seam.
 
 **G-35** Removing the tree (rows H37, H23).
 Members: 1.56.
 Where: `worktree-cut-design.md:197`; `landing-design.md:263-265`; `gauntlet-design.md:343`, `:354`.
 Statement: the cut design forbids any write in the tree by a `gauntlet-run` node; landing's `remove` node, a `gauntlet-run` block, removes the tree.
 Options: (a) the Homes row `worktree-cut-design.md:197` names `remove` as the exception; (b) the narrower rule `gauntlet-design.md:343` ("a rebase, test run or commit in the tree") replaces it.
+Route: ask-user seam.
 
 **G-36** The juror case triggers of `state` (row S5).
 Members: 1.58, 1.61.
 Where: `writing-design.md:126-130`, `:127`, `:150-155`, `:164`.
 Statement: older contests, red runs and seal exits keep matching after a ruling, and every owner reply to `stalled` or `cap` opens a juror case with no "carry on" verdict.
 Options: (a) as written; (b) each trigger is bounded by "newer than the latest verdict" and a `stalled` or `cap` reply is a ruling that opens no case; (c) the juror gets a `CONTINUE` verdict.
+Route: ask-user seam.
 
 **G-37** Coverage of the approved spec and plan across cuts (internal to writing-design.md).
 Members: 1.59.
 Where: `writing-design.md:28`, `:130`, `:138`, `:175-176`.
 Statement: a later cut covers only what its cause affects, so unrun waves of the cut it replaces are dropped and no check finds an untested spec.
 Options: (a) as written; (b) `state` carries the unrun waves of the replaced cut into the next, or a coverage check on spec ids precedes `seal`.
+Route: ask-user seam.
 
 **G-38** `max_iterations: 200` against moves (internal to writing-design.md; rows S5, S7).
 Members: 1.62.
 Where: `writing-design.md:29`, `:330`; `loop-nodes.md:203-205`.
 Statement: the loop bound counts iterations while the `cap` that keeps it from failing counts moves, and revise and review iterations write no move.
 Options: (a) as written; (b) `cap` counts iterations (`$LOOP_PREV` count) so the ask fires before 200.
+Route: ask-user seam.
 
 **G-39** `docket` returns `ask` together with `end` (row H28).
 Members: 1.64.
 Where: `writing-design.md:148-152`, `:331`, `:479`.
 Statement: the owner is asked about a stall or cap of a run that has already ended.
 Options: (a) as written; (b) `ask` is false when `end` is non-empty.
+Route: ask-user seam.
 
 **G-40** The test writer's fence omits `docs/testing.md` (rows F8, P12).
 Members: 1.65.
 Where: `writing-design.md:256`, `:272`, `:309`; `spec-review-design.md:274`.
 Statement: the test writer is told to follow the repository's testing policy and its fence cannot read it.
 Options: (a) add `docs/testing.md` to `FENCE_READ` of `test-writer.mcp.json`; (b) the role no longer names the policy.
+Route: load-bearing, D-35 in CONTEXT.md.
 
 **G-41** The coder's check tool returns tracebacks (rows F9, P14).
 Members: 1.66.
 Where: `writing-design.md:13`, `:18`, `:187`, `:295`, `:529`.
 Statement: `fence/checks.py` returns the last 200 lines, tracebacks included, which show the test source the coder is meant not to see.
 Options: (a) as written; (b) a coder-facing mode of the check tool that returns names and messages only.
+Route: load-bearing, D-36 in CONTEXT.md.
 
 **G-42** `record` passes no `move` (internal to writing-design.md; row S5).
 Members: 1.67.
 Where: `writing-design.md:154-155`, `:337`.
 Statement: `record` writes `<slug>.ruling.<move>.txt` for `stalled` and `cap` with no `move` input.
 Options: (a) add `move: $state.output.move` to the `with:`; (b) `record` derives the move from the files.
+Route: ask-user seam.
 
 **G-43** The reviser's `Answers:` path (row R12; internal to writing-design.md).
 Members: 1.68.
 Where: `writing-design.md:117`, `:197-199`, `:428`.
 Statement: `state` gives the reviser no answers path.
 Options: (a) `state` prints `cause` for `revise` as well; (b) the reviser derives it from the folder.
+Route: ask-user seam.
 
 **G-44** Landing's resume re-tests nothing after the first pass (rows H22, H17).
 Members: 1.69.
 Where: `landing-design.md:30`, `:47`, `:55`, `:195`, `:205`, `:368`; `workflow-language.md:83`, `:324-332`.
 Statement: after the first pass has rebased the branch, `moved` is false on resume, `test-tree`, `red`, `confirm` and `repair` are skipped, and the gate shows a false "not rerun".
 Options: (a) `moved` is computed against the recorded tree base, not the checkout's head; (b) a resume always reruns `test-tree` on the rebased tip.
+Route: ask-user seam.
 
 **G-45** Landing's decision for the owner (D-10; rows H22, H23).
 Members: `landing-design.md:388` (open decision 1, no finding id).
 Where: `landing-design.md:388`.
 Statement: the checkout moves after the mend rebased the branch and before the merge, so the branch no longer fast-forwards.
 Options: (a) landing stops at `onto` or `merge`, keeps the tree, branch and any land answer, and `archon workflow resume <run id>` lands once the checkout is back at an ancestor of the branch; cost: the owner moves the new checkout commits aside by hand and no test reruns on them; (b) landing hands off `left` with the tree kept and the owner lands by hand; cost: the run ends with no Gauntlet landing, and the record copy and tree removal fall to the owner. Option (a) depends on the ruling of G-44.
+Route: ask-user seam.
 
 **G-46** `pose` ends the repair without checking the commit (row H34).
 Members: 1.70.
 Where: `landing-design.md:55`, `:143-147`, `:172`, `:326-327`.
 Statement: a `commit-failed` mend leaves edits uncommitted, `recheck` is not red, and the repair ends "done" on a dirty tree.
 Options: (a) as written; (b) `pose` ends "done" only when the mender's outcome is `committed`, and the UNSOUND list names an uncommitted mend.
+Route: ask-user seam.
 
 **G-47** `retest` overwrites `test-tree`'s run file (row P9).
 Members: 1.71.
 Where: `landing-design.md:30`, `:63`, `:116`, `:147`.
 Statement: with the tip unchanged `retest` writes to the file `test-tree` wrote.
 Options: (a) as written; (b) `retest` runs only when a mend committed, so the key differs by construction.
+Route: ask-user seam.
 
 **G-48** `retest` and `review` run when nothing was mended (internal to landing-design.md; CLAUDE.md 1.3).
 Members: 1.72.
 Where: `landing-design.md:143`, `:157`, `:327`.
 Statement: after a `contest`, or with `recheck` red, a full test run and an agent session are spent on a verdict fixed in advance.
 Options: (a) as written; (b) `retest` and `recheck` gated on `outcome == committed` and `review` gated on `recheck` not red.
+Route: ask-user seam.
 
 **G-49** The case `pose` hands the next juror (internal to landing-design.md).
 Members: 1.73.
 Where: `landing-design.md:116`, `:129`, `:172-174`.
 Statement: after a DEFECTIVE ruling or a resume the case is empty or falls back to the pre-mend run file.
 Options: (a) as written; (b) `pose` always prints the latest run file and review file it holds.
+Route: ask-user seam.
 
 **G-50** What `repair`'s `ask` offers and when it fires (row H31).
 Members: 1.74, 1.75.
 Where: `landing-design.md:98`, `:175-176`, `:178`, `:373`.
 Statement: the options are reply or leave only, so a flaky red cannot be accepted or rerun, and the Homes row omits the third ask condition (`hear.n >= 200`).
 Options: (a) as written; (b) add `retry` and `accept` options and list all three ask conditions in the Homes row `landing-design.md:373`.
+Route: load-bearing, D-37 in CONTEXT.md.
