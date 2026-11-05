@@ -1,0 +1,122 @@
+{
+  "granularity": "standard",
+  "model": {
+    "escalate_on_failure": false
+  },
+  "workflow": {
+    "research": false,
+    "plan_check": false,
+    "verifier": true,
+    "skip_discuss": false,
+    "inline_plan_threshold": 3,
+    "max_plan_tasks": 8,
+    "test_command": null,
+    "lint_command": null
+  },
+  "parallelization": {
+    "enabled": true,
+    "max_concurrent_agents": 3,
+    "min_plans_for_parallel": 2,
+    "use_worktrees": true
+  },
+  "git": {
+    "protected_branches": [
+      "main",
+      "master"
+    ],
+    "on_protected": "ask",
+    "integration_branch": "milestone",
+    "auto_branch": "ask",
+    "base_branch": null,
+    "create_tag": true,
+    "on_land_cleanup": true,
+    "issue_check": true,
+    "auto_close": false,
+    "forge_provider": "github",
+    "forge_repo": "ohshitgorillas/gauntlet",
+    "forge_host": null
+  },
+  "planning": {
+    "commit_docs": true
+  },
+  "memory": {
+    "backend": "builtin"
+  },
+  "review": {
+    "mode": "adjudicated",
+    "reviewers": [
+      "claude-subagent"
+    ],
+    "key_file": null,
+    "providers": {
+      "openai": {
+        "tiers": {
+          "flagship": null,
+          "balanced": null,
+          "cheap": null
+        }
+      },
+      "gemini": {
+        "tiers": {
+          "flagship": null,
+          "balanced": null,
+          "cheap": null
+        }
+      },
+      "deepseek": {
+        "tiers": {
+          "flagship": null,
+          "balanced": null,
+          "cheap": null
+        }
+      }
+    },
+    "consult": {
+      "enabled": false,
+      "tier": "flagship",
+      "effort": "high",
+      "attempt_threshold": 3
+    },
+    "decision_review": {
+      "tier": "flagship",
+      "effort": "high"
+    }
+  },
+  "testing": {
+    "scope": "focused",
+    "coverage": {
+      "lines": 85,
+      "branches": 85,
+      "statements": 0,
+      "include": [
+        "fence/**/*.py",
+        ".shared/**/*.py",
+        "*/scripts/**/*.py"
+      ],
+      "exclude": [
+        "**/test_*.py",
+        "**/tests/**",
+        "docs/**",
+        "**/*.yaml",
+        "**/*.md",
+        "**/*.ts",
+        "**/*.json"
+      ],
+      "commands": [
+        "uv run --no-project --with 'mcp>=1.2,<2' --with pytest --with pytest-cov pytest -q --cov=fence --cov-branch --cov-report=json fence",
+        "node .github/cadence/coverage-report-check.mjs --format python --report coverage.json",
+        "archon workflow test",
+        ".venv/bin/pre-commit run -c .pre-commit/config.yaml --all-files"
+      ]
+    },
+    "strong_areas": [
+      "fence/",
+      ".shared/red.py"
+    ],
+    "required_jobs": [
+      "tests",
+      "fixtures",
+      "lint"
+    ]
+  }
+}
