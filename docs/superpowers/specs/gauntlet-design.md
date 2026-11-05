@@ -26,6 +26,7 @@ The phase designs contain these copies:
 - Inline `script:` handoffs that print an input: 2, plan review's and spec review's `handoff`. Inside an `include:` block, `$INPUTS.<name>` in an inline script is a load error.
 - Writers of the tree's `gauntlet/plans/approved/` and `gauntlet/specs/approved/`: the worktree cut design names `copy-in` the only one. Writing's revisions need a second.
 - Places a node runs in the tree: 1, the tree run. An `include:` block has no checkout of its own, and a second `workflow:` node with `isolation: worktree` gets a second branch, cut from the repository's base branch. Writing is therefore a block of `gauntlet-tree`, not of `gauntlet-run`.
+- Fences that can read the checkout's `gauntlet/failed/` outside intake: 4, with `FENCE_READ=.`: `plan-review/defense.mcp.json`, `plan-review/prosecutor.mcp.json`, `plan-review/reporter.mcp.json` and `spec-review/speccer.mcp.json`. `fence/files.py` applies `FENCE_DENY` to writes only, so no fence can refuse a read inside a readable folder.
 - Role files writing would reuse: 4, `plan-review/commands/defense.md`, `plan-review/commands/prosecutor.md`, `spec-review/commands/speccer.md` and `spec-review/commands/arbiter.md`. Commands resolve only from a workflow's own `commands/`, so writing cannot call them.
 
 The tree holds none of these yet. The only parts built are `fence/` and `spec-review/commands/arbiter.md`.
@@ -207,6 +208,26 @@ clerk.md, added rule: the owner's idea names a slug listed under gauntlet/failed
 gauntlet/tasks/<slug>.md before the first reply. The new task takes a new slug.
 ```
 
+The file route copies the owner's file verbatim and reads no failure record. Only Clerk reads `gauntlet/failed/`.
+
+### `fence/files.py` (hidden paths)
+
+Adds `FENCE_HIDE`: paths no tool reads, lists, searches or writes, inside readable folders included. Replaces nothing; every other `FENCE_*` list keeps its meaning.
+
+```python
+HIDE = _folders("FENCE_HIDE")   # entries as in FENCE_READ, name patterns included
+# A path inside a HIDE entry is refused by every tool, read and write alike:
+#   PermissionError(f"{path}: hidden (FENCE_HIDE)")
+# list_directory, find_files and grep never show a hidden path, nor a folder holding only hidden paths.
+# Unset: nothing hidden.
+```
+
+Suite: `fence/test_files_hide.py`, run as `docs/testing.md` states with the folder `fence`.
+
+### Checkout fences outside intake
+
+`plan-review/defense.mcp.json`, `plan-review/prosecutor.mcp.json`, `plan-review/reporter.mcp.json` and `spec-review/speccer.mcp.json` each set `FENCE_HIDE=gauntlet/failed`, with every other `FENCE_*` value as their phase designs give it.
+
 ## Homes
 
 | Concern | Home | Forbidden elsewhere |
@@ -223,7 +244,8 @@ gauntlet/tasks/<slug>.md before the first reply. The new task takes a new slug.
 | Writing to the tree's `approved/` folders | `copy-in` of the tree run for `<slug>.txt` and `<slug>-summary.md`; writing's `enter`, by `cp -n`, for `<slug>.rev<N>.txt` | any agent or other node writing there; any other file name there; a revision in the checkout |
 | Reading the approved plan or spec in writing | `<slug>.txt` and each `<slug>.rev<N>.txt` in order of N | an agent handed `<slug>.txt` alone once a revision exists |
 | Ending the run on a defective plan | the juror's verdict `defective`, handed off as writing's `outcome`; `fail` records it; `kill` cancels the run | a node failing the run for it; a line-count or size threshold; Gauntlet removing the tree or its branch |
-| The failed task record | `gauntlet/failed/<slug>.txt` of the checkout: the juror's defective ruling verbatim, written once by `fail`, read by Clerk | any other writer or content; any other phase reading it |
+| The failed task record | `gauntlet/failed/<slug>.txt` of the checkout: the juror's defective ruling verbatim, written once by `fail`, read by Clerk; hidden from every other checkout role by `FENCE_HIDE=gauntlet/failed` | any other writer or content; any other phase or role reading it, the defense included; intake's file route reading it; a fence outside `intake/` with `FENCE_READ` covering `gauntlet/failed/` and no `FENCE_HIDE` for it |
+| Refusing a read inside a readable folder | `FENCE_HIDE` in `fence/files.py` | any other read check; `FENCE_DENY` widened to reads |
 | Rounds, verdict parsing and the owner's cases in writing | `.shared/rounds.py`, with writing's verdicts in a `write/scripts/ledger.py` `Profile` (spec review design) | any of it computed in a `write/` node, prompt or command |
 | Steering screening in writing | the `screen` workflow (spec review design), included by writing | any other steering check before a reviewer reads a round file |
 | What each writer can see | `fence/files.py` (plan review design), through writing's `*.mcp.json` | any other confinement of the test writers to `tests/` or of the code writers away from `tests/` |
@@ -236,7 +258,5 @@ gauntlet/tasks/<slug>.md before the first reply. The new task takes a new slug.
 3. Failed slugs in Clerk: `intake/commands/clerk.md` (the added rule). Needs the intake design's `clerk.md`. Agent: `role-author`.
 4. Writing in the tree run: `gauntlet-tree/gauntlet-tree.yaml` (nodes `paths`, `write`, `handoff`, the description), `gauntlet-tree/fixtures/tree.stubs.yaml`, `gauntlet-tree/fixtures/defective.stubs.yaml` (writing hands off `defective`, `handoff` reached). Needs the worktree cut design's tree run and the writing design's `write/write.yaml`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
 5. The run's end: `gauntlet-run/gauntlet-run.yaml` (`cut`'s `outcome` and `verdict`, nodes `fail` and `kill`, the description), `gauntlet-run/fixtures/cut.stubs.yaml`, `gauntlet-run/fixtures/defective.stubs.yaml` (`fail` and `kill` run, the run cancelled). Needs steps 1 and 4 and the worktree cut design's step 3. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
-
-## Decisions for the owner
-
-1. A task file the owner writes that names a failed slug. Recommend: the file route copies the owner's file verbatim and reads no failure record, so the owner writes the failures into the file; only Clerk reads `gauntlet/failed/<slug>.txt`. Cost: an owner who writes the file must describe the failures himself. Alternative: the defense also reads `gauntlet/failed/<slug>.txt` for any failed slug the task names. Cost: one rule in `plan-review/commands/defense.md` and `gauntlet/failed/` added to the defense's fence.
+6. Hidden paths in the fence: `fence/files.py` (`FENCE_HIDE`), `fence/test_files_hide.py`. Needs the plan review design's step 1. Agent: `builder`.
+7. Failed slugs hidden outside intake: `plan-review/defense.mcp.json`, `plan-review/prosecutor.mcp.json`, `plan-review/reporter.mcp.json`, `spec-review/speccer.mcp.json` (`FENCE_HIDE=gauntlet/failed`). Needs step 6 and those files as their phase designs give them. Agent: `workflow-builder`.
