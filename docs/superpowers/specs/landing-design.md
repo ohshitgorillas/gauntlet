@@ -4,7 +4,7 @@ Status: proposed.
 
 ## Why
 
-Landing is two blocks. Block `mend`, `mend/mend.yaml`, runs in the tree as part of the tree run `gauntlet-tree`, after `write`, when writing hands off `written`. Block `land`, `land/land.yaml`, is phase 6 of `gauntlet-run`, after `cut`, when the tree run hands off `ready`. `gauntlet-design.md` gives the fast-forward merge as the only write to the checkout's tracked files, the record copy, the tree's removal by `archon complete <branch> --force`, and `.shared/red.py`. This file gives both blocks' nodes and signatures. Every path is relative to the pack root unless it names the checkout or the tree.
+Landing is two blocks. Block `mend`, `mend/mend.yaml`, runs in the tree as part of the tree run `gauntlet-tree`, after `write`, when writing hands off `written`. Block `land`, `land/land.yaml`, is phase 7 of `gauntlet-run`, after `cut`, when the tree run hands off `ready`. `gauntlet-design.md` gives the fast-forward merge as the only write to the checkout's tracked files, the record copy, the tree's removal by `archon complete <branch> --force`, and `.shared/red.py`. This file gives both blocks' nodes and signatures. Every path is relative to the pack root unless it names the checkout or the tree.
 
 By the end of writing the checkout may have moved past base and may hold uncommitted edits. Block `mend` reads the checkout's `HEAD`, rebases the tree's branch onto it, verifies the rebased tree only when the checkout has moved, and mends a red on the rebased tree: a juror rules each red a code mend, a test mend or defective, the mender it names commits the mend, and a reviewer reads every mend. The owner is asked on the tree run's id, in plain words and with no diff, only when the juror rules defective or the mend stalls, and answers with guidance or leave. It runs git, the brief test command, one script and, only in the repair, four agents. Block `land` shows the owner the test line, the diff stat and the commit messages, waits for land or leave, and on land fast-forwards the checkout, copies the records and removes the tree. It runs git and Archon's CLI only, and no agent.
 
@@ -27,7 +27,7 @@ Measured in Archon's reference: a wait cannot carry `always_run`, so a resumed r
 
 ### `mend/mend.yaml` (the mend: rebase, verify, repair)
 
-Included by `gauntlet-tree` only, as node `mend` after `write`, when `$write.output.outcome == 'written'`, with `checkout` the tree run's input and `slug`, `branch` and `brief` from its node `paths`. The tree run's `handoff` prints the mend's `outcome` in place of writing's when the mend ran, and its `line`. It runs in the tree: every path it reads or writes is in the tree, and it reads the checkout only by `git -C $INPUTS.checkout rev-parse HEAD`. Nodes `onto`, `rebase`, `test-tree`, `red`, `test-head`, `confirm` and the group `repair` carry `always_run: true`, so a resume rebases, verifies and mends against the checkout as it then stands. Test-run files sit in `gauntlet/mend/`, keyed by the commits they ran on, so a rerun on the same commits reuses its file. Its waits are answered on the tree run's id.
+Included by `gauntlet-tree` only, as node `mend` after `write`, when `$write.output.outcome == 'written'`, with `slug`, `checkout`, `branch` and `brief` from its node `paths`. The tree run's `handoff` prints the mend's `outcome` in place of writing's when the mend ran, and its `line`. It runs in the tree: every path it reads or writes is in the tree, and it reads the checkout only by `git -C $INPUTS.checkout rev-parse HEAD`. Nodes `onto`, `rebase`, `test-tree`, `red`, `test-head`, `confirm` and the group `repair` carry `always_run: true`, so a resume rebases, verifies and mends against the checkout as it then stands. Test-run files sit in `gauntlet/mend/`, keyed by the commits they ran on, so a rerun on the same commits reuses its file. Its waits are answered on the tree run's id.
 
 ```yaml
 name: mend
@@ -208,7 +208,7 @@ Fixtures, `mend/fixtures/<route>.stubs.yaml`, one per route: `still` (`moved` fa
 
 ### `land/land.yaml` (landing in the checkout)
 
-Included by `gauntlet-run` only, as node `land` after `cut`, when the tree run hands off `ready`, with `slug`, `worktree` and `branch` from the cut and `line` the tree run's `line`. It runs in the checkout, reaches the tree only by `git -C $INPUTS.worktree` and `archon complete`, and writes nothing in the tree. It has no agent node. `onto` carries `always_run: true`, so a resume checks the checkout as it then stands; `show` and `gate` replay.
+Included by `gauntlet-run` only, as node `land` after `cut`, when the tree run hands off `ready`, with `slug` from node `pin`, `worktree` and `branch` from the cut and `line` the tree run's `line`. It runs in the checkout, reaches the tree only by `git -C $INPUTS.worktree` and `archon complete`, and writes nothing in the tree. It has no agent node. `onto` carries `always_run: true`, so a resume checks the checkout as it then stands; `show` and `gate` replay.
 
 ```yaml
 name: land
