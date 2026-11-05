@@ -11,7 +11,7 @@ Inside one loop, the divvyer cuts the approved plan and spec into blocks and ord
 What the tree holds for the concerns writing touches:
 
 - Running a test command for an agent: one copy, `fence/checks.py`, which runs `FENCE_TEST_COMMAND` and returns its last 200 lines, tracebacks included. Writing reuses it unchanged, set per role. The test writer's copy runs the repository's brief command, which prints no test source.
-- Baseline comparison: no copy. The cut design's `gauntlet/baseline/<slug>.txt` holds the whole test output, unparsed, with no per-test listing.
+- Baseline comparison: designed and unbuilt, `.shared/red.py` (`gauntlet-design.md`), shared with landing. The cut design's `gauntlet/baseline/<slug>.txt` holds the whole test output, unparsed, with no per-test listing.
 - Commits: no copy. No Gauntlet file commits, and `fence/files.py` has no git tool.
 - Round logic: designed and unbuilt, `.shared/rounds.py` (spec review design). Writing's revision hearing uses it through a `write/scripts/ledger.py` `Profile`, as `gauntlet-design.md` requires.
 - Steering screening: designed and unbuilt, the `screen` workflow (spec review design). Its fence, `screen/screener.mcp.json`, reads only `gauntlet/plans/*.txt` and `gauntlet/specs/*.txt`, so it cannot read a revision round.
@@ -97,7 +97,7 @@ Suite: `write/tests/test_ledger.py`. It pins `UNSOUND` counted as an attempt, `S
 
 ### `write/scripts/stage.py`
 
-Writing's progress: what is owed next, the cut and wave records, red, the owner's cases outside the hearing, and the run's end. It derives everything from `gauntlet/write/`, `gauntlet/revisions/` and `approved/`, so a resumed run reads the same state. It takes the hearing's state, docket, screen and record from `.shared/rounds.py` with `PROFILE`, and computes none of them itself. Standard library only. Replaces nothing.
+Writing's progress: what is owed next, the cut and wave records, red, the owner's cases outside the hearing, and the run's end. It derives everything from `gauntlet/write/`, `gauntlet/revisions/` and `approved/`, so a resumed run reads the same state. It takes the hearing's state, docket, screen and record from `.shared/rounds.py` with `PROFILE`, and red from `.shared/red.py`, and computes none of them itself. Standard library only. Replaces nothing.
 
 ```python
 # /// script
@@ -142,7 +142,7 @@ def result(move: int, tests: str, code: str) -> dict: ...
 #   recorded as commit-failed with its error. stdout { "contested": bool }.
 
 def red(run: str, brief: str) -> bool: ...
-# One line per test, "PASSED <id>", "FAILED <id>" or "ERROR <id>", text from " - " on dropped; other lines ignored.
+# The latest run file and the brief baseline, passed to .shared/red.py's red with no head; returns its answer.
 
 def docket(start: int) -> dict: ...
 # { "case": <rounds.docket case> | "stalled" | "cap" | "none", "ask": bool, "attention": str,
@@ -161,7 +161,7 @@ def close() -> dict: ...
 def main() -> int: ...             # dispatches on INPUTS_MODE, prints JSON to stdout
 ```
 
-Suite: `write/tests/test_stage.py`, run as `docs/testing.md` states with the folder `write/tests`. It drives `main` through real files under `tmp_path`. It pins each rule of `state` in its precedence, red against a baseline failure that now passes and against a new failure, each cut problem, and `close` on `DEFECTIVE`.
+Suite: `write/tests/test_stage.py`, run as `docs/testing.md` states with the folder `write/tests`. It drives `main` through real files under `tmp_path`. It pins each rule of `state` in its precedence, a red run reaching the juror, each cut problem, and `close` on `DEFECTIVE`.
 
 ### Roles: `write/commands/divvyer.md`, `juror.md`, `reviser.md`, `reviewer.md`, `reporter.md`
 
@@ -513,7 +513,7 @@ env:
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| What is owed next, cuts, wave records, red, writing's owner cases, the run's end | `write/scripts/stage.py` | any of it computed in a node, prompt or role; a `when:` deciding more than which node runs for `next` |
+| What is owed next, cuts, wave records, writing's owner cases, the run's end | `write/scripts/stage.py` | any of it computed in a node, prompt or role; a `when:` deciding more than which node runs for `next` |
 | The revision hearing's rounds, verdicts and owner cases | `.shared/rounds.py` with `write/scripts/ledger.py`'s `PROFILE` | `stage.py` or a node computing a round, slot or count |
 | Cutting work into blocks and waves; what runs in parallel | the divvyer's output, checked by `stage.py cut` | blocks of one wave sharing a path; a block named by any other role or node |
 | Running the blocks of a wave | `include:` with `fan_out:` of `write-tests` or `write-code`, `max_parallel: 2` | a `wait:` in either block; a `workflow:` child per block |
@@ -522,7 +522,7 @@ env:
 | Ending on a defective plan | the juror's `DEFECTIVE`, read by `stage.py close` | a size or line-count threshold; any other node ending writing |
 | Commits | the writer's own message through `commit` of `fence/files.py`; node `seal` for the final commit | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |
 | Test output a test writer sees | `fence/checks.py` running `GAUNTLET_TEST_BRIEF_COMMAND` | the test writer reaching `GAUNTLET_TEST_COMMAND` or the full baseline |
-| The per-test listing | `GAUNTLET_TEST_BRIEF_COMMAND`'s `PASSED`, `FAILED` and `ERROR` lines, read by `stage.py red` | parsing a runner's full output; any other baseline comparison |
+| The per-test listing and red | `GAUNTLET_TEST_BRIEF_COMMAND`'s `PASSED`, `FAILED` and `ERROR` lines, read by `.shared/red.py` (`gauntlet-design.md`), which `stage.py red` calls | parsing a runner's full output; a comparison computed in `stage.py`, a node, prompt or role |
 | What a test writer can see | `write-tests/test-writer.mcp.json`: `tests/`, the approved spec, `GAUNTLET_TEST_BASE` | a test writer handed the plan, code or a CODE section |
 | What a coder can see | `write-code/coder.mcp.json`'s `FENCE_HIDE`; the block's ruling text | a coder handed the task, the spec, a test file or a verdict file |
 | Writers' tools | the fence-files and fence-checks servers | `Bash`, `Task` or any built-in tool on a writer node |
@@ -532,7 +532,7 @@ env:
 
 1. Commits in the fence: `fence/files.py` (`commit`, `FENCE_COMMIT`), `fence/test_files_commit.py`. Needs `gauntlet-design.md`'s step 6. Agent: `builder`.
 2. Writing's ledger: `write/scripts/ledger.py`, `write/tests/test_ledger.py`. Needs the spec review design's step 1. Agent: `builder`.
-3. Writing's stage: `write/scripts/stage.py`, `write/tests/test_stage.py`. Needs step 2. Agent: `builder`.
+3. Writing's stage: `write/scripts/stage.py`, `write/tests/test_stage.py`. Needs step 2 and `gauntlet-design.md`'s step 8. Agent: `builder`.
 4. Roles: `write/commands/divvyer.md`, `write/commands/juror.md`, `write/commands/reviser.md`, `write/commands/reviewer.md`, `write/commands/reporter.md`, `write-tests/commands/test-writer.md`, `write-code/commands/coder.md`. Agent: `role-author`.
 5. Screen reads revisions: `screen/screener.mcp.json`, `screen/screen.yaml`. Needs the spec review design's step 5. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
 6. Writer blocks: `write-tests/write-tests.yaml`, `write-tests/test-writer.mcp.json`, `write-tests/fixtures/committed.stubs.yaml`, `write-tests/fixtures/contest.stubs.yaml`, `write-code/write-code.yaml`, `write-code/coder.mcp.json`, `write-code/fixtures/committed.stubs.yaml`, `write-code/fixtures/contest.stubs.yaml`. Needs steps 1 and 4. The builder measures whether the repository's `env:` reaches a node's MCP servers. If it does not, the builder stops and reports the gap. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
