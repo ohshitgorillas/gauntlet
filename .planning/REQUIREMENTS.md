@@ -59,7 +59,7 @@ Deferred. Tracked, not in the current roadmap.
 
 ### Landing
 
-- **LAND-01**: Owner can resume a landing whose checkout moved after the mend's rebase, once the checkout is back at an ancestor of the branch (the landing design's open decision 1)
+- **LAND-01**: When the checkout has moved past the branch the mend rebased, landing re-mends (a second tree run of block `mend` only, on a branch pinned at the first tree's tip) and asks the land-or-leave gate again, at most 2 times; a third move stops the run, naming the move (G-45, the landing design's former open decision 1)
 
 ## Out of Scope
 
