@@ -13,7 +13,7 @@ The phases, in run order:
 3. **Spec review** (`spec-review-design.md`). The speccer decides whether tests need speccing and writes the specs. The arbiter tries them, and the owner approves them or confirms that nothing is testable. Hands off `{ task, plan, spec, outcome }`.
 4. **Worktree cut** (`worktree-cut-design.md`). Cuts one worktree from the checkout's `HEAD`, copies the approved files in and records the test baseline. Hands off `{ worktree, branch, base, task, plan, spec, baseline, brief, uncommitted, outcome, verdict }`, the last two from writing.
 5. **Writing** (the writing design). Runs in the tree, as block `write` of the tree run, after the baseline. Test writers write the tests from the approved specs, then code writers write the code. A juror rules whether the tests, the code, the spec or the plan is wrong, or that the plan is defective. A wrong plan or spec is revised inside writing, as an approved revision; a defective plan ends the run. Hands off `{ outcome, verdict }` to the tree run's `handoff`.
-6. **Landing** (`landing-design.md`). Runs in the checkout as block `land` of `gauntlet-run`, after `cut`, when writing hands off `written`, and reaches the tree with `git -C <worktree>`. It rebases the tree's branch onto the checkout's `HEAD`, reruns the brief test command when the checkout has moved past base, and waits for the owner to land or leave. On land it fast-forwards the checkout, copies the tree's records into the checkout's `gauntlet/` and removes the tree and its branch. It runs git, the brief test command and Archon's CLI only, with no agent. Hands off `{ outcome }`, `landed` or `left`.
+6. **Landing** (`landing-design.md`). Runs in the checkout as block `land` of `gauntlet-run`, after `cut`, when writing hands off `written`, and reaches the tree with `git -C <worktree>`. It rebases the tree's branch onto the checkout's `HEAD`, reruns the brief test command when the checkout has moved past base, and mends a red on the rebased tree inside the run: a juror rules each red, a code or test mender commits the mend in the tree on top of `<slug>: final`, and a reviewer reads every mend. The owner is asked in the mend only when the juror rules defective or the mend stalls, and answers with guidance or leave. Then landing waits for the owner to land or leave. On land it fast-forwards the checkout, copies the tree's records into the checkout's `gauntlet/` and removes the tree and its branch. It runs git, the brief test command, its verify script, Archon's CLI and, only in the mend, four agents. Hands off `{ outcome }`, `landed` or `left`.
 
 The run ends at block `land` when writing hands off `written`, and at node `kill`, cancelled, when it hands off `defective`.
 
@@ -206,11 +206,11 @@ nodes:
 
 ### `write/write.yaml` (the final commit's message)
 
-Node `seal` is the writing design's, with one change: it commits with `git commit -F -`, the message on stdin. Line 1 is `<slug>: final`, then a blank line, then `gauntlet/plans/approved/<slug>-summary.md` when `plan` is not `""`, then each `gauntlet/revisions/<slug>-summary.<N>.md` in order of N, each separated by a blank line. The writers' own commits keep their messages. Landing shows these messages at the owner's gate and never rewrites them.
+Node `seal` is the writing design's, with one change: it commits with `git commit -F -`, the message on stdin. Line 1 is `<slug>: final`, then a blank line, then `gauntlet/plans/approved/<slug>-summary.md` when `plan` is not `""`, then each `gauntlet/revisions/<slug>-summary.<N>.md` in order of N, each separated by a blank line. The writers' own commits keep their messages. Landing's mend commits sit on top of `<slug>: final` with messages of their own. Landing shows these messages at the owner's gate and never rewrites them.
 
 ### `land/land.yaml` (landing's signature)
 
-The landing block's signature and its hand-off. Every other node is the landing design's. It runs in the checkout and reaches the tree only with `git -C $INPUTS.worktree`. It holds one wait, the owner's land or leave, answered on `gauntlet-run`'s id, and no agent node. Its only writes in the checkout are the fast-forward merge and the record copy.
+The landing block's signature and its hand-off. Every other node is the landing design's. It runs in the checkout and reaches the tree with `git -C $INPUTS.worktree` and through the mend's agents, which work in the tree. It holds two waits, both answered on `gauntlet-run`'s id: the mend's `ask`, reached only when the juror rules defective or the mend stalls, and `gate`, the owner's land or leave. Its only agent nodes are the mend's four: `mend-juror`, `mend-code`, `mend-tests` and `mend-review`. Its only writes in the checkout are the fast-forward merge and the record copy. Its only writes in the tree are the rebase, the mend's commits and landing's files in the tree's `gauntlet/land/`.
 
 ```yaml
 name: land
@@ -235,7 +235,7 @@ nodes:
       required: [outcome]
 ```
 
-The checkout's tracked files change only by `git merge --ff-only <branch>`, after the owner chooses land. No squash and no merge commit: the writers' commits and `<slug>: final` reach the checkout as they stand after the rebase.
+The checkout's tracked files change only by `git merge --ff-only <branch>`, after the owner chooses land. No squash and no merge commit: the writers' commits, `<slug>: final` and the mend's commits on top of it reach the checkout as they stand after the rebase and the mend.
 
 On leave, and on any stop, the tree and its branch stay.
 
@@ -302,7 +302,7 @@ Suite: `fence/test_files_hide.py`, run as `docs/testing.md` states with the fold
 | The working-folder check | node `guard` of `gauntlet-run` in the checkout, once per run, ahead of every phase; node `guard` of `gauntlet-tree` in the tree | a guard node or `guard.ts` in `intake/`, `plan-review/`, `spec-review/`, `write/` or `land/` |
 | The hand-off between phases | each phase's `returns: handoff` node, whose `output_format` declares every field, read by the next node's `with:` or script as `$<phase>.output.<field>`; writing's read by the tree run's `handoff` | a phase reading another phase's inner node, a file or a path the previous phase did not hand off |
 | Inputs inside a phase block | `$INPUTS.<name>` in prompts and `bash:`; `INPUTS_<NAME>` in scripts; a node output in `when:` | `$INPUTS` in a `when:`; `$INPUTS.<name>` in an inline `script:` |
-| Where the owner answers | `gauntlet-run`'s id for intake, plan review, spec review and landing; the tree run's id for writing | any pause of writing placed in `gauntlet-run`; any pause of landing placed in the tree run |
+| Where the owner answers | `gauntlet-run`'s id for intake, plan review, spec review and landing, the mend's `ask` and `gate` both; the tree run's id for writing | any pause of writing placed in `gauntlet-run`; any pause of landing placed in the tree run |
 | A wrong plan or spec found in writing | an approved revision, tried and approved inside writing's one loop | intake, plan review or spec review run again; `<slug>.txt` edited, moved or copied whole |
 | Writing to the tree's `approved/` folders | `copy-in` of the tree run for `<slug>.txt` and `<slug>-summary.md`; writing's `enter`, by `cp -n`, for `<slug>.rev<N>.txt` | any agent or other node writing there; any other file name there; a revision in the checkout but landing's record copy |
 | Reading the approved plan or spec in writing | `<slug>.txt` and each `<slug>.rev<N>.txt` in order of N | an agent handed `<slug>.txt` alone once a revision exists |
@@ -310,13 +310,14 @@ Suite: `fence/test_files_hide.py`, run as `docs/testing.md` states with the fold
 | The failed task record | `gauntlet/failed/<slug>.txt` of the checkout: the juror's defective ruling verbatim, written once by `fail`, read by Clerk; hidden from every other checkout role by `FENCE_HIDE=gauntlet/failed` | any other writer or content; any other phase or role reading it, the defense included; intake's file route reading it; a fence outside `intake/` with `FENCE_READ` covering `gauntlet/failed/` and no `FENCE_HIDE` for it |
 | Whether a test run is red | `.shared/red.py`, called by writing's `stage.py red` and landing's verify | any other comparison of test listings; a listing parsed in `write/` or `land/` |
 | The final commit's message | writing's `seal`: `<slug>: final`, the approved plan's summary, each revision summary in order of N | any other message on the final commit; a message rewritten in landing |
+| Commits on the tree's branch past `<slug>: final` | landing's group `mend`: `mend-code` or `mend-tests`, as `mend-juror`'s verdict names, through the commit tool, each mend read by `mend-review` | any other commit past `seal`; a reset, amend, squash or dropped commit on the branch, the rebase excepted |
 | Landing on the checkout | landing's `git merge --ff-only` of the tree's branch, after the owner chooses land | any other Gauntlet write to the checkout's tracked files, branch or `HEAD`; a squash or merge commit; a push or PR |
 | The tree's records in the checkout | landing's record copy into the checkout's `gauntlet/`, after the merge | any other writer; a copy before the merge or on leave |
 | Removing the tree and its branch | landing's last node, `archon complete <branch> --force`, after the record copy | Gauntlet removing them on `fail`, `kill`, leave or any stop |
 | Refusing a read inside a readable folder | `FENCE_HIDE` in `fence/files.py` | any other read check; `FENCE_DENY` widened to reads |
 | Rounds, verdict parsing and the owner's cases in writing | `.shared/rounds.py`, with writing's verdicts in a `write/scripts/ledger.py` `Profile` (spec review design) | any of it computed in a `write/` node, prompt or command |
 | Steering screening in writing | the `screen` workflow (spec review design), included by writing | any other steering check before a reviewer reads a round file |
-| What each writer can see | `fence/files.py` (plan review design), through writing's `*.mcp.json` | any other confinement of the test writers to `tests/` or of the code writers away from `tests/` |
+| What each writer can see | `fence/files.py` (plan review design), through writing's `*.mcp.json` and the mend's `land/mend-code.mcp.json` and `land/mend-tests.mcp.json` | any other confinement of the test writers to `tests/` or of the code writers away from `tests/` |
 | Writing's roles | `write/commands/<role>.md` | a `write/` node using or restating a role file of `plan-review/` or `spec-review/`; a `write/` node resuming a session of another block |
 
 ## Order
