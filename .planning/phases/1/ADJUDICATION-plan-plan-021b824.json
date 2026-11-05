@@ -1,0 +1,35 @@
+{
+  "phase": "1",
+  "trigger": "plan",
+  "discriminator": "plan-021b824",
+  "round": 1,
+  "base": "021b824",
+  "head": "d615a01",
+  "base_id": "021b8244eb35db71d4e996e98763ac1ac3e3ad31",
+  "head_id": "d615a01182f677c430aee0f03905ab277715b38a",
+  "voices": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus"
+    }
+  ],
+  "citations": {
+    "checked": true
+  },
+  "entries": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-2.md",
+      "line": 140,
+      "severity": "medium",
+      "claim": "Task 5 files a snag internal to one design as 'internal to <design>' with no contracts.md row and no added row. That leaves CONTEXT AC1 and ROADMAP Phase 1 criterion 1 ('cites an entry there or adds one') unmet. The plan settles a conflict between two locked CONTEXT items (AC1 against D-01's two-design rule) on its own, and no task sends that conflict to the owner.",
+      "failure_scenario": "Pass 1 returns a token-waste snag confined to landing-design.md (CLAUDE.md 1.3, which Task 4's brief asks for). Task 5 groups it as 'internal to landing-design' and its Verify accepts that ('or states it is internal to one design'). After Plan 3, a check of AC1 ('every finding in REVIEW-*.md cites a contracts.md entry') finds the finding with no entry, so AC1 fails and the phase cannot close on its acceptance criteria. No ruling or D-NN line ever authorised the exemption, and Plan 3 Task 1 only routes G-NN groups, not this criterion conflict.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "d615a01",
+      "base_id": "021b8244eb35db71d4e996e98763ac1ac3e3ad31",
+      "head_id": "d615a01182f677c430aee0f03905ab277715b38a"
+    }
+  ]
+}
