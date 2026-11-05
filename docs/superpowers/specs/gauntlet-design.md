@@ -237,7 +237,7 @@ nodes:
 
 The checkout's tracked files change only by `git merge --ff-only <branch>`, after the owner chooses land. No squash and no merge commit: the writers' commits and `<slug>: final` reach the checkout as they stand after the rebase.
 
-After the merge, landing copies from the tree into the checkout's `gauntlet/`, by `cp -n`: `plans/approved/<slug>.rev<N>.txt`, `specs/approved/<slug>.rev<N>.txt`, and every `<slug>.*` and `<slug>-summary.*` file of `write/` and `revisions/`. Then it removes the tree and its branch with `archon complete <branch>`. Unmeasured: whether `archon complete` accepts the branch while `gauntlet-run` is still running; if it refuses, the builder stops and reports the gap. On leave, and on any stop, the tree and its branch stay.
+On leave, and on any stop, the tree and its branch stay.
 
 ### `.shared/red.py` (red against the brief baseline)
 
@@ -311,8 +311,8 @@ Suite: `fence/test_files_hide.py`, run as `docs/testing.md` states with the fold
 | Whether a test run is red | `.shared/red.py`, called by writing's `stage.py red` and landing's verify | any other comparison of test listings; a listing parsed in `write/` or `land/` |
 | The final commit's message | writing's `seal`: `<slug>: final`, the approved plan's summary, each revision summary in order of N | any other message on the final commit; a message rewritten in landing |
 | Landing on the checkout | landing's `git merge --ff-only` of the tree's branch, after the owner chooses land | any other Gauntlet write to the checkout's tracked files, branch or `HEAD`; a squash or merge commit; a push or PR |
-| The tree's records in the checkout | landing's record copy into the checkout's `gauntlet/`, by `cp -n`, after the merge | any other writer; a copy before the merge or on leave |
-| Removing the tree and its branch | landing, by `archon complete <branch>`, after the record copy | Gauntlet removing them on `fail`, `kill`, leave or any stop |
+| The tree's records in the checkout | landing's record copy into the checkout's `gauntlet/`, after the merge | any other writer; a copy before the merge or on leave |
+| Removing the tree and its branch | landing's last node, `archon complete <branch> --force`, after the record copy | Gauntlet removing them on `fail`, `kill`, leave or any stop |
 | Refusing a read inside a readable folder | `FENCE_HIDE` in `fence/files.py` | any other read check; `FENCE_DENY` widened to reads |
 | Rounds, verdict parsing and the owner's cases in writing | `.shared/rounds.py`, with writing's verdicts in a `write/scripts/ledger.py` `Profile` (spec review design) | any of it computed in a `write/` node, prompt or command |
 | Steering screening in writing | the `screen` workflow (spec review design), included by writing | any other steering check before a reviewer reads a round file |
