@@ -26,7 +26,7 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 **Depends on:** Nothing (first phase)
 **Requirements:** REV-01, REV-02, REV-03, REV-04, REV-05
 **Success Criteria:**
-1. `docs/superpowers/specs/contracts.md` lists every cross-design contract with every design that names it, and every finding in the phase's review record cites an entry there or adds one
+1. `docs/superpowers/specs/contracts.md` lists every cross-design contract with every design that names it, and every finding in the phase's review record cites an entry there, adds one, or is marked internal to the one design it concerns
 2. Every finding group carries one owner ruling, and `git log` shows each ruling applied to every design it names in a single commit
 3. The review record holds a final pass over the edited designs with zero findings not already ruled, dated after the last ruling commit
 4. Every Archon feature the inventory lists as assumed carries a verdict (documented, probed, or unsupported with the design changed), none left open

@@ -28,7 +28,7 @@ Plan shape: multiple plans, same phase - /cad-plan breaks it down (for example i
 
 ## Acceptance criteria
 
-- [ ] AC1: `docs/superpowers/specs/contracts.md` exists and every cross-design contract (hand-off field, node id, path, `FENCE_*` value, script, role, assumed Archon feature) has a row naming each design that names it; every finding in `.planning/phases/1/REVIEW-*.md` cites a `contracts.md` entry and a design `file:line`
+- [ ] AC1: `docs/superpowers/specs/contracts.md` exists and every cross-design contract (hand-off field, node id, path, `FENCE_*` value, script, role, assumed Archon feature) has a row naming each design that names it; every finding in `.planning/phases/1/REVIEW-*.md` cites a design `file:line` and either a `contracts.md` entry or, when it touches no cross-design contract, the mark "internal to <design>"
 - [ ] AC2: Every finding group in the review record carries exactly one owner ruling, and for each ruling `git log` shows a single commit editing every design it names - plus `contracts.md` when the ruling changes a contract, and any PROJECT/ROADMAP/REQUIREMENTS line it contradicts
 - [ ] AC3: `.planning/phases/1/REVIEW-convergence.md` records a full pass over all seven edited designs with zero findings not already ruled, committed after the last ruling commit in `git log`
 - [ ] AC4: Every assumed-Archon-feature row in `contracts.md` carries a verdict `documented` (citing a `docs/reference/archon/` path:line) or `unsupported` (citing the commit that changed the design), none open; `docs/reference/archon/mcp-servers.md` is tracked
