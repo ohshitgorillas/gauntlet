@@ -48,7 +48,7 @@ Milestone v0.10.0: the full seven-phase run, built from the designs once they su
 - Layout rules from `CLAUDE.md` 1.7: one direct YAML per workflow folder, no YAML directly in the root or a non-dot top-level folder, and the folder is live - Archon loads it as written. `.pre-commit/` is a dot folder for that reason.
 - Built: `fence/` (5 files, 2 suites), `spec-review/commands/arbiter.md`. Everything else the designs name is unbuilt; the gauntlet design's own copy list (section "The phase designs contain these copies") records the inconsistencies the designs already know about between each other.
 - History: 22 commits over 2026-11-04 and 2026-11-05, no tags. The owner reports two earlier incarnations (a plugin, then a custom harness) before this Archon-workflow form; the version continues from them at 0.10.0.
-- Known rough edges the designs flag for the builder: whether Archon's `sandbox:` can limit a `file` node's writes; whether `include:` with `fan_out:` works inside a `loop_group` body; whether the repository's `env:` reaches fenced MCP servers; the landing design's open "Decisions for the owner" (a checkout that moves after the mend's rebase).
+- Known rough edges the designs flag for the builder: whether `include:` with `fan_out:` works inside a `loop_group` body; whether the repository's `env:` reaches script nodes (the run-start guard reads it); the landing design's open "Decisions for the owner" (a checkout that moves after the mend's rebase).
 - No CI: there is no `.github/` directory. Gates are local: the fence suite and `.pre-commit run -c .pre-commit/config.yaml --all-files`.
 - Host: Opal is production (`CLAUDE.md` 2); any process is owned by PID and nothing saturates a core or a gigabyte without disclosure.
 

@@ -62,7 +62,7 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 2. `archon workflow run gauntlet-run` with a message pauses at intake's approval, then at plan review's and spec review's, each answered on the run's own id
 3. Every fixture under `intake/`, `plan-review/`, `spec-review/` and `screen/` passes `archon workflow test`, and a fixture with its deciding edge rewired fails
 4. A round file carrying a steering phrase reaches the screener and never the reviewer, in `screen/fixtures/steering.stubs.yaml`
-5. Every fence outside `intake/` that reads the checkout sets `FENCE_HIDE=gauntlet/failed`
+5. Every fence outside `intake/` whose `FENCE_READ` covers `gauntlet/failed/` sets `FENCE_HIDE=gauntlet/failed`, and the speccer's fence lists no folder that holds it
 
 ### Phase 5: Worktree cut and tree run
 **Goal:** After spec review the run pins a branch, cuts one worktree from the checkout's `HEAD`, copies the approved files in, records the test baseline and hands off to the tree run; a defective plan is recorded in `gauntlet/failed/` and cancels the run at `kill`.
@@ -80,7 +80,7 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 **Requirements:** RUN-08, RUN-09, RUN-10
 **Success Criteria:**
 1. A run on a task with one approved spec leaves a test file under `tests/` committed by the test writer before any code commit on the branch
-2. `write/fixtures/written.stubs.yaml` reaches `seal`, and the final commit's message starts `<slug>: final` with the approved summaries in its body, read back with `git log -1 --format=%B`
+2. `write/fixtures/written.stubs.yaml` reaches `seal`, and, when the tree holds uncommitted changes, the final commit's message starts `<slug>: final` with the approved summaries in its body, read back with `git log -1 --format=%B`; a clean tree gets no final commit
 3. An approved revision lands as `gauntlet/<plans|specs>/approved/<slug>.rev<N>.txt` with N one above the highest present, and a second `enter` on the same N exits non-zero
 4. Writing's `stage.py red` and the mend's `verify.py` import `.shared/red.py` and hold no comparison of their own
 5. A juror verdict `defective` hands off `outcome: defective` and `write/fixtures/defective.stubs.yaml` passes
@@ -91,7 +91,7 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 **Requirements:** RUN-11, RUN-12, RUN-13, RUN-14, PACK-01
 **Success Criteria:**
 1. With the checkout moved past base by one commit, the mend's rebase puts the tree's branch on the new `HEAD` and the brief command reruns; with the checkout unmoved, no rerun happens
-2. A red on the rebased tree reaches `mend-juror`, and the owner is asked only on a `defective` ruling or a stall, in `mend/fixtures/repair*.stubs.yaml`
+2. A red on the rebased tree reaches node `juror` (command `mend-juror`), and the owner is asked only on a `defective` ruling or a stall, in `mend/fixtures/repair*.stubs.yaml`
 3. On land, `git -C <checkout> rev-parse HEAD` equals the tree branch's tip, the tree's `gauntlet/` records exist in the checkout, and `git worktree list` no longer shows the tree
 4. On leave, the tree, its branch and the checkout's `HEAD` are unchanged
 5. Every fixture in the pack passes `archon workflow test`, and `archon workflow list --json` and `archon validate workflows` are clean from the pack root

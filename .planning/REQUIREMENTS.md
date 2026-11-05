@@ -43,7 +43,7 @@ Committed scope. Each maps to exactly one roadmap phase.
 - [ ] **RUN-07**: A plan the juror rules defective ends the run at `kill`, with the ruling in the checkout's `gauntlet/failed/<slug>.txt`, readable by Clerk and hidden from every other checkout role
 - [ ] **RUN-08**: In the tree, test writers write the tests from the approved specs and code writers make them pass, with a juror ruling each contested round
 - [ ] **RUN-09**: A wrong plan or spec found in writing becomes an approved revision `<slug>.rev<N>.txt` without leaving the tree run
-- [ ] **RUN-10**: Writing ends with a commit `<slug>: final` whose body is the approved summaries, made with `git commit -F -`
+- [ ] **RUN-10**: When the tree holds uncommitted changes at the end of writing, writing ends with a commit `<slug>: final` whose body is the approved summaries, made with `git commit -F -`; a clean tree gets no final commit
 - [ ] **RUN-11**: After writing, the mend rebases the tree's branch onto the checkout's `HEAD`, reruns the brief test command when the checkout moved, and repairs a red through a juror-ruled mend read by a reviewer
 - [ ] **RUN-12**: Owner is asked during the mend only when the juror rules defective or the mend stalls, and can answer with guidance or leave
 - [ ] **RUN-13**: Owner can see the mend's test line, the diff stat and the commit messages at landing's gate and choose land or leave
