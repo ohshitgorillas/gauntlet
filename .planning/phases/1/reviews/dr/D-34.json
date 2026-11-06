@@ -1,0 +1,8 @@
+{ "findings": [
+  { "file": ".planning/phases/1/CONTEXT.md",
+    "line": 51,
+    "severity": "medium",
+    "claim": "D-34(a) adds a second, independent source for the checkout root, but the tree run already receives that root inside `task`. The rejected-by-omission option, deriving it from `task`, needs no new producer and cannot disagree with the paths `copy-in` resolves.",
+    "failure_scenario": "`task` is the absolute path of `gauntlet/tasks/<slug>.md` in the checkout (`worktree-cut-design.md:140`, `gauntlet-intake-design.md:158`, `:214`), and `slug` is already a tree input (`:139`). So checkout = INPUTS_TASK minus `/gauntlet/tasks/<slug>.md`, and `copy-in` (`:153`) and `paths` (`gauntlet-design.md:156`) can compute it with no `checkout` input at all. Ruling (a) instead costs a new `pin` stdout field, a change to its `output_format` (`worktree-cut-design.md:105`), a new `test_pin.py` case and a change to contract row H16, all for a Low finding (REVIEW-pass1.md 1.54). It also lets the two roots drift. `pin` takes its root from `git rev-parse --show-toplevel` or `os.getcwd()`, which give the symlink-resolved path. Intake builds `task` two ways: `realpath -e` on the file route, or 'absolute path of gauntlet/tasks/<slug>.md' on the talk route. If the talk route builds it from a logical `$PWD` (owner starts Archon under a symlinked path), `task` does not lie under `$INPUTS.checkout`. Then `copy-in`'s 'same path relative to $INPUTS.checkout' finds no relative path, so it copies to a wrong target or fails. Deriving the root from `task` rules this out by construction. The ruling names neither option (c) nor how `pin` gets its root."
+  }
+] }

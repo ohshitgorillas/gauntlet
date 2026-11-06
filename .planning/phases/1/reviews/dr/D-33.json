@@ -1,0 +1,20 @@
+{ "findings": [
+  { "file": ".planning/phases/1/CONTEXT.md",
+    "line": 50,
+    "severity": "high",
+    "claim": "The ruling puts the ask at `cut`, but node `cut` depends on `tree`, and the tree run includes writing and the mend, so the gate fires only after the whole build, when it can no longer change what the tree was cut from.",
+    "failure_scenario": "The checkout holds an uncommitted edit, or an untracked new module, that the plan reviewers read under `FENCE_READ=.`. Then pin branches at the old HEAD (worktree-cut-design.md:67), tree cuts and runs `write` and `mend` (gauntlet-design.md:159-177, :336), and only then does `cut` (worktree-cut-design.md:114-118) ask. At that point the owner can only carry on, which is option (a) plus one pause, or leave, which throws away intake, both reviews, writing and the mend. The 1.53 defect still ships: writing built against code the plan was not reviewed on."
+  },
+  { "file": "docs/superpowers/specs/landing-design.md",
+    "line": 9,
+    "severity": "high",
+    "claim": "Asking whenever the checkout has uncommitted or untracked changes fires on a state the designs treat as normal and already handle, so the run stops on a non-issue (CLAUDE.md 1.4).",
+    "failure_scenario": "landing-design.md:9 expects the checkout to 'hold uncommitted edits' by the end of writing. The mend rebases onto the checkout's HEAD and reruns tests when HEAD has moved, so edits the owner commits mid-run are taken in and tested. landing-design.md:278 lets 'unrelated uncommitted files in the checkout stay as they are'. Take an owner who keeps any unrelated dirty file, or a persistent untracked scratch file outside the ignored gauntlet/. That owner gets a pause on every run, and the answer is always 'go on'. Adding untracked files to the trigger makes this worse: the ruling also catches files no reviewer used."
+  },
+  { "file": "docs/superpowers/specs/gauntlet-design.md",
+    "line": 339,
+    "severity": "medium",
+    "claim": "Even moved to pin, the ask comes after intake, plan review and spec review are paid for. A check by the run-start `guard` (the place D-32 chose for its check) would cost no paid phase and keep review and tree in agreement.",
+    "failure_scenario": "Edits exist at run start. Asked at pin, the owner's two remedies are both bad. Committing gives a tree that matches the review, but only after three paid phases. Stashing or discarding the edits makes the paid plan and spec reviews stale, because they were reviewed against code that is now gone. Asked by the head's `guard` before intake, the owner commits or stashes first, and every reviewer reads the same code the tree will be cut from."
+  }
+] }
