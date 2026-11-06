@@ -80,6 +80,16 @@
     "decision_review": {
       "tier": "flagship",
       "effort": "high"
+    },
+    "triggers": {
+      "risk_surface": {
+        "surfaces": [
+          "destructive",
+          "untrusted_input",
+          "concurrency",
+          "secrets"
+        ]
+      }
     }
   },
   "testing": {

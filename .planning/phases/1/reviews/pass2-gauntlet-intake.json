@@ -1,0 +1,38 @@
+{ "findings": [
+  { "file": "docs/superpowers/specs/gauntlet-intake-design.md",
+    "line": 238,
+    "severity": "medium",
+    "claim": "1. Row P10. The Homes row 'Where Gauntlet writes' at gauntlet-intake-design.md:238 forbids \"Any Gauntlet node writing outside `gauntlet/`\". Other designs place core writes outside gauntlet/: gauntlet-design.md:352 makes landing's `git merge --ff-only` the home for writing the checkout's tracked files, gauntlet-design.md:275 says tracked files change only by that merge, landing-design.md:252 runs the merge, and the coder fence writes `.` in the tree (writing-design.md:294, F9).",
+    "failure_scenario": "A builder or reviewer applies the intake Homes table pack-wide, as its wording says. Landing's ff-merge, the coder's and the mend's writes to tracked files, and seal's commit are then all forbidden homes. So either the Homes rule is false, or the pack cannot land any work. Two designs give opposite rulings on one concern, and nothing decides between them."
+  },
+  { "file": "docs/superpowers/specs/gauntlet-intake-design.md",
+    "line": 110,
+    "severity": "medium",
+    "claim": "2. Rows F5 and R5. `\"FENCE_WRITE\": \"gauntlet/tasks\"` gives Clerk write, edit, copy_file and delete_file on every task file. Only the role's prose confines Clerk to its own `<slug>.md`: :94 \"Never: writes outside gauntlet/tasks/<slug>.md, copies or deletes a file\" and :95's tool list. That is what Homes :245 forbids: \"a hook or prompt rule standing in for\" file confinement. Nothing checks that the chosen slug is free (:86 \"pick a kebab-case slug not among the taken ones\").",
+    "failure_scenario": "gauntlet-design.md:307 tells Clerk to read gauntlet/tasks/<failed-slug>.md. Clerk then edits or deletes that file, another run's task, or a file the file route copied. The fence allows all of these. Second case: Clerk picks a slug that is already taken. until_bash :182 `[ -s gauntlet/tasks/$slug.md ]` passes at once on the old file, so an approve on the opening turn hands off a previous run's task."
+  },
+  { "file": "docs/superpowers/specs/gauntlet-intake-design.md",
+    "line": 56,
+    "severity": "medium",
+    "claim": "3. Row S3 (also H1, H2). The guard fails when a file under gauntlet/ is tracked by git (:54 \"A file under gauntlet/ that git tracks fails it\"). Its single failure message tells the owner \"Add it to .gitignore and restart the run.\" That instruction cannot clear the tracked-file case.",
+    "failure_scenario": "The checkout already tracks gauntlet/notes.md. The owner follows the message, adds `gauntlet/` to .gitignore and restarts. git still tracks the file, so the guard fails again with the same line, in gauntlet-run's guard and in gauntlet-tree's guard alike. The run stops repeatedly on advice that cannot work, until the owner works out on their own that they must run `git rm --cached`."
+  },
+  { "file": "docs/superpowers/specs/gauntlet-intake-design.md",
+    "line": 158,
+    "severity": "medium",
+    "claim": "4. Internal (CLAUDE.md 1.4). `from-file` fails on any occupied target: \"else (target taken, or empty slug) exit non-zero ... nothing renamed, suffixed or overwritten\". The only exemption is the case where the handed-in path is the target itself, so a target with byte-identical content also stops the run.",
+    "failure_scenario": "The owner runs `gauntlet-run --input file=~/notes/fix-login.md`. The run stops later, or the owner simply starts it again. The second run finds gauntlet/tasks/fix-login.md holding exactly the same bytes, and from-file still exits non-zero. Nothing is wrong: no copy is needed and the task is identical, yet the run halts for the owner to fix the disk by hand and resume."
+  },
+  { "file": "docs/superpowers/specs/gauntlet-design.md",
+    "line": 24,
+    "severity": "low",
+    "claim": "5. Rows H1, H6, H13 and S13 (seeds B01, B03, B05). gauntlet-design.md:21-27 says in the present tense that the intake design contains copies it does not contain. The intake design has no `worktree:` key (:24), no `intake/scripts/guard.ts` (:25; intake :239 forbids one), and no `$INPUTS` in a `when:` (:27; intake :157/:164 read `$route.output.file`). Its description says \"Not for direct use\" (intake :137), against :23 \"Each description invites direct use\".",
+    "failure_scenario": "A builder at gauntlet-design step 1 applies the 'Phase files as blocks' changes (gauntlet-design.md:112-121) to intake. They search for a guard node, a `worktree:` key and `$INPUTS` `when:` lines that the intake design never had. That spends tokens reconciling a copy list the intake design has already absorbed."
+  },
+  { "file": "docs/superpowers/specs/gauntlet-intake-design.md",
+    "line": 86,
+    "severity": "low",
+    "claim": "6. Rows P6 and H16. The opening turn must output `slug` (:173 required) before any conversation. That slug stays fixed for the whole talk group (:181, :199, :217), even though the design allows an empty idea (:7, :221 \"may be empty\"). With an empty idea the slug is picked from nothing and cannot follow the task the conversation produces.",
+    "failure_scenario": "A web-UI run starts with a blank message. Clerk must emit some slug, for example 'new-task'. Ten turns later the task is about the payments export, but the hand-off path, pin's branch (worktree-cut-design.md:61), and gauntlet/failed/<slug>.txt all carry the meaningless opening slug. No turn can change it."
+  }
+] }
