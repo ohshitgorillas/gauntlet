@@ -80,7 +80,7 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 **Requirements:** RUN-08, RUN-09, RUN-10
 **Success Criteria:**
 1. A run on a task with one approved spec leaves a test file under `tests/` committed by the test writer before any code commit on the branch
-2. `write/fixtures/written.stubs.yaml` reaches `seal`, and, when the tree holds uncommitted changes, the final commit's message starts `<slug>: final` with the approved summaries in its body, read back with `git log -1 --format=%B`; a clean tree gets no final commit
+2. `write/fixtures/written.stubs.yaml` reaches `seal`, and, when the tree holds uncommitted changes, the final commit's message starts `<slug>: final` (`GAUNTLET_FINAL_SUBJECT` unset) with the approved summaries in its body, read back with `git log -1 --format=%B`; a clean tree gets no final commit
 3. An approved revision lands as `gauntlet/<plans|specs>/approved/<slug>.rev<N>.txt` with N one above the highest present, and a second `enter` on the same N exits non-zero
 4. Writing's `stage.py red` and the mend's `verify.py` import `.shared/red.py` and hold no comparison of their own
 5. A juror verdict `defective` hands off `outcome: defective` and `write/fixtures/defective.stubs.yaml` passes

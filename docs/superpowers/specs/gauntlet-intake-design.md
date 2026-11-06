@@ -55,15 +55,15 @@ Gauntlet's working-folder guard: the one check that the checkout keeps `gauntlet
 // Run from the checkout (a script node's working directory).
 // Passes when git reports gauntlet/ ignored in the checkout: .gitignore, .git/info/exclude
 // and the global excludes file all count. A file under gauntlet/ that git tracks fails it.
-// With committed, `git check-ignore -v gauntlet/` names the rule's source: a rule from .git/info/exclude or the
-// global excludes file passes (a tree shares both); a rule from a .gitignore passes only when git tracks that file
-// and `git diff --quiet HEAD -- <file>` holds.
+// With committed, the rule is read from what the tree will hold, whatever the working copy's .gitignore files hold:
+// it passes when .git/info/exclude or the global excludes file ignores gauntlet/ (a tree shares both), or when the
+// .gitignore files as HEAD commits them (`git show HEAD:<file>`) do.
 // Fails by writing one line to stderr and exiting 1, <root> being `git rev-parse --show-toplevel`:
 //   gauntlet/ not ignored:
 //     Gauntlet failed because its working folder, <root>/gauntlet/, sits in the main repo. Add it to .gitignore and restart the run.
 //   a file under gauntlet/ that git tracks, <file> being the first such path:
 //     Gauntlet failed because git tracks <root>/<file> under its working folder. Run `git rm --cached <file>` (and add gauntlet/ to .gitignore if it is not ignored), commit, and restart the run.
-//   with committed, the rule's .gitignore untracked or changed since HEAD, <file> being that .gitignore:
+//   with committed, gauntlet/ ignored only by a .gitignore rule HEAD does not hold, <file> being that .gitignore:
 //     Gauntlet failed because the rule keeping <root>/gauntlet/ out of git sits in <root>/<file>, which is not committed, and the run's tree holds only committed files. Commit <file> and restart the run.
 export function requireIgnored(options?: { committed?: boolean }): void;
 ```
@@ -96,7 +96,7 @@ Clerk's role: hammer a vague idea into a task file that meets `task-format.md`, 
 Inputs in the session: the owner's idea ($ARGUMENTS, may be empty), task-format.md and the slugs already taken (from node `ground`).
 Opening turn (node `clerk`): read the idea; give the owner the first reply (questions, or a draft when the idea already holds enough); when the reply holds a draft, pick a kebab-case slug not among the taken ones and output the whole draft; output { slug, reply, draft }, slug and draft "" until there is a draft.
 Each later turn (node `turn`):
-  - reads the owner's choice and words from the previous answer, and the latest refusal, when there is one (a slug taken by another run: pick another; a slug unlike the one already written: keep that one);
+  - reads the owner's choice and words from the previous answer, and the latest refusal, when there is one (a slug taken by another run: pick another; a slug unlike the one already written: keep that one; a draft with no slug: give one);
   - replies to the owner: questions, or the draft's open points, kept short;
   - outputs the whole draft on the turn it first holds enough to draft, and again on every turn that changes it, with the slug (the slug of the first draft, unchanged once a draft has been written); draft "" on a turn that leaves a written draft unchanged; the draft always meets task-format.md's rules;
   - on "approve" with no draft yet: outputs the draft this turn;
@@ -142,8 +142,10 @@ import taskFormat from "../../.shared/task-format.md" with { type: "text" };
 // put.ts — nodes `put-open` and `put`, the only writer of a Clerk draft. Env: INPUTS_SLUG, INPUTS_DRAFT; ARTIFACTS_DIR.
 //   <owned> is the slug of the one marker $ARTIFACTS_DIR/owned.<owned>, when there is one; "task" is always the absolute
 //     path of gauntlet/tasks/<owned>.md, or "" with no marker. First that holds:
-//   draft "" or slug "": writes nothing (an empty draft after the first write means unchanged),
+//   draft "": writes nothing (an empty draft after the first write means unchanged),
 //     stdout { "slug": <owned> or "", "task", "refusal": "" }.
+//   slug "" with a draft: writes nothing,
+//     stdout { "slug": <owned> or "", "task", "refusal": "The draft has no slug. Give one." }.
 //   a marker present and slug unlike <owned>: writes nothing,
 //     stdout { "slug": <owned>, "task", "refusal": "The slug <slug> differs from <owned>, the slug of this run's task file. Keep <owned>." }.
 //   gauntlet/tasks/<slug>.md present and no marker: the slug is taken by another run; writes nothing,
@@ -187,7 +189,10 @@ nodes:
   - id: from-file
     depends_on: [route]
     when: "$route.output.file != ''"
-    bash: <realpath -e the file $route.output.file (fails, naming the path, when it is missing); slug = its file name without extension, lowercased, each run of characters outside [a-z0-9] made one "-", "-" trimmed from both ends; the file already at gauntlet/tasks/<slug>.md: task is that path, nothing copied; else gauntlet/tasks/<slug>.md free: copy (cp -n), task is its absolute path; else gauntlet/tasks/<slug>.md holds the same bytes as the file (cmp): task is that path, nothing copied; else (target taken by different bytes, or empty slug) exit non-zero, the conflict and both paths on stderr; nothing renamed, suffixed or overwritten>
+    runtime: uv
+    script: from-file                  # intake/scripts/from-file.py, importing slug from ../../.shared/pin.py
+    with: { file: $route.output.file }
+    # <the real path of INPUTS_FILE (fails, naming the path, when it is missing); slug = .shared/pin.py's slug of it; the file already at gauntlet/tasks/<slug>.md: task is that path, nothing copied; else gauntlet/tasks/<slug>.md free: copy (cp -n), task is its absolute path; else gauntlet/tasks/<slug>.md holds the same bytes as the file (cmp): task is that path, nothing copied; else (target taken by different bytes, or empty slug) exit non-zero, the conflict and both paths on stderr; nothing renamed, suffixed or overwritten>
     output_format: { type: object, properties: { task: { type: string } }, required: [task] }
 
   # Clerk route.
@@ -252,9 +257,9 @@ nodes:
           depends_on: [turn, latest]
           trigger_rule: all_done
           runtime: bun
-          script: <print reply (turn's, else the opening), the refusal when there is one, a rule, then the task file or "No task file yet.">
+          script: <print reply (the opening only when reply is "<skipped>", turn having not run), the refusal when there is one, a rule, then the task file or "No task file yet.">
           with:
-            reply: { from: $turn.output.reply, if_skipped: "" }
+            reply: { from: $turn.output.reply, if_skipped: "<skipped>" }
             opening: { from: $clerk.output.reply }
             task: { from: $latest.output.task }
             refusal: { from: $latest.output.refusal }
@@ -282,7 +287,7 @@ Intake runs on its own or as block `intake` of `gauntlet-run`, in the checkout. 
 
 ### `intake/fixtures/`
 
-`file.stubs.yaml` (`route` stubbed with a `file`: `guard`, `route`, `from-file` and `handoff` reached, `ground` not) and `clerk.stubs.yaml` (`route` stubbed with a blank `file`, the opening reply approved: `guard`, `route`, `ground`, `clerk`, `put-open`, `talk` with its `latest`, `handoff` reached, `from-file` and `turn` not), under `docs/testing.md`. A route needing a second turn is not fixture-tested: a dry run ends a loop after one iteration. The conflict route is not fixture-tested: its deciding logic is `from-file`'s own bash, which stubs replace.
+`file.stubs.yaml` (`route` stubbed with a `file`: `guard`, `route`, `from-file` and `handoff` reached, `ground` not) and `clerk.stubs.yaml` (`route` stubbed with a blank `file`, the opening reply approved: `guard`, `route`, `ground`, `clerk`, `put-open`, `talk` with its `latest`, `handoff` reached, `from-file` and `turn` not), under `docs/testing.md`. A route needing a second turn is not fixture-tested: a dry run ends a loop after one iteration. The conflict route is not fixture-tested: its deciding logic is `from-file`'s own script, which stubs replace.
 
 ### The run's checkout
 
@@ -298,7 +303,7 @@ The owner keeps `gauntlet/` out of git in each repository Gauntlet runs in, by a
 | Where intake writes | `gauntlet/` in the run's checkout, tasks at `gauntlet/tasks/<slug>.md`; `$ARTIFACTS_DIR` holds only the `owned.<slug>` marker of node `put` | Any intake node writing outside `gauntlet/` and `$ARTIFACTS_DIR`; `$ARTIFACTS_DIR` or `$STATE_DIR` holding a task |
 | Keeping `gauntlet/` out of git | the owner's `.gitignore` line in each repository; `requireIgnored` in `.shared/working-folder.ts`, called with option `committed` by node `guard` of `gauntlet-run` before any phase, and without it by node `guard` of `intake` | A node writing the ignore line; a write under `gauntlet/` before the guard passes; a second statement of the check or its messages; a check that accepts only `.gitignore`; option `committed` passed by any guard but `gauntlet-run`'s |
 | Choosing the route | `intake.yaml`, `when:` on `$route.output.file` | Routing on the typed text; `$INPUTS` in a `when:`; a second intake workflow |
-| A handed-in file's slug and copy | `from-file` | Renaming, suffixing or overwriting a task |
+| A handed-in file's slug and copy | `from-file`, its slug from `.shared/pin.py`'s `slug` (worktree cut design) | Renaming, suffixing or overwriting a task |
 | Raising a file-route conflict | `from-file` failing the run with the conflict on stderr; the owner corrects it and resumes | A conflict resolved, skipped or only logged; a wait asking for a new slug |
 | The owner's approval of a Clerk task | the `answer` wait in `talk` | Any other approval before hand-off; an approval of a handed-in file |
 | Clerk's memory | the `clerk` session, continued by `turn` | A fresh agent per turn; a conversation log file; `persist_session` |
@@ -312,4 +317,4 @@ The owner keeps `gauntlet/` out of git in each repository Gauntlet runs in, by a
 
 1. Clear the moved copies out of archon-workflows: `.archon/workflows/feature-pipeline/fence/` removed with its `__pycache__`, `docs/superpowers/specs/gauntlet-intake-design.md` removed, and `docs/testing.md` there citing no removed path. Agent: `builder`.
 2. Task format and Clerk's role: `.shared/task-format.md`, `intake/commands/clerk.md`. Agent: `role-author`.
-3. Working-folder guard and intake block: `.shared/working-folder.ts`, `intake/scripts/guard.ts`, `intake/scripts/route.ts`, `intake/scripts/ground.ts`, `intake/scripts/put.ts`, `intake/intake.yaml`, `intake/clerk.mcp.json`, `intake/fixtures/file.stubs.yaml`, `intake/fixtures/clerk.stubs.yaml`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
+3. Working-folder guard and intake block: `.shared/working-folder.ts`, `intake/scripts/guard.ts`, `intake/scripts/route.ts`, `intake/scripts/ground.ts`, `intake/scripts/put.ts`, `intake/scripts/from-file.py`, `intake/intake.yaml`, `intake/clerk.mcp.json`, `intake/fixtures/file.stubs.yaml`, `intake/fixtures/clerk.stubs.yaml`. Needs the worktree cut design's `.shared/pin.py` (its step 1). `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.

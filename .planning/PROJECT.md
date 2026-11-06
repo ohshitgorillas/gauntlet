@@ -69,7 +69,7 @@ Milestone v0.10.0: the full seven-phase run, built from the designs once they su
 | One run, phases as included blocks (`d509af0`) | An included block runs inside the run, so `$ARGUMENTS` reaches Clerk and pauses answer on one id; a `workflow:` child cannot reach the existing tree | - pending |
 | Writing and the mend are blocks of the tree run, not of `gauntlet-run` | An agent runs in its run's checkout and no node field sets another folder, so tree work must run in the tree's own run | - pending |
 | Agents are confined by `fence/files.py`, driven by `FENCE_*` environment variables | One confinement for every role; `FENCE_DENY` applies to writes only, `FENCE_HIDE` (unbuilt) will refuse reads | ✓ good |
-| Landing is `git merge --ff-only`, no squash, no merge commit, no push | The writers' commits and `<slug>: final` reach the checkout as they stand; the owner publishes | - pending |
+| Landing is `git merge --ff-only`, no squash, no merge commit, no push | The writers' commits and the final commit reach the checkout as they stand; the owner publishes | - pending |
 | One red rule in `.shared/red.py` | Writing's `stage.py` and the mend's `verify.py` must agree on what red means; a second comparison is forbidden | - pending |
 | Tests bound by `docs/testing.md` | Adapted from hqptuner2's policy; the arbiter reads it as its opening prompt | ✓ good |
 | Roles: planner, analyzer, verifier and reviewer on opus; executor and plan checker on sonnet | Plans and reviews are paid for by every dispatch that reads them; execution is the largest spend | - pending |

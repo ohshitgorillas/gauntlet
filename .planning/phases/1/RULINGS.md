@@ -124,3 +124,45 @@ Authority. The owner ruled G-69 and G-61 on 2026-11-05. For G-61 the owner point
 | G-93 | D-58 | a `blocked` outcome is a juror case, as `contest` and `commit-failed` are; the juror's verdict starts the cut that carries the block | main session (3.2) |
 | G-54 | D-40 | a guard record resets the stretch as well as `repairs`: tried rounds with N > `since` and N at or above the latest guard record's round | main session (3.2) |
 | G-61 | D-43 | objections 2 and 3: `fence/spike.py`'s fixed command is the constant `bash run.sh` in the folder; no settings file; the spiker writes `run.sh` | main session (3.2) |
+
+## Pass 3 rulings (REVIEW-pass3.md, G-104 to G-119)
+
+Date: 2026-11-05. Option letters are those of `REVIEW-pass3.md` section 8; section 9 there holds the same rulings with their routes.
+
+Authority. Under D-79 the owner rules every group and no `/cad-decision-review` runs. The owner ruled G-104. For G-106 the owner delegated the ruling and named no option; the orchestrator took (c), because the restore discards an agent's edits. For 13 of the other 14 groups the owner delegated to the recommended option ("fine whatever"); the owner then changed G-115 at the round-3 checkpoint (first iteration that tried no round, IDLE = 1, a fresh analyst's reason shown to the owner; the answers "Fresh analyst everywhere" and "Pause and ask", given through the ask-user seam). The drafted edits get one closed review before they are committed (D-79).
+
+| Group | D-NN | Ruling | By |
+|---|---|---|---|
+| G-104 | D-66 | (b) what is owed is read from the files alone: docket's owner case from the latest tried round's review with no ruling or guard record after it; `cite.py` exit 0 on a missing plan; landing owes repair while the latest `mended` file has no SOUND review after it, and `handoff` checks that before "no new failure" | owner |
+| G-105 | D-67 | (b) `rounds.state` takes the hearing's first round and reads `ended` only from a ruling at or after it; writing's `stage.py` passes the round after the latest closed one | owner delegated (recommended option) |
+| G-106 | D-68 | (c) the commit tool adds only changed paths, answers "nothing" on none and retries once after a hook changed files; `result` saves `gauntlet/write/<slug>.leftover.<move>.patch`, named in the juror case, then restores the tree to `HEAD` after a block that did not commit; `contest` and `commit-failed` blocks carried | owner delegated, no option named; orchestrator (restore discards an agent's edits) |
+| G-107 | D-69 | (c) `vacate` leaves the body: `docket` case `vacant`, the loop ends on it through `until_bash`, and a `cancel:` node after the group fires on it | owner delegated (recommended option) |
+| G-108 | D-70 | (b) D-61 applied with the homes REVIEW-pass3.md G-108 names | owner delegated (recommended option) |
+| G-109 | D-71 | (b) one slug function in `.shared/pin.py` imported by `pin`, `rounds.py` and `from-file`, named the one derivation; `cut` hands off `slug`, the landing rounds binding `$cut.output.slug` | owner delegated (recommended option) |
+| G-110 | - | (c) `plan` declares `default: ""`; the slug sentence names the standalone limit (the owner's file is named in kebab-case), no check | owner delegated (recommended option) |
+| G-111 | D-72 | (b) the guard reads the rule from what the tree will hold; `env-check` refuses a repository with no remote configured, the remote `worktree.remote` names (`origin` when unset), configuration only; `pin`'s exit 2 goes. Amended by the D-79 review: `env-check` checks no base branch, because Archon takes it from `--base`, then `worktree.baseBranch`, then the stored default branch, then the remote's live symbolic HEAD (`ls-remote --symref`, `docs/reference/archon/cli.md:1746`), and never reads the local `refs/remotes/origin/HEAD` (`docs/reference/archon/cli.md:438-455`) | owner delegated (recommended option) |
+| G-112 | - | (b) `show` binds the reply `if_skipped: "<skipped>"`; `put` refuses a draft with slug "" ("The draft has no slug. Give one.") | owner delegated (recommended option) |
+| G-113 | D-73 | (b) the reporter's prompt names the round file and the summary file; a row for the reporter's inputs | owner delegated (recommended option) |
+| G-114 | D-74 | (b) `cite.py` is the one judge; each unresolved marker and reason appended to `<slug>.cite.N.txt`, whose latest entry the ledger's cited test reads and the guard's attention quotes | owner delegated (recommended option) |
+| G-115 | D-75 | (b) as changed by the owner at the round-3 checkpoint, which answered "Fresh analyst everywhere" and "Pause and ask" after the first answer ("yes, if no progress is made, stop, have the Defense analyze the reason, and report it to the user."): docket case `idle` holds on the first iteration that tried no round, drew no answer and left the round file as it found it (`IDLE = 1`) in every profile, writing included (there, an iteration that writes no file), counted from `<slug>.iter.txt` lines holding round, owed, guard-record count and repairs; node `why` has one fresh read-only agent, the `analyst`, the same role in plan review, spec review and writing (not the defense, the speccer or the reviser), write the reason to `<slug>.idle.K.md`; the bench asks the owner and shows it; the owner's reply is recorded as a guard record that binds the next turn, and the hearing continues, it does not cancel | owner |
+| G-116 | D-76 | (b) the coder-facing check mode cuts each line at the first " - "; `cut` rejects a block of the other kind | owner delegated (recommended option) |
+| G-117 | D-77 | (b) after a PLAN or SPEC verdict the cause is every round closed since it, oldest first | owner delegated (recommended option) |
+| G-118 | D-78 | (b) `GAUNTLET_FINAL_SUBJECT` in the repository's env sets line 1 (`<slug>` substituted, default `<slug>: final`) | owner delegated (recommended option) |
+| G-119 | - | (b) `case` and `docket` bind `base: $open.output.base`; `stage.py docket` reads `INPUTS_BASE` | owner delegated (recommended option) |
+
+## D-79 review of the pass-3 drafts
+
+Date: 2026-11-05. One closed review read the whole draft diff of G-104 to G-119 (D-79 step 3): per group, does the edit close its scenario, and does it add a high or medium defect. It wrote no amendment and reported no low finding. The findings were never written to a file; this section is their record, as the orchestrator gave them.
+
+Clean, no change: G-106, G-107, G-108, G-109, G-110, G-112, G-113, G-114, G-116, G-117, G-119.
+
+Medium fixes applied (D-79 step 4):
+
+| Group | Fix |
+|---|---|
+| G-104, hearings | "with no agent turn" deleted from the fixture lines of `plan-review-design.md` and `spec-review-design.md`, and the matching claims in the plan review ledger text deleted |
+| G-105 | `since`, `attempts`, `non_responsive` and `stretch` (and owed `owner`) are counted from `first` (`spec-review-design.md`, `.shared/rounds.py` `state`) |
+| G-104, landing | in `hear`, the group's first iteration is a retry only when no review of n or higher exists for the latest mend (`landing-design.md`, node `hear`) |
+| G-111 | the manual answers it, so no experiment ran (CLAUDE.md 1.9). `docs/reference/archon/cli.md:438-455` gives the order Archon takes the base branch from: `--base`, then `worktree.baseBranch`, then the registered codebase's stored default branch, then the remote's live symbolic HEAD (`ls-remote --symref` on `worktree.remote`, `cli.md:1746`); it never reads the local `refs/remotes/origin/HEAD`. The base-branch and `origin/HEAD` clauses are deleted from `gauntlet-design.md` (node `env-check`, Homes row "The run-start checks"), `worktree-cut-design.md` (the "Base branch" bullet, the "Remote" bullet, the `baseBranch` comment) and `contracts.md` (H1, P11); `env-check` checks the remote `worktree.remote` names, `origin` when unset. D-72 and the G-111 row above are amended the same way |
+
+G-118, checked and unchanged: no repository on this host runs commitlint or a `commit-msg` body line limit, so `GAUNTLET_FINAL_SUBJECT` (b) stands as drafted.

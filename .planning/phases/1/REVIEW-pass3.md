@@ -333,4 +333,25 @@ Route: ask-user seam (one design's bindings; H28 unchanged).
 
 ## 9. Rulings
 
-Pending. The owner's rulings on G-104 to G-119 are recorded here on continuation, one row per group, with the route each took.
+Date: 2026-11-05. Option letters and texts are those of section 8. Route under D-79: the owner ruled every group through the ask-user seam; no `/cad-decision-review` ran; the D-NN lines of CONTEXT.md stay the record of the load-bearing groups and carry the ruling. The drafted edits are reviewed once, closed, before their commit (D-79).
+
+Source, verbatim: G-104, the owner's ruling. G-106, the owner delegated it and named no option; the orchestrator took (c), because the restore discards an agent's edits. Every other group but G-115, the owner delegated to the recommended option ("fine whatever"). G-115, the owner at the round-3 checkpoint, first verbatim: "yes, if no progress is made, stop, have the Defense analyze the reason, and report it to the user."; then through the ask-user seam the answers "Fresh analyst everywhere" (one fresh read-only agent writes the explanation, the same role in plan review, spec review and writing; the defense, speccer and reviser sessions are not used) and "Pause and ask" (the bench asks the owner and shows the explanation; the reply is recorded as a guard record that binds the next turn; the hearing continues, it does not cancel). These replace the delegated (b) (`IDLE = 5`).
+
+| Group | Route | D-NN | Ruling | Source |
+|---|---|---|---|---|
+| G-104 | load-bearing | D-66 | (b) | owner |
+| G-105 | load-bearing | D-67 | (b) | owner delegated to the recommended option |
+| G-106 | load-bearing | D-68 | (c) | owner delegated, no option named; orchestrator took (c) |
+| G-107 | load-bearing | D-69 | (c) | owner delegated to the recommended option |
+| G-108 | load-bearing | D-70 | (b) | owner delegated to the recommended option |
+| G-109 | load-bearing | D-71 | (b) | owner delegated to the recommended option |
+| G-110 | ask-user seam | - | (c) | owner delegated to the recommended option |
+| G-111 | load-bearing | D-72 | (b) | owner delegated to the recommended option |
+| G-112 | ask-user seam | - | (b) | owner delegated to the recommended option |
+| G-113 | load-bearing | D-73 | (b) | owner delegated to the recommended option |
+| G-114 | load-bearing | D-74 | (b) | owner delegated to the recommended option |
+| G-115 | load-bearing | D-75 | (b) as changed: docket case `idle` on the first iteration that tried no round, drew no answer and left the round file as it found it (`IDLE = 1`) in every loop, writing's included; a fresh read-only analyst writes the reason to `<slug>.idle.K.md`; the bench shows it; the reply is a guard record and the hearing continues | owner |
+| G-116 | load-bearing | D-76 | (b) | owner delegated to the recommended option |
+| G-117 | load-bearing | D-77 | (b) | owner delegated to the recommended option |
+| G-118 | load-bearing | D-78 | (b) | owner delegated to the recommended option |
+| G-119 | ask-user seam | - | (b) | owner delegated to the recommended option |

@@ -15,7 +15,7 @@ What the tree already holds for the concerns the cut touches:
 - The repository's test command: one copy, `fence/checks.py`, which runs the brief command recorded in `gauntlet/settings.json` of its root (timeout from the same file, default 900 s) with a process-group kill, as an MCP tool for agents. The repository declares its brief command in its `env:` below, and node `settings` writes it once per tree run.
 - Test baseline: no copy.
 - Working-folder guard: designed and unbuilt, `.shared/working-folder.ts` (intake design). The checkout's check is node `guard` of the head, which passes option `committed`, so the rule it accepts holds in a tree; the tree's is node `guard` of `gauntlet-tree`.
-- Slug from a task path: stated as a prompt rule in the spec review design (`slug = the task's file name without .md`) and as the file route's rule in the intake design. This phase derives it in `gauntlet-run/scripts/pin.py` alone.
+- Slug from a task path: one function, `slug` of `.shared/pin.py` below, imported by node `pin`'s `gauntlet-run/scripts/pin.py`, by `.shared/rounds.py` (spec review design) and by intake's `from-file` (intake design).
 - Approved artifact paths: `gauntlet/plans/approved/<slug>.txt` and `<slug>-summary.md` (plan review design), `gauntlet/specs/approved/<slug>.txt` and `<slug>-summary.md` (spec review design). Git does not carry the ignored `gauntlet/` into a worktree.
 
 - Work in the tree: one place, the tree run, and after it a re-mend run (landing design) for the mend only, each in its own tree. An agent runs in its run's checkout, and `fence/files.py` and `fence/checks.py` take their root from `CLAUDE_PROJECT_DIR`, the agent's own folder. No node field sets an agent's folder, and a `workflow:` node's `isolation:` gives only `inherit` or a fresh worktree on a new branch. A node of `gauntlet-run` therefore cannot work in an existing tree; the re-mend run works in a second tree, cut on a new branch pinned at the tip of the branch of the tree the round lands, the first tree's for round 1, never in that tree.
@@ -28,15 +28,14 @@ Measured on Archon v0.13.2 (a compiled binary with no source tree; throwaway rep
 
 - Branch name: `"archon/task-" + norm(identifier)`. `identifier` is `WORKFLOW_ID[:8]`, `slug(nodeId)`, `sha256(nodeId)` hex `[:8]`, `child`, child index, joined by `-` with empty parts dropped. `slug` lowercases, turns each run of characters outside `[a-z0-9]` into `-`, trims leading and trailing `-`, cuts to 16 characters and trims a trailing `-`. `norm` applies the same lowercase and dash rule, trims, and cuts to 50 characters. The hash input is the node id alone. For node `tree`, `sha256("tree")[:8]` is `dc9c5edb`, and a run whose `WORKFLOW_ID` starts `72773a16` got `archon/task-72773a16-tree-dc9c5edb-child-0`. The child index is 0 for a node that is not fanned out.
 - Branch reuse: Archon fetches `origin/<baseBranch>` first. A local branch of that name absent on the remote is checked out as the tree, not overwritten; with no such branch, the tree is cut from `origin/<baseBranch>`. Archon then warns that the kept worktree has commits on no remote.
-- Base branch: Archon must resolve `<baseBranch>`; with `origin/HEAD` unknown and no `worktree.baseBranch`, it fails with "Cannot detect default branch ... origin/HEAD is not known".
-- Remote: a repository with no remote, or an unreachable one, cannot be cut, pinned branch or not; node `tree` fails with Archon's message, and the run is resumed once the repository has a reachable `origin`. A bare remote on a local file path counts as reachable.
+- Remote: a repository with no remote, or an unreachable one, cannot be cut, pinned branch or not; node `tree` fails with Archon's message. `gauntlet-run`'s node `env-check` refuses a repository with no remote configured (the remote `worktree.remote` names, `origin` when unset) at run start (`gauntlet-design.md`, configuration only); an unreachable remote still fails node `tree`, and the run is resumed once the repository has a reachable remote. A bare remote on a local file path counts as reachable.
 - `env:`: a committed `.archon/config.yaml`'s `env:` reaches the parent run's and the child run's bash nodes.
 
 Unmeasured: whether `env:` from an uncommitted or ignored `.archon/config.yaml` reaches the tree run. `gauntlet-run`'s node `env-check` refuses such a config at run start (`gauntlet-design.md`), so no run relies on it.
 
 ## Terms
 
-- **Slug**: the task file's name without `.md`.
+- **Slug**: `slug` of `.shared/pin.py` applied to the task file's path.
 - **Branch**: the branch Archon names for node `tree`'s child, `archon/task-<first 8 characters of $WORKFLOW_ID>-tree-dc9c5edb-child-0`, normalised as Archon's `norm`.
 - **Base**: the commit node `pin` creates the branch at, the checkout's `HEAD` at the cut. No node prints it.
 - **Tree run**: the child run of node `tree`, workflow `gauntlet-tree`, executing in the tree. It is the only run whose nodes and agents work in the tree. When landing finds the checkout moved, the re-mend runs `gauntlet-remend` in a second tree (landing design), which holds a copy of the previous tree's `gauntlet/`.
@@ -53,9 +52,12 @@ Files the phase writes:
 
 ### `.shared/pin.py` (the branch Archon will name, and its creation)
 
-The one place a tree's branch name is composed and the branch created. Standard library only; calls `git` as a subprocess. Imported by `gauntlet-run/scripts/pin.py` for the first tree and by `land/scripts/pin.py` (landing design) for each second tree, as the planning ledger imports `.shared/rounds.py`. Replaces nothing.
+The one place a tree's branch name is composed and the branch created, and the one derivation of a slug from a task path. Standard library only; calls `git` as a subprocess. Imported by `gauntlet-run/scripts/pin.py` for the first tree and by `land/scripts/pin.py` (landing design) for each second tree, as the planning ledger imports `.shared/rounds.py`; its `slug` also by `.shared/rounds.py` and by intake's `intake/scripts/from-file.py`. Replaces nothing.
 
 ```python
+# slug(path: str) -> str
+#   the file name of path without its extension, lowercased, each run of characters outside [a-z0-9] made one "-",
+#   "-" trimmed from both ends; "" when nothing is left. A kebab-case task file name comes back unchanged.
 # branch_name(workflow_id: str, node_id: str) -> str
 #   "archon/task-" + norm(workflow_id[:8] + "-" + slug(node_id) + "-" + hashlib.sha256(node_id.encode()).hexdigest()[:8] + "-child-0"),
 #   slug and norm as measured (lowercase, each run outside [a-z0-9] -> "-", trim "-"; slug cuts to 16 characters and trims a
@@ -66,7 +68,7 @@ The one place a tree's branch name is composed and the branch created. Standard 
 #   branch present: left as it is.
 ```
 
-Suite: `.shared/tests/test_pin.py`, run as `docs/testing.md` states with the folder `.shared/tests`. It drives both functions against a real git repository under `tmp_path`. It pins: the branch `archon/task-72773a16-tree-dc9c5edb-child-0` for node id `tree` and a `WORKFLOW_ID` starting `72773a16`, the name Archon produced; `archon/task-72773a16-land-retree-797b5dc7-child-0` for node id `land__retree`; a fresh branch created at `HEAD` for source `""` and at the named branch's tip otherwise; an existing branch left at its commit.
+Suite: `.shared/tests/test_pin.py`, run as `docs/testing.md` states with the folder `.shared/tests`. It drives both functions against a real git repository under `tmp_path`. It pins: `slug` of `My Task.md` as `my-task` and of `gauntlet/tasks/my-task.md` as `my-task`; the branch `archon/task-72773a16-tree-dc9c5edb-child-0` for node id `tree` and a `WORKFLOW_ID` starting `72773a16`, the name Archon produced; `archon/task-72773a16-land-retree-797b5dc7-child-0` for node id `land__retree`; a fresh branch created at `HEAD` for source `""` and at the named branch's tip otherwise; an existing branch left at its commit.
 
 ### `gauntlet-run/scripts/pin.py`
 
@@ -77,14 +79,13 @@ Node `pin`: slug, the predicted branch, and the branch created at the checkout's
 # requires-python = ">=3.12"
 # ///
 # Environment: WORKFLOW_ID (set by Archon), INPUTS_TASK (absolute path of gauntlet/tasks/<slug>.md in the checkout).
-# slug = the task file's name without .md.
+# slug = .shared/pin.py's slug(INPUTS_TASK).
 # stdout:
 # { "slug": str, "branch": str }   # branch as .shared/pin.py gives it for node id "tree"
-# Not inside a git work tree, or HEAD has no commit: stderr names the checkout; exit 2.
 def main() -> int: ...
 ```
 
-Suite: `gauntlet-run/tests/test_pin.py`, run as `docs/testing.md` states with the folder `gauntlet-run/tests`. It drives `main` against a real git repository under `tmp_path`. It pins: the slug; the branch `.shared/pin.py` gives for node `tree`; exit 2 outside a git work tree.
+Suite: `gauntlet-run/tests/test_pin.py`, run as `docs/testing.md` states with the folder `gauntlet-run/tests`. It drives `main` against a real git repository under `tmp_path`. It pins: the slug; the branch `.shared/pin.py` gives for node `tree`.
 
 ### `gauntlet-tree/scripts/guard.ts`
 
@@ -97,7 +98,7 @@ requireIgnored();
 
 ### `gauntlet-run/gauntlet-run.yaml`
 
-The one Gauntlet workflow the owner starts. Its head (`name`, `inputs`, `worktree`, nodes `guard`, `intake`, `plan-review`, `spec-review`) is `gauntlet-design.md`'s. This design gives its `description` and its nodes `pin`, `tree` and `cut`. Replaces nothing.
+The one Gauntlet workflow the owner starts. Its head is `gauntlet-design.md`'s module "`gauntlet-run/gauntlet-run.yaml` (the run's head)". This design gives its `description` and its nodes `pin`, `tree` and `cut`. Replaces nothing.
 
 ```yaml
 name: gauntlet-run
@@ -107,7 +108,7 @@ description: >-
 # inputs, worktree: as gauntlet-design.md gives them
 
 nodes:
-  # guard, intake, plan-review, spec-review: as gauntlet-design.md gives them;
+  # the head's nodes: as gauntlet-design.md's head gives them;
   # spec-review's hand-off is $spec-review.output { task, plan, spec, outcome }
 
   - id: pin
@@ -127,8 +128,9 @@ nodes:
   - id: cut                            # the phase's hand-off
     depends_on: [pin, tree]
     runtime: bun
-    script: <print { worktree, branch, task, plan, spec } from $tree.output, branch included>
-    output_format: <object: worktree, branch, task, plan, spec (strings), all required>
+    script: <print { slug, worktree, branch, task, plan, spec }: slug from $pin.output.slug, the rest from $tree.output,
+            branch included>
+    output_format: <object: slug, worktree, branch, task, plan, spec (strings), all required>
 
   # land, land-2, land-3, land-4, fail, kill: as gauntlet-design.md gives them
 ```
@@ -169,7 +171,7 @@ nodes:
           split on ":" (an empty list when unset)}. The fences and node baseline read this file,
           never the environment>
 
-  - id: copy-in                        # the only writer of the tree's gauntlet/tasks, plans and specs
+  - id: copy-in                        # the cut's copies into the tree's gauntlet/tasks, plans and specs (Homes, "Approved files in the tree")
     depends_on: [guard, branch-check]
     bash: <the checkout's root is $INPUTS.task with its trailing /gauntlet/tasks/$INPUTS.slug.md removed. For the task,
           the plan and its <slug>-summary.md, the spec and its <slug>-summary.md, each named by a non-empty input: absent
@@ -201,7 +203,7 @@ Each repository Gauntlet cuts in declares, in its own `.archon/config.yaml`, com
 
 ```yaml
 worktree:
-  baseBranch: <branch>                 # required when origin/HEAD is unknown; Archon resolves and fetches it, never cuts from it
+  baseBranch: <branch>                 # Archon resolves and fetches it, never cuts from it
   copyFiles: [...]                     # optional; files git does not carry, such as .env
   postCreate: [...]                    # optional; the tree's setup commands
 env:
@@ -214,7 +216,7 @@ env:
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| Slug of the cut and the tree run | `gauntlet-run/scripts/pin.py`, handed to `gauntlet-tree` as input `slug` | any node, prompt or other script of the cut or the tree run deriving it |
+| A slug from a task path | `slug` of `.shared/pin.py`, the one derivation, imported by `gauntlet-run/scripts/pin.py`, `.shared/rounds.py` and intake's `from-file`; node `pin`'s slug handed to `gauntlet-tree` as input `slug` and by node `cut` to landing | any other node, prompt or script deriving a slug from a path; a phase reading `$pin.output.slug` past the cut |
 | The predicted branch name and its creation | `.shared/pin.py`, called by `gauntlet-run/scripts/pin.py` for node `tree` and by `land/scripts/pin.py` for each re-mend run's node `<round>__retree` | any node, prompt or other script composing a branch name |
 | The branch the cut hands off | node `branch-check` of `gauntlet-tree`, comparing pin's name with `git branch --show-current` and failing the run naming both; node `cut` reading `branch` from `$tree.output` | the cut taking `branch` from `$pin.output`; a mismatch found after the tree run |
 | The commit the tree starts from | node `pin`, creating the branch at the checkout's `HEAD`; for a second tree, node `repin` of block `land`, creating the branch at the tip of the branch of the tree the round lands, the first tree's for round 1 (landing design) | `main`, `worktree.baseBranch`, `--base` or the remote default as a start point; any other `git branch` command that creates, moves or deletes a branch in a Gauntlet file |
@@ -224,10 +226,10 @@ env:
 | The repository's test command and timeout | the repository's `env:`: `GAUNTLET_TEST_BRIEF_COMMAND`, required, refused by `gauntlet-run`'s node `env-check` when unset or blank; `GAUNTLET_TEST_TIMEOUT`, optional (900 when unset), refused at run start when set but not a positive integer; `GAUNTLET_TEST_BASE`, optional (none when unset) (`gauntlet-design.md`) | a test command written, guessed or detected by any Gauntlet file; a node `timeout:` on a test node |
 | What the fences and node `baseline` read of those settings | `gauntlet/settings.json` of the tree, written once by node `settings` | a fence server or node `baseline` reading the environment for them; a `sh -c` launch line building a `FENCE_*` value |
 | The test baseline | `gauntlet/baseline/<slug>.brief.txt` of the tree, written once by node `baseline` | a red baseline stopping the run; a rerun rewriting it; any other baseline file |
-| Approved files in the tree | node `copy-in`, by `cp -n`, failing on a named input that is absent from the checkout | any agent or other node writing the tree's `gauntlet/tasks`, `gauntlet/plans` or `gauntlet/specs`; a move or edit of a checkout file; a missing input skipped |
+| Approved files in the tree | node `copy-in`, by `cp -n`, for the cut's copies, failing on a named input that is absent from the checkout; writing's node `enter`, by `cp -n`, for each `<slug>.rev<N>.txt` in `gauntlet/plans/approved/` and `gauntlet/specs/approved/` (`gauntlet-design.md`, writing's signature) | any agent or other node writing the tree's `gauntlet/tasks`, `gauntlet/plans` or `gauntlet/specs`; a move or edit of a checkout file; a missing input skipped |
 | Working-folder check in the tree | node `guard` of `gauntlet-tree`, through `.shared/working-folder.ts` (intake design) | any other check of `gauntlet/` being ignored in the tree |
 | The tree run's hand-off | node `handoff` of `gauntlet-tree`, whose `output_format` declares every field, read by node `cut` as `$tree.output.<field>` | node `cut` reading any other node of the tree run, or a file |
-| The cut's hand-off | node `cut`, whose `output_format` declares `{ worktree, branch, task, plan, spec }` and the `outcome`, `verdict`, `line` and `summary` `gauntlet-design.md` adds | any other node or file telling where the tree is |
+| The cut's hand-off | node `cut`, whose `output_format` declares `{ slug, worktree, branch, task, plan, spec }` and the `outcome`, `verdict`, `line` and `summary` `gauntlet-design.md` adds | any other node or file telling where the tree is |
 
 ## Order
 

@@ -46,8 +46,11 @@ nodes:
     always_run: true
     bash: <head = git -C $INPUTS.checkout rev-parse HEAD. tip = git rev-parse $INPUTS.branch.
           moved = not (git merge-base --is-ancestor head tip), or the file gauntlet/mend/$INPUTS.slug.rebased.<head> exists
-          (a first pass already started rebasing the branch onto this head, so a resume still reruns the tests). print { head, moved }>
-    output_format: <object: head (string), moved (boolean), all required>
+          (a first pass already started rebasing the branch onto this head, so a resume still reruns the tests), or
+          unreviewed is true. unreviewed = a gauntlet/mend/$INPUTS.slug.mended.<n>.txt exists and no gauntlet/mend/$INPUTS.slug.review.<m>.txt
+          with m >= the highest such n has line 1 "Verdict: SOUND" (a mend committed before a stop, read from the files).
+          print { head, moved, unreviewed }>
+    output_format: <object: head (string), moved (boolean), unreviewed (boolean), all required>
 
   - id: rebase                         # the only rebase in Gauntlet
     depends_on: [onto]
@@ -75,9 +78,9 @@ nodes:
     script: verify
     with: { run: $test-tree.output.file, head: "" }
 
-  - id: test-head                      # the checkout's HEAD alone, only when the rebased tree is red without it
+  - id: test-head                      # the checkout's HEAD alone, only when the rebased tree is red without it or a mend awaits review
     depends_on: [red]
-    when: "$red.output.red == true"
+    when: "$red.output.red == true || $onto.output.unreviewed == true"
     always_run: true
     bash: <file = gauntlet/mend/$INPUTS.slug.head.$onto.output.head.txt. file absent:
           git checkout --detach $onto.output.head, run the brief command as test-tree
@@ -85,16 +88,17 @@ nodes:
           print { file } as an absolute tree path>
     output_format: <object: file (string), required>
 
-  - id: confirm                        # red with the head check; red opens the repair
-    depends_on: [test-head]
+  - id: confirm                        # red with the head check; red opens the repair; runs whenever red ran
+    depends_on: [red, test-head]
+    trigger_rule: none_failed_min_one_success
     always_run: true
     runtime: uv
     script: verify
-    with: { run: $test-tree.output.file, head: $test-head.output.file }
+    with: { run: $test-tree.output.file, head: { from: $test-head.output.file, if_skipped: "" } }
 
-  - id: repair                         # the only writer in the tree after writing, only on a confirmed red
+  - id: repair                         # the only writer in the tree after writing, on a confirmed red or a mend left unreviewed
     depends_on: [confirm]
-    when: "$confirm.output.red == true"
+    when: "$confirm.output.red == true || $onto.output.unreviewed == true"
     always_run: true
     loop_group:
       max_iterations: 200              # from iteration 200 every iteration asks, so the bound never fails the run
@@ -105,7 +109,10 @@ nodes:
           bash: <n = one above the highest n among the verdict, review and reply files gauntlet/mend/$INPUTS.slug.*.<n>.txt.
                 $LOOP_PREV.ask.output.decision reply: write $LOOP_PREV.ask.output.text verbatim to
                 gauntlet/mend/$INPUTS.slug.reply.<n>.txt by cp -n semantics; retry: write the word retry to that file the same way.
-                print { n, left, retry } with left true only when that decision is leave and retry true only when it is retry>
+                print { n, left, retry } with left true only when that decision is leave, and retry true when it is retry or,
+                in the group's first iteration ($LOOP_PREV.hear.output.n empty), when $onto.output.unreviewed is true and no
+                gauntlet/mend/$INPUTS.slug.review.<m>.txt with m >= the highest n of a mended file exists, so a mend left
+                with no review is retested and reviewed before any juror rules (no reply file is written for it)>
           output_format: <object: n (integer), left (boolean), retry (boolean), all required>
 
         - id: changes                  # the branch past the checkout's HEAD, for the juror; not on a leave or a retry
@@ -217,8 +224,10 @@ nodes:
   - id: handoff                        # the mend's returns, read by the tree run's handoff
     depends_on: [rebase, red, confirm, repair]
     trigger_rule: none_failed_min_one_success
-    bash: <repair end left: print { "outcome": "left", "line": "" }. Else outcome "ready" and line, the test line the
-          gate shows: moved false: "Checkout not moved past the tree's base: not rerun."; red false or confirm not red:
+    bash: <repair end left: print { "outcome": "left", "line": "" }. Else, first: the highest-n
+          gauntlet/mend/$INPUTS.slug.mended.<n>.txt with no review file of n or higher whose line 1 is "Verdict: SOUND":
+          exit 1 naming it, so no mend reaches the gate unreviewed. Else outcome "ready" and line, the test line the
+          gate shows: moved false: "Checkout not moved past the tree's base: not rerun."; repair not run (red false or confirm not red):
           "Rerun on $onto.output.head: no new failure."; repair ran with a committed mend (a gauntlet/mend/$INPUTS.slug.mended.*.txt file
           exists): "Mended on $onto.output.head: no new failure."; repair ran with no committed mend (no such file; the
           branch tip is the rebased tip test-tree ran on): "Rerun on
@@ -231,13 +240,13 @@ nodes:
       required: [outcome, line]
 ```
 
-Every stop is a failed node: a rebase conflict or a failed repair node. It fails the tree run and so `gauntlet-run`'s node `tree` (in a re-mend, the re-mend run and so the round's node `retree`, and `archon workflow resume <gauntlet-run id>` re-drives that child); the tree, its branch and any rebase in progress stay, and `archon workflow resume <gauntlet-run id>` picks the run up there; a resumed `repair` starts at iteration 1, its verdict, review, reply, changes and mended files kept. A red on the rebased tree is no stop: it opens `repair`. The repair ends when a mend is committed, the branch is not red and the latest review is SOUND, when the owner's retry reruns the tests green with nothing uncommitted and the latest committed mend, when there is one, has a SOUND review (a retry after a committed mend runs `review` once more), or on the owner's `leave`, which hands off `left` with the tree kept; `gauntlet-run` then ends with no landing. An uncommitted mend (a commit-failed mender) never ends the repair: the juror sees it as the next case. The owner never picks a mender and is never shown a diff in the repair. Mend commits sit on top of the branch's last commit; the mend never resets, amends or drops a commit, never aborts a rebase and never writes in the checkout.
+Every stop is a failed node: a rebase conflict or a failed repair node. It fails the tree run and so `gauntlet-run`'s node `tree` (in a re-mend, the re-mend run and so the round's node `retree`, and `archon workflow resume <gauntlet-run id>` re-drives that child); the tree, its branch and any rebase in progress stay, and `archon workflow resume <gauntlet-run id>` picks the run up there; a resumed `repair` starts at iteration 1, its verdict, review, reply, changes and mended files kept. What the repair owes is read from those files: while the latest mended file has no SOUND review after it, `onto` prints `unreviewed`, `repair` runs whatever `confirm` says, and its first iteration retests and reviews that mend as a retry does. A red on the rebased tree is no stop: it opens `repair`. The repair ends when a mend is committed, the branch is not red and the latest review is SOUND, when the owner's retry reruns the tests green with nothing uncommitted and the latest committed mend, when there is one, has a SOUND review (a retry after a committed mend runs `review` once more), or on the owner's `leave`, which hands off `left` with the tree kept; `gauntlet-run` then ends with no landing. An uncommitted mend (a commit-failed mender) never ends the repair: the juror sees it as the next case. The owner never picks a mender and is never shown a diff in the repair. Mend commits sit on top of the branch's last commit; the mend never resets, amends or drops a commit, never aborts a rebase and never writes in the checkout.
 
-Fixtures, `mend/fixtures/<route>.stubs.yaml`, one per route: `still` (`moved` false, `test-tree` not reached, `ready`); `moved` (`red` false, `test-head` not reached, `ready`); `resumed` (`moved` true on a rebased marker, `test-tree` reached); `head-red` (`red` true, `confirm` not red, `repair` not reached, `ready`); `repair` (`confirm` red; `juror` CODE, `mend-code` committed, `recheck` not red, `review` SOUND, `ask` not reached; `ready`); `repair-tests` (`juror` TESTS, `mend-tests` committed, not red, SOUND; `ready`); `repair-unsound` (`juror` CODE, `review` UNSOUND; iteration 2 `juror` CODE, SOUND; `ready`); `repair-uncommitted` (`mend-code` commit-failed, `retest` not reached, `pose` ends "", iteration 2 `juror` sees the grounds); `repair-reply` (`juror` DEFECTIVE, `ask` answered `reply`; iteration 2 reply file written, `juror` CODE, SOUND; `ready`); `repair-retry` (`juror` DEFECTIVE, `ask` answered `retry`; iteration 2 reply file holds `retry`, `changes`, `juror` and menders not reached, `retest` green, `mended` prints "", `review` not reached, `ready`); `repair-retry-review` (`mend-code` committed, `recheck` red, `review` not reached; iteration 2 `juror` DEFECTIVE, `ask` answered `retry`; iteration 3 `retest` green, `mended` writes its file, `review` SOUND, `ready`); `repair-stall` (5 verdicts with no end, `ask` reached); `repair-leave` (`juror` DEFECTIVE, `leave` at `ask`, `left`); `conflict` (`rebase` fails, its rebased marker written, `handoff` not reached).
+Fixtures, `mend/fixtures/<route>.stubs.yaml`, one per route: `still` (`moved` false, `test-tree` not reached, `ready`); `moved` (`red` false, `test-head` not reached, `ready`); `resumed` (`moved` true on a rebased marker, `test-tree` reached); `head-red` (`red` true, `confirm` not red, `repair` not reached, `ready`); `repair` (`confirm` red; `juror` CODE, `mend-code` committed, `recheck` not red, `review` SOUND, `ask` not reached; `ready`); `repair-tests` (`juror` TESTS, `mend-tests` committed, not red, SOUND; `ready`); `repair-unsound` (`juror` CODE, `review` UNSOUND; iteration 2 `juror` CODE, SOUND; `ready`); `repair-uncommitted` (`mend-code` commit-failed, `retest` not reached, `pose` ends "", iteration 2 `juror` sees the grounds); `repair-reply` (`juror` DEFECTIVE, `ask` answered `reply`; iteration 2 reply file written, `juror` CODE, SOUND; `ready`); `repair-retry` (`juror` DEFECTIVE, `ask` answered `retry`; iteration 2 reply file holds `retry`, `changes`, `juror` and menders not reached, `retest` green, `mended` prints "", `review` not reached, `ready`); `repair-retry-review` (`mend-code` committed, `recheck` red, `review` not reached; iteration 2 `juror` DEFECTIVE, `ask` answered `retry`; iteration 3 `retest` green, `mended` writes its file, `review` SOUND, `ready`); `repair-stall` (5 verdicts with no end, `ask` reached); `repair-resumed` (a mended file with no review on file, `confirm` not red, `repair` reached, iteration 1 a retry: `juror` not reached, `review` SOUND, `ready`); `repair-leave` (`juror` DEFECTIVE, `leave` at `ask`, `left`); `conflict` (`rebase` fails, its rebased marker written, `handoff` not reached).
 
 ### `land/land.yaml` (landing in the checkout)
 
-Included by `gauntlet-run` only, four times, one round each: as node `land` after `cut`, when the tree run hands off `ready`, and as nodes `land-2`, `land-3` and `land-4`, each after the round before it, when that round hands off `moved`. A round takes `slug` from node `pin`; `round` its own include id; `worktree`, `branch` and `line` from the cut (`land`) or the round before; `summary` from the cut; and `made` from the round before. It runs in the checkout, reaches a tree only by `git -C <worktree>`, `archon complete` and, for the re-mend, a `workflow:` node, and writes nothing in a tree. It has no agent node. `onto` carries `always_run: true`, so a resume checks the checkout as it then stands; `show` and `gate` replay.
+Included by `gauntlet-run` only, four times, one round each: as node `land` after `cut`, when the tree run hands off `ready`, and as nodes `land-2`, `land-3` and `land-4`, each after the round before it, when that round hands off `moved`. A round takes `slug` from the cut's hand-off (`$cut.output.slug`); `round` its own include id; `worktree`, `branch` and `line` from the cut (`land`) or the round before; `summary` from the cut; and `made` from the round before. It runs in the checkout, reaches a tree only by `git -C <worktree>`, `archon complete` and, for the re-mend, a `workflow:` node, and writes nothing in a tree. It has no agent node. `onto` carries `always_run: true`, so a resume checks the checkout as it then stands; `show` and `gate` replay.
 
 ```yaml
 name: land
@@ -477,7 +486,7 @@ grounds or the word retry, the mended file (the log and patches of the branch pa
 plan and spec with their revisions.
 Verdict SOUND or UNSOUND. UNSOUND when the mend departs from the approved plan or spec or from the verdict, changes a
 test's contract the approved spec does not require, leaves the tree red, or leaves a mend uncommitted. Write
-each finding with its path. Write the review file once; write nothing else.
+the review file once: line 1 "Verdict: SOUND" or "Verdict: UNSOUND", then each finding with its path; write nothing else.
 Tools: fence-files.
 ```
 
@@ -520,9 +529,9 @@ Suite: `mend/tests/test_verify.py`, run as `docs/testing.md` states with the fol
 | What the second tree holds | node `copy-in` of `gauntlet-remend`, the previous tree's `gauntlet/` by `cp -n` semantics, `settings.json` included, but `gauntlet/mend/<slug>.verdict.*`, `.review.*`, `.reply.*`, `.grounds.*`, `.changes.*`, `.mended.*` and `.rebased.*` | an agent or other node writing the second tree's `gauntlet/` before `mend`; a differing file overwritten |
 | The commit landing lands against | `land`'s node `onto`'s `head`, read by `show` and `merge` | any other `land/` node reading the checkout's `HEAD`, `merge`'s ancestry check excepted |
 | Rebasing the tree's branch | `mend`'s node `rebase`, `git rebase <head> <branch>` in the tree | any other rebase, reset, amend, squash or history rewrite in a Gauntlet file; a rebase in the checkout; a rebase aborted by Gauntlet |
-| Whether the mend reruns tests | `onto`'s `moved` for `test-tree`; `red`'s answer for `test-head`; a committed mend or a retry for `retest` | a retest with no committed mend and no retry; a test run when the checkout's `HEAD` is in the branch's history, except after a first pass's rebase, marked by `gauntlet/mend/<slug>.rebased.<head>`; a head run when the rebased tree is not red without it; a test run in the checkout |
+| Whether the mend reruns tests | `onto`'s `moved` for `test-tree`; `red`'s answer, or `onto`'s `unreviewed`, for `test-head`; a committed mend or a retry for `retest` | a retest with no committed mend and no retry; a test run when the checkout's `HEAD` is in the branch's history, except after a first pass's rebase, marked by `gauntlet/mend/<slug>.rebased.<head>`; a head run when the rebased tree is not red without it and no mend awaits review; a test run in the checkout |
 | The mend's test runs | `test-tree`, `test-head` and `retest`, as node `baseline` runs its command, with no node `timeout:`, into `gauntlet/mend/<slug>.run.<head>.<tip>.txt` and `gauntlet/mend/<slug>.head.<head>.txt` of the tree | any other file name or folder; another invocation of the brief command in `mend/` or `land/` |
-| Red in the mend | `mend/scripts/verify.py` over `.shared/red.py`; a red with the head check opens `repair` | a comparison or listing in a `mend/` or `land/` node; a red shown at the gate; a red stopping the run |
+| Red in the mend | `mend/scripts/verify.py` over `.shared/red.py`; a red with the head check, or a mend `onto` finds unreviewed, opens `repair` | a comparison or listing in a `mend/` or `land/` node; a red shown at the gate; a red stopping the run |
 | Mending a red on the rebased tree | group `repair` of block `mend`: `mend-juror` rules every red, UNSOUND review and uncommitted mend into `gauntlet/mend/<slug>.verdict.<n>.txt`; its verdict runs one mender, `mend-code` fenced out of `tests/` and `gauntlet/`, `mend-tests` fenced to `tests/` and the test base; `mend-review` reviews every mend into `gauntlet/mend/<slug>.review.<n>.txt`; `pose` ends the repair only on a committed mend, not red and SOUND, or on a retry rerun that is not red with nothing uncommitted and the latest committed mend, when there is one, reviewed SOUND | the owner picking a mender; a mender run without a juror verdict; one agent writing both code and tests; a mend that ends unreviewed; a mend in the checkout; any other agent writing in the tree after writing |
 | What the juror and reviewer read of the branch | group `repair`'s node `changes`, after `hear`, into `gauntlet/mend/<slug>.changes.<n>.txt` for `juror`, and node `mended`, after `recheck`, into `gauntlet/mend/<slug>.mended.<n>.txt` for `review`, each `git -C <tree> log -p <head>..<branch>`; a `mended` file also records that the repair committed a mend | a git tool or command given to a mend agent; any other writer of those files; a log of the branch's whole history |
 | The test line at the gate | `mend`'s `handoff` `line`, carried by the tree run's `handoff` and `cut` to `land`'s input `line`, or by the re-mend run's `handoff` and `cur` when a re-mend ran, and by a round's `handoff` to the next round's `line`; the plan and revision summaries, `write`'s `summary`, carried the same way to `land`'s input `summary` | any other node composing them |
@@ -535,7 +544,7 @@ Suite: `mend/tests/test_verify.py`, run as `docs/testing.md` states with the fol
 
 1. Red in the mend: `mend/scripts/verify.py`, `mend/tests/test_verify.py`. Needs `gauntlet-design.md`'s step 8. Agent: `builder`.
 2. The mend's roles: `mend/commands/mend-juror.md`, `mend/commands/mend-code.md`, `mend/commands/mend-tests.md`, `mend/commands/mend-review.md`. Agent: `role-author`.
-3. Mend block: `mend/mend.yaml`, `mend/mend-juror.mcp.json`, `mend/mend-code.mcp.json`, `mend/mend-tests.mcp.json`, `mend/mend-review.mcp.json`, `mend/fixtures/still.stubs.yaml`, `mend/fixtures/moved.stubs.yaml`, `mend/fixtures/resumed.stubs.yaml`, `mend/fixtures/head-red.stubs.yaml`, `mend/fixtures/repair.stubs.yaml`, `mend/fixtures/repair-tests.stubs.yaml`, `mend/fixtures/repair-unsound.stubs.yaml`, `mend/fixtures/repair-uncommitted.stubs.yaml`, `mend/fixtures/repair-reply.stubs.yaml`, `mend/fixtures/repair-retry.stubs.yaml`, `mend/fixtures/repair-retry-review.stubs.yaml`, `mend/fixtures/repair-stall.stubs.yaml`, `mend/fixtures/repair-leave.stubs.yaml`, `mend/fixtures/conflict.stubs.yaml`. Needs steps 1 and 2 and writing's `write-code/coder.mcp.json` and `write-tests/test-writer.mcp.json`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
+3. Mend block: `mend/mend.yaml`, `mend/mend-juror.mcp.json`, `mend/mend-code.mcp.json`, `mend/mend-tests.mcp.json`, `mend/mend-review.mcp.json`, `mend/fixtures/still.stubs.yaml`, `mend/fixtures/moved.stubs.yaml`, `mend/fixtures/resumed.stubs.yaml`, `mend/fixtures/head-red.stubs.yaml`, `mend/fixtures/repair.stubs.yaml`, `mend/fixtures/repair-tests.stubs.yaml`, `mend/fixtures/repair-unsound.stubs.yaml`, `mend/fixtures/repair-uncommitted.stubs.yaml`, `mend/fixtures/repair-reply.stubs.yaml`, `mend/fixtures/repair-retry.stubs.yaml`, `mend/fixtures/repair-retry-review.stubs.yaml`, `mend/fixtures/repair-stall.stubs.yaml`, `mend/fixtures/repair-resumed.stubs.yaml`, `mend/fixtures/repair-leave.stubs.yaml`, `mend/fixtures/conflict.stubs.yaml`. Needs steps 1 and 2 and writing's `write-code/coder.mcp.json` and `write-tests/test-writer.mcp.json`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
 4. The second tree's branch: `land/scripts/pin.py`, `land/tests/test_pin.py`. Needs the worktree cut design's `.shared/pin.py` (its step 1). Agent: `builder`.
 5. The re-mend run: `gauntlet-remend/gauntlet-remend.yaml`, `gauntlet-remend/scripts/guard.ts`, `gauntlet-remend/fixtures/remend.stubs.yaml`, `gauntlet-remend/fixtures/left.stubs.yaml`, `gauntlet-remend/fixtures/conflict.stubs.yaml`, `gauntlet-remend/fixtures/branch.stubs.yaml`. Needs step 3 and the intake design's `.shared/working-folder.ts`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
 6. Landing block: `land/land.yaml`, `land/fixtures/land.stubs.yaml`, `land/fixtures/leave.stubs.yaml`, `land/fixtures/moved.stubs.yaml`, `land/fixtures/moved-left.stubs.yaml`, `land/fixtures/waited.stubs.yaml`, `land/fixtures/third.stubs.yaml`, `land/fixtures/gate-moved-last.stubs.yaml`, `land/fixtures/refused.stubs.yaml`. Needs steps 4 and 5. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
