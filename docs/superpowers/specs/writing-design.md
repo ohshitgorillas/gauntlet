@@ -119,7 +119,7 @@ Writing's progress: what is owed next, the cut and wave records, red, the owner'
 # requires-python = ">=3.12"
 # ///
 # Env: INPUTS_MODE, INPUTS_SLUG, INPUTS_PLAN, INPUTS_SPEC, INPUTS_BRIEF (block inputs); INPUTS_START in the loop;
-#   per mode below. GAUNTLET_TEST_COMMAND or GAUNTLET_TEST_BRIEF_COMMAND blank: every mode exits 1 naming it.
+#   per mode below. GAUNTLET_TEST_BRIEF_COMMAND blank: every mode exits 1 naming it.
 #   The slug is INPUTS_SLUG; the hearing's rounds.py calls derive theirs from INPUTS_TASK.
 
 def open_() -> dict: ...          # mode "open", before the loop: { "start": highest move, 0 when none, "base": lines of <slug>.iter.txt }
@@ -352,7 +352,7 @@ nodes:
   - id: work
     depends_on: [open]
     loop_group:
-      max_iterations: 200              # rounds.py CAP; from 200 moves every iteration asks, so this never fails the run
+      max_iterations: 200              # rounds.py CAP; from 200 iterations every iteration asks (stage.py cap), so this never fails the run
       until_bash: 'end=$docket.output.end; [ -n "$end" ]'
       nodes:
         - id: record
@@ -525,7 +525,7 @@ env:
   GAUNTLET_TEST_BASE: "<colon-separated root paths the test writer may read and write besides tests/, such as pyproject.toml>"
 ```
 
-`GAUNTLET_TEST_COMMAND` and `GAUNTLET_TEST_TIMEOUT` are the cut design's. Writing needs `GAUNTLET_TEST_COMMAND` and `GAUNTLET_TEST_BRIEF_COMMAND` to be set, which `gauntlet-run`'s guard checks at run start. The brief baseline, `gauntlet/baseline/<slug>.brief.txt`, is written by the cut design's node `baseline`.
+`GAUNTLET_TEST_TIMEOUT` is the cut design's. Writing needs only `GAUNTLET_TEST_BRIEF_COMMAND` to be set, which `gauntlet-run` checks at run start; `GAUNTLET_TEST_BASE` is optional, none when unset. The brief baseline, `gauntlet/baseline/<slug>.brief.txt`, is written by the cut design's node `baseline`.
 
 ## Homes
 
@@ -539,7 +539,7 @@ env:
 | A wrong spec or plan | a revision round in `gauntlet/revisions/`, tried by the reviewer, approved at `bench`, entered by `enter` | any other edit of the approved files; the reviser revising past the quoted clause or the affected specs |
 | Ending on a defective plan | the juror's `DEFECTIVE`, read by `stage.py close` | a size or line-count threshold; any other node ending writing |
 | Commits | the writer's own message through `commit` of `fence/files.py`, which returns git's exit and the names of failing hooks and never their output; node `seal` for the final commit, only on a dirty tree, and its message, as `gauntlet-design.md` gives it | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |
-| Test output a writer sees | `fence/checks.py` running the brief command from `gauntlet/settings.json`, for the test writer, the coder and both menders | a writer reaching `GAUNTLET_TEST_COMMAND`; a tool returning a traceback or hook output to a coder |
+| Test output a writer sees | `fence/checks.py` running the brief command from `gauntlet/settings.json`, for the test writer, the coder and both menders | a writer running any other test command; a tool returning a traceback or hook output to a coder |
 | The per-test listing and red | `GAUNTLET_TEST_BRIEF_COMMAND`'s `PASSED`, `FAILED` and `ERROR` lines, read by `.shared/red.py` (`gauntlet-design.md`), which `stage.py red` calls | parsing a runner's full output; a comparison computed in `stage.py`, a node, prompt or role |
 | What a test writer can see | `write-tests/test-writer.mcp.json`: `tests/`, the approved spec, `docs/testing.md`, the test base (`@base`) | a test writer handed the plan, code or a CODE section |
 | What a coder can see | `write-code/coder.mcp.json`'s `FENCE_HIDE`; the block's ruling text | a coder handed the task, the spec, a test file or a verdict file |

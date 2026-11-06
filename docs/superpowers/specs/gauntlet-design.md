@@ -11,12 +11,12 @@ The phases, in run order:
 1. **Intake** (`gauntlet-intake-design.md`). Turns the owner's task into `gauntlet/tasks/<slug>.md`, from a file the owner wrote or through a conversation with Clerk that ends on the owner's approval. Hands off `{ task }`.
 2. **Plan review** (`plan-review-design.md`). The defense decides whether the task needs a plan and writes one. The prosecutor tries it round by round, and the owner approves the plain-English summary. Hands off `{ task, plan }`, with `plan` set to `""` when no plan is needed.
 3. **Spec review** (`spec-review-design.md`). The speccer decides whether tests need speccing and writes the specs. The arbiter tries them, and the owner approves them or confirms that nothing is testable. Hands off `{ task, plan, spec, outcome }`.
-4. **Worktree cut** (`worktree-cut-design.md`). Cuts one worktree from the checkout's `HEAD`, copies the approved files in and records the brief test baseline. Hands off `{ worktree, branch, base, task, plan, spec, outcome, verdict, line, summary }`, the last four from the tree run's `handoff`.
+4. **Worktree cut** (`worktree-cut-design.md`). Cuts one worktree from the checkout's `HEAD`, copies the approved files in and records the brief test baseline. Hands off `{ worktree, branch, task, plan, spec, outcome, verdict, line, summary }`, the last four from the tree run's `handoff`.
 5. **Writing** (the writing design). Runs in the tree, as block `write` of the tree run, after the baseline. Test writers write the tests from the approved specs, then code writers write the code. A juror rules whether the tests, the code, the spec or the plan is wrong, or that the plan is defective. A wrong plan or spec is revised inside writing, as an approved revision; a defective plan ends the run. Hands off `{ outcome, verdict, summary }` to the tree run's `mend` and `handoff`, `summary` being the plan summary and the summaries of the approved revisions.
 6. **Mend** (`landing-design.md`). Runs in the tree, as block `mend` of the tree run, after `write`, when writing hands off `written`. It reads the checkout's `HEAD` with `git -C <checkout>`, rebases the tree's branch onto it, reruns the brief test command when the checkout has moved past base, and mends a red on the rebased tree: a juror rules each red, a code or test mender commits the mend on top of the branch's last commit, and a reviewer reads every mend. The owner is asked, on the tree run's id, only when the juror rules defective or the mend stalls, and answers with guidance, a rerun or leave. It runs git, the brief test command, its verify script and, only in the repair, four agents. Hands off `{ outcome, line }`, `outcome` `ready` or `left`, to the tree run's `handoff`.
-7. **Landing** (`landing-design.md`). Runs in the checkout as block `land` of `gauntlet-run`, after `cut`, when the tree run hands off `ready`, and reaches a tree only with `git -C <worktree>`, `archon complete` and the re-mend run. It checks that the tree's branch still fast-forwards the checkout. When the checkout has moved past it, landing re-mends: it starts the re-mend run `gauntlet-remend` in a second tree, which runs block `mend` only (rebase, tests, repair) on a branch pinned at the first tree's tip, then asks the owner. It re-mends at most twice, each round an `include` of `land` under its own id (`land`, `land-2`, `land-3`), and a third move stops the run, naming the move. It shows the owner the mend's test line, the plan summary and the approved revision summaries, the diff stat and the commit messages and waits for land or leave. On land it fast-forwards the checkout, copies the landed tree's records into the checkout's `gauntlet/` and removes every tree it made and their branches. It runs git, Archon's CLI and one script, and no agent. Hands off `{ outcome, worktree, branch, line, made }`, `outcome` `landed`, `left` or `moved`, the last four fields feeding the next round.
+7. **Landing** (`landing-design.md`). Runs in the checkout as block `land` of `gauntlet-run`, after `cut`, when the tree run hands off `ready`, and reaches a tree only with `git -C <worktree>`, `archon complete` and the re-mend run. It checks that the tree's branch still fast-forwards the checkout. When the checkout has moved past it, landing re-mends: it starts the re-mend run `gauntlet-remend` in a second tree, which runs block `mend` only (rebase, tests, repair) on a branch pinned at the first tree's tip, then asks the owner. It re-mends at most twice, whatever the timing of the moves, each round an `include` of `land` under its own id (`land`, `land-2`, `land-3`, `land-4`): a move that would need a third re-mend, or a move found while the last round's gate waits, stops the run, naming the move. It shows the owner the mend's test line, the plan summary and the approved revision summaries, the diff stat and the commit messages and waits for land or leave. On land it fast-forwards the checkout, copies the landed tree's records into the checkout's `gauntlet/` and removes every tree it made and their branches. It runs git, Archon's CLI and one script, and no agent. Hands off `{ outcome, worktree, branch, line, made }`, `outcome` `landed`, `left` or `moved`, the last four fields feeding the next round.
 
-The run ends at the last round of block `land` that runs (`land`, `land-2` or `land-3`) when the tree run hands off `ready`, after `cut` when it hands off `left`, and at node `kill`, cancelled, when it hands off `defective`. A cancelled phase block ends the run cancelled at its own node: plan review's and spec review's `vacate` cancel when `filing` reports all twelve slots retired, with no node past it run and no record in `gauntlet/failed/`; writing has no `vacate`. A tree run that ends cancelled fails `gauntlet-run`'s node `tree`, so `cut` and everything after it is not reached; the tree and its branch stay, and `archon workflow resume <run id>` picks the run up at `tree`.
+The run ends at the last round of block `land` that runs (`land`, `land-2`, `land-3` or `land-4`) when the tree run hands off `ready`, after `cut` when it hands off `left`, and at node `kill`, cancelled, when it hands off `defective`. A cancelled phase block ends the run cancelled at its own node: plan review's and spec review's `vacate` cancel when `filing` reports all twelve slots retired, with no node past it run and no record in `gauntlet/failed/`; writing has no `vacate`. A tree run that ends cancelled fails `gauntlet-run`'s node `tree`, so `cut` and everything after it is not reached; the tree and its branch stay, and `archon workflow resume <run id>` picks the run up at `tree`.
 
 The copies the phase designs once held, each resolved (D-06; rulings in `.planning/phases/1/REVIEW-pass1.md`):
 
@@ -93,31 +93,40 @@ nodes:
     depends_on: [cut]
     when: "$cut.output.outcome == 'ready'"
     include: land
-    with: { slug: $pin.output.slug, round: land, remend: "yes", worktree: $cut.output.worktree,
+    with: { slug: $pin.output.slug, round: land, worktree: $cut.output.worktree,
             branch: $cut.output.branch, line: $cut.output.line, summary: $cut.output.summary }
 
   - id: land-2                         # round 2, only when round 1 found the checkout moved while it waited
     depends_on: [land]
     when: "$land.output.outcome == 'moved'"
     include: land
-    with: { slug: $pin.output.slug, round: land-2, remend: "yes", worktree: $land.output.worktree,
+    with: { slug: $pin.output.slug, round: land-2, worktree: $land.output.worktree,
             branch: $land.output.branch, line: $land.output.line, summary: $cut.output.summary, made: $land.output.made }
 
-  - id: land-3                         # round 3, the last: a move found here stops the run
+  - id: land-3                         # round 3, only when round 2 found the checkout moved while it waited
     depends_on: [land-2]
     when: "$land-2.output.outcome == 'moved'"
     include: land
-    with: { slug: $pin.output.slug, round: land-3, remend: "no", worktree: $land-2.output.worktree,
+    with: { slug: $pin.output.slug, round: land-3, worktree: $land-2.output.worktree,
             branch: $land-2.output.branch, line: $land-2.output.line, summary: $cut.output.summary,
             made: $land-2.output.made }
+
+  - id: land-4                         # round 4, the last: a move found while its gate waits stops the run
+    depends_on: [land-3]
+    when: "$land-3.output.outcome == 'moved'"
+    include: land
+    with: { slug: $pin.output.slug, round: land-4, worktree: $land-3.output.worktree,
+            branch: $land-3.output.branch, line: $land-3.output.line, summary: $cut.output.summary,
+            made: $land-3.output.made }
 
   - id: fail                           # the only writer of the checkout's gauntlet/failed/
     depends_on: [cut]
     when: "$cut.output.outcome == 'defective'"
     bash: <cp -n $cut.output.verdict to gauntlet/failed/$pin.output.slug.txt of the checkout;
-          target present: exit non-zero naming it, nothing copied. Then move the slug's approved plan and spec in the
-          checkout (their files under gauntlet/plans/approved/ and gauntlet/specs/approved/: text, summary and recorded task hash)
-          aside into the folder gauntlet/failed/$pin.output.slug.approved/, so a rerun on the slug re-hears them>
+          target present: exit non-zero naming it, nothing copied. Then move every file of the slug in the checkout's
+          gauntlet/plans/ and gauntlet/specs/ (round, review, ruling, cite and summary files, the task hash, and the approved
+          text and summary under approved/) into gauntlet/failed/$pin.output.slug.<n>/plans/ and
+          gauntlet/failed/$pin.output.slug.<n>/specs/, n the next free number, so a rerun on the slug starts at round 1>
 
   - id: kill                           # the run's end on a defective plan
     depends_on: [fail]
@@ -136,7 +145,7 @@ The run's own guard, which runs in the checkout before any phase. It runs the sh
 import { requireIgnored } from "../../.shared/working-folder.ts";
 requireIgnored();
 // Run-start checks, exit 1 naming the cause on stderr:
-//   GAUNTLET_TEST_COMMAND or GAUNTLET_TEST_BRIEF_COMMAND unset or blank;
+//   GAUNTLET_TEST_BRIEF_COMMAND unset or blank (the one required test variable);
 //   GAUNTLET_TEST_TIMEOUT set but not a positive integer;
 //   .archon/config.yaml of the checkout with uncommitted changes.
 // The variables are read from the environment; the repository's env: reaches bash nodes (worktree-cut-design.md:33),
@@ -159,7 +168,7 @@ Each phase file is the workflow its own design gives. It runs on its own (`archo
   - spec review: `{ task, plan, spec, outcome }`
 - `$INPUTS.<name>` appears in prompts, in `bash:` bodies, and in `with:` on `include:` and `workflow:` nodes only. A `script:` node reads `INPUTS_<NAME>` from the environment and binds no block input in its `with:`. No `when:` reads `$INPUTS`.
 
-Writing's block, `write/write.yaml`, the mend's block, `mend/mend.yaml`, and landing's block, `land/land.yaml`, are blocks only, included by `gauntlet-tree` (writing, the mend), `gauntlet-remend` (the mend) and `gauntlet-run` (landing, three times). Their descriptions say "Not for direct use"; they carry no `worktree:` key and no `guard` node, and follow the `$INPUTS` and `returns:` rules above.
+Writing's block, `write/write.yaml`, the mend's block, `mend/mend.yaml`, and landing's block, `land/land.yaml`, are blocks only, included by `gauntlet-tree` (writing, the mend), `gauntlet-remend` (the mend) and `gauntlet-run` (landing, four times). Their descriptions say "Not for direct use"; they carry no `worktree:` key and no `guard` node, and follow the `$INPUTS` and `returns:` rules above.
 
 Intake's routing reads a node output:
 
@@ -190,7 +199,7 @@ nodes:
   # guard, branch check, settings, copy-in, baseline: as the worktree cut design gives them
 
   - id: paths                          # the cut design's handoff script, plus slug, checkout and brief
-    depends_on: [copy-in, baseline]
+    depends_on: [copy-in, baseline, settings]
     runtime: bun
     script: <print { slug, checkout, worktree, branch, task, plan, spec, brief } as the cut design's handoff does;
             slug from INPUTS_SLUG, checkout from INPUTS_TASK with its trailing /gauntlet/tasks/<slug>.md removed,
@@ -291,7 +300,7 @@ Node `seal` is the writing design's. It makes the `<slug>: final` commit only wh
 
 ### `land/land.yaml` (landing's signature)
 
-The landing block's signature and its hand-off. Every other node is the landing design's. It runs in the checkout and reaches a tree only with `git -C $INPUTS.worktree`, `archon complete` and its node `retree`, which starts the re-mend run. Its one wait, `gate`, the owner's land or leave, is answered on `gauntlet-run`'s id, once per round that reaches it. It has no agent node. Its only writes in the checkout are the fast-forward merge and the record copy. It writes nothing in a tree. `gauntlet-run` includes it three times, under the ids `land`, `land-2` and `land-3`; each round takes the previous round's `worktree`, `branch`, `line` and `made`.
+The landing block's signature and its hand-off. Every other node is the landing design's. It runs in the checkout and reaches a tree only with `git -C $INPUTS.worktree`, `archon complete` and its node `retree`, which starts the re-mend run. Its one wait, `gate`, the owner's land or leave, is answered on `gauntlet-run`'s id, once per round that reaches it. It has no agent node. Its only writes in the checkout are the fast-forward merge and the record copy. It writes nothing in a tree. `gauntlet-run` includes it four times, under the ids `land`, `land-2`, `land-3` and `land-4`; each round takes the previous round's `worktree`, `branch`, `line` and `made`.
 
 ```yaml
 name: land
@@ -299,8 +308,7 @@ description: >-
   Gauntlet landing, included by gauntlet-run only. Not for direct use.
 inputs:
   slug: { description: The task's slug. }
-  round: { description: "The id of the include node that runs this round: land, land-2 or land-3." }
-  remend: { description: "yes when this round may start a re-mend, no in the last round." }
+  round: { description: "The id of the include node that runs this round: land, land-2, land-3 or land-4." }
   worktree: { description: Absolute path of the tree this round lands. }
   branch: { description: The branch of that tree. }
   line: { description: The mend's test line for that tree. }
@@ -384,8 +392,8 @@ Suite: `fence/test_files_hide.py`, run as `docs/testing.md` states with the fold
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| How a phase enters the run | `include:` of the phase's workflow: in `gauntlet-run.yaml`, node ids `intake`, `plan-review`, `spec-review` and `land`; in `gauntlet-tree.yaml`, node ids `write` and `mend`; in `gauntlet-run.yaml`, `land` is included three times, under the ids `land`, `land-2` and `land-3`; in `gauntlet-remend.yaml`, node id `mend` | a phase run as a `workflow:` child (the cut's `tree` node and landing's `retree` node excepted); a phase's nodes copied into `gauntlet-run.yaml` or `gauntlet-tree.yaml`; a phase description that does not name `gauntlet-run` for a whole run |
-| Phase order | the `depends_on` chain in `gauntlet-run.yaml`: `guard`, `dirty` and `stop`, `intake`, `plan-review`, `spec-review`, `pin`, `tree`, `cut`, then `land` on `ready` and `land-2` and `land-3` each only after the round before hands off `moved`, `fail` and `kill` on `defective`, nothing on `left`; in `gauntlet-tree.yaml`: `guard`, `branch-check`, `settings`, `copy-in` and `baseline`, `paths`, `write`, `mend` on `written`, `handoff` | a phase depending on any node but the one before it; any node or phase sending the run back to an earlier phase |
+| How a phase enters the run | `include:` of the phase's workflow: in `gauntlet-run.yaml`, node ids `intake`, `plan-review`, `spec-review` and `land`; in `gauntlet-tree.yaml`, node ids `write` and `mend`; in `gauntlet-run.yaml`, `land` is included four times, under the ids `land`, `land-2`, `land-3` and `land-4`; in `gauntlet-remend.yaml`, node id `mend` | a phase run as a `workflow:` child (the cut's `tree` node and landing's `retree` node excepted); a phase's nodes copied into `gauntlet-run.yaml` or `gauntlet-tree.yaml`; a phase description that does not name `gauntlet-run` for a whole run |
+| Phase order | the `depends_on` chain in `gauntlet-run.yaml`: `guard`, `dirty` and `stop`, `intake`, `plan-review`, `spec-review`, `pin`, `tree`, `cut`, then `land` on `ready` and `land-2`, `land-3` and `land-4` each only after the round before hands off `moved`, `fail` and `kill` on `defective`, nothing on `left`; in `gauntlet-tree.yaml`: `guard`, `branch-check`, `settings`, `copy-in` and `baseline`, `paths`, `write`, `mend` on `written`, `handoff` | a phase depending on any node but the one before it; any node or phase sending the run back to an earlier phase |
 | The run's inputs | `gauntlet-run.yaml`'s `file` input and the run's message | an input declared for the run anywhere else; a phase reading the run's input except through `with:` |
 | Run-owned settings (`worktree`, `container`, `budget`, `evidence_policy`) | `gauntlet-run.yaml`; `gauntlet-tree.yaml` for the tree run | any of them in a phase file |
 | The working-folder check | `requireIgnored` in `.shared/working-folder.ts`, called by node `guard` of `gauntlet-run` in the checkout, once per run, ahead of every phase; by the `guard` node of each standalone phase (`intake/`, `plan-review/`, `spec-review/`); by node `guard` of `gauntlet-tree` in the tree and of `gauntlet-remend` in the second tree | a guard node or `guard.ts` in `write/`, `mend/` or `land/`; a second statement of the check |
@@ -395,10 +403,10 @@ Suite: `fence/test_files_hide.py`, run as `docs/testing.md` states with the fold
 | Where the owner answers | `gauntlet-run`'s id for the run-start `dirty` ask, intake, plan review, spec review and landing's `gate`; the tree run's id for writing and the mend's `ask`, the re-mend run's id for the mend's `ask` in a second tree | any pause of writing or the mend placed in `gauntlet-run`; any pause of landing placed in the tree run or the re-mend run |
 | Agents and writes in the tree after the cut | blocks of `gauntlet-tree`, the tree run: `write` and `mend`; block `mend` of `gauntlet-remend`, the re-mend run, in a second tree | an agent node in `land/` or in any other `gauntlet-run` block after `cut`; a rebase, test run or commit in a tree from `gauntlet-run`; a node field, sub-run or fence root set to reach an existing tree from another run |
 | A wrong plan or spec found in writing | an approved revision, tried and approved inside writing's one loop | intake, plan review or spec review run again; `<slug>.txt` edited, moved or copied whole |
-| Writing to the tree's `approved/` folders | `copy-in` of the tree run for `<slug>.txt` and `<slug>-summary.md`, and `copy-in` of the re-mend run for the whole of the previous tree's `gauntlet/`; writing's `enter`, by `cp -n`, for `<slug>.rev<N>.txt` | any agent or other node writing there; any other file name there; a revision in the checkout but landing's record copy |
+| Writing to the tree's `approved/` folders | `copy-in` of the tree run for `<slug>.txt` and `<slug>-summary.md`, and `copy-in` of the re-mend run for the previous tree's `gauntlet/`, the mend's verdict, review, reply, grounds and rebased files excepted; writing's `enter`, by `cp -n`, for `<slug>.rev<N>.txt` | any agent or other node writing there; any other file name there; a revision in the checkout but landing's record copy |
 | Reading the approved plan or spec in writing | `<slug>.txt` and each `<slug>.rev<N>.txt` in order of N | an agent handed `<slug>.txt` alone once a revision exists |
 | Ending the run on a defective plan | the juror's verdict `defective`, handed off as writing's `outcome`; `fail` records it; `kill` cancels the run | a node failing the run for it; a line-count or size threshold; Gauntlet removing the tree or its branch |
-| The failed task record | `gauntlet/failed/<slug>.txt` of the checkout: the juror's defective ruling verbatim, written once by `fail`, read by Clerk; hidden from every other checkout role by `FENCE_HIDE=gauntlet/failed`, or by a `FENCE_READ` that lists no folder holding it | any other writer or content; any other phase or role reading it, the defense included; intake's file route reading it; a fence outside `intake/` with `FENCE_READ` covering `gauntlet/failed/` and no `FENCE_HIDE` for it |
+| The failed task record | `gauntlet/failed/<slug>.txt` of the checkout: the juror's defective ruling verbatim, written once by `fail`, read by Clerk; the slug's plan and spec files of each defective run, moved by `fail` into `gauntlet/failed/<slug>.<n>/plans/` and `gauntlet/failed/<slug>.<n>/specs/`; a hearing's files for a changed task set aside by its own ledger into `<folder>/stale/<slug>.<n>/`, never into `gauntlet/failed/`; hidden from every other checkout role by `FENCE_HIDE=gauntlet/failed`, or by a `FENCE_READ` that lists no folder holding it | any other writer or content; any other phase or role reading it, the defense included; a phase block reading or writing `gauntlet/failed/`; intake's file route reading it; a fence outside `intake/` with `FENCE_READ` covering `gauntlet/failed/` and no `FENCE_HIDE` for it |
 | Whether a test run is red | `.shared/red.py`, called by writing's `stage.py red` and the mend's `mend/scripts/verify.py` | any other comparison of test listings; a listing parsed in `write/`, `mend/` or `land/` |
 | The final commit | writing's `seal`: `<slug>: final`, made only when the tree holds uncommitted changes | a final commit on a clean tree; any other message on the final commit; a message rewritten in landing |
 | The summaries shown at the gate | writing's `state` (the approved rounds) and its hand-off `summary`: the plan summary, then each approved revision summary in order of N | a round the owner sent back listed; any other node composing them |
@@ -423,4 +431,4 @@ Suite: `fence/test_files_hide.py`, run as `docs/testing.md` states with the fold
 7. Failed slugs hidden outside intake: `plan-review/defense.mcp.json`, `plan-review/prosecutor.mcp.json`, `plan-review/reporter.mcp.json` (`FENCE_HIDE=gauntlet/failed`). Needs step 6 and those files as their phase designs give them. Agent: `workflow-builder`.
 8. Red rule: `.shared/red.py`, `.shared/tests/test_red.py`. Writing's `write/scripts/stage.py` and the mend's `mend/scripts/verify.py` need it. Agent: `builder`.
 9. The mend in the tree run: `gauntlet-tree/gauntlet-tree.yaml` (node `mend`, `handoff` prints the mend's `outcome` and `line`, the description), `gauntlet-tree/fixtures/tree.stubs.yaml` (the mend hands off `ready`), `gauntlet-tree/fixtures/left.stubs.yaml` (the mend hands off `left`), `gauntlet-tree/fixtures/defective.stubs.yaml` (`mend` not reached). Needs step 4 and the landing design's `mend/mend.yaml`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
-10. Landing in the run: `gauntlet-run/gauntlet-run.yaml` (`cut`'s `line` and `summary`, nodes `land`, `land-2` and `land-3`, the description), `gauntlet-run/fixtures/landed.stubs.yaml` (landing hands off `landed`), `gauntlet-run/fixtures/left.stubs.yaml` (landing hands off `left`), `gauntlet-run/fixtures/mend-left.stubs.yaml` (the tree run hands off `left`, `land` not reached), `gauntlet-run/fixtures/moved.stubs.yaml` (`land` hands off `moved`, `land-2` hands off `landed`, `land-3` not reached), `gauntlet-run/fixtures/moved-twice.stubs.yaml` (`land` and `land-2` hand off `moved`, `land-3` hands off `landed`). Needs steps 5 and 9 and the landing design's `land/land.yaml` and `gauntlet-remend/gauntlet-remend.yaml` (its step 6). `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
+10. Landing in the run: `gauntlet-run/gauntlet-run.yaml` (`cut`'s `line` and `summary`, nodes `land`, `land-2`, `land-3` and `land-4`, the description), `gauntlet-run/fixtures/landed.stubs.yaml` (landing hands off `landed`), `gauntlet-run/fixtures/left.stubs.yaml` (landing hands off `left`), `gauntlet-run/fixtures/mend-left.stubs.yaml` (the tree run hands off `left`, `land` not reached), `gauntlet-run/fixtures/moved.stubs.yaml` (`land` hands off `moved`, `land-2` hands off `landed`, `land-3` not reached), `gauntlet-run/fixtures/moved-twice.stubs.yaml` (`land` and `land-2` hand off `moved`, `land-3` hands off `landed`, `land-4` not reached), `gauntlet-run/fixtures/moved-thrice.stubs.yaml` (`land`, `land-2` and `land-3` hand off `moved`, `land-4` hands off `landed`). Needs steps 5 and 9 and the landing design's `land/land.yaml` and `gauntlet-remend/gauntlet-remend.yaml` (its step 6). `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.

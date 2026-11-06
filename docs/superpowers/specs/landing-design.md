@@ -4,9 +4,9 @@ Status: proposed.
 
 ## Why
 
-Landing is two blocks and one run. Block `mend`, `mend/mend.yaml`, runs in the tree as part of the tree run `gauntlet-tree`, after `write`, when writing hands off `written`, and again in the re-mend run `gauntlet-remend`, `gauntlet-remend/gauntlet-remend.yaml`, the child run of block `land`'s node `retree`. Block `land`, `land/land.yaml`, is phase 7 of `gauntlet-run`, after `cut`, when the tree run hands off `ready`; `gauntlet-run` includes it three times, under the ids `land`, `land-2` and `land-3`, one round each. `gauntlet-design.md` gives the fast-forward merge as the only write to the checkout's tracked files, the record copy, the removal of every tree landing made by `archon complete <branch> --force`, and `.shared/red.py`. This file gives both blocks' nodes and signatures. Every path is relative to the pack root unless it names the checkout or the tree.
+Landing is two blocks and one run. Block `mend`, `mend/mend.yaml`, runs in the tree as part of the tree run `gauntlet-tree`, after `write`, when writing hands off `written`, and again in the re-mend run `gauntlet-remend`, `gauntlet-remend/gauntlet-remend.yaml`, the child run of block `land`'s node `retree`. Block `land`, `land/land.yaml`, is phase 7 of `gauntlet-run`, after `cut`, when the tree run hands off `ready`; `gauntlet-run` includes it four times, under the ids `land`, `land-2`, `land-3` and `land-4`, one round each. `gauntlet-design.md` gives the fast-forward merge as the only write to the checkout's tracked files, the record copy, the removal of every tree landing made by `archon complete <branch> --force`, and `.shared/red.py`. This file gives both blocks' nodes and signatures. Every path is relative to the pack root unless it names the checkout or the tree.
 
-By the end of writing the checkout may have moved past base and may hold uncommitted edits. Block `mend` reads the checkout's `HEAD`, rebases the tree's branch onto it, verifies the rebased tree only when the checkout has moved (or a first pass already rebased the branch, so a resume reruns it), and mends a red on the rebased tree: a juror rules each red a code mend, a test mend or defective, the mender it names commits the mend, and a reviewer reads every mend. The owner is asked on the tree run's id, in plain words and with no diff, only when the juror rules defective or the mend stalls, and answers with guidance, a rerun or leave. It runs git, the brief test command, one script and, only in the repair, four agents. Block `land` checks that the branch still fast-forwards the checkout. When the checkout has moved past it, the round pins a second branch at the tree's tip, starts the re-mend run in a second tree cut on it, and so re-mends at most twice: the rounds `land` and `land-2` may start the re-mend, and a move found in round `land-3` stops the run, naming the move. The round then shows the owner the test line, the diff stat and the commit messages, waits for land or leave, and on land fast-forwards the checkout, copies the records and removes every tree it made. A checkout that moves while the gate waits sends the run to the next round, which checks it again and asks again. Landing itself runs git, Archon's CLI and one script, and no agent; the agents of a re-mend run in the re-mend run.
+By the end of writing the checkout may have moved past base and may hold uncommitted edits. Block `mend` reads the checkout's `HEAD`, rebases the tree's branch onto it, verifies the rebased tree only when the checkout has moved (or a first pass already rebased the branch, so a resume reruns it), and mends a red on the rebased tree: a juror rules each red a code mend, a test mend or defective, the mender it names commits the mend, and a reviewer reads every mend. The owner is asked on the tree run's id, in plain words and with no diff, only when the juror rules defective or the mend stalls, and answers with guidance, a rerun or leave. It runs git, the brief test command, one script and, only in the repair, four agents. Block `land` checks that the branch still fast-forwards the checkout. When the checkout has moved past it, the round pins a second branch at the tree's tip, starts the re-mend run in a second tree cut on it, and so re-mends at most twice, whatever the timing of the moves: a round's `onto` re-mends while `made` holds fewer than two branches, and a move that would need a third re-mend fails `onto`, naming the move. The round then shows the owner the test line, the diff stat and the commit messages, waits for land or leave, and on land fast-forwards the checkout, copies the records and removes every tree it made. A checkout that moves while the gate waits sends the run to the next round, which checks it again and asks again; in the last round, `land-4`, `merge` stops the run instead, naming the move. Landing itself runs git, Archon's CLI and one script, and no agent; the agents of a re-mend run in the re-mend run.
 
 An agent runs in its run's checkout, and no node field sets another folder; `fence/files.py` and `fence/checks.py` root at `CLAUDE_PROJECT_DIR`, the agent's folder. The tree run and the re-mend run are the only runs whose checkout is a tree, each its own, so every agent that writes in a tree, the mend's four included, runs in one of them. The re-mend run works in a second tree, never in the tree of the run that came before it: Archon cuts it, on a branch pinned at that tree's tip.
 
@@ -14,7 +14,7 @@ What the designs hold for the concerns landing touches:
 
 - Running a test command from a bash node: 2 designed copies of one invocation, `timeout -k 10 "${GAUNTLET_TEST_TIMEOUT:-900}" nice -n 10 bash -c "<command>" < /dev/null` in the tree's root, writing `exit=<n> timed_out=<true|false>` then the output: node `baseline` of the tree run, for `GAUNTLET_TEST_BRIEF_COMMAND` (worktree cut design), and node `test` of writing. The mend's three test nodes make 5. `fence/checks.py` runs a test command for agents only, as an MCP tool, so no bash node can call it. Named scripts resolve only from a workflow's own `scripts/`, and the repository's `env:` is measured to reach bash nodes only, so no shared runner can hold the invocation. Its one home is node `baseline`'s invocation and file format, which every other node uses verbatim.
 - Red against the brief baseline: 1 home, `.shared/red.py` (`gauntlet-design.md`). The mend calls it through `mend/scripts/verify.py` and parses no listing.
-- Copying a file only when absent or identical: 3 designed copies of one rule, node `copy-in` of the tree run (worktree cut design), node `copy-in` of the re-mend run (the previous tree's whole `gauntlet/` into the new tree) and landing's `record`, which applies the rule in the other direction, tree to checkout.
+- Copying a file only when absent or identical: 3 designed copies of one rule, node `copy-in` of the tree run (worktree cut design), node `copy-in` of the re-mend run (the previous tree's `gauntlet/` into the new tree, the first mend's `gauntlet/mend/<slug>.verdict.*`, `.review.*`, `.reply.*`, `.grounds.*` and `.rebased.*` files excepted) and landing's `record`, which applies the rule in the other direction, tree to checkout.
 - Rebase, fast-forward and branch removal: no copy. No other Gauntlet file rebases, merges or removes a branch.
 - Creating a branch at a tree's tip for Archon to cut a tree on: 1 home, `.shared/pin.py` (worktree cut design), called by `gauntlet-run/scripts/pin.py` for the first tree and by `land/scripts/pin.py` for each second tree.
 - Fences for an agent writing code or tests: 2 designed copies, `write-code/coder.mcp.json` and `write-tests/test-writer.mcp.json` (writing design), both rooted at the agent's own working folder, the tree. The mend's two writers take their settings verbatim, plus read access to `gauntlet/mend`.
@@ -217,7 +217,7 @@ Fixtures, `mend/fixtures/<route>.stubs.yaml`, one per route: `still` (`moved` fa
 
 ### `land/land.yaml` (landing in the checkout)
 
-Included by `gauntlet-run` only, three times, one round each: as node `land` after `cut`, when the tree run hands off `ready`, and as nodes `land-2` and `land-3`, each after the round before it, when that round hands off `moved`. A round takes `slug` from node `pin`; `round` its own include id; `remend` `yes` in `land` and `land-2` and `no` in `land-3`; `worktree`, `branch` and `line` from the cut (`land`) or the round before; `summary` from the cut; and `made` from the round before. It runs in the checkout, reaches a tree only by `git -C <worktree>`, `archon complete` and, for the re-mend, a `workflow:` node, and writes nothing in a tree. It has no agent node. `onto` carries `always_run: true`, so a resume checks the checkout as it then stands; `show` and `gate` replay.
+Included by `gauntlet-run` only, four times, one round each: as node `land` after `cut`, when the tree run hands off `ready`, and as nodes `land-2`, `land-3` and `land-4`, each after the round before it, when that round hands off `moved`. A round takes `slug` from node `pin`; `round` its own include id; `worktree`, `branch` and `line` from the cut (`land`) or the round before; `summary` from the cut; and `made` from the round before. It runs in the checkout, reaches a tree only by `git -C <worktree>`, `archon complete` and, for the re-mend, a `workflow:` node, and writes nothing in a tree. It has no agent node. `onto` carries `always_run: true`, so a resume checks the checkout as it then stands; `show` and `gate` replay.
 
 ```yaml
 name: land
@@ -225,8 +225,7 @@ description: >-
   Gauntlet landing, included by gauntlet-run only. Not for direct use.
 inputs:
   slug: { description: The task's slug. }
-  round: { description: "The id of the include node that runs this round: land, land-2 or land-3." }
-  remend: { description: "yes when this round may start a re-mend, no in the last round." }
+  round: { description: "The id of the include node that runs this round: land, land-2, land-3 or land-4." }
   worktree: { description: Absolute path of the tree this round lands. }
   branch: { description: The branch of that tree. }
   line: { description: The mend's test line for that tree. }
@@ -240,9 +239,9 @@ nodes:
     bash: <checkout = git rev-parse --show-toplevel. head = git rev-parse HEAD in the checkout. tip = git -C $INPUTS.worktree
           rev-parse $INPUTS.branch, "" when the branch is absent. moved = false when tip is "", or git merge-base
           --is-ancestor tip head (landed), or git merge-base --is-ancestor head tip (fast-forwards); else true.
-          moved and $INPUTS.remend is no: print "The checkout moved to <head> for the third time, after landing re-mended
-          twice; $INPUTS.branch no longer fast-forwards it. Bring the checkout back to an ancestor of $INPUTS.branch, then
-          archon workflow resume <run id>.", exit 1. Else print { head, moved, checkout }>
+          moved and $INPUTS.made holds two branches (landing has re-mended twice): print "The checkout moved to <head>
+          again after landing re-mended twice; $INPUTS.branch no longer fast-forwards it. Bring the checkout back to an
+          ancestor of $INPUTS.branch, then archon workflow resume <run id>.", exit 1. Else print { head, moved, checkout }>
     output_format: <object: head (string), moved (boolean), checkout (string), all required>
 
   - id: repin                          # the branch the second tree is cut on, only when the checkout moved
@@ -250,7 +249,7 @@ nodes:
     when: "$onto.output.moved == true"
     runtime: uv
     script: pin                        # land/scripts/pin.py
-    output_format: <object: branch, base (strings), all required>
+    output_format: <object: branch (string), required>
 
   - id: retree                         # the re-mend run, in a second tree: block mend only, then back here
     depends_on: [onto, repin]
@@ -285,11 +284,15 @@ nodes:
   - id: merge                          # the only write to the checkout's tracked files
     depends_on: [onto, cur, gate]
     when: "$gate.output.decision == 'land'"
-    bash: <git rev-parse HEAD in the checkout != $onto.output.head: print on stderr "The checkout moved from <onto> to <now>
-          while landing waited; the next round checks it and asks again.", print { "result": "moved" }, exit 0, writing
-          nothing. Else git merge --ff-only $cur.output.branch; git refusing (uncommitted edits in the files it would change):
-          print git's output and "Stash or commit those edits, then archon workflow resume <run id>.", exit 1. Merged: print
-          { "result": "merged" }>
+    bash: <now = git rev-parse HEAD in the checkout. Moved: git merge-base --is-ancestor now $cur.output.branch fails and
+          git merge-base --is-ancestor $cur.output.branch now fails (the branch no longer fast-forwards the checkout and is
+          not in it). Moved in round land-4 ($INPUTS.round): print "The checkout moved from <onto> to <now> while the last
+          round of landing waited; $cur.output.branch no longer fast-forwards it. Bring the checkout back to an ancestor of
+          $cur.output.branch, then archon workflow resume <run id>.", exit 1, writing nothing. Moved in any other round:
+          print on stderr "The checkout moved from <onto> to <now> while landing waited; the next round checks it and asks
+          again.", print { "result": "moved" }, exit 0, writing nothing. Else git merge --ff-only $cur.output.branch; git
+          refusing (uncommitted edits in the files it would change): print git's output and "Stash or commit those edits,
+          then archon workflow resume <run id>.", exit 1. Merged: print { "result": "merged" }>
     output_format: <object: result (enum merged, moved), required>
 
   - id: record                         # the only writer of tree records in the checkout
@@ -324,11 +327,11 @@ nodes:
       required: [outcome, worktree, branch, line, made]
 ```
 
-Landing re-mends at most twice. A round whose `onto` finds the checkout past the branch (the branch neither contains the checkout's `HEAD` nor is contained by it) re-mends before it asks: `repin` creates the second branch at the tree's tip, `retree` starts `gauntlet-remend` on it, in a second tree, and the round lands that tree's branch. A checkout that moves while the gate waits is no stop: `merge` writes nothing, the round hands off `moved`, and the next round checks the checkout again, re-mends if the branch no longer fast-forwards it, and asks the owner again; the answer `land` of the round before does not stand. The rounds `land` and `land-2` can re-mend; a move found in `land-3` fails its `onto`, naming the third move. When the re-mend run's mend ends on the owner's `leave`, `cur` hands off `left` and the run ends with every tree kept.
+Landing re-mends at most twice, whatever the timing of the moves, in four rounds. A round whose `onto` finds the checkout past the branch (the branch neither contains the checkout's `HEAD` nor is contained by it) re-mends before it asks, while `made` holds fewer than two branches: `repin` creates the second branch at the tree's tip, `retree` starts `gauntlet-remend` on it, in a second tree, and the round lands that tree's branch, which `cur` adds to `made`. With two branches in `made`, such a move fails `onto`, naming it. A checkout that moves while the gate waits is no stop in the first three rounds: `merge` writes nothing, the round hands off `moved`, and the next round checks the checkout again, re-mends if the branch no longer fast-forwards it, and asks the owner again; the answer `land` of the round before does not stand. `merge` counts a move only when the checkout's `HEAD` is no longer an ancestor of the branch, in every round, so a checkout `HEAD` the branch still fast-forwards lands. In `land-4` such a move fails `merge`, naming it. Two re-mends therefore hold however the moves fall, and no move ends the run unlanded and unnamed. When the re-mend run's mend ends on the owner's `leave`, `cur` hands off `left` and the run ends with every tree kept.
 
-Every stop is a failed node: a move found in `land-3`, a failed re-mend run (`retree`), a refused merge, a differing record or a failed removal. Every tree and branch stays, and `archon workflow resume <run id>` picks the run up there. Landing never resets, amends or drops a commit, never stashes, resets or discards the owner's edits, and never cancels the run; the rebase belongs to the mend, in a tree. Unrelated uncommitted files in the checkout stay as they are. A resume after `merge` finds the branch an ancestor of the checkout, so `onto` passes and `merge` replays.
+Every stop is a failed node: a move that would need a third re-mend (`onto`), a move found by `merge` in `land-4`, a failed re-mend run (`retree`), a refused merge, a differing record or a failed removal. Every tree and branch stays, and `archon workflow resume <run id>` picks the run up there. Landing never resets, amends or drops a commit, never stashes, resets or discards the owner's edits, and never cancels the run; the rebase belongs to the mend, in a tree. Unrelated uncommitted files in the checkout stay as they are. A resume after `merge` finds the branch an ancestor of the checkout, so `onto` passes and `merge` replays.
 
-Fixtures, `land/fixtures/<route>.stubs.yaml`, one per route: `land` (`onto` not moved, `repin` not reached, land, `landed`); `leave` (`merge` not reached, `left`); `moved` (`onto` moved, `repin` and `retree` reached, land, `landed`); `moved-left` (`retree` hands off `left`, `show` not reached, `left`); `waited` (`merge` prints `moved`, `record` not reached, `moved`); `third` (`remend` no, `onto` fails, `repin` not reached); `refused` (`merge` fails, `record` not reached).
+Fixtures, `land/fixtures/<route>.stubs.yaml`, one per route: `land` (`onto` not moved, `repin` not reached, land, `landed`); `leave` (`merge` not reached, `left`); `moved` (`onto` moved, `repin` and `retree` reached, land, `landed`); `moved-left` (`retree` hands off `left`, `show` not reached, `left`); `waited` (`merge` prints `moved`, `record` not reached, `moved`); `third` (`made` holds two branches, `onto` moved, `onto` fails, `repin` not reached); `gate-moved-last` (round `land-4`, the checkout's `HEAD` no longer an ancestor of the branch at `merge`, `merge` fails naming the move, `record` not reached); `refused` (`merge` fails, `record` not reached).
 
 ### `land/scripts/pin.py` (the second tree's branch)
 
@@ -340,8 +343,8 @@ Node `repin`: the branch Archon will name for the round's node `retree`, created
 # ///
 # Environment: WORKFLOW_ID (set by Archon), INPUTS_ROUND (the round's include id), INPUTS_BRANCH (the tree's branch).
 # node id = INPUTS_ROUND + "__retree", the id the include expands node retree to; source = INPUTS_BRANCH.
-# stdout { "branch": str, "base": str }: the branch .shared/pin.py names for that node id, created at the tip of INPUTS_BRANCH
-#   (left as it is when present); base the full hash of that tip.
+# stdout { "branch": str }: the branch .shared/pin.py names for that node id, created at the tip of INPUTS_BRANCH
+#   (left as it is when present).
 # INPUTS_BRANCH absent from the repository: stderr names it; exit 2.
 def main() -> int: ...
 ```
@@ -350,7 +353,7 @@ Suite: `land/tests/test_pin.py`, run as `docs/testing.md` states with the folder
 
 ### `gauntlet-remend/gauntlet-remend.yaml` (the re-mend run)
 
-The child run in a second tree, started only by node `retree` of block `land`. Archon cuts the tree on the branch `repin` created, and runs the repository's `worktree.copyFiles` and `worktree.postCreate` before its first node. The tree holds the previous tree's commits and none of its ignored `gauntlet/`, so `copy-in` brings that over. It runs block `mend` and nothing else; every agent it holds is the mend's. Its pauses are answered on its own id, which `archon workflow get <gauntlet-run id> --json` gives at `.metadata.approval.childRunId`. Replaces nothing.
+The child run in a second tree, started only by node `retree` of block `land`. Archon cuts the tree on the branch `repin` created, and runs the repository's `worktree.copyFiles` and `worktree.postCreate` before its first node. The tree holds the previous tree's commits and none of its ignored `gauntlet/`, so `copy-in` brings that over, all but the previous mend's verdict, review, reply, grounds and rebased-marker files, so the re-mend numbers its own verdicts from 1 and its juror reads none of the superseded ones. It runs block `mend` and nothing else; every agent it holds is the mend's. Its pauses are answered on its own id, which `archon workflow get <gauntlet-run id> --json` gives at `.metadata.approval.childRunId`. Replaces nothing.
 
 ```yaml
 name: gauntlet-remend
@@ -375,9 +378,9 @@ nodes:
 
   - id: copy-in                        # the only writer of this tree's gauntlet/
     depends_on: [guard, branch-check]
-    bash: <$INPUTS.from/gauntlet absent: exit non-zero naming it. Every file under it, gauntlet/settings.json included, to the
-          same path under this tree: absent: cp -n; identical (cmp): nothing; differing: exit non-zero naming both paths,
-          nothing more copied>
+    bash: <$INPUTS.from/gauntlet absent: exit non-zero naming it. Every file under it, gauntlet/settings.json included, but
+          gauntlet/mend/$INPUTS.slug.verdict.*, .review.*, .reply.*, .grounds.* and .rebased.*, to the same path under this
+          tree: absent: cp -n; identical (cmp): nothing; differing: exit non-zero naming both paths, nothing more copied>
 
   - id: paths
     depends_on: [copy-in]
@@ -485,12 +488,12 @@ Suite: `mend/tests/test_verify.py`, run as `docs/testing.md` states with the fol
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| Where each landing node runs | block `mend`, included by `gauntlet-tree` after `write` and by `gauntlet-remend`, for the read of the checkout's `HEAD`, the rebase, every test run and every agent, each in its run's own tree; block `land`, included by `gauntlet-run` after `cut` under the ids `land`, `land-2` and `land-3`, for the check, the second branch, the re-mend run's start, the gate, the merge, the record copy and the removal | an agent node in `land/`; a rebase or test run in `land/`; any `land/` node writing in a tree; a `mend/` node writing in the checkout |
+| Where each landing node runs | block `mend`, included by `gauntlet-tree` after `write` and by `gauntlet-remend`, for the read of the checkout's `HEAD`, the rebase, every test run and every agent, each in its run's own tree; block `land`, included by `gauntlet-run` after `cut` under the ids `land`, `land-2`, `land-3` and `land-4`, for the check, the second branch, the re-mend run's start, the gate, the merge, the record copy and the removal | an agent node in `land/`; a rebase or test run in `land/`; any `land/` node writing in a tree; a `mend/` node writing in the checkout |
 | The commit the mend rebases onto | `mend`'s node `onto`'s `head`, by `git -C $INPUTS.checkout rev-parse HEAD`, read by `rebase`, the test nodes, `repair` and `handoff` | any other tree-run or re-mend-run node reading the checkout's `HEAD` |
-| Re-mending when the checkout moved | block `land`'s nodes `onto` (the check), `repin`, `retree` and `cur`, in at most two rounds (`land`, `land-2`); `gauntlet-remend` running block `mend` only, in a second tree | a re-mend by any other node; a third re-mend; a re-mend in the tree of the run before it; a rebase, test run or agent in `land/` |
+| Re-mending when the checkout moved | block `land`'s nodes `onto` (the check), `repin`, `retree` and `cur`, at most twice in all, in any round whose `onto` finds fewer than two branches in `made`; `gauntlet-remend` running block `mend` only, in a second tree | a re-mend by any other node; a third re-mend; a re-mend in the tree of the run before it; a rebase, test run or agent in `land/` |
 | The second tree's branch | `land/scripts/pin.py` over `.shared/pin.py`, creating the branch Archon will name for node `<round>__retree` at the tip of the tree's branch | any other node or script composing that name or creating that branch |
-| What the second tree holds | node `copy-in` of `gauntlet-remend`, the previous tree's whole `gauntlet/` by `cp -n` semantics, `settings.json` included | an agent or other node writing the second tree's `gauntlet/` before `mend`; a differing file overwritten |
-| The commit landing lands against | `land`'s node `onto`'s `head`, read by `show` and `merge` | any other `land/` node reading the checkout's `HEAD`, `merge`'s equality check excepted |
+| What the second tree holds | node `copy-in` of `gauntlet-remend`, the previous tree's `gauntlet/` by `cp -n` semantics, `settings.json` included, but `gauntlet/mend/<slug>.verdict.*`, `.review.*`, `.reply.*`, `.grounds.*` and `.rebased.*` | an agent or other node writing the second tree's `gauntlet/` before `mend`; a differing file overwritten |
+| The commit landing lands against | `land`'s node `onto`'s `head`, read by `show` and `merge` | any other `land/` node reading the checkout's `HEAD`, `merge`'s ancestry check excepted |
 | Rebasing the tree's branch | `mend`'s node `rebase`, `git rebase <head> <branch>` in the tree | any other rebase, reset, amend, squash or history rewrite in a Gauntlet file; a rebase in the checkout; a rebase aborted by Gauntlet |
 | Whether the mend reruns tests | `onto`'s `moved` for `test-tree`; `red`'s answer for `test-head`; a committed mend or a retry for `retest` | a retest with no committed mend and no retry; a test run when the checkout's `HEAD` is in the branch's history; a head run when the rebased tree is not red without it; a test run in the checkout |
 | The mend's test runs | `test-tree`, `test-head` and `retest`, as node `baseline` runs its command, with no node `timeout:`, into `gauntlet/mend/<slug>.run.<head>.<tip>.txt` and `gauntlet/mend/<slug>.head.<head>.txt` of the tree | any other file name or folder; another invocation of the brief command in `mend/` or `land/` |
@@ -500,7 +503,7 @@ Suite: `mend/tests/test_verify.py`, run as `docs/testing.md` states with the fol
 | What the owner sees and answers | on the tree run's id, or the re-mend run's, `repair`'s `ask`, only on DEFECTIVE, 5 verdicts since the latest reply, or `hear.n >= 200`, in plain words from the verdict file, options `reply`, `retry` and `leave`, the reply kept by `hear` in `gauntlet/mend/<slug>.reply.<n>.txt` (holding `retry` for a retry, which resets the stall count); on `gauntlet-run`'s id, `show`'s text and the one `gate` wait of each round that reaches it, form `select`, options `land` and `leave` | any other wait or agent in `mend/` or `land/`; a diff shown at `ask`; the gate showing anything but the test line, the plan and revision summaries, the diff stat and the commit messages |
 | Which tree records reach the checkout | `record`'s five patterns | any other tree file copied, `gauntlet/mend/`, `gauntlet/tasks/` and `gauntlet/baseline/` included; a copy that overwrites a differing file |
 | Removing the trees | node `remove` of the round that lands, `archon complete <branch> --force` for each branch in `made` and then the landed branch | a removal on leave or on any stop; a tree landing made and left behind after a landing |
-| A stop in the mend or landing | a failed node with every tree kept, resumed by `archon workflow resume <gauntlet-run id>`; a move found in `land-3`, naming it | stashing, resetting or discarding the owner's edits; cancelling the run; removing a tree on any stop; a red ending the run outside the owner's `leave`; a fourth round |
+| A stop in the mend or landing | a failed node with every tree kept, resumed by `archon workflow resume <gauntlet-run id>`; a move that would need a third re-mend, failed by `onto`, or found by `merge` in `land-4`, naming it | stashing, resetting or discarding the owner's edits; cancelling the run; removing a tree on any stop; a red ending the run outside the owner's `leave`; a fifth round |
 
 ## Order
 
@@ -509,10 +512,10 @@ Suite: `mend/tests/test_verify.py`, run as `docs/testing.md` states with the fol
 3. Mend block: `mend/mend.yaml`, `mend/mend-juror.mcp.json`, `mend/mend-code.mcp.json`, `mend/mend-tests.mcp.json`, `mend/mend-review.mcp.json`, `mend/fixtures/still.stubs.yaml`, `mend/fixtures/moved.stubs.yaml`, `mend/fixtures/head-red.stubs.yaml`, `mend/fixtures/repair.stubs.yaml`, `mend/fixtures/repair-tests.stubs.yaml`, `mend/fixtures/repair-unsound.stubs.yaml`, `mend/fixtures/repair-reply.stubs.yaml`, `mend/fixtures/repair-stall.stubs.yaml`, `mend/fixtures/repair-leave.stubs.yaml`, `mend/fixtures/conflict.stubs.yaml`. Needs steps 1 and 2 and writing's `write-code/coder.mcp.json` and `write-tests/test-writer.mcp.json`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
 4. The second tree's branch: `land/scripts/pin.py`, `land/tests/test_pin.py`. Needs the worktree cut design's `.shared/pin.py` (its step 1). Agent: `builder`.
 5. The re-mend run: `gauntlet-remend/gauntlet-remend.yaml`, `gauntlet-remend/scripts/guard.ts`, `gauntlet-remend/fixtures/remend.stubs.yaml`, `gauntlet-remend/fixtures/left.stubs.yaml`, `gauntlet-remend/fixtures/conflict.stubs.yaml`, `gauntlet-remend/fixtures/branch.stubs.yaml`. Needs step 3 and the intake design's `.shared/working-folder.ts`. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
-6. Landing block: `land/land.yaml`, `land/fixtures/land.stubs.yaml`, `land/fixtures/leave.stubs.yaml`, `land/fixtures/moved.stubs.yaml`, `land/fixtures/moved-left.stubs.yaml`, `land/fixtures/waited.stubs.yaml`, `land/fixtures/third.stubs.yaml`, `land/fixtures/refused.stubs.yaml`. Needs steps 4 and 5. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
+6. Landing block: `land/land.yaml`, `land/fixtures/land.stubs.yaml`, `land/fixtures/leave.stubs.yaml`, `land/fixtures/moved.stubs.yaml`, `land/fixtures/moved-left.stubs.yaml`, `land/fixtures/waited.stubs.yaml`, `land/fixtures/third.stubs.yaml`, `land/fixtures/gate-moved-last.stubs.yaml`, `land/fixtures/refused.stubs.yaml`. Needs steps 4 and 5. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
 
 `gauntlet-tree`'s node `mend` and its `handoff`'s `outcome` and `line` need step 3; `gauntlet-design.md`'s step 11 needs step 6.
 
 ## Decisions for the owner
 
-None open. Ruled (G-45, owner, 2026-11-05): when the checkout has moved past the branch's base, landing rebases the branch onto the checkout's new head, reruns the tests (and the repair when red) and then lands. Landing re-mends at most 2 times. Each round is an `include`d block of `land` under its own id (`land`, `land-2`, `land-3`) that checks the checkout, re-mends on a move (the second tree run `gauntlet-remend`, running block `mend` only, in a second tree cut on a branch pinned at the first tree's tip) and asks the land-or-leave gate again; a third move stops the run, naming the move. The earlier recommendation (stop and resume once the owner moves the new commits aside) and its alternative (hand off `left`) were not taken.
+None open. Ruled (G-45, owner, 2026-11-05): when the checkout has moved past the branch's base, landing rebases the branch onto the checkout's new head, reruns the tests (and the repair when red) and then lands. Landing re-mends at most 2 times. Each round is an `include`d block of `land` under its own id (`land`, `land-2`, `land-3`) that checks the checkout, re-mends on a move (the second tree run `gauntlet-remend`, running block `mend` only, in a second tree cut on a branch pinned at the first tree's tip) and asks the land-or-leave gate again; a third move stops the run, naming the move. The earlier recommendation (stop and resume once the owner moves the new commits aside) and its alternative (hand off `left`) were not taken. Ruled (G-69, owner, 2026-11-05): four rounds, `land` to `land-4`, so the two re-mends hold whatever the timing of the moves; no round is passed `remend`, `onto` counts the re-mends in `made`, and a move found while `land-4`'s gate waits fails `merge` (G-68).

@@ -26,7 +26,7 @@ What the tree already holds for the concerns spec review touches:
 - **Reporter**: a fresh agent that writes the plain-English summary of a `READY` or `INVALID` round for the owner.
 - **Round** `N`: one spec file `<slug>.N.txt` and, once tried, its review `<slug>.review.N.txt` or ruling `<slug>.ruling.N.txt`. Round numbers climb for the whole phase; no file is overwritten.
 - **Attempt**: a round whose verdict is `ANOTHER PASS` or `APPROACH THE BENCH`. At 5 attempts the owner is called.
-- **Stretch**, **run rounds**, **ruling**, **vacancy**, **slug**: as in planning. Stretch 12, cap 200, twelve slots; each ruling resets the attempt, `NON-RESPONSIVE` and stretch counts. Vacancy is reported by the ledger from node `filing`, and `vacate` cancels the run without asking.
+- **Stretch**, **run iterations**, **ruling**, **vacancy**, **slug**: as in planning. Stretch 12, cap 200, twelve slots; each ruling resets the attempt, `NON-RESPONSIVE` and stretch counts. Vacancy is reported by the ledger from node `filing`, and `vacate` cancels the run without asking.
 
 Verdicts, read from the first line of a review, `Verdict: <verdict>`, with markdown markup stripped and case ignored, by the longest known name the text after `Verdict:` starts with; a first line naming no known verdict is an owner case, never an exit 1:
 
@@ -48,7 +48,10 @@ Files in `gauntlet/specs/` of the checkout:
 | `<slug>.review.N.txt` | arbiter; `ledger.py screen` for a `SCREENED` file | written once; first line `Verdict: <verdict>` |
 | `<slug>.ruling.N.txt` | `ledger.py record` | written once |
 | `<slug>-summary.N.md` | reporter | written once |
-| `approved/<slug>.txt`, `approved/<slug>-summary.md`, `approved/<slug>.task.sha256` | bash node `enter` | written once, only after the owner approves a `READY` round; the hash is the sha256 of the task file the spec was approved against |
+| `<slug>.iter.txt` | `ledger.py filing` | one line appended per hearing iteration; the ledger counts the lines above `base` as the run's iterations |
+| `<slug>.task.sha256` | `ledger.py state` outside the loop (node `docket-in`) | written once, at round 1, when absent: the sha256 of the task file the hearing runs against |
+| `stale/<slug>.<n>/` | `ledger.py state` outside the loop (node `docket-in`) | when `<slug>.task.sha256` differs from the task file's sha256, every file of the slug in this folder, `approved/` included, is moved here first, n the next free number, so the changed task is heard from round 1 |
+| `approved/<slug>.txt`, `approved/<slug>-summary.md` | bash node `enter` | written once, only after the owner approves a `READY` round |
 
 `gauntlet/scratch/<slug>/` holds the spikers' experiments. Only the spikers' `fence-scratch` server and `fence-spike` command tool write there. No other agent reads it.
 
@@ -64,7 +67,7 @@ from typing import Callable
 
 SLOTS = 12      # slot nodes <prefix>-1 to <prefix>-12, named "<letter>1" to "<letter>12" in "next"
 STRETCH = 12    # tried rounds since the last ruling that call the owner
-CAP = 200       # the hearing's max_iterations; from this many run rounds every round calls the owner
+CAP = 200       # the hearing's max_iterations; from this many loop iterations in this run every iteration calls the owner
 
 @dataclass(frozen=True)
 class OwnerCase:
@@ -86,9 +89,13 @@ class Profile:
     attempts: tuple[str, ...]       # verdicts counted as attempts
     owner_cases: tuple[OwnerCase, ...]   # in precedence order, ahead of deadlock, non-responsive, guard and cap
     filed: Callable[[str], bool]    # a round file's text is ready to try (plans: no "[cite:" marker; specs: always)
+    iterations: bool = False        # True (plans, specs): mode "filing" counts loop iterations in <slug>.iter.txt and docket
+                                    #   asks at CAP; False (writing's revisions): no counter, stage.py keeps its own cap
 
 # Script nodes pass INPUTS_MODE; the slug is derived from INPUTS_TASK (the file name without .md). Every in-loop mode
-#   (state, docket) also passes INPUTS_START.
+#   (state, filing, docket) also passes INPUTS_START; docket also passes INPUTS_BASE ($docket-in.output.base).
+# Mode "filing" (node filing only, profiles with iterations) is mode "state" that first appends one line to
+#   <folder>/<slug>.iter.txt, so the file holds one line per loop iteration.
 # Verdicts are read with markdown markup stripped and case ignored, by the longest known name the text after "Verdict:"
 #   starts with. A first review line naming no known verdict is an owner case (docket case "unknown", option reply), never an exit 1.
 # A round is tried when its review or its ruling exists.
@@ -96,23 +103,28 @@ class Profile:
 def state(p: Profile, slug: str, start: int | None) -> dict: ...
 # { "round", "file": "<folder>/<slug>.<round>.txt", "owed": author | reviewer | "ended" | "approved",
 #   "next": author | "<letter>1".."<letter>12" | "vacant",
-#   "start", "since", "attempts", "non_responsive", "stretch", "repairs", "run_rounds",
+#   "start", "since", "attempts", "non_responsive", "stretch", "repairs", "base",
 #   "rulings": [str], "review": str, "verdict": str }
 #   Same meaning as the plan review design's ledger "state"; slot = 1 + retire reviews with N > start, and "next" is
 #   "vacant" as soon as twelve such reviews exist, whatever the round's state (the cancel needs no repair turn first).
 #   owed "ended": the latest ruling's decision is an OwnerCase "ends"; the loop ends one iteration after it, and every
 #   agent node is gated on owed, so that iteration runs script nodes only. owed "approved": <folder>/approved/<slug>.txt
-#   exists and <folder>/approved/<slug>.task.sha256 equals the sha256 of the task file (INPUTS_TASK), so a rerun on an
-#   unchanged task hears nothing. repairs (plans only): lines of <slug>.cite.*.txt for rounds above the latest tried round;
-#   stretch counts them too.
+#   exists, so a rerun on an unchanged task hears nothing. base (outside the loop): the lines of <slug>.iter.txt, 0 when
+#   none. Outside the loop (start None; node docket-in), before anything else: <folder>/<slug>.task.sha256 absent: write the sha256 of the task file (INPUTS_TASK) there. Present and different:
+#   move every file of the slug in <folder>, approved/ included, into <folder>/stale/<slug>.<n>/ (n the next free number),
+#   then write the new hash, so the changed task is heard from round 1. The ledger never reads gauntlet/failed/;
+#   a rerun after fail starts at round 1 because fail moved the slug's files there.
+#   repairs (plans only): lines of <slug>.cite.*.txt for rounds above the latest tried round; stretch counts them too.
 
 def docket(p: Profile, slug: str) -> dict: ...
 # { "case": <owner_cases' case> | "unknown" | "deadlock" | "non-responsive" | "guard" | "cap" | "none",
 #   "ask": bool, "attention": str, "options": [ { "id", "label" } ], "round": int, "summary": bool, "verdict": str }
 #   First case that holds: each OwnerCase in order on the latest verdict; unknown (first line names no known verdict);
-#   attempts >= 5; non_responsive >= 2; stretch >= STRETCH or repairs >= 5; run_rounds >= CAP; none. Asking cases other than
+#   attempts >= 5; non_responsive >= 2; stretch >= STRETCH or repairs >= 5; cap (profiles with iterations:
+#   lines of <slug>.iter.txt above INPUTS_BASE >= CAP, owed not ended); none. Asking cases other than
 #   an OwnerCase offer one option, reply. verdict: the latest review's verdict ("READY" | "INVALID" when summary is true).
-#   Read only from a review written in this iteration; an iteration with no new review is "none".
+#   Every case but cap is read only from a review written in this iteration; an iteration with no new review is "none"
+#   unless cap holds.
 
 def screen(p: Profile, slug: str, round: int, quote: str) -> str: ...
 # writes <slug>.review.<round>.txt: "Verdict: SCREENED", then the quote verbatim; exit 1 when it exists.
@@ -151,6 +163,7 @@ PROFILE = Profile(
         OwnerCase("APPROACH THE BENCH", "bench", (("reply", "Reply"),), summary=False, ends=""),
     ),
     filed=lambda text: "[cite:" not in text,
+    iterations=True,
 )
 sys.exit(main(PROFILE))
 ```
@@ -173,6 +186,7 @@ PROFILE = Profile(
         OwnerCase("APPROACH THE BENCH", "bench", (("reply", "Reply"),), summary=False, ends=""),
     ),
     filed=lambda text: True,
+    iterations=True,
 )
 ```
 
@@ -280,7 +294,7 @@ Each role's fence. Each server is launched by `sh` with `args: ["-c", "exec uv r
 
 | File and server | `FENCE_READ` | `FENCE_WRITE` | `FENCE_DENY` | `FENCE_ONCE` |
 |---|---|---|---|---|
-| `speccer.mcp.json`, `fence-files` | `gauntlet/tasks:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md` | `gauntlet/specs/*.txt` | `gauntlet/specs/*.review.*.txt:gauntlet/specs/*.ruling.*.txt` | unset |
+| `speccer.mcp.json`, `fence-files` | `gauntlet/tasks:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md` | `gauntlet/specs/*.txt` | `gauntlet/specs/*.review.*.txt:gauntlet/specs/*.ruling.*.txt:gauntlet/specs/*.iter.txt` | unset |
 | `speccer.mcp.json`, `fence-scratch` | `gauntlet/tasks:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md:gauntlet/scratch` | `gauntlet/scratch` | unset | unset |
 | `arbiter.mcp.json` | `tests:gauntlet/tasks:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md` | `gauntlet/specs/*.review.*.txt` | unset | `gauntlet/specs/*.review.*.txt` |
 | `reporter.mcp.json` | `gauntlet/specs/*.txt` | `gauntlet/specs/*-summary.*.md` | unset | `gauntlet/specs/*-summary.*.md` |
@@ -371,7 +385,7 @@ nodes:
   - id: hearing
     depends_on: [swear-in]
     loop_group:
-      max_iterations: 200              # rounds.py CAP; from 200 run rounds every round asks, so this never fails the run
+      max_iterations: 200              # rounds.py CAP; from 200 iterations every iteration asks (case cap), so this never fails the run
       until_bash: |
         owed=$filing.output.owed
         [ "$owed" = ended ]
@@ -382,12 +396,12 @@ nodes:
           script: ledger
           with: { mode: record, round: $LOOP_PREV.docket.output.round, case: $LOOP_PREV.docket.output.case, decision: $LOOP_PREV.bench.output.decision, text: $LOOP_PREV.bench.output.text }
 
-        - id: filing                   # always runs; its owed is "ended" once the latest ruling ends the case
+        - id: filing                   # always runs; its owed is "ended" once the latest ruling ends the case; counts the iteration
           depends_on: [record]
           trigger_rule: all_done
           runtime: uv
           script: ledger
-          with: { mode: state, start: $docket-in.output.start }
+          with: { mode: filing, start: $docket-in.output.start }
 
         - id: vacate                   # all twelve slots retired in this run, reported before any repair turn; asks nothing
           depends_on: [filing]
@@ -449,7 +463,7 @@ nodes:
           trigger_rule: none_failed_min_one_success
           runtime: uv
           script: ledger
-          with: { mode: docket, start: $docket-in.output.start }
+          with: { mode: docket, start: $docket-in.output.start, base: $docket-in.output.base }
 
         - id: report                   # READY or INVALID only
           depends_on: [case]
@@ -465,7 +479,7 @@ nodes:
           trigger_rule: none_failed_min_one_success
           runtime: uv
           script: ledger
-          with: { mode: docket, start: $docket-in.output.start }
+          with: { mode: docket, start: $docket-in.output.start, base: $docket-in.output.base }
 
         - id: bench                    # the owner; sole terminal sink of the body
           depends_on: [docket]
@@ -485,8 +499,7 @@ nodes:
     depends_on: [close]
     when: "$close.output.outcome == 'approved'"
     bash: <cp -n gauntlet/specs/$close.output.file to gauntlet/specs/approved/<slug>.txt and gauntlet/specs/$close.output.summary
-          to gauntlet/specs/approved/<slug>-summary.md, and write gauntlet/specs/approved/<slug>.task.sha256, the sha256 of the
-          task file $INPUTS.task; any target present: exit non-zero naming it, nothing copied>
+          to gauntlet/specs/approved/<slug>-summary.md; any target present: exit non-zero naming it, nothing copied>
 
   - id: handoff                        # the block's returns: node
     depends_on: [docket-in, open, close, enter]
@@ -503,7 +516,7 @@ nodes:
       required: [task, plan, spec, outcome]
 ```
 
-Fixtures: `spec-review/fixtures/<route>.stubs.yaml`, one per route, each stubbing the included `screen` workflow's node ids (`check`) and the ledger's modes: not needed; already approved (no hearing); no plan, `READY` then owner approves; owner revises a `READY`; `INVALID` confirmed; `INVALID` sent back; bench; deadlock at 5 attempts; two `NON-RESPONSIVE`; one `LEADING` handing the repaired block to `arbitrate-2`; one `SCREENED` repaired with no slot retired; guard at 12 rounds since the last ruling; all twelve slots retired, `vacate` cancelling the run; past 200 run rounds, every round asking.
+Fixtures: `spec-review/fixtures/<route>.stubs.yaml`, one per route, each stubbing the included `screen` workflow's node ids (`check`) and the ledger's modes: not needed; already approved (no hearing); no plan, `READY` then owner approves; owner revises a `READY`; `INVALID` confirmed; `INVALID` sent back; bench; deadlock at 5 attempts; two `NON-RESPONSIVE`; one `LEADING` handing the repaired block to `arbitrate-2`; one `SCREENED` repaired with no slot retired; guard at 12 rounds since the last ruling; all twelve slots retired, `vacate` cancelling the run; past 200 iterations, every iteration asking.
 
 Plan review's `screen` node is `include: screen` with `with: { file: $ready.output.file }` (plan review design); spec review writes nothing in `plan-review/`.
 
@@ -511,7 +524,7 @@ Plan review's `screen` node is `include: screen` with `with: { file: $ready.outp
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| Round numbers, slot choice, verdict parsing, counts, runaway guard and cap, the owner's case, rulings, `SCREENED` reviews, closing paths, the approved-task hash | `.shared/rounds.py` | any of it computed in a workflow's `ledger.py`, node or command; a `ledger.py` holding anything but its `Profile` and the call to `main` |
+| Round numbers, slot choice, verdict parsing, counts, runaway guard and cap, the owner's case, rulings, `SCREENED` reviews, closing paths, the task hash and the `stale/` set-aside | `.shared/rounds.py` | any of it computed in a workflow's `ledger.py`, node or command; a `ledger.py` holding anything but its `Profile` and the call to `main` |
 | Which verdicts a phase has, which count as attempts, which reach the owner and with what options | each workflow's `scripts/ledger.py` `Profile` | verdict names or options restated in YAML, prompts or `rounds.py` |
 | Spec verdict names | `arbiter.md` and `spec-review/scripts/ledger.py` | any other spelling |
 | Steering screening | the `screen` workflow, included by both hearings | a per-workflow screener command or fence; any other steering check before a reviewer reads a round file |
