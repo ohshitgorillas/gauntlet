@@ -14,14 +14,14 @@ What the tree already holds for the concerns spec review touches:
 - Fence name patterns: designed and unbuilt, in the plan review design (`fence/files.py` extended). `fence/files.py` today confines by whole folders only. A folder entry that names a file, such as `docs/testing.md`, already confines to that one file.
 - Working-folder guard: designed and unbuilt, node `guard` of `gauntlet-run` (gauntlet design) and this phase's own node `guard`, both on `.shared/working-folder.ts` (intake design).
 - Fence launch line: designed and unbuilt, one copy per role fence file (`intake/clerk.mcp.json`, three in plan review).
-- Running commands under a timeout: `fence/checks.py` runs one fixed brief test command with a process-group kill. Spikers run their experiment files under a command fixed in the fence, never one they supply, so `fence/spike.py` below serves them, with the same kill.
+- Running commands under a timeout: `fence/checks.py` runs one fixed brief test command with a process-group kill. Spikers run their experiment files under a command fixed in the fence, the constant `bash run.sh`, never one they supply, so `fence/spike.py` below serves them, with the same kill.
 - Spikers, spec files, the speccer and spec reporter roles, the spec-review workflow: no copy anywhere.
 
 ## Terms
 
 - **Speccer**: Opus, effort medium. One session for the whole run, started by node `open` before the hearing loop and reused for every filing turn.
 - **Arbiter**: the adversarial spec reviewer (`spec-review/commands/arbiter.md`). It is sworn in once by node `swear-in`. Twelve slots, `arbitrate-1` to `arbitrate-12`, each fork the sworn-in session at their first executed turn and continue their own session after it. One slot tries every round, across the owner's answers, until it returns `OBJECTION: LEADING`. That verdict retires the slot; the speccer repairs the block and the next slot tries the next round. Every other verdict keeps the slot. A rerun starts again at `arbitrate-1`.
-- **Spiker**: an inline sub-agent of the speccer, dispatched through Agent, with no Bash and no shell. It reads and writes through the `fence-scratch` server and runs its experiment files through the `fence-spike` server, which runs only a command fixed in the fence, with cwd in the spiker's scratch folder. It runs scratchpad experiments under `gauntlet/scratch/<slug>/` of the checkout: stub proofs (null stub, hard-coded stub), bite measurements and answers to `measure` requests. One spiker serves one related set of experiments with shared scaffolding. At most 2 spikers run at once.
+- **Spiker**: an inline sub-agent of the speccer, dispatched through Agent, with no Bash and no shell. It reads and writes through the `fence-scratch` server and runs its experiment files through the `fence-spike` server, which runs only a command fixed in the fence, the constant `bash run.sh`, with cwd in the spiker's scratch folder; the spiker writes `run.sh` there. It runs scratchpad experiments under `gauntlet/scratch/<slug>/` of the checkout: stub proofs (null stub, hard-coded stub), bite measurements and answers to `measure` requests. One spiker serves one related set of experiments with shared scaffolding. At most 2 spikers run at once.
 - **Screener**: the shared steering check, the support workflow `screen`, included fresh each round. A flagged spec file gets the verdict `SCREENED`, reaches no arbiter and retires no slot.
 - **Reporter**: a fresh agent that writes the plain-English summary of a `READY` or `INVALID` round for the owner.
 - **Round** `N`: one spec file `<slug>.N.txt` and, once tried, its review `<slug>.review.N.txt` or ruling `<slug>.ruling.N.txt`. Round numbers climb for the whole phase; no file is overwritten.
@@ -47,7 +47,7 @@ Files in `gauntlet/specs/` of the checkout:
 | `<slug>.N.txt` | speccer | edited by the speccer only within its filing turn N |
 | `<slug>.review.N.txt` | arbiter; `ledger.py screen` for a `SCREENED` file | written once; first line `Verdict: <verdict>` |
 | `<slug>.ruling.N.txt` | `ledger.py record` | written once |
-| `<slug>.guard.N.txt` | `ledger.py record` | one entry appended per ask from an iteration with no new review (in spec review, a `cap` ask) while round N is untried; it does not mark round N tried and resets no count; the speccer and the arbiter read it as they read rulings |
+| `<slug>.guard.N.txt` | `ledger.py record` | one entry appended per ask from an iteration with no new review (in spec review, a `cap` ask) while round N is untried; it does not mark round N tried and resets the stretch and the repair count; the speccer and the arbiter read it as they read rulings |
 | `<slug>-summary.N.md` | reporter | written once |
 | `<slug>.iter.txt` | `ledger.py filing` | one line appended per hearing iteration; the ledger counts the lines above `base` as the run's iterations |
 | `<slug>.task.sha256` | `ledger.py state` outside the loop (node `docket-in`) | written once, at round 1, when absent: the sha256 of the task file the hearing runs against |
@@ -67,7 +67,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 SLOTS = 12      # slot nodes <prefix>-1 to <prefix>-12, named "<letter>1" to "<letter>12" in "next"
-STRETCH = 12    # tried rounds since the last ruling that call the owner
+STRETCH = 12    # tried rounds since the last ruling and at or above the latest guard record's round, plus repairs, that call the owner
 CAP = 200       # the hearing's max_iterations; from this many loop iterations in this run every iteration calls the owner
 
 @dataclass(frozen=True)
@@ -141,8 +141,8 @@ def record(p: Profile, slug: str, round: int, case: str, decision: str, text: st
 # Round untried (a guard or cap ask from an iteration with no new review): appends one entry to
 #   <slug>.guard.<round>.txt: case, question shown, decision, the owner's text verbatim, and the line count of
 #   <slug>.cite.<round>.txt at the ask (0 when absent). Never a ruling: the round stays untried and owed as before,
-#   attempts, non-responsive and the tried rounds in stretch are not reset, cap keeps counting, and repairs restarts
-#   from the entry.
+#   attempts and non-responsive are not reset, cap keeps counting, and the stretch (tried rounds with N > since and N at
+#   or above the latest guard record's round, plus repairs) and repairs restart from the entry.
 
 def close(p: Profile, slug: str) -> dict: ...
 # { "outcome": "approved" | "invalid" | "", "file": "<slug>.N.txt", "summary": "<slug>-summary.N.md" }
@@ -319,8 +319,9 @@ None of the lists names `gauntlet/failed`, `gauntlet/specs/approved` or, for the
 
 ```python
 async def run_experiment(folder: str) -> str: ...
-# folder: a path inside gauntlet/scratch of the root, else PermissionError. Runs the command fixed in the fence
-#   under timeout -k 10 600 nice -n 10 with stdin from /dev/null, in the foreground with folder as its working
+# folder: a path inside gauntlet/scratch of the root, else PermissionError. Runs the command fixed in the fence,
+#   the constant `bash run.sh` (the spiker writes run.sh in the folder; no settings file is read, so it runs in phase 3
+#   and in a standalone spec review), under timeout -k 10 600 nice -n 10 with stdin from /dev/null, in the foreground with folder as its working
 #   directory, in its own process group killed on timeout, as checks.py kills its command.
 # Returns "exit=<n> timed_out=<true|false>" and the command it ran, then the whole output cut as checks.py cuts it.
 ```
@@ -545,7 +546,7 @@ Plan review's `screen` node is `include: screen` with `with: { file: $ready.outp
 | Steering screening | the `screen` workflow, included by plan review, spec review and writing | a per-workflow screener command or fence; any other steering check before a reviewer reads a round file |
 | Keeping source text out of specs | `speccer.md` | a screener, ledger or fence check for it |
 | What the arbiter learns of source code | the three request forms in `arbiter.md`, answered in the speccer's next block | the arbiter's fence naming any source folder; the arbiter reading `gauntlet/scratch/` |
-| Scratchpad experiments and their process footprint | the `spiker` sub-agent in `gauntlet/scratch/<slug>/`, through the fence servers `fence-scratch` and `fence-spike` only; at most 2 at once. The fence is the confinement: `fence-scratch` writes only `gauntlet/scratch`, and `fence-spike` runs only the command fixed in the fence, with cwd in the spiker's scratch folder, under `timeout -k 10 600 nice -n 10` in the foreground with its process group killed. The speccer node's session reaches both servers too, Archon having no per-sub-agent server list; the speccer's role sends every experiment to a spiker | any agent holding Bash, a shell or a `sandbox:`; a fence tool running a command an agent supplies; experiment files in `tests/` or source; a background process outliving its command |
+| Scratchpad experiments and their process footprint | the `spiker` sub-agent in `gauntlet/scratch/<slug>/`, through the fence servers `fence-scratch` and `fence-spike` only; at most 2 at once. The fence is the confinement: `fence-scratch` writes only `gauntlet/scratch`, and `fence-spike` runs only the command fixed in the fence, the constant `bash run.sh` that reads no `gauntlet/settings.json`, with cwd in the spiker's scratch folder, under `timeout -k 10 600 nice -n 10` in the foreground with its process group killed. The speccer node's session reaches both servers too, Archon having no per-sub-agent server list; the speccer's role sends every experiment to a spiker | any agent holding Bash, a shell or a `sandbox:`; a fence tool running a command an agent supplies; experiment files in `tests/` or source; a background process outliving its command |
 | File confinement, including name patterns | `fence/files.py` (plan review design) | any role reaching files by a built-in tool |
 | Writing to `gauntlet/specs/approved/` | node `enter`, by `cp -n` | any agent or other node writing there; a move of a round file |
 | Agent sessions | `open` and `swear-in` before `hearing`; slots `arbitrate-1` to `arbitrate-12` fork `swear-in` | any agent node in the body starting its own session, `screen` and `report` excepted |

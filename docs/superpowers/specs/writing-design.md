@@ -6,7 +6,7 @@ Status: proposed.
 
 Writing is phase 5, block `write` of the tree run `gauntlet-tree`, after the baseline (`gauntlet-design.md`). That design gives the block's signature, its nodes `enter` and `handoff`, the approved revisions and the run's end on `defective`; this file gives the rest of the block and nothing it restates. Every path is in the tree unless it names the pack root.
 
-Inside one loop, the divvyer cuts the approved plan and spec into blocks and orders them in waves. Test writers write the tests from the approved spec, then coders write the code from the approved plan. A juror rules on every red: a block's contest, a failed commit, a red test run or a failed final commit. A wrong spec or plan is revised in the same loop, tried by a fresh reviewer and approved by the owner at `bench`. A defective plan ends the run.
+Inside one loop, the divvyer cuts the approved plan and spec into blocks and orders them in waves. Test writers write the tests from the approved spec, then coders write the code from the approved plan. A juror rules on every red: a block's contest, a blocked block, a failed commit, a red test run or a failed final commit. A wrong spec or plan is revised in the same loop, tried by a fresh reviewer and approved by the owner at `bench`. A defective plan ends the run.
 
 What the tree holds for the concerns writing touches:
 
@@ -148,7 +148,9 @@ def state(start: int) -> dict: ...
 #   a revision owed: latest verdict SPEC or PLAN not yet answered by an approved round; an entered plan revision,
 #     spec not "", and no spec round answering it closed. A round is closed by an approve ruling, or a SOUND
 #     review of a "No change." round. next from rounds.state: reviser owes: revise; reviewer owes: review.
-#   a case for the juror: the latest blocks file holds a contest or commit-failed newer than the latest verdict; the
+#   a case for the juror: the latest blocks file holds a contest, commit-failed or blocked newer than the latest verdict
+#     (a blocked block's grounds are the paths outside it; the juror's TESTS or CODE verdict starts the cut that carries
+#     the block, and the case precedes test and seal, so no seal runs over a blocked wave); the
 #     latest run is red and newer than the latest verdict; the latest seal exit is not 0 and is newer than the latest
 #     verdict. A reply to a stalled or cap case opens no juror case.
 #   no cut since the latest cause, or the latest cut rejected: divvy. The cause is the latest verdict TESTS or
@@ -558,7 +560,7 @@ env:
 | The revision hearing's rounds, verdicts and owner cases | `.shared/rounds.py` with `write/scripts/ledger.py`'s `PROFILE` | `stage.py` or a node computing a round, slot or count |
 | Cutting work into blocks and waves; what runs in one fan-out | the divvyer's output, checked by `stage.py cut` | blocks of one wave sharing a path; a block named by any other role or node |
 | Running the blocks of a wave | `include:` with `fan_out:` of `write-tests` or `write-code`, `max_parallel: 1`, each block opening on node `clean` | a `wait:` in either block; a `workflow:` child per block |
-| Ruling on a red, a contest or a failed commit | the juror's verdict file | a writer, node or script deciding who is wrong; a writer retrying a failed commit |
+| Ruling on a red, a contest, a blocked block or a failed commit | the juror's verdict file | a writer, node or script deciding who is wrong; a writer retrying a failed commit |
 | A wrong spec or plan | a revision round in `gauntlet/revisions/`, tried by the reviewer, approved at `bench`, entered by `enter` | any other edit of the approved files; the reviser revising past the quoted clause or the affected specs |
 | Ending on a defective plan | the juror's `DEFECTIVE`, read by `stage.py close` | a size or line-count threshold; any other node ending writing |
 | Commits | the writer's own message through `commit` of `fence/files.py`, which returns git's exit and the names of failing hooks and never their output; node `seal` for the final commit, only on a dirty tree, and its message, as `gauntlet-design.md` gives it | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |

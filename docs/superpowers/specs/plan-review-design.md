@@ -22,10 +22,10 @@ What the tree already holds for the concerns plan review touches:
 - **Reporter**: a fresh agent that writes the plain-English summary of a plan put to the owner.
 - **Round** `N`: one plan file `<slug>.N.txt` and, once tried, its review `<slug>.review.N.txt` or ruling `<slug>.ruling.N.txt`. Round numbers climb for the whole phase; no file is overwritten.
 - **Attempt**: a round whose verdict is `REJECTED` or `APPROACH THE BENCH`. At 5 attempts the owner is called.
-- **Stretch**: every round tried since the last ruling, whatever its verdict, and every repair-only iteration of the plan being filed since its latest guard record (an iteration in which `cite.py` left unresolved markers, so the defense repairs and no prosecutor tries the plan). At 12 the owner is called, so no run of `OBJECTION: LEADING`, `SCREENED` or any other verdict goes past 12 rounds without the owner; 5 repair-only iterations of one plan since its latest guard record call the owner at once (case `guard`), in the iteration that wrote no review, so a plan the defense cannot get cited does not spin to the cap.
+- **Stretch**: every round tried since the last ruling and at or above the round of the latest guard record, whatever its verdict, and every repair-only iteration of the plan being filed since its latest guard record (an iteration in which `cite.py` left unresolved markers, so the defense repairs and no prosecutor tries the plan). At 12 the owner is called, so no run of `OBJECTION: LEADING`, `SCREENED` or any other verdict goes past 12 rounds without the owner; 5 repair-only iterations of one plan since its latest guard record call the owner at once (case `guard`), in the iteration that wrote no review, so a plan the defense cannot get cited does not spin to the cap.
 - **Run iterations**: every iteration of the hearing loop in this run, a repair-only or refused one included, counted by node `filing` in `<slug>.iter.txt`. From 200, the hearing's `max_iterations`, every iteration calls the owner (case `cap`), so the loop never ends on `max_iterations`; each answer lets one more iteration run.
 - **Ruling** `N`: the owner's answer given after round `N`, kept as `<slug>.ruling.N.txt`. Each ruling resets the attempt, `NON-RESPONSIVE` and stretch counts to zero. `OBJECTION: LEADING` and `SCREENED` have no count of their own; they count in the stretch and the run iterations only.
-- **Guard record**: the owner's answer to an ask from an iteration that wrote no review (case `guard` or `cap`), one line of `<slug>.guard.N.txt`, `N` the plan being filed or repaired. It does not mark round `N` tried, so the plan, once cited, is tried as round `N`. It resets no count but the repair count of plan `N`, which restarts after it; attempts, `NON-RESPONSIVE`, the tried rounds of the stretch and the run iterations go on.
+- **Guard record**: the owner's answer to an ask from an iteration that wrote no review (case `guard` or `cap`), one line of `<slug>.guard.N.txt`, `N` the plan being filed or repaired. It does not mark round `N` tried, so the plan, once cited, is tried as round `N`. It resets the stretch and the repair count of plan `N`, which restart after it; attempts, `NON-RESPONSIVE` and the run iterations go on.
 - **Vacancy**: all twelve slots are retired in this run (twelve `OBJECTION: LEADING` reviews with N above the run's start). The ledger reports it from node `filing`, before any repair turn, and node `vacate` cancels the run without asking; nothing screens or tries a plan after that.
 - **Slug**: kebab-case, `[a-z0-9]` runs joined by `-` (intake design), so no plan file `<slug>.N.txt` shares a name with any `<slug>.review.N.txt` or `<slug>.ruling.N.txt`.
 
@@ -106,7 +106,7 @@ The one reader of `gauntlet/plans/` state, the one writer of rulings, guard reco
 # A plan is cited when it holds no "[cite:" marker. A round is tried when its review or its ruling exists;
 #   <slug>.guard.N.txt never marks round N tried.
 SLOTS = 12      # prosecute-1 to prosecute-12
-STRETCH = 12    # tried rounds since the last ruling plus repairs that call the owner
+STRETCH = 12    # tried rounds since the last ruling and at or above the latest guard record's round, plus repairs, that call the owner
 REPAIRS = 5     # repair-only iterations of the round being filed since its latest guard record that call the owner
 CAP = 200       # the hearing's max_iterations; from this many loop iterations in this run every iteration calls the owner
 
@@ -126,7 +126,7 @@ def state(plans: str, slug: str) -> dict: ...
 #   "base": int,             # mode "state" outside the loop: the lines of <slug>.iter.txt, 0 when none
 #   "since": int,            # N of the latest ruling, 0 when none
 #   "attempts": int, "non_responsive": int,   # reviews with N > since
-#   "stretch": int,          # tried rounds with N > since, plus repairs
+#   "stretch": int,          # tried rounds with N > since and N at or above the latest guard record's round, plus repairs
 #   "repairs": int,          # lines of <slug>.cite.<round>.txt past the count the last line of <slug>.guard.<round>.txt
 #                            #   holds, all of them when that file is absent; whatever the iteration wrote
 #   "rulings": [str],        # paths of every ruling and guard file, oldest first (guard file N before ruling N)
@@ -159,7 +159,7 @@ def record(plans: str, slug: str, round: int, case: str, decision: str, text: st
 #   case, the question shown, the decision and the owner's text verbatim; exit 1 when it exists.
 #   No such review (guard or cap from an iteration with no new review): appends one JSON line to <slug>.guard.<round>.txt,
 #   { "case", "question", "decision", "text", "cite" }, cite the lines of <slug>.cite.<round>.txt at the ask (0 when absent).
-#   Never a ruling: the round stays untried and owed as before, no count but repairs resets, and repairs restarts
+#   Never a ruling: the round stays untried and owed as before, no count but the stretch and repairs resets, and repairs restarts
 #   from the line.
 
 def close(plans: str, slug: str) -> dict: ...
