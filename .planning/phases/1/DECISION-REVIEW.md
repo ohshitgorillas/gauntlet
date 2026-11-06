@@ -478,3 +478,17 @@ Library/API grounding: `docs/reference/archon/workflow-language.md:671` (the `ag
 - Amendment (replaces the ruling): node `changes`, after `hear`, writes `gauntlet/mend/<slug>.changes.<n>.txt` from `git -C <tree> log -p $onto.output.head..$INPUTS.branch` for the juror. Node `mended`, after `recheck`, writes `<slug>.mended.<n>.txt` from the same range for the reviewer. The prompts name their file.
 
 Cost: 22 `cad-reviewer` dispatches at the session default (no tier or effort applied to `cad-reviewer`; no cross-model arm configured), about 0.87M subagent tokens (873,987) by the returns' own counts (D-45's close carries no figure; its return reported 26,512).
+
+## Rulings after application
+
+Made by the main session (3.2) on 2026-11-05, after the executors applied the pass-2 rulings and reported these gaps. Each is the one fix that keeps its ruling's aim; the alternatives fail or reopen a gap already ruled.
+
+- D-58 (G-93): nothing starts the cut that carries a `blocked` block unless a juror case opens in the same wave. A coder's leftover edits outside every test block's paths end the test cut `blocked`, no case opens, and `state` moves on to `test` and `seal`, whose `git add -A` commits the leftover edits.
+  - Grounding: `writing-design.md:151` (the juror case is read only for a contest or commit-failed), `:28`, `:135-136`.
+  - Amendment: a `blocked` outcome in the latest blocks file, newer than the latest verdict, is a juror case, as `contest` and `commit-failed` are, its grounds the paths outside the block. The juror's `TESTS` or `CODE` verdict starts the cut that carries the block. The juror case precedes `test` and `seal` in `state`, so no seal runs over a blocked wave. A forced cut alone would leave the leftover edits in the tree.
+- D-40 (G-54): a guard record resets only `repairs`, and the stretch counts the tried rounds since the last ruling plus `repairs`. Once 11 rounds are tried since the ruling, every repair-only iteration brings the stretch to 12 and asks the owner again until a review arrives (1.4).
+  - Grounding: `plan-review-design.md:25`, `:28`, `:109`, `:129`, `:146`; `spec-review-design.md:70`, `:121`, `:144` (the shared `.shared/rounds.py`).
+  - Amendment: a guard record resets the stretch as a ruling does. The stretch counts tried rounds with N > `since` and N at or above the latest guard record's round, plus `repairs`. Attempts, `NON-RESPONSIVE` and `cap` go on, as now. Both profiles take the rule through `.shared/rounds.py`; rows H28, H29 and P20 follow.
+- D-43 (G-61), objections 2 and 3: where the fixed command comes from, and how it serves `measure` requests and bite measurements.
+  - Grounding: `spec-review-design.md:17`, `:24`, `:318-325`, `:548`; objection 1's ruling already accepts that a file the spiker writes runs under the fixed command.
+  - Amendment: `fence/spike.py` holds the command as a constant, `bash run.sh`, run with cwd in the folder under `timeout -k 10 600 nice -n 10`, its process group killed on timeout. It reads no `gauntlet/settings.json`, so it runs in phase 3 and in a standalone spec review (objection 2). The spiker writes `run.sh` in its folder, so one fixed command runs any toolchain and serves `measure` requests and bite measurements (objection 3). The owner's ruling stands: the spiker holds no shell, and the agent supplies no command. Rows F12 and P14 follow.

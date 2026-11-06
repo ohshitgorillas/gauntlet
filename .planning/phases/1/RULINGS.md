@@ -116,3 +116,11 @@ Authority. The owner ruled G-69 and G-61 on 2026-11-05. For G-61 the owner point
 | G-101 | - | (b) `onto` reads the tip with `git rev-parse` in the checkout | main session (3.2) |
 | G-102 | - | (b) "the id of the run the mend executes in" | main session (3.2) |
 | G-103 | - | (b) "step 10" | main session (3.2) |
+
+## Rulings after application (2026-11-05)
+
+| Group | Decision | Ruling | By |
+|---|---|---|---|
+| G-93 | D-58 | a `blocked` outcome is a juror case, as `contest` and `commit-failed` are; the juror's verdict starts the cut that carries the block | main session (3.2) |
+| G-54 | D-40 | a guard record resets the stretch as well as `repairs`: tried rounds with N > `since` and N at or above the latest guard record's round | main session (3.2) |
+| G-61 | D-43 | objections 2 and 3: `fence/spike.py`'s fixed command is the constant `bash run.sh` in the folder; no settings file; the spiker writes `run.sh` | main session (3.2) |
