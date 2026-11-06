@@ -12,6 +12,7 @@ Gauntlet is an Archon workflow pack. This repository root is the pack root, and 
 **1.6 Tests follow `docs/testing.md`.** Read it before writing or changing any test or workflow fixture.
 **1.7 Every file here is live.** Archon loads this folder as you write it, half-built or not. A workflow folder is `<workflow>/` with exactly one direct YAML; no other YAML sits directly in the root or in a non-dot top-level folder. Layout rules: `docs/reference/archon/global-workflows.md` and `workflow-language.md`.
 **1.8 Archon judges the layout.** After any change to the tree, run `archon workflow list --json` and `archon validate workflows` from the root; a discovery error is fixed in the layout, never hidden.
+**1.9 Read the manual; the owner approves every Archon experiment.** A question about how Archon behaves is answered from `docs/reference/archon/` first. An experiment, spiker run or other measurement of Archon's behavior runs only after the owner explicitly approves that run, and a brief to another agent carries this rule.
 
 ## 2. Host
 
