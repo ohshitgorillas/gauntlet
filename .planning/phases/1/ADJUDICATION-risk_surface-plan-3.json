@@ -1,0 +1,34 @@
+{
+  "phase": "1",
+  "trigger": "risk_surface",
+  "discriminator": "plan-3",
+  "round": 1,
+  "base": "bd3571d",
+  "head": "8c5ecc6",
+  "base_id": "bd3571df1e1d617deffbc07a8617c5352b045aa1",
+  "head_id": "8c5ecc6774534e5011c12215c7303e02bb326dbe",
+  "voices": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus"
+    }
+  ],
+  "citations": {
+    "checked": true
+  },
+  "entries": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": "docs/superpowers/specs/writing-design.md",
+      "line": 186,
+      "severity": "medium",
+      "claim": "`stage.py result` restores the whole tree to HEAD whenever any block of the wave did not end committed. It assumes every uncommitted change belongs to that block. Two reachable states break that assumption, and the restore then drops work that no carried block or cut puts back.",
+      "failure_scenario": "Scenario 1: wave [A, B]. A's coder edits a.py and b.py, both within A's paths. The `fence/files.py` commit tool 'commits only the listed paths that changed' (line 616), and the coder lists only a.py. A ends `committed`, so b.py is left dirty. B's `clean` node sees b.py outside B's paths and prints `blocked`. `result` writes the leftover patch, then runs `git restore --source=HEAD --staged --worktree -- :/` and `git clean -fd -- :/`. That wipes A's b.py change. A is committed, so it is not carried, and the cut problem 'a step of an uncommitted earlier block missing' does not apply to it. Only B is carried. The b.py change now exists only in `<slug>.leftover.<move>.patch`, and no node applies that patch. Without B failing, `seal` would have committed b.py as the final commit. So whether A's work lands depends on whether another block fails. Scenario 2: `seal` runs `git add -A`, and its commit fails on a hook. The tree then holds the staged final content, and the juror case and a CODE cut follow. Any block of the new wave whose paths do not cover every staged path is `blocked`. `result` then restores the tree, discarding the content seal was trying to commit. The next `seal` finds a clean tree, writes `nothing` and ends `written` without that content. In both scenarios the changes predate the non-committed block, so the line-189 premise 'every such change is the wave's own' is false. If no test fails, the loss goes unnoticed through to the landing gate.",
+      "ruling": "survived",
+      "convergent": false,
+      "base_id": "bd3571df1e1d617deffbc07a8617c5352b045aa1",
+      "head_id": "8c5ecc6774534e5011c12215c7303e02bb326dbe"
+    }
+  ]
+}
