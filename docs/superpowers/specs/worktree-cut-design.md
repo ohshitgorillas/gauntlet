@@ -14,11 +14,11 @@ What the tree already holds for the concerns the cut touches:
 - Worktree cutting and setup: no copy. The run's one `worktree: enabled: false` sits in the head, and every phase before the cut runs in the checkout.
 - The repository's test command: one copy, `fence/checks.py`, which runs the brief command recorded in `gauntlet/settings.json` of its root (timeout from the same file, default 900 s) with a process-group kill, as an MCP tool for agents. The repository declares its brief command in its `env:` below, and node `settings` writes it once per tree run.
 - Test baseline: no copy.
-- Working-folder guard: designed and unbuilt, `.shared/working-folder.ts` (intake design). The checkout's check is node `guard` of the head; the tree's is node `guard` of `gauntlet-tree`.
+- Working-folder guard: designed and unbuilt, `.shared/working-folder.ts` (intake design). The checkout's check is node `guard` of the head, which passes option `committed`, so the rule it accepts holds in a tree; the tree's is node `guard` of `gauntlet-tree`.
 - Slug from a task path: stated as a prompt rule in the spec review design (`slug = the task's file name without .md`) and as the file route's rule in the intake design. This phase derives it in `gauntlet-run/scripts/pin.py` alone.
 - Approved artifact paths: `gauntlet/plans/approved/<slug>.txt` and `<slug>-summary.md` (plan review design), `gauntlet/specs/approved/<slug>.txt` and `<slug>-summary.md` (spec review design). Git does not carry the ignored `gauntlet/` into a worktree.
 
-- Work in the tree: one place, the tree run, and after it a re-mend run (landing design) for the mend only, each in its own tree. An agent runs in its run's checkout, and `fence/files.py` and `fence/checks.py` take their root from `CLAUDE_PROJECT_DIR`, the agent's own folder. No node field sets an agent's folder, and a `workflow:` node's `isolation:` gives only `inherit` or a fresh worktree on a new branch. A node of `gauntlet-run` therefore cannot work in an existing tree; the re-mend run works in a second tree, cut on a new branch pinned at the first tree's tip, never in the first.
+- Work in the tree: one place, the tree run, and after it a re-mend run (landing design) for the mend only, each in its own tree. An agent runs in its run's checkout, and `fence/files.py` and `fence/checks.py` take their root from `CLAUDE_PROJECT_DIR`, the agent's own folder. No node field sets an agent's folder, and a `workflow:` node's `isolation:` gives only `inherit` or a fresh worktree on a new branch. A node of `gauntlet-run` therefore cannot work in an existing tree; the re-mend run works in a second tree, cut on a new branch pinned at the tip of the branch of the tree the round lands, the first tree's for round 1, never in that tree.
 
 Uncommitted changes in the checkout do not reach the tree. `gauntlet-run`'s `guard` lists them in `dirty` (the tracked paths git reports changed and the untracked paths that are not ignored, `gauntlet/` excluded), and its node `dirty` asks the owner, before any paid phase, to go on or leave (`gauntlet-design.md`). `pin` and `cut` carry no such list.
 
@@ -32,14 +32,14 @@ Measured on Archon v0.13.2 (a compiled binary with no source tree; throwaway rep
 - Remote: a repository with no remote, or an unreachable one, cannot be cut, pinned branch or not; node `tree` fails with Archon's message, and the run is resumed once the repository has a reachable `origin`. A bare remote on a local file path counts as reachable.
 - `env:`: a committed `.archon/config.yaml`'s `env:` reaches the parent run's and the child run's bash nodes.
 
-Unmeasured: whether `env:` from an uncommitted or ignored `.archon/config.yaml` reaches the tree run.
+Unmeasured: whether `env:` from an uncommitted or ignored `.archon/config.yaml` reaches the tree run. `gauntlet-run`'s node `env-check` refuses such a config at run start (`gauntlet-design.md`), so no run relies on it.
 
 ## Terms
 
 - **Slug**: the task file's name without `.md`.
 - **Branch**: the branch Archon names for node `tree`'s child, `archon/task-<first 8 characters of $WORKFLOW_ID>-tree-dc9c5edb-child-0`, normalised as Archon's `norm`.
 - **Base**: the commit node `pin` creates the branch at, the checkout's `HEAD` at the cut. No node prints it.
-- **Tree run**: the child run of node `tree`, workflow `gauntlet-tree`, executing in the tree. It is the only run whose nodes and agents work in the tree. When landing finds the checkout moved, the re-mend runs `gauntlet-remend` in a second tree (landing design), which holds a copy of the first tree's `gauntlet/`.
+- **Tree run**: the child run of node `tree`, workflow `gauntlet-tree`, executing in the tree. It is the only run whose nodes and agents work in the tree. When landing finds the checkout moved, the re-mend runs `gauntlet-remend` in a second tree (landing design), which holds a copy of the previous tree's `gauntlet/`.
 
 Files the phase writes:
 
@@ -166,8 +166,8 @@ nodes:
     depends_on: [guard, branch-check]
     bash: <write gauntlet/settings.json in the tree's root, once per tree run, from the repository's env: {"brief":
           GAUNTLET_TEST_BRIEF_COMMAND, "timeout": GAUNTLET_TEST_TIMEOUT (900 when unset), "base": GAUNTLET_TEST_BASE
-          split on ":" (an empty list when unset)}. The fences read this file, never
-          the environment>
+          split on ":" (an empty list when unset)}. The fences and node baseline read this file,
+          never the environment>
 
   - id: copy-in                        # the only writer of the tree's gauntlet/tasks, plans and specs
     depends_on: [guard, branch-check]
@@ -177,12 +177,12 @@ nodes:
           cp -n; target identical (cmp): nothing; target differing: exit non-zero naming both paths, nothing more copied>
 
   - id: baseline                       # the only writer of gauntlet/baseline/; no node timeout, the inner timeout -k bounds it
-    depends_on: [guard, branch-check]
-    bash: <gauntlet/baseline/<slug>.brief.txt present: nothing. Else run GAUNTLET_TEST_BRIEF_COMMAND in the tree's root, in
-          the foreground, as timeout -k 10 "${GAUNTLET_TEST_TIMEOUT:-900}" nice -n 10 bash -c "$GAUNTLET_TEST_BRIEF_COMMAND"
-          < /dev/null, and write the file: first line "exit=<n> timed_out=<true|false>", then the command's whole stdout
-          and stderr. Exit 0 whatever the command's exit: a red tree is the baseline. The run-start guard has refused a
-          blank command, so none is recorded as "no test command">
+    depends_on: [settings]
+    bash: <gauntlet/baseline/<slug>.brief.txt present: nothing. Else read "brief" and "timeout" from gauntlet/settings.json
+          in the tree's root and run the brief command there, in the foreground, as timeout -k 10 <timeout> nice -n 10
+          bash -c <brief> < /dev/null, and write the file: first line "exit=<n> timed_out=<true|false>", then the command's
+          whole stdout and stderr. Exit 0 whatever the command's exit: a red tree is the baseline. gauntlet-run's node
+          env-check has refused a blank command at run start, so none is recorded as "no test command">
 
   - id: handoff
     depends_on: [copy-in, baseline, settings]
@@ -214,15 +214,15 @@ env:
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| Slug | `gauntlet-run/scripts/pin.py` | any node, prompt or other script deriving it |
+| Slug of the cut and the tree run | `gauntlet-run/scripts/pin.py`, handed to `gauntlet-tree` as input `slug` | any node, prompt or other script of the cut or the tree run deriving it |
 | The predicted branch name and its creation | `.shared/pin.py`, called by `gauntlet-run/scripts/pin.py` for node `tree` and by `land/scripts/pin.py` for each re-mend run's node `<round>__retree` | any node, prompt or other script composing a branch name |
 | The branch the cut hands off | node `branch-check` of `gauntlet-tree`, comparing pin's name with `git branch --show-current` and failing the run naming both; node `cut` reading `branch` from `$tree.output` | the cut taking `branch` from `$pin.output`; a mismatch found after the tree run |
-| The commit the tree starts from | node `pin`, creating the branch at the checkout's `HEAD`; for a second tree, node `repin` of block `land`, creating the branch at the first tree's tip (landing design) | `main`, `worktree.baseBranch`, `--base` or the remote default as a start point; any other `git branch` in a Gauntlet file |
+| The commit the tree starts from | node `pin`, creating the branch at the checkout's `HEAD`; for a second tree, node `repin` of block `land`, creating the branch at the tip of the branch of the tree the round lands, the first tree's for round 1 (landing design) | `main`, `worktree.baseBranch`, `--base` or the remote default as a start point; any other `git branch` command that creates, moves or deletes a branch in a Gauntlet file |
 | Cutting the tree | Archon, through node `tree`'s `isolation: worktree`; for a second tree, through node `retree` of block `land`, at most twice (landing design) | `git worktree add` in any Gauntlet file; `archon workflow run` from inside the run; any other isolated node |
 | Work in the tree | the tree run, `gauntlet-tree`: blocks `write`, then `mend`; after it, `gauntlet-remend`, block `mend` only, in a second tree (landing design) | a rebase, test run or commit in a tree from `gauntlet-run`; a node field, sub-run or fence root set to reach an existing tree from another run (`gauntlet-design.md`) |
-| Setting up the tree | the repository's `worktree.copyFiles` and `worktree.postCreate` | any install, copy or setup command in a Gauntlet file |
-| The repository's test command and timeout | the repository's `env:`: `GAUNTLET_TEST_BRIEF_COMMAND`, required, refused at run start when unset or blank; `GAUNTLET_TEST_TIMEOUT`, optional (900 when unset), refused at run start when set but not a positive integer; `GAUNTLET_TEST_BASE`, optional (none when unset) (`gauntlet-design.md`) | a test command written, guessed or detected by any Gauntlet file; a node `timeout:` on a test node |
-| What the fences read of those settings | `gauntlet/settings.json` of the tree, written once by node `settings` | a fence server reading the environment for them; a `sh -c` launch line building a `FENCE_*` value |
+| Setting up the tree | the repository's `worktree.copyFiles` and `worktree.postCreate` | any install or setup command in a Gauntlet file |
+| The repository's test command and timeout | the repository's `env:`: `GAUNTLET_TEST_BRIEF_COMMAND`, required, refused by `gauntlet-run`'s node `env-check` when unset or blank; `GAUNTLET_TEST_TIMEOUT`, optional (900 when unset), refused at run start when set but not a positive integer; `GAUNTLET_TEST_BASE`, optional (none when unset) (`gauntlet-design.md`) | a test command written, guessed or detected by any Gauntlet file; a node `timeout:` on a test node |
+| What the fences and node `baseline` read of those settings | `gauntlet/settings.json` of the tree, written once by node `settings` | a fence server or node `baseline` reading the environment for them; a `sh -c` launch line building a `FENCE_*` value |
 | The test baseline | `gauntlet/baseline/<slug>.brief.txt` of the tree, written once by node `baseline` | a red baseline stopping the run; a rerun rewriting it; any other baseline file |
 | Approved files in the tree | node `copy-in`, by `cp -n`, failing on a named input that is absent from the checkout | any agent or other node writing the tree's `gauntlet/tasks`, `gauntlet/plans` or `gauntlet/specs`; a move or edit of a checkout file; a missing input skipped |
 | Working-folder check in the tree | node `guard` of `gauntlet-tree`, through `.shared/working-folder.ts` (intake design) | any other check of `gauntlet/` being ignored in the tree |

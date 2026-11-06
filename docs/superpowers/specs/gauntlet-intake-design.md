@@ -6,7 +6,7 @@ Status: proposed.
 
 Intake turns the owner's task into one concrete, well-specced task file and hands its path to plan review. It runs on its own (`archon workflow run intake`) and is the first phase of `gauntlet-run`, the workflow for a whole run, which includes it as block `intake`; `gauntlet-design.md` gives the run, its `guard` node and how phases join. Two routes reach intake: the run's `file` input names a markdown file the owner wrote, or the owner hammers the task out with Clerk, the task specialist. A run started from the Archon web UI ("What should Archon work on?") has a blank `file` and takes the Clerk route. Both routes end in the same hand-off, so plan review never knows which route a task took.
 
-Gauntlet is its own git repository, cloned by each user into `$ARCHON_HOME/workflows/gauntlet/` (by default `~/.archon/workflows/gauntlet/`), the pack root, which Archon scans for every repository on the host. Script nodes run on Bun. Intake runs in any repository's checkout, on its own or inside `gauntlet-run`. Every path below is relative to the pack root unless it names `archon-workflows` (`~/dev/archon-workflows`) or the run's checkout.
+Gauntlet is its own git repository, cloned by each user into `$ARCHON_HOME/workflows/gauntlet/` (by default `~/.archon/workflows/gauntlet/`), the pack root, which Archon scans for every repository on the host. Intake's script nodes run on Bun; the Python ones run on `uv`. Intake runs in any repository's checkout, on its own or inside `gauntlet-run`. Every path below is relative to the pack root unless it names `archon-workflows` (`~/dev/archon-workflows`) or the run's checkout.
 
 What the trees already hold for the concerns intake touches:
 
@@ -49,18 +49,23 @@ async def run_tests() -> str: ...
 
 ### `.shared/working-folder.ts`
 
-Gauntlet's working-folder guard: the one check that the checkout keeps `gauntlet/` out of git, and the one place its failure messages live. `gauntlet-run/scripts/guard.ts`, the run's `guard` node, calls it once per run in the checkout, before any phase writes under `gauntlet/`; each standalone phase's own `guard` node (`intake/scripts/guard.ts`, `plan-review/scripts/guard.ts`, `spec-review/scripts/guard.ts`) calls it before the phase writes. Replaces nothing.
+Gauntlet's working-folder guard: the one check that the checkout keeps `gauntlet/` out of git, and the one place its failure messages live. `gauntlet-run/scripts/guard.ts`, the run's `guard` node, calls it with option `committed` once per run in the checkout, before any phase writes under `gauntlet/`, because the run's tree holds only committed files; each standalone phase's own `guard` node (`intake/scripts/guard.ts`, `plan-review/scripts/guard.ts`, `spec-review/scripts/guard.ts`) calls it without the option before the phase writes. Replaces nothing.
 
 ```typescript
 // Run from the checkout (a script node's working directory).
 // Passes when git reports gauntlet/ ignored in the checkout: .gitignore, .git/info/exclude
 // and the global excludes file all count. A file under gauntlet/ that git tracks fails it.
+// With committed, `git check-ignore -v gauntlet/` names the rule's source: a rule from .git/info/exclude or the
+// global excludes file passes (a tree shares both); a rule from a .gitignore passes only when git tracks that file
+// and `git diff --quiet HEAD -- <file>` holds.
 // Fails by writing one line to stderr and exiting 1, <root> being `git rev-parse --show-toplevel`:
 //   gauntlet/ not ignored:
 //     Gauntlet failed because its working folder, <root>/gauntlet/, sits in the main repo. Add it to .gitignore and restart the run.
 //   a file under gauntlet/ that git tracks, <file> being the first such path:
 //     Gauntlet failed because git tracks <root>/<file> under its working folder. Run `git rm --cached <file>` (and add gauntlet/ to .gitignore if it is not ignored), commit, and restart the run.
-export function requireIgnored(): void;
+//   with committed, the rule's .gitignore untracked or changed since HEAD, <file> being that .gitignore:
+//     Gauntlet failed because the rule keeping <root>/gauntlet/ out of git sits in <root>/<file>, which is not committed, and the run's tree holds only committed files. Commit <file> and restart the run.
+export function requireIgnored(options?: { committed?: boolean }): void;
 ```
 
 ### `.shared/task-format.md`
@@ -91,9 +96,9 @@ Clerk's role: hammer a vague idea into a task file that meets `task-format.md`, 
 Inputs in the session: the owner's idea ($ARGUMENTS, may be empty), task-format.md and the slugs already taken (from node `ground`).
 Opening turn (node `clerk`): read the idea; give the owner the first reply (questions, or a draft when the idea already holds enough); when the reply holds a draft, pick a kebab-case slug not among the taken ones and output the whole draft; output { slug, reply, draft }, slug and draft "" until there is a draft.
 Each later turn (node `turn`):
-  - reads the owner's choice and words from the previous answer, and the refusal of the previous turn's slug, when there is one (a slug taken by another run: pick another);
+  - reads the owner's choice and words from the previous answer, and the latest refusal, when there is one (a slug taken by another run: pick another; a slug unlike the one already written: keep that one);
   - replies to the owner: questions, or the draft's open points, kept short;
-  - outputs the whole current draft once it holds enough to draft, and again every turn after, with the slug (the slug of the first draft, unchanged once a draft has been written); the draft always meets task-format.md's rules;
+  - outputs the whole draft on the turn it first holds enough to draft, and again on every turn that changes it, with the slug (the slug of the first draft, unchanged once a draft has been written); draft "" on a turn that leaves a written draft unchanged; the draft always meets task-format.md's rules;
   - on "approve" with no draft yet: outputs the draft this turn;
   - output { slug, reply, draft }.
 Reads: anything in the checkout the task needs, code included, with no cap on reads or turns.
@@ -135,11 +140,16 @@ The scripts of intake's own nodes. Replace nothing.
 import taskFormat from "../../.shared/task-format.md" with { type: "text" };
 
 // put.ts — nodes `put-open` and `put`, the only writer of a Clerk draft. Env: INPUTS_SLUG, INPUTS_DRAFT; ARTIFACTS_DIR.
-//   draft "" or slug "": writes nothing.
-//   gauntlet/tasks/<slug>.md present and $ARTIFACTS_DIR/owned.<slug> absent: the slug is taken by another run; writes
-//     nothing, stdout { "slug", "task": "", "refusal": "The slug <slug> is taken by another run. Pick another." }.
+//   <owned> is the slug of the one marker $ARTIFACTS_DIR/owned.<owned>, when there is one; "task" is always the absolute
+//     path of gauntlet/tasks/<owned>.md, or "" with no marker. First that holds:
+//   draft "" or slug "": writes nothing (an empty draft after the first write means unchanged),
+//     stdout { "slug": <owned> or "", "task", "refusal": "" }.
+//   a marker present and slug unlike <owned>: writes nothing,
+//     stdout { "slug": <owned>, "task", "refusal": "The slug <slug> differs from <owned>, the slug of this run's task file. Keep <owned>." }.
+//   gauntlet/tasks/<slug>.md present and no marker: the slug is taken by another run; writes nothing,
+//     stdout { "slug", "task": "", "refusal": "The slug <slug> is taken by another run. Pick another." }.
 //   Else writes gauntlet/tasks/<slug>.md with the draft (whole file, overwritten), touches $ARTIFACTS_DIR/owned.<slug>,
-//     stdout { "slug", "task": <absolute path>, "refusal": "" }.
+//     stdout { "slug", "task", "refusal": "" }.
 ```
 
 ### `intake/intake.yaml`
@@ -209,16 +219,15 @@ nodes:
       max_iterations: 1                          # each answer permits one more turn; no cap on the conversation
       until_bash: |
         decision=$answer.output.decision
-        task=$put.output.task
-        opened=$put-open.output.task
-        [ "$decision" = "approve" ] && { [ -s "$task" ] || [ -s "$opened" ]; }
+        task=$latest.output.task
+        [ "$decision" = "approve" ] && [ -s "$task" ]
       nodes:
         - id: turn                               # runs only once the owner has answered
           when: "$LOOP_PREV.answer.output.decision != ''"
           context: { resume: clerk }             # one continuing session for the whole conversation
           allowed_tools: []
           mcp: clerk.mcp.json
-          prompt: <the owner's choice $LOOP_PREV.answer.output.decision and words $LOOP_PREV.answer.output.text; the refusal $LOOP_PREV.put.output.refusal>
+          prompt: <the owner's choice $LOOP_PREV.answer.output.decision and words $LOOP_PREV.answer.output.text; the refusal $LOOP_PREV.latest.output.refusal>
           output_format: { type: object, properties: { slug: { type: string, pattern: "^([a-z0-9]+(-[a-z0-9]+)*)?$" }, reply: { type: string }, draft: { type: string } }, required: [slug, reply, draft] }
         - id: put                                # the turn's draft written, or refused
           depends_on: [turn]
@@ -228,18 +237,27 @@ nodes:
             slug: { from: $turn.output.slug }
             draft: { from: $turn.output.draft }
           output_format: { type: object, properties: { slug: { type: string }, task: { type: string }, refusal: { type: string } }, required: [slug, task, refusal] }
-        - id: show
-          depends_on: [turn, put]
+        - id: latest                             # always runs: the iteration's task path and refusal
+          depends_on: [put]
           trigger_rule: all_done
           runtime: bun
-          script: <print reply (turn's, else the opening), the refusal (put's, else put-open's) when there is one, a rule, then the task file (put's task, else put-open's) or "No task file yet.">
+          script: <task "<skipped>" (put skipped): print put-open's task and refusal; else put's, the refusal even when empty; print { task, refusal }>
+          with:
+            task: { from: $put.output.task, if_skipped: "<skipped>" }
+            refusal: { from: $put.output.refusal, if_skipped: "<skipped>" }
+            opened: { from: $put-open.output.task }
+            opening_refusal: { from: $put-open.output.refusal }
+          output_format: { type: object, properties: { task: { type: string }, refusal: { type: string } }, required: [task, refusal] }
+        - id: show
+          depends_on: [turn, latest]
+          trigger_rule: all_done
+          runtime: bun
+          script: <print reply (turn's, else the opening), the refusal when there is one, a rule, then the task file or "No task file yet.">
           with:
             reply: { from: $turn.output.reply, if_skipped: "" }
             opening: { from: $clerk.output.reply }
-            task: { from: $put.output.task, if_skipped: "" }
-            opened: { from: $put-open.output.task }
-            refusal: { from: $put.output.refusal, if_skipped: "" }
-            opening_refusal: { from: $put-open.output.refusal }
+            task: { from: $latest.output.task }
+            refusal: { from: $latest.output.refusal }
         - id: answer
           depends_on: [show]
           wait:
@@ -254,21 +272,21 @@ nodes:
     depends_on: [from-file, talk]
     trigger_rule: none_failed_min_one_success
     runtime: bun
-    script: <task = file || the absolute path of gauntlet/tasks/<slug>.md for the slug whose marker owned.<slug> sits in $ARTIFACTS_DIR; print { task }>
+    script: <task = file || the absolute path of gauntlet/tasks/<slug>.md for the slug whose marker owned.<slug> sits in $ARTIFACTS_DIR (one at most: put refuses a second slug); print { task }>
     with:
       file: { from: $from-file.output.task, if_skipped: "" }
     output_format: { type: object, properties: { task: { type: string } }, required: [task] }
 ```
 
-Intake runs on its own or as block `intake` of `gauntlet-run`, in the checkout. Run on its own, its `guard` is the working-folder check; included, `gauntlet-run`'s `guard` has already passed and the phase's repeats a passing git query. Routing reads only `route`'s output, the `file` input (`gauntlet-run` passes it in by `with:`), never the typed text. With `file` blank, `$ARGUMENTS` (the run's message: the text typed in the web UI, or the CLI message) is Clerk's starting idea, and may be empty. The `talk` group's session is Clerk's, forked once from `clerk` and continued across every pause; no turn starts a fresh agent and no conversation log is kept. Clerk writes no file: each turn outputs the draft and the slug, and node `put` is the only writer of `gauntlet/tasks/<slug>.md`; a slug already taken by a file this run did not write is refused, and the refusal reaches Clerk's next turn. The opening turn is Clerk's first reply to the owner; `turn` is skipped in the first iteration and runs in every later one. An answer of `approve` ends the conversation only when a task file exists; otherwise the next turn outputs the draft and asks again. A file-route conflict fails the run at `from-file`; the owner corrects it on disk and resumes the run with `archon workflow resume <run id>`, which re-runs `from-file`.
+Intake runs on its own or as block `intake` of `gauntlet-run`, in the checkout. Run on its own, its `guard` is the working-folder check; included, `gauntlet-run`'s `guard` has already passed and the phase's repeats a passing git query. Routing reads only `route`'s output, the `file` input (`gauntlet-run` passes it in by `with:`), never the typed text. With `file` blank, `$ARGUMENTS` (the run's message: the text typed in the web UI, or the CLI message) is Clerk's starting idea, and may be empty. The `talk` group's session is Clerk's, forked once from `clerk` and continued across every pause; no turn starts a fresh agent and no conversation log is kept. Clerk writes no file: each turn outputs the slug, and the whole draft whenever it changes, and node `put` is the only writer of `gauntlet/tasks/<slug>.md`; an empty draft after the first write leaves the file unchanged. A slug already taken by a file this run did not write is refused, and so is a slug unlike the one of the run's first write, so a run owns one task file. Node `latest` always runs and prints the iteration's task path and refusal: `put`'s whenever `put` ran, else `put-open`'s. The group's completion, `show` and Clerk's next turn read it, so a refusal reaches Clerk's next turn and `show` never prints a stale one. The opening turn is Clerk's first reply to the owner; `turn` is skipped in the first iteration and runs in every later one. An answer of `approve` ends the conversation only when a task file exists; otherwise the next turn outputs the draft and asks again. A file-route conflict fails the run at `from-file`; the owner corrects it on disk and resumes the run with `archon workflow resume <run id>`, which re-runs `from-file`.
 
 ### `intake/fixtures/`
 
-`file.stubs.yaml` (`route` stubbed with a `file`: `guard`, `route`, `from-file` and `handoff` reached, `ground` not) and `clerk.stubs.yaml` (`route` stubbed with a blank `file`, the opening reply approved: `guard`, `route`, `ground`, `clerk`, `put-open`, `talk`, `handoff` reached, `from-file` and `turn` not), under `docs/testing.md`. A route needing a second turn is not fixture-tested: a dry run ends a loop after one iteration. The conflict route is not fixture-tested: its deciding logic is `from-file`'s own bash, which stubs replace.
+`file.stubs.yaml` (`route` stubbed with a `file`: `guard`, `route`, `from-file` and `handoff` reached, `ground` not) and `clerk.stubs.yaml` (`route` stubbed with a blank `file`, the opening reply approved: `guard`, `route`, `ground`, `clerk`, `put-open`, `talk` with its `latest`, `handoff` reached, `from-file` and `turn` not), under `docs/testing.md`. A route needing a second turn is not fixture-tested: a dry run ends a loop after one iteration. The conflict route is not fixture-tested: its deciding logic is `from-file`'s own bash, which stubs replace.
 
 ### The run's checkout
 
-The owner keeps `gauntlet/` out of git in each repository Gauntlet runs in, by a `gauntlet/` line in its `.gitignore`. No Gauntlet node writes that line. Intake commits nothing; a task file lives in the live checkout and the hand-off carries its absolute path.
+The owner keeps `gauntlet/` out of git in each repository Gauntlet runs in, by a `gauntlet/` line in its `.gitignore`, committed, or in `.git/info/exclude`; `gauntlet-run`'s `guard` refuses a `.gitignore` line that is not committed. No Gauntlet node writes that line. Intake commits nothing; a task file lives in the live checkout and the hand-off carries its absolute path.
 
 ## Homes
 
@@ -278,7 +296,7 @@ The owner keeps `gauntlet/` out of git in each repository Gauntlet runs in, by a
 | Reaching a pack file from a run in any repository | `mcp:` named beside the workflow YAML; `.shared/` imported relative to the script's own file; the fence server under `${ARCHON_HOME:-$HOME/.archon}/workflows/gauntlet/` in `clerk.mcp.json` | A checkout-relative path to any pack file; a path naming one user's home |
 | What a task file holds | `.shared/task-format.md` | Restating the sections or rules in a command, prompt or workflow; `ground` prints the file instead |
 | Where intake writes | `gauntlet/` in the run's checkout, tasks at `gauntlet/tasks/<slug>.md`; `$ARTIFACTS_DIR` holds only the `owned.<slug>` marker of node `put` | Any intake node writing outside `gauntlet/` and `$ARTIFACTS_DIR`; `$ARTIFACTS_DIR` or `$STATE_DIR` holding a task |
-| Keeping `gauntlet/` out of git | the owner's `.gitignore` line in each repository; `requireIgnored` in `.shared/working-folder.ts`, called by node `guard` of `gauntlet-run` before any phase and by node `guard` of `intake` | A node writing the ignore line; a write under `gauntlet/` before the guard passes; a second statement of the check or its messages; a check that accepts only `.gitignore` |
+| Keeping `gauntlet/` out of git | the owner's `.gitignore` line in each repository; `requireIgnored` in `.shared/working-folder.ts`, called with option `committed` by node `guard` of `gauntlet-run` before any phase, and without it by node `guard` of `intake` | A node writing the ignore line; a write under `gauntlet/` before the guard passes; a second statement of the check or its messages; a check that accepts only `.gitignore`; option `committed` passed by any guard but `gauntlet-run`'s |
 | Choosing the route | `intake.yaml`, `when:` on `$route.output.file` | Routing on the typed text; `$INPUTS` in a `when:`; a second intake workflow |
 | A handed-in file's slug and copy | `from-file` | Renaming, suffixing or overwriting a task |
 | Raising a file-route conflict | `from-file` failing the run with the conflict on stderr; the owner corrects it and resumes | A conflict resolved, skipped or only logged; a wait asking for a new slug |
@@ -286,7 +304,8 @@ The owner keeps `gauntlet/` out of git in each repository Gauntlet runs in, by a
 | Clerk's memory | the `clerk` session, continued by `turn` | A fresh agent per turn; a conversation log file; `persist_session` |
 | File confinement for a Gauntlet agent | `fence/files.py` | A second file server; a copy left in archon-workflows `.archon/workflows/feature-pipeline/`; a hook or prompt rule standing in for it |
 | Clerk's file access | `clerk.mcp.json` (`FENCE_READ=.`, no `FENCE_WRITE`), attached by `mcp:` on `clerk` and `turn`, both with `allowed_tools: []` | Any built-in tool on either node; `FENCE_*` set anywhere but `clerk.mcp.json`; Clerk writing, copying or deleting any file |
-| Writing a Clerk draft | node `put` (and `put-open` for the opening turn), the only writer of `gauntlet/tasks/<slug>.md` on the Clerk route; it refuses a slug taken by a file this run did not write | any other writer of a draft; a slug overwritten across runs |
+| Writing a Clerk draft | node `put` (and `put-open` for the opening turn), the only writer of `gauntlet/tasks/<slug>.md` on the Clerk route; it refuses a slug taken by a file this run did not write, and a slug unlike the one of its first write | any other writer of a draft; a slug overwritten across runs; a second task file in one run |
+| A Clerk iteration's task path and refusal | node `latest` in `talk`: `put`'s whenever `put` ran, else `put-open`'s | The completion check, `show` or `turn` reading `put` or `put-open` directly |
 | The hand-off to plan review | `handoff` output `{ task }`, the block's `returns:`, read by `gauntlet-run` as `$intake.output.task` | Any other node or file telling plan review where the task is, or how it was made |
 
 ## Order
