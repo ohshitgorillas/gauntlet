@@ -45,7 +45,9 @@ A three-job GitHub Actions gate (`tests`, `fixtures`, `lint`) enforcing the 85/8
 
 ## Deviations
 
-None - plans executed as written. Execution path: the parallel worktree attempt for Plans 1 and 2 halted `blocked` before Task 1 with no commits, because the host names worktree branches `worktree-agent-*` and the dispatch assigned `cadence/phase-2-plan-<k>`; all three plans then ran sequentially in the main tree.
+- Plan 3, Task 2 (52a6f1a) was not green: `.shared/tests/test_rounds.py` ran "4 failed, 90 passed" (the `test_next_names_the_author_a_slot_or_vacant` cases with `start` None), although `reports/plan-3.md` records "121 passed". The next test commit, b048fa5, changed those cases' `start` from None to 0 and added `start=0` to `test_next_is_never_vacant_without_a_retiring_verdict`, and its message does not say so. The corrected inputs match `runtime-model-design.md:42,56`; code and tests are right from b048fa5 on. Found by the Phase 2 deep verify.
+
+Otherwise plans executed as written. Execution path: the parallel worktree attempt for Plans 1 and 2 halted `blocked` before Task 1 with no commits, because the host names worktree branches `worktree-agent-*` and the dispatch assigned `cadence/phase-2-plan-<k>`; all three plans then ran sequentially in the main tree.
 
 ## Open items
 
