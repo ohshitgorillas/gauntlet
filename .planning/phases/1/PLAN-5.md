@@ -19,6 +19,8 @@ files:
   - .planning/phases/1/RULINGS.md
   - .planning/phases/1/PROBES.md
   - .planning/phases/1/reviews/
+  - .planning/phases/1/CONTEXT.md
+  - .planning/phases/1/reports/plan-4.md
 ---
 
 # Phase 1: Design review - Plan 5: Land the owner-control ruling

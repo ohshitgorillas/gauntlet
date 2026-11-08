@@ -1,6 +1,6 @@
-PLAN CHECKPOINT: decision
+PLAN COMPLETE
 Plan: .planning/phases/1/PLAN-3.md
-Tasks: 2 of 5 (Task 3 in progress: rounds 1 to 3 committed; the round-4 review and the convergence record remain)
+Tasks: 5 of 5 closed (Tasks 1 and 2 committed; Task 3 rounds 1 to 3 committed; Task 3 round-4 review and convergence record, and Tasks 4 and 5, superseded by D-84 / PLAN-6 by the owner, no commit; full suite not run, no pack file changed)
 | Task | Commit | Note |
 |---|---|---|
 | 1 (routes, D-11..D-37) | 0d08176 | earlier dispatch: 50 groups routed, 27 load-bearing |
@@ -16,6 +16,9 @@ Tasks: 2 of 5 (Task 3 in progress: rounds 1 to 3 committed; the round-4 review a
 | 3 round 3 (record) | 060107b | `REVIEW-pass3.md`, `reviews/conv3-*.md`, CONTEXT.md D-60..D-78 |
 | 3 round 3 (D-79) | 60247c2 | orchestrator: CONTEXT.md D-79 |
 | 3 round 3 (rulings G-104..G-119 applied, D-79 fixes) | 8c5ecc6 | seven designs, contracts.md, PROJECT.md, ROADMAP.md, REQUIREMENTS.md, CONTEXT.md, REVIEW-pass3.md, RULINGS.md (14 paths) |
+| 3 round 4 (review) and convergence record | none | superseded by D-84 / PLAN-6 (owner, 2026-11-07) |
+| 4 | none | superseded by D-84 / PLAN-6 (owner, 2026-11-07) |
+| 5 | none | superseded by D-84 / PLAN-6 (owner, 2026-11-07) |
 
 Step 0 (diff of the stopped executor's partial edits against the instructions and the round-3 section of the previous report, `reports/plan-3.8.md`)
 
@@ -48,6 +51,7 @@ Checkpoint need
 - Round 3 is applied and committed. Task 3 continues with the round-4 review under D-65: the orchestrator dispatches `cad-reviewer` at opus per design (round-3 application diff `060107b..8c5ecc6` plus a full read hunting high and medium defects only, under D-60), and the main session takes the result. Not done here: the spiker validation of the designed YAML (D-64), an orchestrator dispatch.
 
 Deviations:
+- [deviation] PLAN-3 asserted a round-4 review, the convergence record, and Tasks 4 and 5; CONTEXT.md line 11 and D-84 supersede the round-4 shape, and PLAN-6.md:112 carries out Tasks 4 and 5 and the round-4 part of Task 3. Owner closed plan 3 as superseded (2026-11-07) at the decision checkpoint above; PLAN-3.md untouched, no design work, no review, no commit.
 - [deviation] PLAN-3 Must-be-true 1 and Task 3 say load-bearing groups are "ruled on by `/cad-decision-review`" and each round's rulings land in one commit at once; D-79 (60247c2) replaces both for round 3: the owner rules every group; the drafts stayed uncommitted until the closed review's fixes. Followed D-79.
 - [deviation] D-03 amended by D-64 (carried): the spiker validation of the designs' YAML is an orchestrator dispatch after apply, not run here.
 - The earlier report's deviation on G-115 "in every profile" (writing's revision profile has no counter) is closed by the owner's ruling: IDLE = 1 in writing too, from writing's own `<slug>.iter.txt` lines.
