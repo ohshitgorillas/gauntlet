@@ -4,7 +4,7 @@ Status: proposed.
 
 ## Why
 
-Gauntlet is one run, `gauntlet-run`; the run, its head and how phases join are `gauntlet-design.md`'s. The cut is phase 4, after spec review, and the phase ends at its node `cut`. It takes `items`, `plan` and `spec` from spec review's hand-off `{ items, plan, spec, outcome }` (`plan` and `spec` `""` when absent), has Archon cut one worktree per stage of the approved plan (a plan with no stage lines is one stage), each from the commit the owner's checkout holds when that stage starts, lets the repository's own `.archon/config.yaml` set it up, records the test baseline, copies the approved files in, and hands off the worktree path, branch and artifact paths. Every path is relative to the pack root unless it names the checkout (the owner's live checkout the run executes in) or the tree (the new worktree). `gauntlet/` always sits in the checkout or the tree. The run holds the cut once per stage, in the unrolled form `gauntlet-design.md` gives (heading "Stages": the bound, the node ids and the order); this design gives the nodes `pin`, `tree` and `cut` of stage 1, and a later stage's are those nodes under its own ids.
+Gauntlet is one run, `gauntlet-run`; the run, its head and how phases join are `gauntlet-design.md`'s. The cut is phase 4, after spec review, and the phase ends at its node `cut`. It takes `items`, `plan` and `spec` from spec review's hand-off (spec review design, node `handoff`; `plan` and `spec` are `""` when absent), has Archon cut one worktree per stage of the approved plan (a plan with no stage lines is one stage), each from the commit the owner's checkout holds when that stage starts, lets the repository's own `.archon/config.yaml` set it up, records the test baseline, copies the approved files in, and hands off the worktree path, branch and artifact paths. Every path is relative to the pack root unless it names the checkout (the owner's live checkout the run executes in) or the tree (the new worktree). `gauntlet/` always sits in the checkout or the tree. The run holds the cut once per stage, in the unrolled form `gauntlet-design.md` gives (heading "Stages": the bound, the node ids and the order); this design gives the nodes `pin`, `tree` and `cut` of stage 1, and a later stage's are those nodes under its own ids.
 
 The cut never starts from `main` or from the repository's default branch. It starts from the checkout's `HEAD` commit at the stage's cut, whatever branch that is, because the plan and spec were reviewed against that code; a later stage starts from the checkout after the stage before it landed. A repository such as hqptuner2, worked on a refactor branch off `v2`, gets a tree cut from the refactor branch.
 
@@ -22,7 +22,7 @@ What the tree already holds for the concerns the cut touches:
 
 Uncommitted changes in the checkout do not reach the tree. `gauntlet-run`'s `guard` lists them in `dirty` (the tracked paths git reports changed and the untracked paths that are not ignored, `gauntlet/` excluded), and its node `dirty` asks the owner, before any paid phase, to go on or leave (`gauntlet-design.md`). `pin` and `cut` carry no such list.
 
-How the tree is cut: inside a run, only a `workflow:` node with `isolation: worktree` gets a worktree. Node `pin` creates the branch Archon will name at the checkout's `HEAD` before node `tree` runs, so Archon cuts the tree from the owner's commit. A crashed run is resumed (`archon workflow resume`); the resumed `tree` node reuses the worktree recorded on its child run.
+How the tree is cut: inside a run, only a `workflow:` node with `isolation: worktree` gets a worktree. Node `pin` creates the branch Archon will name at the checkout's `HEAD` before node `tree` runs, so Archon cuts the tree from the owner's commit. A crashed run is resumed as `runtime-model-design.md`, "Resume and rerun", says.
 
 Measured on Archon v0.13.2 (a compiled binary with no source tree; throwaway repositories):
 
@@ -112,7 +112,7 @@ description: >-
 
 nodes:
   # the head's nodes: as gauntlet-design.md's head gives them;
-  # spec-review's hand-off is $spec-review.output { items, plan, spec, outcome }
+  # spec-review's hand-off is $spec-review.output (spec review design, node `handoff`)
 
   - id: pin                            # stage 1; a later stage's is s2-pin, s3-pin (gauntlet-design.md, "Stages")
     depends_on: [spec-review]
@@ -229,7 +229,7 @@ env:
 | The predicted branch name and its creation | `.shared/pin.py`, called by `gauntlet-run/scripts/pin.py` for node `tree` and by `land/scripts/pin.py` for each re-mend run's node `<round>__retree` | any node, prompt or other script composing a branch name |
 | The branch the cut hands off | node `branch-check` of `gauntlet-tree`, comparing pin's name with `git branch --show-current` and failing the run naming both; node `cut` reading `branch` from `$tree.output` | the cut taking `branch` from `$pin.output`; a mismatch found after the tree run |
 | The commit the tree starts from | node `pin`, creating the branch at the checkout's `HEAD`; for a second tree, node `repin` of block `land`, creating the branch at the tip of the branch of the tree the round lands, the first tree's for round 1 (landing design) | `main`, `worktree.baseBranch`, `--base` or the remote default as a start point; any other `git branch` command that creates, moves or deletes a branch in a Gauntlet file |
-| Cutting the tree | Archon, through node `tree`'s `isolation: worktree`; for a second tree, through node `retree` of block `land`, at most twice (landing design) | `git worktree add` in any Gauntlet file; `archon workflow run` from inside the run; any other isolated node |
+| Cutting the tree | Archon, through node `tree`'s `isolation: worktree`; for a second tree, through node `retree` of block `land` (landing design) | `git worktree add` in any Gauntlet file; `archon workflow run` from inside the run; any other isolated node |
 | Work in the tree | the tree run, `gauntlet-tree`: blocks `write`, then `mend`; after it, `gauntlet-remend`, block `mend` only, in a second tree (landing design) | a rebase, test run or commit in a tree from `gauntlet-run`; a node field, sub-run or fence root set to reach an existing tree from another run (`gauntlet-design.md`) |
 | Setting up the tree | the repository's `worktree.copyFiles` and `worktree.postCreate` | any install or setup command in a Gauntlet file |
 | The repository's test command and timeout | the repository's `env:`: `GAUNTLET_TEST_BRIEF_COMMAND`, required, refused by `gauntlet-run`'s node `env-check` when unset or blank; `GAUNTLET_TEST_TIMEOUT`, optional (900 when unset), refused at run start when set but not a positive integer; `GAUNTLET_TEST_BASE`, optional (none when unset) (`gauntlet-design.md`) | a test command written, guessed or detected by any Gauntlet file; a node `timeout:` on a test node |

@@ -30,8 +30,8 @@ The repository's `.archon/config.yaml` `env:` reaches bash nodes only (cut desig
 - **Red**: the latest test run timed out and the brief baseline did not, or names a failing test (`FAILED` or `ERROR`) that the brief baseline does not name as failing. A run that exits non-zero with no failing line is also red when the brief baseline exited 0. A baseline failure that now passes is not red.
 - **Revision round** `N`: one file `gauntlet/revisions/<slug>.N.txt`, with its review, ruling and summary, under `.shared/rounds.py`. Line 1 is `Revises: plan` or `Revises: spec`. Line 2 is `Answers: <tree path>`, naming the direction, or the entered plan revision it follows. The clauses it changes come after, each as it now reads; `enter` copies the round to its revision file without the two header lines. A spec revision that follows a plan revision and changes nothing holds `No change.` after the two lines.
 - **Plan files**, **spec files**: `approved/<slug>.txt`, then each `approved/<slug>.rev<N>.txt` in order of N. An agent that needs the plan or the spec is handed these.
-- **Stage**: the plan's stage `stage` (the block's input, counted from 1; a plan with no stage lines is stage 1), its steps and the specs they serve. A stage's writing starts at `start`, the highest move on disk when the block began (`stage.py open`): every rule of `state` reads only files whose move is above `start`, and every counter continues above it, so the earlier stages' records that `copy-in` brought in (worktree cut design) are history and not state. The divvyer cuts blocks and waves within the stage, never across one, and each stage seals with a final commit of its own: `<slug>` in the repository's `GAUNTLET_FINAL_SUBJECT` (below) stands for `<slug>` at stage 1 and `<slug>-s<k>` at stage `k` after it, so no two stages commit the same subject. `gauntlet-design.md` gives the stages' order, bound and node ids.
-- **Amicus**: the owner-control design's briefing role (the owner is the bench); it rules on nothing. It runs, and the loop stops for the owner at `bench`, on every amicus case, and the existence of the case is the trigger, never an agent's judgment: a **red** (the latest test run is red), a block's **contest** (a writer says a test or its spec is wrong), a **blocked** block (edits outside its `paths`; the grounds are those paths), a **failed commit** (a block's commit, or the final commit by `seal`), and the **idle** case (an iteration that wrote no file). `cap` (200 iterations) is no amicus case: it asks a plain reply. The amicus works out why the run failed, explains it to the owner in plain words with no other agent checking the explanation, and discusses the way forward with the owner. The discussion is a wait: the amicus is the agent node `amicus` of block `write`'s loop `work`, ahead of its sole terminal wait `bench`; each answer of `discuss` runs one more iteration in which the amicus reads the owner's words as `$LOOP_PREV.bench.output.text` and answers, and any other answer ends the discussion (contracts A30). One shared included block, `amicus/`, holds the role for writing, the mend and the review before landing, as `screen` does for steering: a role file resolves only from its own workflow's `commands/` (contracts A6), so one block states the role once where per-workflow copies would restate it in `write/commands/` and `mend/commands/`.
+- **Stage**: the plan's stage `stage` (the block's input, counted from 1; a plan with no stage lines is stage 1), its steps and the specs they serve. A stage's writing starts at `start`, the highest move on disk when the block began (`stage.py open`): every rule of `state` reads only files whose move is above `start`, and every counter continues above it, so the earlier stages' records that `copy-in` brought in (worktree cut design) are history and not state. The divvyer cuts blocks and waves within the stage, never across one, and each stage seals with a final commit of its own (`runtime-model-design.md`, "Commit model"). `gauntlet-design.md` gives the stages' order, bound and node ids.
+- **Amicus**: the owner-control design's briefing role (the owner is the bench); it rules on nothing. It runs, and the loop stops for the owner at `bench`, on every amicus case, and the existence of the case is the trigger, never an agent's judgment: a **red** (the latest test run is red), a block's **contest** (a writer says a test or its spec is wrong), a **blocked** block (edits outside its `paths`; the grounds are those paths), a **failed commit** (a block's commit, or the final commit by `seal`), and the **idle** case (an iteration that wrote no file). `cap` is no amicus case: it asks a plain reply. The amicus works out why the run failed, explains it to the owner in plain words with no other agent checking the explanation, and discusses the way forward with the owner. The discussion is a wait: the amicus is the agent node `amicus` of block `write`'s loop `work`, ahead of its sole terminal wait `bench`; each answer of `discuss` runs one more iteration in which the amicus reads the owner's words as `$LOOP_PREV.bench.output.text` and answers, and any other answer ends the discussion (contracts A30). One shared included block, `amicus/`, holds the role for writing, the mend and the review before landing, as `screen` does for steering: a role file resolves only from its own workflow's `commands/` (contracts A6), so one block states the role once where per-workflow copies would restate it in `write/commands/` and `mend/commands/`.
 - **Direction**: the owner's answer to an amicus case that ends the discussion, recorded by `stage.py record` as the file `gauntlet/write/<slug>.direction.N.md`, N the next free move, once. Line 1 is `Rework: tests`, `Rework: code`, `Rework: spec`, `Rework: plan` or `Rework: planning`, from the owner's choice at `bench` (options below); line 2 is `Landed: <n>`, the stages landed before this one; then a blank line and the owner's text verbatim, which may be empty. The next pass is bound by it: the file names which part is reworked, so no agent rules on that. `stage.py state` reads it: `tests` and `code` start a cut, `spec` and `plan` start a revision hearing, `planning` ends the block. Every writer, the divvyer and the reviser are handed the latest direction's text (blocks carry it as `ruling`; the divvyer and the reviser read every direction), and no direction is edited or removed. The amicus record `gauntlet/write/<slug>.amicus.N.md`, N the same next free move, holds the amicus's explanation as it stands, rewritten each turn; it is no move. The mend writes its own direction files, `gauntlet/mend/<slug>.direction.N.md` (landing design), in this form with `Rework: code`, `Rework: tests`, `Rework: again` (the tests rerun with no mender) or `Rework: planning`. Both files reach plan review on a back to planning (`gauntlet-design.md`, "Back to planning").
 
 Files in `gauntlet/write/`:
@@ -45,30 +45,24 @@ Files in `gauntlet/write/`:
 | `<slug>.direction.N.md` | `stage.py record` | the owner's direction (Terms), once |
 | `<slug>.amicus.N.md` | node `amicus` | the amicus's explanation of the case at move N, rewritten each turn; no move counts it |
 | `<slug>.ruling.N.txt` | `stage.py record` | the owner's reply to a `cap` case, verbatim; once |
-| `<slug>.leftover.N.patch` | `stage.py result` | the tree's uncommitted changes when a block of wave N did not end committed, written before the tree is restored to `HEAD`; once |
+| `<slug>.leftover.N.patch` | `stage.py result` | `runtime-model-design.md`, "Commit model" |
 
-Files in `gauntlet/revisions/`: `<slug>.N.txt` (reviser), `<slug>.review.N.txt` (reviewer, or `ledger.py screen` for `SCREENED`), `<slug>.ruling.N.txt` (`stage.py record`), `<slug>-summary.N.md` (reporter), each as `.shared/rounds.py` rules them.
+Files in `gauntlet/revisions/`: `<slug>.N.txt` (reviser), `<slug>.review.N.txt` (reviewer, or `ledger.py screen` for `SCREENED`), `<slug>.ruling.N.txt` (`stage.py record`), `<slug>-summary.N.md` (reporter), each as `runtime-model-design.md`, "Hearing state", rules them.
 
 ## Modules
 
 ### `fence/files.py` (commit)
 
-Adds the tool `commit`, registered only when `FENCE_COMMIT=1`. The writer pens the message and commits its own block. Replaces nothing.
+Adds the tool `commit`, registered only when `FENCE_COMMIT=1`. The writer pens the message and commits its own block. The tool's rules (which paths it adds, `exit=0 nothing`, the lock, the one retry after a hook changed files, what it returns) are `runtime-model-design.md`'s, heading "Commit model". Replaces nothing.
 
 ```python
 # FENCE_COMMIT=1: commit is registered; unset: absent.
 # Every path this server process wrote, edited, copied or deleted is recorded.
 def commit(message: str, paths: list[str]) -> str: ...
-# Under an exclusive flock on <git rev-parse --git-dir>/gauntlet-commit.lock, held across every command:
-#   changed = the paths of <paths> git status --porcelain lists as changed (a listed path that does not exist and was
-#   never tracked is no change); none: no commit, returns "exit=0 nothing".
-#   Else git add -A -- <changed>, then git commit --only -m <message> -- <changed>; hooks run, never --no-verify.
-#   A failing commit after which a hook changed files among <changed> is retried once, the same two commands.
-# PermissionError, nothing staged: a path outside FENCE_WRITE or inside FENCE_DENY or FENCE_HIDE;
-# Returns "exit=<n>", then, when git exits non-zero, the names of the hooks that failed and never their output; exit 0 adds "commit=<full hash>".
+# Rules, errors and return value: runtime-model-design.md, "Commit model".
 ```
 
-Suite: `fence/test_files_commit.py`, run as `docs/testing.md` states with the folder `fence`, against a real git repository under `tmp_path`. It pins a commit holding exactly `paths` while another path is staged, the refusal of a recorded path left out of `paths`, a listed path that does not exist left out of the commit, `exit=0 nothing` when no path changed, a hook that fixes files committed on the one retry, a failing `pre-commit` hook giving a non-zero `exit` and no commit, and the tool's absence without `FENCE_COMMIT`.
+Suite: `fence/test_files_commit.py`, run as `docs/testing.md` states with the folder `fence`, against a real git repository under `tmp_path`. It pins a commit holding exactly `paths` while another path is staged, the refusal of a recorded path left out of `paths`, a listed path that does not exist left out of the commit, the "nothing" answer when no path changed and the one retry after a hook changed files (both `runtime-model-design.md`, "Commit model"), a failing `pre-commit` hook giving a non-zero `exit` and no commit, and the tool's absence without `FENCE_COMMIT`.
 
 ### `fence/files.py` and `fence/checks.py` (settings)
 
@@ -77,14 +71,14 @@ Both servers take the repository's test settings from `gauntlet/settings.json` o
 ```python
 # checks.py: run_tests() runs settings["brief"] with timeout settings["timeout"] (default 900 s) as it ran FENCE_TEST_COMMAND,
 #   a process-group kill at the timeout, and returns the last 200 lines. The brief command prints one line per test and no test source.
-#   FENCE_CUT=1 (the coder's fence): each returned line is cut at its first " - " by .shared/red.py's cut, whatever the
+#   FENCE_CUT=1 (the coder's fence, whose value sits in the section `write-code/write-code.yaml`): each returned line is cut at its first " - " by .shared/red.py's cut, whatever the
 #   repository's command prints, so no assertion message reaches a coder.
 #   File missing or "brief" blank at the first call: the tool returns the error, runs nothing.
 # files.py: the entry "@base" in FENCE_READ or FENCE_WRITE stands for the paths in settings["base"] (none when the list is empty);
 #   an entry "@base" with the file missing stands for nothing.
 ```
 
-Suite: `fence/test_settings.py`, run as `docs/testing.md` states with the folder `fence`, against a settings file under `tmp_path`. It pins the command and timeout read from the file, the default 900, the `@base` expansion, the `FENCE_CUT=1` cut of a `FAILED <id> - <message>` line, and the refusal on a missing file.
+Suite: `fence/test_settings.py`, run as `docs/testing.md` states with the folder `fence`, against a settings file under `tmp_path`. It pins the command and timeout read from the file, the default 900, the `@base` expansion, the coder-fence cut of a `FAILED <id> - <message>` line, and the refusal on a missing file.
 
 ### `write/scripts/ledger.py`
 
@@ -109,7 +103,7 @@ Suite: `write/tests/test_ledger.py`. It pins `UNSOUND` counted as an attempt, `S
 
 ### `write/scripts/stage.py`
 
-Writing's progress: what is owed next, the cut and wave records, red, the paths mark, the owner's cases outside the hearing, the direction and the block's end. It derives everything from `gauntlet/write/`, `gauntlet/revisions/` and `approved/`, so a resumed run reads the same state. It takes the hearing's state, docket, screen and record from `.shared/rounds.py` with `PROFILE`, and red from `.shared/red.py`, and computes none of them itself. Standard library only. Replaces nothing.
+Writing's progress: what is owed next, the cut and wave records, red, the paths mark, the owner's cases outside the hearing, the direction and the block's end. It derives everything from `gauntlet/write/`, `gauntlet/revisions/` and `approved/` (what that gives a resume: `runtime-model-design.md`, "Resume and rerun"). It takes the hearing's state, docket, screen and record from `.shared/rounds.py` with `PROFILE`, and red from `.shared/red.py`, and computes none of them itself. Standard library only. Replaces nothing.
 
 ```python
 # /// script
@@ -119,7 +113,7 @@ Writing's progress: what is owed next, the cut and wave records, red, the paths 
 #   loop; INPUTS_BASE in docket; per mode below. The test base is "base" of gauntlet/settings.json (none when the file is
 #   missing or the list is empty).
 #   The slug is INPUTS_SLUG; the hearing's rounds.py calls take theirs from INPUTS_ITEMS through .shared/pin.py's slug,
-#   the one derivation (worktree cut design). Every rounds.state and rounds.docket call passes first: the round after
+#   the one derivation (worktree cut design). Every rounds.state and rounds.docket call passes first (runtime-model-design.md, "Hearing state"): the round after
 #   the latest closed round, 1 when none, so each revision hearing in gauntlet/revisions/ starts there.
 #   Stage (Terms): every rule below reads only files whose move is above START, the highest move when the block began; the
 #   stage's plan steps are the steps of approved/<slug>.scope.txt (plan review design) whose stage is INPUTS_STAGE, and the
@@ -155,7 +149,7 @@ def state(start: int) -> dict: ...
 #   a revision owed: latest direction `Rework: spec` or `Rework: plan` not yet answered by an approved round; an entered
 #     plan revision, spec not "", and no spec round answering it closed. A round is closed by an approve ruling, or a SOUND
 #     review of a "No change." round. next from rounds.state: reviser owes: revise; reviewer owes: review; owner owes:
-#     none, so docket asks the unanswered case again.
+#     none (runtime-model-design.md, "Resume and rerun").
 #   a case for the amicus: the latest blocks file holds a contest, commit-failed or blocked newer than the latest direction
 #     (a blocked block's grounds are the paths outside it; the owner's direction `tests` or `code` starts the cut that carries
 #     the block, and the case precedes test and seal, so no seal runs over a blocked wave); the
@@ -181,11 +175,8 @@ def result(move: int, tests: str, code: str) -> dict: ...
 #   recorded as commit-failed with its error. stdout { "contested": bool }.
 # The paths mark: for each committed block, `git -C <tree> diff-tree --no-commit-id --name-only -r <commit>` against the block's
 #   paths; the block's record holds "outside", the changed paths no entry of "paths" covers, [] when none. A mark is no stop.
-# A block of the wave that did not end committed: in the tree's root, never the checkout (git -C <tree>), first writes
-#   every uncommitted change as gauntlet/write/<slug>.leftover.<move>.patch (git diff HEAD, staged and unstaged, then each
-#   untracked file not ignored as a new-file diff), then restores the tree to HEAD: git restore --source=HEAD --staged
-#   --worktree -- :/ and git clean -fd -- :/, ignored files (gauntlet/ among them) kept. Writers run one at a time
-#   (max_parallel: 1), so every such change is the wave's own. The patch is named in the amicus case's files.
+# A block of the wave that did not end committed: the leftover patch and the restore of the tree to HEAD are
+#   runtime-model-design.md's, "Commit model"; the patch is named in the amicus case's files.
 
 def red(run: str, brief: str) -> bool: ...
 # The latest run file and the brief baseline, passed to .shared/red.py's red with no head; returns its answer.
@@ -314,7 +305,7 @@ Write the record file with the explanation as it now stands, over the earlier tu
 Tools: the fence-files server only.
 ```
 
-`amicus.mcp.json` names one server, `fence-files`, launched as the spec review design's fences are: `FENCE_READ=.`, `FENCE_WRITE=gauntlet/write/*.amicus.*.md:gauntlet/mend/*.amicus.*.md`, `FENCE_DENY` and `FENCE_ONCE` unset, `FENCE_COMMIT` unset. Fixtures: `amicus/fixtures/explain.stubs.yaml`.
+`amicus.mcp.json` names one server, `fence-files`, launched as the intake design's section `intake/clerk.mcp.json` gives: `FENCE_READ=.`, `FENCE_WRITE=gauntlet/write/*.amicus.*.md:gauntlet/mend/*.amicus.*.md`, `FENCE_DENY` and `FENCE_ONCE` unset, `FENCE_COMMIT` unset. Fixtures: `amicus/fixtures/explain.stubs.yaml`.
 
 ### `write-tests/write-tests.yaml`, `write-tests/commands/test-writer.md`, `write-tests/test-writer.mcp.json`
 
@@ -379,7 +370,7 @@ grounds. Never retry it.
 Tools: fence-files, fence-checks.
 ```
 
-`test-writer.mcp.json` has two servers, each launched plainly as the spec review design's fences are, with no `sh -c` line building a value, and neither sets `CLAUDE_PROJECT_DIR`. The test command and timeout come from `gauntlet/settings.json` (above).
+`test-writer.mcp.json` has two servers, each received as the intake design's section `intake/clerk.mcp.json` gives, with no `sh -c` line building a value. The test command and timeout come from `gauntlet/settings.json` (above).
 
 | Server | Settings |
 |---|---|
@@ -413,7 +404,7 @@ Fixtures: `write-code/fixtures/committed.stubs.yaml`, `write-code/fixtures/conte
 
 ### Writing's fences: `write/divvyer.mcp.json`, `reviser.mcp.json`, `reviewer-plan.mcp.json`, `reviewer-spec.mcp.json`, `reporter.mcp.json`
 
-One server each, `fence-files`, launched as the spec review design's fences are. `FENCE_COPY` and `FENCE_COMMIT` stay unset. No agent reaches `approved/` for writes.
+One server each, `fence-files`, launched as the intake design's section `intake/clerk.mcp.json` gives. `FENCE_COPY` and `FENCE_COMMIT` stay unset. No agent reaches `approved/` for writes.
 
 | File | `FENCE_READ` | `FENCE_WRITE` | `FENCE_DENY` | `FENCE_ONCE` |
 |---|---|---|---|---|
@@ -440,7 +431,7 @@ nodes:
   - id: work
     depends_on: [open]
     loop_group:
-      max_iterations: 200              # rounds.py CAP; from 200 iterations every iteration asks (stage.py cap), so this never fails the run
+      max_iterations: <CAP>               # the bound CAP, runtime-model-design.md, "Loop shape and bounds"
       until_bash: 'end=$docket.output.end; [ -n "$end" ]'
       nodes:
         - id: record                   # runs every iteration, so state always has a dependency that succeeded
@@ -511,12 +502,10 @@ nodes:
         - id: seal                     # the mechanical final commit
           depends_on: [state]
           when: "$state.output.next == 'seal'"
-          bash: <git status --porcelain empty: write gauntlet/write/<slug>.seal.$state.output.move.txt "exit=0", "nothing".
-                Else git add -A, git commit -F - with the message on stdin, hooks run: line 1 the repository's
-                GAUNTLET_FINAL_SUBJECT with each "<slug>" replaced by the slug at stage 1 and by <slug>-s<k> at stage k after it ("<slug>: final" when unset), a blank line,
-                gauntlet/plans/approved/<slug>-summary.md when plan is not "", then each summary file of $state.output.approved
-                (the revision rounds the owner approved) in order, each separated by a blank line; write the file:
-                "exit=<n>", then the output; exit 0. A clean tree gets no final commit>
+          bash: <the seal of runtime-model-design.md, "Commit model", on the tree's root: a clean tree writes gauntlet/write/<slug>.seal.$state.output.move.txt
+                "exit=0", "nothing"; else the final commit, whose body holds gauntlet/plans/approved/<slug>-summary.md when plan is not ""
+                and each summary file of $state.output.approved (the revision rounds the owner approved) in order; write the file:
+                "exit=<n>", then the output; exit 0>
 
         - id: revise
           depends_on: [state]
@@ -615,14 +604,14 @@ env:
   GAUNTLET_FINAL_SUBJECT: "<line 1 of the final commit, <slug> standing for the slug, such as \"feat(<slug>): final\"; optional>"
 ```
 
-`GAUNTLET_TEST_TIMEOUT` is the cut design's. Writing needs only `GAUNTLET_TEST_BRIEF_COMMAND` to be set, which `gauntlet-run`'s bash node `env-check` checks at run start; `GAUNTLET_TEST_BASE` is optional, none when unset; `GAUNTLET_FINAL_SUBJECT` is optional, `<slug>: final` when unset (a later stage's `<slug>` is `<slug>-s<k>`, Terms, "Stage"), and only bash node `seal` reads it, so a repository whose `commit-msg` hook refuses `<slug>: final` sets a subject it accepts. The brief baseline, `gauntlet/baseline/<slug>.brief.txt`, is written by the cut design's node `baseline`.
+`GAUNTLET_TEST_TIMEOUT` is the cut design's. Writing needs only `GAUNTLET_TEST_BRIEF_COMMAND` to be set, which `gauntlet-run`'s bash node `env-check` checks at run start; `GAUNTLET_TEST_BASE` is optional, none when unset; `GAUNTLET_FINAL_SUBJECT` is optional; its use is `runtime-model-design.md`'s, "Commit model". The brief baseline, `gauntlet/baseline/<slug>.brief.txt`, is written by the cut design's node `baseline`.
 
 ## Homes
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
 | What is owed next, cuts, wave records, writing's owner cases, the run's end | `write/scripts/stage.py` | any of it computed in a node, prompt or role; a `when:` deciding more than which node runs for `next` |
-| The revision hearing's rounds, verdicts and owner cases | `.shared/rounds.py` with `write/scripts/ledger.py`'s `PROFILE` | `stage.py` or a node computing a round, slot or count |
+| The revision hearing's rounds, verdicts and owner cases | `runtime-model-design.md`, headings "Hearing state" and "Ledger", through `write/scripts/ledger.py`'s `PROFILE` | `stage.py` or a node computing a round, slot or count |
 | Cutting work into blocks and waves; what runs in one fan-out | the divvyer's output, checked by `stage.py cut` | blocks of one wave sharing a path; a block named by any other role or node |
 | Running the blocks of a wave | `include:` with `fan_out:` of `write-tests` or `write-code`, `max_parallel: 1`, each block opening on node `clean` | a `wait:` in either block; a `workflow:` child per block |
 | Briefing the owner on a red, a contest, a blocked block, a failed commit or an idle iteration | the shared `amicus` block (Terms, "Amicus"), included as node `amicus` of `work` ahead of `bench`; the owner's choice at `bench` | a writer, node, script or agent ruling who is wrong or whether a case warrants a stop; an agent checking, filtering or rewriting the amicus's explanation; a writer retrying a failed commit |
@@ -631,9 +620,9 @@ env:
 | A stage's writing | `stage.py` over the records above `start`, the plan steps of stage `stage`, a final commit of its own | a cut across two stages; a stage reading an earlier stage's records as its state |
 | A wrong spec or plan | a revision round in `gauntlet/revisions/`, tried by the reviewer, approved at `bench`, entered by `enter` | any other edit of the approved files; the reviser revising past the quoted clause or the affected specs |
 | Ending the block for planning | the owner's `back-to-planning` direction, read by `stage.py close`, which hands off `planning`, the direction and the amicus record | a size or line-count threshold; any other node ending writing; an agent choosing to end it |
-| Commits | the writer's own message through `commit` of `fence/files.py`, which commits only the listed paths that changed, answers "nothing" when none did, retries once after a hook changed files, and returns git's exit and the names of failing hooks and never their output; node `seal` for the final commit, only on a dirty tree, with the message node `seal` gives | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |
-| A block's uncommitted changes | `stage.py result`, in the tree only: the leftover patch `gauntlet/write/<slug>.leftover.<move>.patch` first, then the tree restored to `HEAD`; the block carried | any other restore, clean or reset in a Gauntlet file; a restore in the checkout; a restore before the patch is written |
-| Test output a writer sees | `fence/checks.py` running the brief command from `gauntlet/settings.json`, for the test writer, the coder and both menders, the coder's and `mend-code`'s lines cut at their first ` - ` (`FENCE_CUT=1`) | a writer running any other test command; a tool returning a traceback, a message past ` - ` or hook output to a coder |
+| Commits | `runtime-model-design.md`, heading "Commit model"; the tool is `commit` of `fence/files.py`, the final commit node `seal` | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |
+| A block's uncommitted changes | `runtime-model-design.md`, heading "Commit model"; done by `stage.py result` | any other restore, clean or reset in a Gauntlet file; a restore in the checkout; a restore before the patch is written |
+| Test output a writer sees | `fence/checks.py` running the brief command from `gauntlet/settings.json`, for the test writer, the coder and both menders, the coder's and `mend-code`'s lines cut at their first ` - ` (the coder-fence cut mode) | a writer running any other test command; a tool returning a traceback, a message past ` - ` or hook output to a coder |
 | The per-test listing and red | The brief command's `PASSED`, `FAILED` and `ERROR` lines, read by `.shared/red.py` (`gauntlet-design.md`), which `stage.py red` calls | parsing a runner's full output; a comparison computed in `stage.py`, a node, prompt or role |
 | What a test writer can see | `write-tests/test-writer.mcp.json`: `tests/`, the approved spec, `docs/testing.md`, the test base (`@base`) | a test writer handed the plan, code or a CODE section |
 | What a coder can see | `write-code/coder.mcp.json`'s `FENCE_HIDE`; the block's ruling text | a coder handed the item file, the spec, a test file or a direction file |

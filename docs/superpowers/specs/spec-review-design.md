@@ -4,7 +4,7 @@ Status: proposed.
 
 ## Why
 
-Spec review is phase 3 of the one run `gauntlet-run`, which includes it as node `spec-review` after `plan-review` (gauntlet design); it also runs on its own (`archon workflow run spec-review`). It takes plan review's hand-off: the item file and planning's approved plan, or the item file alone when planning found that the work only edits `tests/`. It hands `{ items, plan, spec, outcome }` to the worktree cut. The speccer decides whether tests need speccing, writes the test specs with spikers' measurements, and the arbiter tries them round by round. A spec block the arbiter rules `READY` goes to the owner in plain English; on approval it is copied to `gauntlet/specs/approved/<slug>.txt`. A block the arbiter rules `INVALID` (nothing to test) goes to the owner to confirm; on confirmation the phase ends with no spec. The arbiter never reads source code. What it needs from the code it asks for through its three request forms, and the speccer answers them. Every path is relative to the pack root unless it names the run's checkout; `gauntlet/` always sits in the checkout.
+Spec review is phase 3 of the one run `gauntlet-run`, which includes it as node `spec-review` after `plan-review` (gauntlet design); it also runs on its own (`archon workflow run spec-review`). It takes plan review's hand-off: the item file and planning's approved plan, or the item file alone when planning found that the work only edits `tests/`. It hands its fields (node `handoff`, below) to the worktree cut. The speccer decides whether tests need speccing, writes the test specs with spikers' measurements, and the arbiter tries them round by round. A spec block the arbiter rules `READY` goes to the owner in plain English; on approval it is copied to `gauntlet/specs/approved/<slug>.txt`. A block the arbiter rules `INVALID` (nothing to test) goes to the owner to confirm; on confirmation the phase ends with no spec. The arbiter never reads source code. What it needs from the code it asks for through its three request forms, and the speccer answers them. Every path is relative to the pack root unless it names the run's checkout; `gauntlet/` always sits in the checkout.
 
 What the tree already holds for the concerns spec review touches:
 
@@ -20,15 +20,15 @@ What the tree already holds for the concerns spec review touches:
 ## Terms
 
 - **Speccer**: Opus, effort medium. One session for the whole run, started by node `open` before the hearing loop and reused for every filing turn.
-- **Arbiter**: the adversarial spec reviewer (`spec-review/commands/arbiter.md`). It is sworn in once by node `swear-in`. Twelve slots, `arbitrate-1` to `arbitrate-12`, each fork the sworn-in session at their first executed turn and continue their own session after it. One slot tries every round, across the owner's answers, until it returns `OBJECTION: LEADING`. That verdict retires the slot; the speccer repairs the block and the next slot tries the next round. Every other verdict keeps the slot. A rerun starts again at `arbitrate-1`.
+- **Arbiter**: the adversarial spec reviewer (`spec-review/commands/arbiter.md`). It is sworn in once by node `swear-in`. Its slots, `arbitrate-1` to `arbitrate-12` (the slot bound, `runtime-model-design.md`, "Loop shape and bounds"), each fork the sworn-in session at their first executed turn and continue their own session after it. The slot rule, the retirement by `OBJECTION: LEADING` and the rerun are `runtime-model-design.md`'s: "Hearing state" and "Loop shape and bounds". The speccer repairs the block after a retirement and the next slot tries the next round.
 - **Spiker**: an inline sub-agent of the speccer, dispatched through Agent, with no Bash and no shell. It reads and writes through the `fence-scratch` server and runs its experiment files through the `fence-spike` server, which runs only a command fixed in the fence, the constant `bash run.sh`, with cwd in the spiker's scratch folder; the spiker writes `run.sh` there. It runs scratchpad experiments under `gauntlet/scratch/<slug>/` of the checkout: stub proofs (null stub, hard-coded stub), bite measurements and answers to `measure` requests. One spiker serves one related set of experiments with shared scaffolding. At most 2 spikers run at once.
 - **Screener**: the shared steering check, the support workflow `screen`, included fresh each round. A flagged spec file gets the verdict `SCREENED`, reaches no arbiter and retires no slot.
 - **Reporter**: a fresh agent that writes the plain-English summary of a `READY` or `INVALID` round for the owner.
-- **Round** `N`: one spec file `<slug>.N.txt` and, once tried, its review `<slug>.review.N.txt` or ruling `<slug>.ruling.N.txt`. Round numbers climb for the whole phase; no file is overwritten.
-- **Attempt**: a round whose verdict is `ANOTHER PASS` or `APPROACH THE BENCH`. At 5 attempts the owner is called.
-- **Stretch**, **run iterations**, **idle iteration**, **ruling**, **vacancy**, **slug**: as in planning, an idle iteration being case `idle` here too, explained by the fresh analyst. Stretch 12, cap 200, twelve slots; each ruling resets the attempt, `NON-RESPONSIVE` and stretch counts. Vacancy is reported by the ledger's `docket` as case `vacant`, the hearing ends on it, and node `vacate`, after the hearing, cancels the run without asking.
+- **Round** `N`: one spec file `<slug>.N.txt` (`runtime-model-design.md`, "Hearing state").
+- **Attempt**: a round whose verdict is `ANOTHER PASS` or `APPROACH THE BENCH`; the count that calls the owner is `runtime-model-design.md`'s, "Loop shape and bounds".
+- **Stretch**, **run iterations**, **idle iteration**, **ruling**, **guard record**, **vacancy**: `runtime-model-design.md`, "Loop shape and bounds" and "Ledger". **Slug**: the function `slug` of `.shared/pin.py` (worktree cut design). Node `vacate`, after the hearing, cancels the run without asking on case `vacant`.
 
-Verdicts, read from the first line of a review, `Verdict: <verdict>`, with markdown markup stripped and case ignored, by the longest known name the text after `Verdict:` starts with; a first line naming no known verdict is an owner case, never an exit 1:
+Verdicts, read from the first line of a review as `runtime-model-design.md`, "Ledger" gives:
 
 | Verdict | Next |
 |---|---|
@@ -36,7 +36,7 @@ Verdicts, read from the first line of a review, `Verdict: <verdict>`, with markd
 | `INVALID` | reporter, then the owner: confirm (the phase ends with no spec), or revise (a ruling) |
 | `APPROACH THE BENCH` | the owner's reply becomes a ruling; the speccer revises; counts as an attempt |
 | `ANOTHER PASS` | the speccer revises; counts as an attempt |
-| `OBJECTION: NON-RESPONSIVE` | the speccer revises; at 2 since the last ruling the owner is called |
+| `OBJECTION: NON-RESPONSIVE` | the speccer revises; the count that calls the owner is `runtime-model-design.md`'s, "Loop shape and bounds" |
 | `OBJECTION: LEADING` | slot retired; the speccer repairs by removing the quoted text |
 | `SCREENED` | the speccer repairs by removing the quoted text; no slot retired |
 
@@ -45,15 +45,15 @@ Files in `gauntlet/specs/` of the checkout:
 | File | Written by | Rule |
 |---|---|---|
 | `<slug>.N.txt` | speccer | edited by the speccer only within its filing turn N |
-| `<slug>.review.N.txt` | arbiter; `ledger.py screen` for a `SCREENED` file | written once; first line `Verdict: <verdict>` |
-| `<slug>.ruling.N.txt` | `ledger.py record` | written once |
-| `<slug>.guard.N.txt` | `ledger.py record` | one entry appended per `guard`, `idle` or `cap` ask, whose round N is untried; it does not mark round N tried and resets the stretch and the repair count; the speccer and the arbiter read it as they read rulings |
-| `<slug>-summary.N.md` | reporter | written once |
-| `<slug>.idle.K.md` | analyst | written once: why the iteration that tried no round, drew no answer and left the round file as it was made no progress; K is one above the guard-record count at the ask |
-| `<slug>.iter.txt` | `ledger.py filing` | one line appended per hearing iteration, holding `state`'s round, owed, the guard-record count and `repairs`; the ledger counts the lines above `base` as the run's iterations, and the last lines that match the state `docket` reads as idle ones |
-| `<slug>.items.sha256` | `ledger.py state` outside the loop (node `docket-in`) | written once, at round 1, when absent: the sha256 of the item file the hearing runs against |
-| `stale/<slug>.<n>/` | `ledger.py state` outside the loop (node `docket-in`) | when `<slug>.items.sha256` differs from the item file's sha256, every file of the slug in this folder, `approved/` included, is moved here first, n the next free number, so the changed item file is heard from round 1 |
-| `approved/<slug>.txt`, `approved/<slug>-summary.md` | bash node `enter` | written once, only after the owner approves a `READY` round |
+| `<slug>.review.N.txt` | arbiter; `ledger.py screen` for a `SCREENED` file | `runtime-model-design.md`, "Hearing state" |
+| `<slug>.ruling.N.txt` | `ledger.py record` | `runtime-model-design.md`, "Hearing state" |
+| `<slug>.guard.N.txt` | `ledger.py record` | `runtime-model-design.md`, "Hearing state"; the speccer and the arbiter read it as they read rulings |
+| `<slug>-summary.N.md` | reporter | `runtime-model-design.md`, "Hearing state" |
+| `<slug>.idle.K.md` | analyst | `runtime-model-design.md`, "Hearing state" and "Loop shape and bounds" |
+| `<slug>.iter.txt` | `ledger.py filing` | `runtime-model-design.md`, "Hearing state" |
+| `<slug>.items.sha256` | `ledger.py state` outside the loop (node `docket-in`) | `runtime-model-design.md`, "Hearing state" |
+| `stale/<slug>.<n>/` | `ledger.py state` outside the loop (node `docket-in`) | `runtime-model-design.md`, "Hearing state" |
+| `approved/<slug>.txt`, `approved/<slug>-summary.md` | bash node `enter` | written only after the owner approves a `READY` round (`runtime-model-design.md`, "Hearing state") |
 
 `gauntlet/scratch/<slug>/` holds the spikers' experiments. Only the `fence-scratch` server and the `fence-spike` tool write there. The speccer node's session reaches both servers, as its spikers do, since Archon has no per-sub-agent server list; the speccer's role sends every experiment to a spiker. No other agent reads it.
 
@@ -61,17 +61,18 @@ Files in `gauntlet/specs/` of the checkout:
 
 ### `.shared/rounds.py`
 
-The one home of round-ledger logic for every Gauntlet hearing: round numbers, who owes the next move, slot choice, verdict parsing, counts, the runaway guard and cap, the owner's case, rulings, `SCREENED` reviews and the approved paths. It derives everything from the files in one folder, so a resumed run or a fresh run on the same item file reads the same state. Standard library only. Each workflow's `scripts/ledger.py` passes a `Profile` and calls `main`. It replaces the round logic the plan review design puts in `plan-review/scripts/ledger.py`.
+The module of the round ledger for every Gauntlet hearing. What it answers (modes, state fields, owed and next, verdicts, owner cases, rulings, guard records) is stated once in `runtime-model-design.md`, headings "Ledger" and "Hearing state"; this section holds its constants, dataclasses and signatures. Standard library only. Each workflow's `scripts/ledger.py` passes a `Profile` and calls `main`. It replaces the round logic the plan review design once put in `plan-review/scripts/ledger.py`.
 
 ```python
 from dataclasses import dataclass
 from typing import Callable
 
-SLOTS = 12      # slot nodes <prefix>-1 to <prefix>-12, named "<letter>1" to "<letter>12" in "next"
-STRETCH = 12    # tried rounds since the last ruling and at or above the latest guard record's round, plus repairs, that call the owner
-CAP = 200       # the hearing's max_iterations; from this many loop iterations in this run every iteration calls the owner
-IDLE = 1        # trailing iterations that wrote nothing (the state they ended in is the state they began in) that call the owner; read by
-                #   docket for profiles with iterations, and by writing's stage.py docket
+# The bounds, with their values, are runtime-model-design.md's, heading "Loop shape and bounds"; the module takes each value from there.
+SLOTS: int      # slot nodes <prefix>-1 to <prefix>-SLOTS, named "<letter>1" to "<letter><SLOTS>" in "next"
+STRETCH: int
+REPAIRS: int    # plans only
+CAP: int
+IDLE: int       # read by docket for profiles with iterations, and by writing's stage.py docket
 
 @dataclass(frozen=True)
 class OwnerCase:
@@ -92,84 +93,24 @@ class Profile:
     non_responsive: str             # "OBJECTION: NON-RESPONSIVE"
     attempts: tuple[str, ...]       # verdicts counted as attempts
     owner_cases: tuple[OwnerCase, ...]   # in precedence order, ahead of deadlock, non-responsive, guard, idle and cap
-    filed: Callable[[str, str, int], bool]   # (folder, slug, round): the round is ready to try; plans: cited, the latest
-                                    #   line of <folder>/<slug>.cite.<round>.txt listing no unresolved marker (cite.py
-                                    #   judges; no such file: not ready); specs and writing's revisions: always
-    iterations: bool = False        # True (plans, specs): mode "filing" counts loop iterations in <slug>.iter.txt and docket
-                                    #   asks at CAP and at IDLE; False (writing's revisions): no counter, stage.py keeps its own
+    filed: Callable[[str, str, int], bool]   # (folder, slug, round): the round is ready to try; plans: cited (runtime-model-design.md,
+                                    #   "Ledger", Citation state); specs and writing's revisions: always
+    iterations: bool = False        # True (plans, specs): the loop counts its iterations (runtime-model-design.md, "Loop shape and
+                                    #   bounds"); False (writing's revisions): no counter, stage.py keeps its own
 
-# Script nodes pass INPUTS_MODE; the slug is .shared/pin.py's slug of INPUTS_ITEMS (worktree cut design). Every in-loop mode
-#   (state, filing, docket) also passes INPUTS_START; docket also passes INPUTS_BASE ($docket-in.output.base), and close
-#   passes INPUTS_START. Script modes hear from round 1; stage.py passes first itself.
-# Mode "filing" (node filing only, profiles with iterations) is mode "state" that first appends one line to
-#   <folder>/<slug>.iter.txt holding round, owed, the guard-record count and repairs, so the file holds one line per
-#   loop iteration.
-def cited(folder: str, slug: str, round: int) -> bool: ...   # the plans profile's filed
-# Verdicts are read with markdown markup stripped and case ignored, by the longest known name the text after "Verdict:"
-#   starts with. A first review line naming no known verdict is an owner case (docket case "unknown", option reply), never an exit 1.
-# A round is tried when its review or its ruling exists. <slug>.guard.N.txt never marks round N tried.
+# Modes, their inputs and outputs, the state fields, owed and next, the owner cases and verdict parsing:
+#   runtime-model-design.md, headings "Ledger" and "Hearing state". Script nodes pass INPUTS_MODE.
+def cited(folder: str, slug: str, round: int) -> bool: ...   # the plans profile's filed; the rule: runtime-model-design.md, "Ledger" (Citation state)
 
-def state(p: Profile, slug: str, start: int | None, first: int = 1) -> dict: ...
-# first: the hearing's first round. A folder that holds one hearing per slug passes 1; writing, which holds a revision
-#   hearing per SPEC or PLAN verdict in one folder, passes the round after the latest closed one (writing design).
-# { "round", "slug", "file": "<folder>/<slug>.<round>.txt", "owed": author | reviewer | "owner" | "ended" | "approved",
-#   "next": author | "<letter>1".."<letter>12" | "vacant",
-#   "start", "since", "attempts", "non_responsive", "stretch", "repairs", "base",
-#   "rulings": [str], "review": str, "verdict": str }
-#   Same meaning as the plan review design's ledger "state"; slot = 1 + retire reviews with N > start, and "next" is
-#   "vacant" as soon as twelve such reviews exist, whatever the round's state (the cancel needs no repair turn first).
-#   rulings: every <slug>.ruling.*.txt and <slug>.guard.*.txt, in round order; the owner's words in either bind alike.
-#   owed "owner": as the plan review design's ledger "state" gives it (an asking case of the latest tried round's review
-#   with no ruling or guard record after it). since, attempts, non_responsive, stretch and owed "owner" are counted from first:
-#   a ruling, review or guard record below first belongs to an earlier hearing.
-#   owed "ended": the latest ruling file at or above first has an OwnerCase "ends" decision; the loop ends one iteration after it, and every
-#   agent node is gated on owed, so that iteration runs script nodes only. ended outside the loop (a run that stopped
-#   before enter): open and swear-in skip, so the hearing is skipped and close reads the ruling. owed "approved": <folder>/approved/<slug>.txt
-#   exists, so a rerun on an unchanged item file hears nothing. base (outside the loop): the lines of <slug>.iter.txt, 0 when
-#   none. Outside the loop (start None; node docket-in), before anything else: <folder>/<slug>.items.sha256 absent: write the sha256 of the item file (INPUTS_ITEMS) there. Present and different:
-#   move every file of the slug in <folder>, approved/ included, into <folder>/stale/<slug>.<n>/ (n the next free number),
-#   then write the new hash, so the changed item file is heard from round 1. The ledger never reads gauntlet/back/;
-#   a rerun after a back to planning starts at round 1 because gauntlet-run's node back moved the slug's files into `<folder>/stale/<slug>.<n>/`.
-#   repairs (plans only): lines of <slug>.cite.<round>.txt listing a marker for state's round, untried, written after the
-#   latest entry of <slug>.guard.<round>.txt (each entry holds that count at its ask); stretch counts them too.
+def state(p: Profile, slug: str, start: int | None, first: int = 1) -> dict: ...   # mode state and, with an iteration line first, mode filing
+# first: the hearing's first round (runtime-model-design.md, "Hearing state")
 
-def docket(p: Profile, slug: str, first: int = 1) -> dict: ...
-# { "case": "vacant" | <owner_cases' case> | "unknown" | "deadlock" | "non-responsive" | "guard" | "idle" | "cap" | "none",
-#   "ask": bool, "attention": str, "options": [ { "id", "label" } ], "round": int, "summary": bool, "verdict": str,
-#   "idle": int,    # case idle only (0 otherwise): K of <slug>.idle.K.md, one above the guard-record count
-#   "reason": bool }  # case idle only: <slug>.idle.<idle>.md is still absent, so node why writes it
-#   First case that holds: vacant when next is "vacant" (ask false; the hearing's until_bash ends the loop on it and node
-#   vacate, after the hearing, cancels the run, so the cancel comes before any ask and before max_iterations);
-#   each OwnerCase in order on the latest verdict; unknown (first line names no known verdict);
-#   attempts >= 5; non_responsive >= 2; guard (stretch >= STRETCH or repairs >= 5); idle (profiles with iterations: the last
-#   IDLE lines of <slug>.iter.txt hold the round, owed, guard-record count and repairs docket now reads, owed not ended, so
-#   the first iteration that tried no round, drew no answer and left the round file as it found it calls the owner, the
-#   attention being the counts, then the text of <slug>.idle.<idle>.md); cap (profiles with iterations: lines of <slug>.iter.txt above INPUTS_BASE >= CAP, owed not ended); none.
-#   Asking cases other than an OwnerCase offer one option, reply. verdict: the latest review's verdict.
-#   summary: true only for an OwnerCase with summary whose round's <slug>-summary.N.md is still absent, so a case read
-#   again on a resume or a rerun starts no second reporter.
-#   Every case but vacant, guard, idle and cap is read from the latest tried round's review when no ruling or guard record
-#   follows it, whichever iteration or run wrote it, so a resume or a rerun asks again; with no such review the case is
-#   "none" unless guard, idle or cap holds, guard reading repairs from state whatever the iteration wrote.
-#   round: the round of the review the case was read from; guard, idle and cap: state's round, which is untried.
+def docket(p: Profile, slug: str, first: int = 1) -> dict: ...   # the cases and the bounds they read: runtime-model-design.md, "Ledger" and "Loop shape and bounds"
 
 def screen(p: Profile, slug: str, round: int, quote: str) -> str: ...
-# writes <slug>.review.<round>.txt: "Verdict: SCREENED", then the quote verbatim; exit 1 when it exists.
-
 def record(p: Profile, slug: str, round: int, case: str, decision: str, text: str) -> str: ...
-# Round tried (its review exists): writes <slug>.ruling.<round>.txt: case, question shown, decision, the owner's text
-#   verbatim; exit 1 when it exists. A ruling resets the attempt, non-responsive and stretch counts.
-# Round untried (a guard, idle or cap ask): appends one entry to
-#   <slug>.guard.<round>.txt: case, question shown, decision, the owner's text verbatim, and the count of lines of
-#   <slug>.cite.<round>.txt listing a marker at the ask (0 when absent). Never a ruling: the round stays untried and owed as before,
-#   attempts and non-responsive are not reset, cap keeps counting, and the stretch (tried rounds with N > since and N at
-#   or above the latest guard record's round, plus repairs) and repairs restart from the entry.
-
 def close(p: Profile, slug: str) -> dict: ...
-# { "outcome": "approved" | "invalid" | "", "file": "<slug>.N.txt", "summary": "<slug>-summary.N.md" }
-#   for the latest ruling whose decision is an OwnerCase "ends"; outcome "invalid" when that case is "invalid".
-#   No such ruling and next "vacant" (INPUTS_START): outcome "vacant", file and summary "", and node vacate cancels the run.
-#   No such ruling otherwise (node close after open found no spec needed): outcome, file and summary "".
+# screen, record and close: runtime-model-design.md, "Ledger"
 
 def main(p: Profile) -> int: ...   # reads INPUTS_*, dispatches on INPUTS_MODE, prints JSON to stdout
 ```
@@ -178,7 +119,7 @@ Suite: `.shared/tests/test_rounds.py`, run as `docs/testing.md` states with the 
 
 ### `plan-review/scripts/ledger.py` (on the shared core)
 
-Planning's ledger is a profile and a call, and the plan review design holds no ledger body. Its modes, inputs and outputs are the ones the plan review design states, and `close` returns `{ outcome, file, summary }`.
+Planning's ledger is a profile and a call, and the plan review design holds no ledger body. Its modes, inputs and outputs are `runtime-model-design.md`'s, heading "Ledger".
 
 ```python
 # /// script
@@ -341,7 +282,7 @@ The built role stays as written but for these changes:
 
 ### `spec-review/speccer.mcp.json`, `spec-review/arbiter.mcp.json`, `spec-review/reporter.mcp.json`, `spec-review/analyst.mcp.json`
 
-Each role's fence. Each server is launched by `sh` with `args: ["-c", "exec uv run --script \"${ARCHON_HOME:-$HOME/.archon}/workflows/gauntlet/fence/<server>.py\""]`, and no config sets `CLAUDE_PROJECT_DIR`. `arbiter.mcp.json`, `reporter.mcp.json` and `analyst.mcp.json` name one server, `fence-files`. `speccer.mcp.json` names three: `fence-files` for the speccer, and for its spikers `fence-scratch` (`fence/files.py`) and `fence-spike` (`fence/spike.py`). The spiker is an inline sub-agent of the speccer node and Archon has no per-sub-agent server list, so the speccer's session reaches `fence-scratch` and `fence-spike` too; its role sends every experiment to a spiker, and no `denied_tools` entry is added. Neither the speccer node nor any spiker holds Bash or a shell or takes `sandbox:`; the fence servers confine them, and a path not listed in a `FENCE_READ` cannot be read, so no `FENCE_HIDE` is needed. They replace nothing.
+Each role's fence. Each server is received as the intake design's section `intake/clerk.mcp.json` gives for every fence config. `arbiter.mcp.json`, `reporter.mcp.json` and `analyst.mcp.json` name one server, `fence-files`. `speccer.mcp.json` names three: `fence-files` for the speccer, and for its spikers `fence-scratch` (`fence/files.py`) and `fence-spike` (`fence/spike.py`). The spiker is an inline sub-agent of the speccer node and Archon has no per-sub-agent server list, so the speccer's session reaches `fence-scratch` and `fence-spike` too; its role sends every experiment to a spiker, and no `denied_tools` entry is added. Neither the speccer node nor any spiker holds Bash or a shell or takes `sandbox:`; the fence servers confine them, and a path not listed in a `FENCE_READ` cannot be read, so no `FENCE_HIDE` is needed. They replace nothing.
 
 | File and server | `FENCE_READ` | `FENCE_WRITE` | `FENCE_DENY` | `FENCE_ONCE` |
 |---|---|---|---|---|
@@ -442,7 +383,7 @@ nodes:
   - id: hearing
     depends_on: [swear-in]
     loop_group:
-      max_iterations: 200              # rounds.py CAP; from 200 iterations every iteration asks (case cap), so this never fails the run
+      max_iterations: <CAP>               # the bound CAP, runtime-model-design.md, "Loop shape and bounds"
       until_bash: |
         owed=$filing.output.owed
         held=$docket.output.case
@@ -454,7 +395,7 @@ nodes:
           script: ledger
           with: { mode: record, round: $LOOP_PREV.docket.output.round, case: $LOOP_PREV.docket.output.case, decision: $LOOP_PREV.bench.output.decision, text: $LOOP_PREV.bench.output.text }
 
-        - id: filing                   # always runs; its owed is "ended" once the latest ruling ends the case; counts the iteration
+        - id: filing                   # always runs and counts the iteration (runtime-model-design.md, "Loop shape and bounds")
           depends_on: [record]
           trigger_rule: all_done
           runtime: uv
@@ -553,7 +494,7 @@ nodes:
             attention: "$docket.output.attention"
             options: "$docket.output.options"
 
-  - id: close                          # after the hearing, or at once when docket-in read ended and the hearing was skipped
+  - id: close                          # after the hearing, or at once when the hearing was skipped (runtime-model-design.md, "Hearing state")
     depends_on: [docket-in, hearing]
     trigger_rule: none_failed_min_one_success
     when: "$docket-in.output.owed != 'approved'"
@@ -561,10 +502,10 @@ nodes:
     script: ledger
     with: { mode: close, start: $docket-in.output.start }
 
-  - id: vacate                         # all twelve slots retired in this run; the hearing ended on docket case vacant; asks nothing
+  - id: vacate                         # every slot retired in this run (case vacant, runtime-model-design.md, "Loop shape and bounds"); asks nothing
     depends_on: [close]
     when: "$close.output.outcome == 'vacant'"
-    cancel: "Twelve OBJECTION: LEADING verdicts passed the screener in this run; no arbiter is left. The run stops."
+    cancel: "Every arbiter slot has been retired by an OBJECTION: LEADING review in this run; no arbiter is left. The run stops."
 
   - id: enter                          # the only writer of approved/
     depends_on: [close]
@@ -588,7 +529,7 @@ nodes:
       required: [items, plan, spec, outcome]
 ```
 
-Fixtures: `spec-review/fixtures/<route>.stubs.yaml`, one per route, each stubbing the included `screen` workflow's node ids (`check`) and the ledger's modes: not needed; already approved (no hearing); an ending ruling already on file (no agent session, `close` and `enter` run); no plan, `READY` then owner approves; owner revises a `READY`; `INVALID` confirmed; `INVALID` sent back; bench; deadlock at 5 attempts; two `NON-RESPONSIVE`; one `LEADING` handing the repaired block to `arbitrate-2`; one `SCREENED` repaired with no slot retired; guard at 12 rounds since the last ruling; all twelve slots retired, the twelfth `LEADING` review asking nothing, the hearing ending on case `vacant` and `vacate` cancelling the run; a rerun finding a `READY` unanswered, asked again; an iteration that writes nothing, asking with the analyst's reason (case `idle`, node `why`), the answer a guard record and the hearing going on; past 200 iterations, every iteration asking, an ask from an iteration with no new review kept in `<slug>.guard.N.txt` with round N still untried.
+Fixtures: `spec-review/fixtures/<route>.stubs.yaml`, one per route, each stubbing the included `screen` workflow's node ids (`check`) and the ledger's modes: not needed; already approved (no hearing); an ending ruling already on file (no agent session, `close` and `enter` run); no plan, `READY` then owner approves; owner revises a `READY`; `INVALID` confirmed; `INVALID` sent back; bench; deadlock at the attempts bound; two `NON-RESPONSIVE`; one `LEADING` handing the repaired block to `arbitrate-2`; one `SCREENED` repaired with no slot retired; guard at the stretch bound; every slot retired, the last `LEADING` review asking nothing, the hearing ending on case `vacant` and `vacate` cancelling the run; a rerun finding a `READY` unanswered, asked again; an iteration that writes nothing, asking with the analyst's reason (case `idle`, node `why`), the answer a guard record and the hearing going on; past the cap, every iteration asking, an ask from an iteration with no new review kept in `<slug>.guard.N.txt` with round N still untried.
 
 Plan review's `screen` node is `include: screen` with `with: { file: $ready.output.file }` (plan review design); spec review writes nothing in `plan-review/`.
 
@@ -596,7 +537,7 @@ Plan review's `screen` node is `include: screen` with `with: { file: $ready.outp
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| Round numbers, slot choice, verdict parsing, counts, runaway guard and cap, the owner's case, rulings and guard records, `SCREENED` reviews, closing paths, the item file hash and the `stale/` set-aside | `.shared/rounds.py` | any of it computed in a workflow's `ledger.py`, node or command; a `ledger.py` holding anything but its `Profile` and the call to `main` |
+| The ledger rules: round numbers, slot choice, verdict parsing, counts, runaway guard and cap, the owner's case, rulings and guard records, `SCREENED` reviews, closing paths, the item file hash and the `stale/` set-aside | `runtime-model-design.md`, headings "Hearing state", "Ledger" and "Loop shape and bounds"; the module is `.shared/rounds.py` | any of it computed in a workflow's `ledger.py`, node or command; a `ledger.py` holding anything but its `Profile` and the call to `main` |
 | Which verdicts a phase has, which count as attempts, which reach the owner and with what options | each workflow's `scripts/ledger.py` `Profile` | verdict names or options restated in YAML, prompts or `rounds.py` |
 | Spec verdict names | `arbiter.md` and `spec-review/scripts/ledger.py` | any other spelling |
 | Steering screening | the `screen` workflow, included by plan review, spec review and writing | a per-workflow screener command or fence; any other steering check before a reviewer reads a round file |
@@ -610,7 +551,7 @@ Plan review's `screen` node is `include: screen` with `with: { file: $ready.outp
 | Working-folder check | node `guard` of `spec-review` on `.shared/working-folder.ts` (intake design); node `guard` of `gauntlet-run` ahead of it in a run | any other check of `gauntlet/` being ignored |
 | Inputs inside the block | `$INPUTS.<name>` in prompts and `bash:`; `INPUTS_<NAME>` in scripts, which bind no block input in `with:`; a node output in `when:` | `$INPUTS` in a `when:`; `$INPUTS.<name>` in an inline `script:` |
 | Each role's rules | `<workflow>/commands/<role>.md` | role rules restated in node prompts; node prompts carry only the turn's inputs |
-| The hand-off to the next phase | node `handoff`, the block's `returns:`, whose `output_format` declares `{ items, plan, spec, outcome }`, read by `gauntlet-run` as `$spec-review.output.<field>` | any other node or file telling the next phase what was specced |
+| The hand-off to the next phase | node `handoff`, the block's `returns:`, whose `output_format` declares the block's fields, read by `gauntlet-run` as `$spec-review.output.<field>` | any other node or file telling the next phase what was specced |
 
 ## Order
 

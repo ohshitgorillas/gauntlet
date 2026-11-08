@@ -12,8 +12,8 @@ Committed scope. Each maps to exactly one roadmap phase.
 - [ ] **REV-01**: Owner can read one adversarial review of the seven designs that names every cross-design inconsistency and snag, each finding anchored to a design file and line
 - [ ] **REV-02**: Owner can rule on each finding and see the ruling recorded in the design it concerns
 - [ ] **REV-03**: Owner can see every design at `Status: approved` before a build phase reads it
-- [ ] **REV-04**: Owner can read one contract inventory, `docs/superpowers/specs/contracts.md`, naming every hand-off, path, fence value, script, role and assumed Archon feature with every design that names it, so a finding is judged against one reference and a ruling closes every occurrence at once
-- [ ] **REV-05**: Owner can see that a full review pass over the edited designs returned no unruled finding before any design is approved
+- [ ] **REV-04**: Owner can read one contract inventory, `docs/superpowers/specs/contracts.md`, naming every hand-off, path, fence, script, role and assumed Archon feature with its one home and every design that names it, holding no value (each value lives in its home alone, D-98 (2)), so a finding is judged against one reference and a ruling closes every occurrence at once
+- [ ] **REV-05**: Owner can see that round 4 as D-98 sets it (the one-home grep, the build-order graph check, the one review of `runtime-model-design.md` and the read of the remaining local defects in the shape the owner rules) returned no unruled finding before any design is approved
 
 ### Roles
 
