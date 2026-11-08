@@ -4,7 +4,7 @@ Status: proposed.
 
 ## Why
 
-Spec review is phase 3 of the one run `gauntlet-run`, which includes it as node `spec-review` after `plan-review` (gauntlet design); it also runs on its own (`archon workflow run spec-review`). It takes plan review's hand-off: the task file and planning's approved plan, or the task file alone when planning found that the task only edits `tests/`. It hands `{ task, plan, spec, outcome }` to the worktree cut. The speccer decides whether tests need speccing, writes the test specs with spikers' measurements, and the arbiter tries them round by round. A spec block the arbiter rules `READY` goes to the owner in plain English; on approval it is copied to `gauntlet/specs/approved/<slug>.txt`. A block the arbiter rules `INVALID` (nothing to test) goes to the owner to confirm; on confirmation the phase ends with no spec. The arbiter never reads source code. What it needs from the code it asks for through its three request forms, and the speccer answers them. Every path is relative to the pack root unless it names the run's checkout; `gauntlet/` always sits in the checkout.
+Spec review is phase 3 of the one run `gauntlet-run`, which includes it as node `spec-review` after `plan-review` (gauntlet design); it also runs on its own (`archon workflow run spec-review`). It takes plan review's hand-off: the item file and planning's approved plan, or the item file alone when planning found that the work only edits `tests/`. It hands `{ items, plan, spec, outcome }` to the worktree cut. The speccer decides whether tests need speccing, writes the test specs with spikers' measurements, and the arbiter tries them round by round. A spec block the arbiter rules `READY` goes to the owner in plain English; on approval it is copied to `gauntlet/specs/approved/<slug>.txt`. A block the arbiter rules `INVALID` (nothing to test) goes to the owner to confirm; on confirmation the phase ends with no spec. The arbiter never reads source code. What it needs from the code it asks for through its three request forms, and the speccer answers them. Every path is relative to the pack root unless it names the run's checkout; `gauntlet/` always sits in the checkout.
 
 What the tree already holds for the concerns spec review touches:
 
@@ -51,8 +51,8 @@ Files in `gauntlet/specs/` of the checkout:
 | `<slug>-summary.N.md` | reporter | written once |
 | `<slug>.idle.K.md` | analyst | written once: why the iteration that tried no round, drew no answer and left the round file as it was made no progress; K is one above the guard-record count at the ask |
 | `<slug>.iter.txt` | `ledger.py filing` | one line appended per hearing iteration, holding `state`'s round, owed, the guard-record count and `repairs`; the ledger counts the lines above `base` as the run's iterations, and the last lines that match the state `docket` reads as idle ones |
-| `<slug>.task.sha256` | `ledger.py state` outside the loop (node `docket-in`) | written once, at round 1, when absent: the sha256 of the task file the hearing runs against |
-| `stale/<slug>.<n>/` | `ledger.py state` outside the loop (node `docket-in`) | when `<slug>.task.sha256` differs from the task file's sha256, every file of the slug in this folder, `approved/` included, is moved here first, n the next free number, so the changed task is heard from round 1 |
+| `<slug>.items.sha256` | `ledger.py state` outside the loop (node `docket-in`) | written once, at round 1, when absent: the sha256 of the item file the hearing runs against |
+| `stale/<slug>.<n>/` | `ledger.py state` outside the loop (node `docket-in`) | when `<slug>.items.sha256` differs from the item file's sha256, every file of the slug in this folder, `approved/` included, is moved here first, n the next free number, so the changed item file is heard from round 1 |
 | `approved/<slug>.txt`, `approved/<slug>-summary.md` | bash node `enter` | written once, only after the owner approves a `READY` round |
 
 `gauntlet/scratch/<slug>/` holds the spikers' experiments. Only the `fence-scratch` server and the `fence-spike` tool write there. The speccer node's session reaches both servers, as its spikers do, since Archon has no per-sub-agent server list; the speccer's role sends every experiment to a spiker. No other agent reads it.
@@ -61,7 +61,7 @@ Files in `gauntlet/specs/` of the checkout:
 
 ### `.shared/rounds.py`
 
-The one home of round-ledger logic for every Gauntlet hearing: round numbers, who owes the next move, slot choice, verdict parsing, counts, the runaway guard and cap, the owner's case, rulings, `SCREENED` reviews and the approved paths. It derives everything from the files in one folder, so a resumed run or a fresh run on the same task reads the same state. Standard library only. Each workflow's `scripts/ledger.py` passes a `Profile` and calls `main`. It replaces the round logic the plan review design puts in `plan-review/scripts/ledger.py`.
+The one home of round-ledger logic for every Gauntlet hearing: round numbers, who owes the next move, slot choice, verdict parsing, counts, the runaway guard and cap, the owner's case, rulings, `SCREENED` reviews and the approved paths. It derives everything from the files in one folder, so a resumed run or a fresh run on the same item file reads the same state. Standard library only. Each workflow's `scripts/ledger.py` passes a `Profile` and calls `main`. It replaces the round logic the plan review design puts in `plan-review/scripts/ledger.py`.
 
 ```python
 from dataclasses import dataclass
@@ -98,7 +98,7 @@ class Profile:
     iterations: bool = False        # True (plans, specs): mode "filing" counts loop iterations in <slug>.iter.txt and docket
                                     #   asks at CAP and at IDLE; False (writing's revisions): no counter, stage.py keeps its own
 
-# Script nodes pass INPUTS_MODE; the slug is .shared/pin.py's slug of INPUTS_TASK (worktree cut design). Every in-loop mode
+# Script nodes pass INPUTS_MODE; the slug is .shared/pin.py's slug of INPUTS_ITEMS (worktree cut design). Every in-loop mode
 #   (state, filing, docket) also passes INPUTS_START; docket also passes INPUTS_BASE ($docket-in.output.base), and close
 #   passes INPUTS_START. Script modes hear from round 1; stage.py passes first itself.
 # Mode "filing" (node filing only, profiles with iterations) is mode "state" that first appends one line to
@@ -125,11 +125,11 @@ def state(p: Profile, slug: str, start: int | None, first: int = 1) -> dict: ...
 #   owed "ended": the latest ruling file at or above first has an OwnerCase "ends" decision; the loop ends one iteration after it, and every
 #   agent node is gated on owed, so that iteration runs script nodes only. ended outside the loop (a run that stopped
 #   before enter): open and swear-in skip, so the hearing is skipped and close reads the ruling. owed "approved": <folder>/approved/<slug>.txt
-#   exists, so a rerun on an unchanged task hears nothing. base (outside the loop): the lines of <slug>.iter.txt, 0 when
-#   none. Outside the loop (start None; node docket-in), before anything else: <folder>/<slug>.task.sha256 absent: write the sha256 of the task file (INPUTS_TASK) there. Present and different:
+#   exists, so a rerun on an unchanged item file hears nothing. base (outside the loop): the lines of <slug>.iter.txt, 0 when
+#   none. Outside the loop (start None; node docket-in), before anything else: <folder>/<slug>.items.sha256 absent: write the sha256 of the item file (INPUTS_ITEMS) there. Present and different:
 #   move every file of the slug in <folder>, approved/ included, into <folder>/stale/<slug>.<n>/ (n the next free number),
-#   then write the new hash, so the changed task is heard from round 1. The ledger never reads gauntlet/failed/;
-#   a rerun after fail starts at round 1 because fail moved the slug's files there.
+#   then write the new hash, so the changed item file is heard from round 1. The ledger never reads gauntlet/back/;
+#   a rerun after a back to planning starts at round 1 because gauntlet-run's node back moved the slug's files into `<folder>/stale/<slug>.<n>/`.
 #   repairs (plans only): lines of <slug>.cite.<round>.txt listing a marker for state's round, untried, written after the
 #   latest entry of <slug>.guard.<round>.txt (each entry holds that count at its ask); stretch counts them too.
 
@@ -269,16 +269,16 @@ Fixtures: `screen/fixtures/steering.stubs.yaml`, `screen/fixtures/clean.stubs.ya
 The speccer's role, for the opening node and every filing turn of one session. Replaces nothing.
 
 ```markdown
-Opening turn (node `open`), inputs: the task path, the plan path ("" when planning found the task only edits tests/),
+Opening turn (node `open`), inputs: the item file path, the plan path ("" when planning found the work only edits tests/),
 and the ledger state (node `docket-in`).
-  - Spec files already there: needed is true; read the task, the plan, every ruling, the latest spec file and its review.
+  - Spec files already there: needed is true; read the item file, the plan, every ruling, the latest spec file and its review.
   - Plan "": needed is true.
-  - Otherwise read the task and the plan. Needed is false only when the plan edits nothing under tests/ and changes
+  - Otherwise read the item file and the plan. Needed is false only when the plan edits nothing under tests/ and changes
     no behavior a caller sees (a refactor). Otherwise true.
   - Output { needed }.
 Each filing turn (node `file`), inputs: round N, the rulings list, the latest review path (may be "").
   - Read every ruling not yet read; the owner's words in it bind the specs.
-  - Write gauntlet/specs/<slug>.N.txt, a whole block: round 1 from the task and plan; later rounds revise the
+  - Write gauntlet/specs/<slug>.N.txt, a whole block: round 1 from the item file and plan; later rounds revise the
     previous block to answer the latest review and every ruling.
   - Latest review OBJECTION: LEADING or SCREENED: block N is the previous block with the quoted text removed, nothing
     else changed.
@@ -335,8 +335,9 @@ The built role stays as written but for these changes:
 
 - Rulings are read as `gauntlet/specs/<slug>.ruling.*.txt` and the owner's answers kept in `gauntlet/specs/<slug>.guard.*.txt`, and reviews are written as `gauntlet/specs/<slug>.review.N.txt`, on the first-turn, write and `Writes:` lines.
 - The first turn reads the plan only when its path is not "". When earlier rounds exist, it reads the latest block and review only when the latest verdict is neither `OBJECTION: LEADING` nor `SCREENED`. Each turn skips `SCREENED` reviews.
-- A clause: with no approved plan (the task only edits `tests/`), the task file stands in for the plan wherever the role names the plan: off-plan, `READY`'s plan behaviors, `INVALID`'s list of changes, and `quote` requests.
+- A clause: with no approved plan (the work only edits `tests/`), the item file stands in for the plan wherever the role names the plan: off-plan, `READY`'s plan behaviors, `INVALID`'s list of changes, and `quote` requests.
 - `Reads:` names `gauntlet/specs/*.txt` for the specs folder, and `gauntlet/plans/approved/<slug>.txt` only when the plan path is not "".
+- Escalation rules (owner-control design, section 4): the role gains one line in the first-turn reads and in the rules for `APPROACH THE BENCH`: read `gauntlet/rules/<slug>.txt` and the Notes field of every item in the item file, verbatim, beside the criteria the role holds; they say what the owner wants escalated, and only a decision the owner can act on is escalated. The carrier is node `rules`, which writes that file on every run of plan review and, the same node, on every run of spec review, and the key is `GAUNTLET_ESCALATION`; both are the plan review design's ("Escalation rules"). A spec that breaks an item's Constraints or Out of scope field gets `ANOTHER PASS`, to the speccer, and is never put to the owner.
 
 ### `spec-review/speccer.mcp.json`, `spec-review/arbiter.mcp.json`, `spec-review/reporter.mcp.json`, `spec-review/analyst.mcp.json`
 
@@ -344,13 +345,13 @@ Each role's fence. Each server is launched by `sh` with `args: ["-c", "exec uv r
 
 | File and server | `FENCE_READ` | `FENCE_WRITE` | `FENCE_DENY` | `FENCE_ONCE` |
 |---|---|---|---|---|
-| `speccer.mcp.json`, `fence-files` | `gauntlet/tasks:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md` | `gauntlet/specs/*.txt` | `gauntlet/specs/*.review.*.txt:gauntlet/specs/*.ruling.*.txt:gauntlet/specs/*.guard.*.txt:gauntlet/specs/*.iter.txt` | unset |
-| `speccer.mcp.json`, `fence-scratch` | `gauntlet/tasks:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md:gauntlet/scratch` | `gauntlet/scratch` | unset | unset |
-| `arbiter.mcp.json` | `tests:gauntlet/tasks:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md` | `gauntlet/specs/*.review.*.txt` | unset | `gauntlet/specs/*.review.*.txt` |
+| `speccer.mcp.json`, `fence-files` | `gauntlet/items:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md` | `gauntlet/specs/*.txt` | `gauntlet/specs/*.review.*.txt:gauntlet/specs/*.ruling.*.txt:gauntlet/specs/*.guard.*.txt:gauntlet/specs/*.iter.txt` | unset |
+| `speccer.mcp.json`, `fence-scratch` | `gauntlet/items:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md:gauntlet/scratch` | `gauntlet/scratch` | unset | unset |
+| `arbiter.mcp.json` | `tests:gauntlet/items:gauntlet/rules:gauntlet/plans/approved:gauntlet/specs/*.txt:docs/testing.md` | `gauntlet/specs/*.review.*.txt` | unset | `gauntlet/specs/*.review.*.txt` |
 | `reporter.mcp.json` | `gauntlet/specs/*.txt` | `gauntlet/specs/*-summary.*.md` | unset | `gauntlet/specs/*-summary.*.md` |
 | `analyst.mcp.json` | `gauntlet/specs/*.txt` | `gauntlet/specs/*.idle.*.md` | unset | `gauntlet/specs/*.idle.*.md` |
 
-None of the lists names `gauntlet/failed`, `gauntlet/specs/approved` or, for the speccer and its spikers, `tests`; the speccer's `fence-files` list also leaves out `gauntlet/scratch`, which its session reaches through `fence-scratch`. A config cannot name the run's `<slug>` folder, so `fence-scratch` writes `gauntlet/scratch` and the spiker's brief names its own folder `gauntlet/scratch/<slug>/<name>/`.
+None of the lists names `gauntlet/specs/approved` or, for the speccer and its spikers, `tests`; the speccer's `fence-files` list also leaves out `gauntlet/scratch`, which its session reaches through `fence-scratch`. A config cannot name the run's `<slug>` folder, so `fence-scratch` writes `gauntlet/scratch` and the spiker's brief names its own folder `gauntlet/scratch/<slug>/<name>/`.
 
 `fence/spike.py` is the spiker's run tool (server `fence-spike`, environment `CLAUDE_PROJECT_DIR` only, checked as `fence/files.py` checks it). It takes no command from an agent:
 
@@ -372,32 +373,32 @@ Suite: `fence/test_spike.py`, run as `docs/testing.md` states with the folder `f
 The block's hand-off, node `handoff`. A named script. Replaces nothing.
 
 ```typescript
-// env: INPUTS_TASK, INPUTS_PLAN (the block's inputs); INPUTS_SLUG, INPUTS_OWED, INPUTS_NEEDED, INPUTS_OUTCOME (node bindings)
+// env: INPUTS_ITEMS, INPUTS_PLAN (the block's inputs); INPUTS_SLUG, INPUTS_OWED, INPUTS_NEEDED, INPUTS_OUTCOME (node bindings)
 // slug: INPUTS_SLUG, the ledger's ($docket-in.output.slug)
 // outcome: "approved" when INPUTS_OWED is "approved" (an approval already on file, no hearing); "not needed" when
 //   INPUTS_NEEDED is false; else INPUTS_OUTCOME ("approved" | "invalid")
-// stdout: { "task": INPUTS_TASK, "plan": INPUTS_PLAN,
+// stdout: { "items": INPUTS_ITEMS, "plan": INPUTS_PLAN,
 //           "spec": absolute path of gauntlet/specs/approved/<slug>.txt when outcome is "approved", else "",
 //           "outcome": outcome }
 ```
 
 ### `spec-review/spec-review.yaml`
 
-The spec review workflow: a standalone workflow and the block `gauntlet-run` includes as node `spec-review`. It declares `worktree: { enabled: false }`, which Archon drops under `include:`, and holds its own `guard` node; `docket-in` and `policy` are its entry nodes after it. `$INPUTS.<name>` appears only in prompts and `bash:` bodies, a `script:` reads `INPUTS_<NAME>` and binds no block input in its `with:`, and no `when:` reads `$INPUTS`. The ledger derives the slug from `INPUTS_TASK` with `.shared/pin.py`'s `slug`, so no node passes it in; `state` prints it and the round's file paths, and prompts and `handoff` read `$docket-in.output.slug`. Replaces nothing.
+The spec review workflow: a standalone workflow and the block `gauntlet-run` includes as node `spec-review`. It declares `worktree: { enabled: false }`, which Archon drops under `include:`, and holds its own `guard` node; `docket-in` and `policy` are its entry nodes after it. `$INPUTS.<name>` appears only in prompts and `bash:` bodies, a `script:` reads `INPUTS_<NAME>` and binds no block input in its `with:`, and no `when:` reads `$INPUTS`. The ledger derives the slug from `INPUTS_ITEMS` with `.shared/pin.py`'s `slug`, so no node passes it in; `state` prints it and the round's file paths, and prompts and `handoff` read `$docket-in.output.slug`. Replaces nothing.
 
 ```yaml
 name: spec-review
 description: >-
-  Gauntlet spec review. Takes a task file and planning's approved plan (or no plan when the task only edits tests/); the
+  Gauntlet spec review. Takes an item file and planning's approved plan (or no plan when the work only edits tests/); the
   speccer writes test specs with spikers' measurements, the arbiter tries them round by round, and the owner approves them
-  or confirms that nothing is testable. Runs on its own for this phase; to take a task through every phase, start
+  or confirms that nothing is testable. Runs on its own for this phase; to take the work through every phase, start
   gauntlet-run.
 provider: claude
 model: claude-opus-5-5
 worktree:
   enabled: false                       # a standalone run needs it; Archon drops it under include: (P7)
 inputs:
-  task: { description: Path of a task file under gauntlet/tasks/. }
+  items: { description: Path of an item file under gauntlet/items/. }
   plan: { default: "", description: Path of gauntlet/plans/approved/<slug>.txt, or "" when planning found no plan needed. }
 returns: handoff
 
@@ -412,6 +413,10 @@ nodes:
     script: ledger
     with: { mode: state }
 
+  - id: rules                          # the escalation-rules carrier, the same node as plan review's (a bash node sees the repository's env:)
+    depends_on: [docket-in]
+    bash: <write ${GAUNTLET_ESCALATION:-none} verbatim, one trailing newline, to gauntlet/rules/$docket-in.output.slug.txt, over any earlier file>
+
   - id: policy                         # entry node, after its guard; the arbiter's opening prompt
     depends_on: [guard]
     bash: <print docs/testing.md of the checkout, or nothing when absent>
@@ -423,16 +428,16 @@ nodes:
     effort: medium
     allowed_tools: []                  # the opening turn only reads
     mcp: speccer.mcp.json
-    prompt: <opening turn; task $INPUTS.task; plan $INPUTS.plan; slug $docket-in.output.slug; ledger state $docket-in.output>
+    prompt: <opening turn; items $INPUTS.items; plan $INPUTS.plan; slug $docket-in.output.slug; ledger state $docket-in.output>
     output_format: { type: object, properties: { needed: { type: boolean } }, required: [needed] }
 
   - id: swear-in                       # the arbiter's session for the whole run
-    depends_on: [open, policy]
+    depends_on: [open, policy, rules]
     when: "$docket-in.output.owed != 'approved' && $docket-in.output.owed != 'ended' && $open.output.needed == true"
     command: arbiter
     allowed_tools: []
     mcp: arbiter.mcp.json
-    prompt: <policy $policy.output; first turn; task $INPUTS.task; plan $INPUTS.plan; ledger state $docket-in.output>
+    prompt: <policy $policy.output; first turn; items $INPUTS.items; plan $INPUTS.plan; ledger state $docket-in.output>
 
   - id: hearing
     depends_on: [swear-in]
@@ -579,8 +584,8 @@ nodes:
       outcome: { from: $close.output.outcome, if_skipped: "" }
     output_format:
       type: object
-      properties: { task: { type: string }, plan: { type: string }, spec: { type: string }, outcome: { type: string } }
-      required: [task, plan, spec, outcome]
+      properties: { items: { type: string }, plan: { type: string }, spec: { type: string }, outcome: { type: string } }
+      required: [items, plan, spec, outcome]
 ```
 
 Fixtures: `spec-review/fixtures/<route>.stubs.yaml`, one per route, each stubbing the included `screen` workflow's node ids (`check`) and the ledger's modes: not needed; already approved (no hearing); an ending ruling already on file (no agent session, `close` and `enter` run); no plan, `READY` then owner approves; owner revises a `READY`; `INVALID` confirmed; `INVALID` sent back; bench; deadlock at 5 attempts; two `NON-RESPONSIVE`; one `LEADING` handing the repaired block to `arbitrate-2`; one `SCREENED` repaired with no slot retired; guard at 12 rounds since the last ruling; all twelve slots retired, the twelfth `LEADING` review asking nothing, the hearing ending on case `vacant` and `vacate` cancelling the run; a rerun finding a `READY` unanswered, asked again; an iteration that writes nothing, asking with the analyst's reason (case `idle`, node `why`), the answer a guard record and the hearing going on; past 200 iterations, every iteration asking, an ask from an iteration with no new review kept in `<slug>.guard.N.txt` with round N still untried.
@@ -591,7 +596,7 @@ Plan review's `screen` node is `include: screen` with `with: { file: $ready.outp
 
 | Concern | Home | Forbidden elsewhere |
 |---|---|---|
-| Round numbers, slot choice, verdict parsing, counts, runaway guard and cap, the owner's case, rulings and guard records, `SCREENED` reviews, closing paths, the task hash and the `stale/` set-aside | `.shared/rounds.py` | any of it computed in a workflow's `ledger.py`, node or command; a `ledger.py` holding anything but its `Profile` and the call to `main` |
+| Round numbers, slot choice, verdict parsing, counts, runaway guard and cap, the owner's case, rulings and guard records, `SCREENED` reviews, closing paths, the item file hash and the `stale/` set-aside | `.shared/rounds.py` | any of it computed in a workflow's `ledger.py`, node or command; a `ledger.py` holding anything but its `Profile` and the call to `main` |
 | Which verdicts a phase has, which count as attempts, which reach the owner and with what options | each workflow's `scripts/ledger.py` `Profile` | verdict names or options restated in YAML, prompts or `rounds.py` |
 | Spec verdict names | `arbiter.md` and `spec-review/scripts/ledger.py` | any other spelling |
 | Steering screening | the `screen` workflow, included by plan review, spec review and writing | a per-workflow screener command or fence; any other steering check before a reviewer reads a round file |
@@ -601,11 +606,11 @@ Plan review's `screen` node is `include: screen` with `with: { file: $ready.outp
 | File confinement, including name patterns | `fence/files.py` (plan review design) | any role reaching files by a built-in tool |
 | Writing to `gauntlet/specs/approved/` | node `enter`, by `cp -n` | any agent or other node writing there; a move of a round file |
 | Agent sessions | `open` and `swear-in` before `hearing`; slots `arbitrate-1` to `arbitrate-12` fork `swear-in` | any agent node in the body starting its own session, `screen` and `report` excepted |
-| How spec review runs | on its own (`archon workflow run spec-review --input task=<path> --input plan=<path>`) and as `include: spec-review` in `gauntlet-run`, node id `spec-review` (gauntlet design) | `spec-review.yaml` run as a `workflow:` child; a description that does not name `gauntlet-run` for a whole run; a run-owned setting other than `worktree:` in `spec-review.yaml` |
+| How spec review runs | on its own (`archon workflow run spec-review --input items=<path> --input plan=<path>`) and as `include: spec-review` in `gauntlet-run`, node id `spec-review` (gauntlet design) | `spec-review.yaml` run as a `workflow:` child; a description that does not name `gauntlet-run` for a whole run; a run-owned setting other than `worktree:` in `spec-review.yaml` |
 | Working-folder check | node `guard` of `spec-review` on `.shared/working-folder.ts` (intake design); node `guard` of `gauntlet-run` ahead of it in a run | any other check of `gauntlet/` being ignored |
 | Inputs inside the block | `$INPUTS.<name>` in prompts and `bash:`; `INPUTS_<NAME>` in scripts, which bind no block input in `with:`; a node output in `when:` | `$INPUTS` in a `when:`; `$INPUTS.<name>` in an inline `script:` |
 | Each role's rules | `<workflow>/commands/<role>.md` | role rules restated in node prompts; node prompts carry only the turn's inputs |
-| The hand-off to the next phase | node `handoff`, the block's `returns:`, whose `output_format` declares `{ task, plan, spec, outcome }`, read by `gauntlet-run` as `$spec-review.output.<field>` | any other node or file telling the next phase what was specced |
+| The hand-off to the next phase | node `handoff`, the block's `returns:`, whose `output_format` declares `{ items, plan, spec, outcome }`, read by `gauntlet-run` as `$spec-review.output.<field>` | any other node or file telling the next phase what was specced |
 
 ## Order
 

@@ -27,18 +27,18 @@ Milestone v0.10.0: the full seven-phase run, built from the designs once they su
 
 - [ ] Every design reviewed adversarially for cross-design consistency and snags, each finding ruled on, each design `Status: approved`
 - [ ] Every role file the designs name written under its workflow's `commands/`
-- [ ] The shared Python and TypeScript layer the phases depend on: fence name patterns, `FENCE_HIDE`, the fence `commit` tool, `.shared/rounds.py`, `.shared/red.py`, `.shared/working-folder.ts`, `.shared/task-format.md`
+- [ ] The shared Python and TypeScript layer the phases depend on: fence name patterns, `FENCE_HIDE`, the fence `commit` tool, `.shared/rounds.py`, `.shared/red.py`, `.shared/working-folder.ts`, and the item schema in `intake/scripts/items.py`
 - [ ] Intake, plan review and spec review usable standalone and as blocks of `gauntlet-run`
-- [ ] The worktree cut, the tree run and the run's end on a defective plan
-- [ ] Writing in the tree: test writers, code writers, juror, revisions, the sealed final commit
-- [ ] The mend and the landing: rebase, verify, repair, the owner's gate, ff-only merge, record copy, tree removal
+- [ ] The worktree cut, the tree run and the run's end on the owner's back to planning
+- [ ] Writing in the tree: test writers, code writers, the amicus and the owner's directions, revisions, the sealed final commit
+- [ ] The mend and the landing: rebase, verify, repair, the amicus and the review before landing, ff-only merge, record copy, tree removal
 - [ ] Every workflow fixture passes `archon workflow test`; `archon workflow list --json` and `archon validate workflows` are clean from the pack root
 
 ### Out of Scope
 
 - A push, PR or any remote change made by Gauntlet - the designs forbid it in landing's home, and `CLAUDE.md` 4.4 forbids it on this host
-- A phase sending the run back to an earlier phase - the gauntlet design's phase-order home forbids it; a wrong plan or spec is an approved revision inside writing
-- Gauntlet removing the tree or its branch on `fail`, `kill`, leave or any stop - the landing design keeps them for the owner, removed only by `archon complete <branch> --force`
+- A phase sending the run back to an earlier phase - the gauntlet design's phase-order home forbids it; a wrong plan or spec is an approved revision inside writing, and the owner's back to planning ends the run cleanly and prints the command for the next plan review
+- Gauntlet removing the tree or its branch on leave, back to planning or any stop - the landing design keeps them for the owner, removed only by `archon complete <branch> --force`
 - Scaffolding in Python, Bash or any language that replaces an Archon feature - `CLAUDE.md` 1.1; a missing Archon feature is reported, not worked around (1.2)
 - A phase as a `workflow:` child except the cut's `tree` node - the gauntlet design: a phase enters the run by `include:`
 

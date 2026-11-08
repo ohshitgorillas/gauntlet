@@ -8,11 +8,11 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 
 - [ ] **Phase 1: Design review** - the seven designs reviewed adversarially for cross-design consistency and snags, findings ruled on, designs approved
 - [ ] **Phase 2: Test gate and shared layer** - the CI gate the policy requires, plus the fence extensions and `.shared/` cores every phase imports
-- [ ] **Phase 3: Roles** - every role file the designs name, and the task format
+- [ ] **Phase 3: Roles** - every role file the designs name, and the item schema
 - [ ] **Phase 4: Checkout phases** - intake, plan review, spec review and the shared screen, standalone and as blocks of `gauntlet-run`
-- [ ] **Phase 5: Worktree cut and tree run** - the task reaches a worktree with its approved files and baseline; a defective plan ends the run
-- [ ] **Phase 6: Writing** - tests then code in the tree, juror rulings, approved revisions, the sealed final commit
-- [ ] **Phase 7: Mend and landing** - rebase and repair in the tree, the owner's gate, ff-only merge, record copy, tree removal
+- [ ] **Phase 5: Worktree cut and tree run** - the task reaches a worktree with its approved files and baseline; the owner's back to planning ends the run
+- [ ] **Phase 6: Writing** - tests then code in the tree, the amicus and the owner's directions, approved revisions, the sealed final commit
+- [ ] **Phase 7: Mend and landing** - rebase and repair in the tree, the amicus and the review before landing, ff-only merge, record copy, tree removal
 
 ## Phase Details
 
@@ -44,13 +44,13 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 5. Every new suite goes red against a null stub before the code is written, and the suites run as `docs/testing.md` states
 
 ### Phase 3: Roles
-**Goal:** Every role file the designs name exists under its workflow's `commands/` with the turn protocol its approved design gives, plus `.shared/task-format.md`.
+**Goal:** Every role file the designs name exists under its workflow's `commands/` with the turn protocol its approved design gives, plus the item schema in `intake/scripts/items.py`.
 **Depends on:** Phase 1
 **Requirements:** ROLE-01, ROLE-02
 **Success Criteria:**
 1. For each of the sixteen role names in ROLE-01, a `commands/<role>.md` exists in the workflow folder its design assigns
 2. Each role file's opening prompt, first turn and per-turn input match the clauses its approved design states, checked clause by clause in review
-3. `.shared/task-format.md` states the task format, and `arbiter.md` is unchanged except where a Phase 1 ruling changed it
+3. `intake/scripts/items.py` states the item schema, and `arbiter.md` is unchanged except where a Phase 1 ruling changed it
 4. `archon workflow list --json` and `archon validate workflows` are clean from the pack root after the files land
 
 ### Phase 4: Checkout phases
@@ -58,24 +58,24 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 **Depends on:** Phase 2, Phase 3
 **Requirements:** RUN-01, RUN-02, RUN-03, RUN-04, RUN-05
 **Success Criteria:**
-1. `archon workflow run intake --input file=<path>` in a repository whose working folder is ignored writes `gauntlet/tasks/<slug>.md` matching the file verbatim
+1. `archon workflow run intake --input file=<path>` in a repository whose working folder is ignored writes `gauntlet/items/<slug>.md` matching the file verbatim
 2. `archon workflow run gauntlet-run` with a message pauses at intake's approval, then at plan review's and spec review's, each answered on the run's own id
 3. Every fixture under `intake/`, `plan-review/`, `spec-review/` and `screen/` passes `archon workflow test`, and a fixture with its deciding edge rewired fails
 4. A round file carrying a steering phrase reaches the screener and never the reviewer, in `screen/fixtures/steering.stubs.yaml`
-5. Every fence outside `intake/` whose `FENCE_READ` covers `gauntlet/failed/` sets `FENCE_HIDE=gauntlet/failed`, and the speccer's fence lists no folder that holds it
+5. The speccer's fence lists no folder that holds `gauntlet/specs/approved/` or `tests/`, and no fence config sets `CLAUDE_PROJECT_DIR`
 
 ### Phase 5: Worktree cut and tree run
-**Goal:** After spec review the run pins a branch, cuts one worktree from the checkout's `HEAD`, copies the approved files in, records the test baseline and hands off to the tree run; a defective plan is recorded in `gauntlet/failed/` and cancels the run at `kill`.
+**Goal:** After spec review the run pins a branch, cuts one worktree from the checkout's `HEAD`, copies the approved files in, records the test baseline and hands off to the tree run, once per plan stage; the owner's back to planning ends the run at node `back`, completed, with the command for the next plan review printed.
 **Depends on:** Phase 4
 **Requirements:** RUN-06, RUN-07
 **Success Criteria:**
-1. After the cut, `gauntlet/tasks/<slug>.md`, the approved plan and specs are present in the worktree at the paths the cut design names, and the baseline file holds the brief command's output
-2. `gauntlet-run/fixtures/cut.stubs.yaml`, `tree-failed.stubs.yaml` and `defective.stubs.yaml` pass, and the defective route reaches `fail` then `kill` and never `land`
-3. `gauntlet/failed/<slug>.txt` in the checkout holds the juror's ruling verbatim, and a second defective run on the same slug exits non-zero at `fail` naming the file
+1. After the cut, `gauntlet/items/<slug>.md`, the approved plan and specs are present in the worktree at the paths the cut design names, and the baseline file holds the brief command's output
+2. `gauntlet-run/fixtures/cut.stubs.yaml`, `tree-failed.stubs.yaml` and `planning.stubs.yaml` pass, and the planning route reaches `back` and never `land`
+3. On a back to planning, `gauntlet/back/<slug>.1.amicus.md` and `gauntlet/back/<slug>.1.direction.md` in the checkout hold the amicus record and the owner's direction, the slug's plan and spec files sit under `stale/`, and the printed command names the item file and both files; a second back to planning on the slug takes number 2
 4. `gauntlet-run/scripts/pin.py`'s suite goes red against a null stub before the code is written
 
 ### Phase 6: Writing
-**Goal:** Writing runs as block `write` of the tree run: test writers write the tests from the approved specs, code writers make them pass, a juror rules each contested round, a wrong plan or spec becomes an approved revision, and the phase ends with the sealed commit `<slug>: final`.
+**Goal:** Writing runs as block `write` of the tree run: test writers write the tests from the approved specs, code writers make them pass, the amicus briefs the owner on each contested round and the owner's direction binds the next pass, a wrong plan or spec the owner's direction names becomes an approved revision, and the phase ends with the sealed commit `<slug>: final`.
 **Depends on:** Phase 5
 **Requirements:** RUN-08, RUN-09, RUN-10
 **Success Criteria:**
@@ -83,15 +83,15 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 2. `write/fixtures/written.stubs.yaml` reaches `seal`, and, when the tree holds uncommitted changes, the final commit's message starts `<slug>: final` (`GAUNTLET_FINAL_SUBJECT` unset) with the approved summaries in its body, read back with `git log -1 --format=%B`; a clean tree gets no final commit
 3. An approved revision lands as `gauntlet/<plans|specs>/approved/<slug>.rev<N>.txt` with N one above the highest present, and a second `enter` on the same N exits non-zero
 4. Writing's `stage.py red` and the mend's `verify.py` import `.shared/red.py` and hold no comparison of their own
-5. A juror verdict `defective` hands off `outcome: defective` and `write/fixtures/defective.stubs.yaml` passes
+5. A `Rework: planning` direction hands off `outcome: planning` with the direction and the amicus record, and the back-to-planning route fixture of `write/fixtures/` passes
 
 ### Phase 7: Mend and landing
-**Goal:** The mend rebases the tree's branch onto the checkout's `HEAD`, reruns the brief command when the checkout moved, repairs a red through a juror-ruled mend read by a reviewer, and hands `ready` or `left`; landing shows the owner the test line, diff stat and messages, fast-forwards on land, copies the records and removes the tree. The full run lands a task end to end.
+**Goal:** The mend rebases the tree's branch onto the checkout's `HEAD`, reruns the brief command when the checkout moved, repairs a red through the mender the owner's direction names, read by a reviewer, meets the owner with the amicus and the review before landing in the tree run, and hands `ready`, `left` or `planning`; landing fast-forwards on land, copies the records and removes the tree. The full run lands a task end to end.
 **Depends on:** Phase 6
 **Requirements:** RUN-11, RUN-12, RUN-13, RUN-14, PACK-01
 **Success Criteria:**
 1. With the checkout moved past base by one commit, the mend's rebase puts the tree's branch on the new `HEAD` and the brief command reruns; with the checkout unmoved, no rerun happens
-2. A red on the rebased tree reaches node `juror` (command `mend-juror`), and the owner is asked only on a `defective` ruling or a stall, in `mend/fixtures/repair*.stubs.yaml`
+2. A red on the rebased tree reaches node `amicus` and then the owner's `ask`, whose direction names the mender, in `mend/fixtures/red-code.stubs.yaml` and `mend/fixtures/red-tests.stubs.yaml`
 3. On land, `git -C <checkout> rev-parse HEAD` equals the tree branch's tip, the tree's `gauntlet/` records exist in the checkout, and `git worktree list` no longer shows the tree
 4. On leave, the tree, its branch and the checkout's `HEAD` are unchanged
 5. Every fixture in the pack passes `archon workflow test`, and `archon workflow list --json` and `archon validate workflows` are clean from the pack root

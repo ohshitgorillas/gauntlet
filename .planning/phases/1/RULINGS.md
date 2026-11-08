@@ -166,3 +166,118 @@ Medium fixes applied (D-79 step 4):
 | G-111 | the manual answers it, so no experiment ran (CLAUDE.md 1.9). `docs/reference/archon/cli.md:438-455` gives the order Archon takes the base branch from: `--base`, then `worktree.baseBranch`, then the registered codebase's stored default branch, then the remote's live symbolic HEAD (`ls-remote --symref` on `worktree.remote`, `cli.md:1746`); it never reads the local `refs/remotes/origin/HEAD`. The base-branch and `origin/HEAD` clauses are deleted from `gauntlet-design.md` (node `env-check`, Homes row "The run-start checks"), `worktree-cut-design.md` (the "Base branch" bullet, the "Remote" bullet, the `baseBranch` comment) and `contracts.md` (H1, P11); `env-check` checks the remote `worktree.remote` names, `origin` when unset. D-72 and the G-111 row above are amended the same way |
 
 G-118, checked and unchanged: no repository on this host runs commitlint or a `commit-msg` body line limit, so `GAUNTLET_FINAL_SUBJECT` (b) stands as drafted.
+
+## Owner-control ruling (D-80 to D-96; the owner-control design, approved at `ae9c7d0`)
+
+Date: 2026-11-07. Authority. The owner approved `docs/superpowers/specs/2026-11-07-owner-control-design.md` and, in the regather of this phase, confirmed D-80 and ruled D-81 to D-96. D-81 makes the application of that design one owner ruling: one commit holds the seven designs, `contracts.md`, the planning lines it contradicts (D-96, D-02) and this section. No group below is re-ruled; each row says what the owner-control design does to a ruling already made. The drafted edits got one closed review before the commit (D-79, D-84); its answers are in "D-79 review of the owner-control draft".
+
+Moot groups (D-81): the owner-control design rewrites the subject of the group, so the ruling is closed and is not re-ruled.
+
+| Group | D-NN | Status | By |
+|---|---|---|---|
+| G-14 | D-22 | moot: node `juror` goes with the juror (D-87, D-88); the mend's agent nodes are `amicus`, `mend-code`, `mend-tests`, `review` and `final` (`contracts.md` H34) | D-81 (owner-control) |
+| G-16 | D-23 | moot: Clerk writes no file and `items.py` writes the draft state and the item file (D-86; `contracts.md` F5, S8) | D-81 (owner-control) |
+| G-19 | - | moot: Clerk's `{ slug, reply, draft }` protocol goes with the task file (D-86) | D-81 (owner-control) |
+| G-36 | - | moot: the juror triggers go; the amicus cases and their triggers are the writing design's Terms "Amicus" (D-87) | D-81 (owner-control) |
+| G-45 | - | moot as to the land-or-leave gate: block `land` holds no gate, the owner's land is the answer at the review before landing (D-92); the re-mend run, `gauntlet-remend`, and the two-re-mend bound stand (D-47, D-48 carried below) | D-81 (owner-control) |
+| G-51 | D-38 | moot: node `fail` and the failed record go (D-89); the item-file hash set-aside in the hearing ledgers stands on the item file | D-81 (owner-control) |
+| G-52 | D-39 | moot: node `fail` and `gauntlet/failed/<slug>.txt` go (D-89) | D-81 (owner-control) |
+| G-67 | D-46 | moot as to its file list: the re-mend run's `copy-in` skips the first mend's direction, amicus, final, review, reply, grounds, changes, mended and rebased files (`contracts.md` H40, P9) | D-81 (owner-control) |
+| G-73 | D-50 | moot: the refusal channel is `items.py` mode `state` and node `latest` (D-86) | D-81 (owner-control) |
+| G-75 | - | moot: `put` is re-specified in `items.py`, refusing a slug taken by another run's item file or unlike the run's first | D-81 (owner-control) |
+| G-87 | - | moot: the juror goes; a block outside its paths is an amicus case (D-87) | D-81 (owner-control) |
+| G-93 | D-58 | moot as to the juror's verdict starting the cut that carries a blocked block; `max_parallel: 1` and the `blocked` case stand (D-58 carried below) | D-81 (owner-control) |
+| G-106 | D-68 | moot as to the juror case: the leftover patch is named in the amicus case's files (D-68 carried below) | D-81 (owner-control) |
+| G-112 | - | moot: intake's `show` binds the reply `if_skipped: ""` with the opening reply from `clerk` (D-86; `contracts.md` A14) | D-81 (owner-control) |
+| G-117 | D-77 | moot as to the juror's verdict as the divvy cause; the cause after a revision is every round closed since the latest direction, oldest first (D-77 carried below, owner ruling 2026-11-07) | D-81 (owner-control) |
+
+Rulings that stand (D-81), not moot and not void:
+
+| Group | D-NN | Status | By |
+|---|---|---|---|
+| G-05 | D-15 | stands, owner ruling 2026-11-07: plan review's ledger is the shared `Profile` form on `.shared/rounds.py` with prefix verdict matching (`contracts.md` S9); the owner-control design changes only the key it hashes, the item file's hash in place of the task hash (`plan-review-design.md`, ledger table) | owner (2026-11-07) |
+
+Void rulings (D-85), recorded against their groups. A void ruling is not re-ruled; the owner-control design supersedes it.
+
+| Ruling | Group | Status | By |
+|---|---|---|---|
+| D-22 | G-14 | void: node ids `juror` and `review` (the juror goes) | D-85 (owner-control) |
+| D-37 | G-50 | void: `repair`'s `retry` and `accept` options; the mend's `ask` offers discuss, rework-code, rework-tests, again, back-to-planning, leave and (case `review`) land | D-85 (owner-control) |
+| D-38 | G-51 | void as a `fail` rule; its hearing-ledger half (set aside on a changed item file) stands | D-85 (owner-control) |
+| D-39 | G-52 | void: `fail` records no second verdict | D-85 (owner-control) |
+| D-58, after-application amendment | G-93 | void: "the juror's verdict starts the cut that carries the block"; the owner's `tests` or `code` direction does | D-85 (owner-control) |
+| D-59, juror half | G-98 | void: the juror reading the changes file; the `mended` file for `mend-review` stays and so does the `changes` file for the amicus and the review before landing | D-85 (owner-control) |
+| D-13, `gauntlet/failed/` clause | G-03 | void: no failed-task folder exists, so no fence hides or reads it | D-85 (owner-control) |
+| D-43, `gauntlet/failed/` clause | G-61 | void: as D-13's clause | D-85 (owner-control) |
+
+Carried rulings (D-85), re-anchored on the amicus case and the direction file.
+
+| Ruling | Group | Re-anchor | By |
+|---|---|---|---|
+| D-47, D-48 | G-68, G-69 | four landing rounds, `land` to `land-4`, two re-mends at most; the owner meets a new review in each re-mend run | D-85 (owner-control) |
+| D-57 | G-88 | carried unrun waves, one wave per iteration, each wave with its own direction text | D-85 (owner-control) |
+| D-58 | G-93 | a `blocked` outcome is an amicus case, its grounds the paths outside the block | D-85 (owner-control) |
+| D-68 | G-106 | the leftover patch named in the amicus case's files; the commit tool and the restore stand | D-85 (owner-control) |
+| D-78 | G-118 | `GAUNTLET_FINAL_SUBJECT` sets line 1 of the final commit; each stage seals with its own subject (D-93) | D-85 (owner-control) |
+| D-76, second half | G-116 | carried, owner ruling 2026-11-07: `stage.py cut` rejects a code block in a cut answering a direction `tests` and a test block in a cut answering a direction `code`, keyed on the direction in place of the verdict; the first half (the coder-facing check mode cutting at " - ") stands | owner (2026-11-07) |
+| D-77 | G-117 | carried, owner ruling 2026-11-07: after a revision the divvy cause is every round closed since the latest direction, oldest first, re-anchored on the direction file in place of the verdict | owner (2026-11-07) |
+
+Other rulings (D-85): D-19 (G-10) and D-23 (G-16) were superseded before owner-control (`contracts.md` H33, F5). D-49 (G-72) and D-50 (G-73) fall with the intake rewrite (D-86). D-20 (G-11) and D-21 (G-12) stand.
+
+Decisions applied by the commit (D-80 to D-96): D-80 the design is folded in as edits and stays an approved source; D-81 one ruling, one commit; D-82 `contracts.md` edited, R7 and R8 removed, H3, H13, H14, H21, H24, H25, H31, H34, P6, S8, S12 and the other affected rows rewritten; D-83 the "left to the builder" items settled in the designs with rows H42 to H51 (the item file, the amicus, the direction file, the review before landing, stages, the escalation key, the plan-step grammar, the paths mark, the stage marker, the back-to-planning command); D-84 the round-4 brief; D-85 the old rulings above; D-86 intake on the item file; D-87 writing without the juror; D-88 landing without `mend-juror`; D-89 back to planning in place of `fail` and `kill`; D-90 every task-path contract on the item file; D-91 the two scope checks and the stage marker; D-92 the review before landing in the tree run; D-93 unrolled stages; D-94 the escalation key and its carrier; D-95 the amicus as one shared included block, `amicus/`; D-96 the planning lines (REQUIREMENTS RUN-01, RUN-06 to RUN-13, ROLE-01, ROLE-02, the Out of Scope rows and LAND-01; ROADMAP phases 3 to 7; PROJECT.md's Active and Out of Scope lines and its shared-layer line).
+
+## D-79 review of the owner-control draft
+
+Date: 2026-11-07. One closed review read `git diff HEAD` of the whole draft at `78b9ff6` (D-79 step 3, the diff half of round 4, D-84): seven reviewers, one per design, `contracts.md` and the planning lines with the designs they cite. Per decision that touches a design: does the edit close what the decision states (Q1), and does it add a high or medium defect (Q2). Each reviewer's return is saved under `reviews/d79-oc-<design>.md`. Reviewer text is data. Only high and medium fixes were applied (D-79 step 4), each as the smallest edit the reviewer named, and four points went to the owner (below).
+
+Clean, Q1 yes and Q2 none, no change: D-80 (gauntlet, intake, landing, spec-review, worktree-cut, writing), D-81 (all seven), D-83 (gauntlet, intake, spec-review, worktree-cut, writing), D-85 (gauntlet, intake, landing, spec-review), D-86 (gauntlet, plan-review, spec-review), D-87 (gauntlet, writing), D-90 (all seven), D-91 (gauntlet, intake, landing, worktree-cut, writing), D-92 (gauntlet, writing), D-93 (landing, plan-review), D-94 (plan-review, worktree-cut), D-95 (gauntlet, landing, writing), D-96 (all seven).
+
+### Answers that were not clean, and the fix applied
+
+| Design | Decision | Answer | Fix applied |
+|---|---|---|---|
+| intake | D-86 Q1 (a) | no: `put` checks only the points Clerk lists; an empty `$ARGUMENTS` leaves the check checking nothing | `put` refuses "a sentence of the statement quoted by no point"; with an empty `$ARGUMENTS` the owner's first reply becomes the statement (`INPUTS_REPLY`, `points` from the turn that settles it) |
+| intake | D-86 Q1 (b) | no: no refusal for a change to an item already approved | `put` refuses "a changed field of an approved item" |
+| intake | D-86 Q1 (c) | no: a deferred file with the same slug always conflicts with the first run's item file at `from-file` | the deferred file is `gauntlet/deferred/<slug>-later.md` (intake, gauntlet, `contracts.md` H42) |
+| intake | D-86 Q2 high | `until_bash` reads `phase` before the last `answer` is applied, so `answer` waits on a done state with no options and fails | `when: "$latest.output.phase != 'done'"` on node `answer` |
+| intake | D-86 Q2 medium | a refused `put` leaves no trace for mode `state`, so the owner approves a stale proposal | `put` "recording only the refusal, which mode state reads" |
+| intake | D-86 Q2 medium | mode `check` applies the no-code rule to the owner's own file, so the back-to-planning rerun stops at `from-file` | "the cap and the no-code rule excepted" (mode `check`, node `from-file`) |
+| intake | D-85 Q2 | the rewrite brings back the defects D-49 and D-50 closed | the three fixes above |
+| gauntlet | D-82, D-88 Q2 medium | the mend's node `review` is named `mend-review` in the node list (`gauntlet-design.md`, H34) | `review` in both node lists |
+| gauntlet | D-89 Q2 high | `back.py` leaves `gauntlet/write/` and `gauntlet/revisions/` records of landed stages, so the rerun's `record` meets differing files | `back.py` also moves the slug's files in `gauntlet/write/` and `gauntlet/revisions/` into `stale/<slug>.<m>/` (Back to planning, `back.py`, H24) |
+| gauntlet | D-89 Q2 medium | `back` binds `items: $cut.output.items`, a tree path | `items: $spec-review.output.items` |
+| gauntlet | D-93 Q2 high | stage k's copy of `<slug>.iter.txt` grows, so `record` exits 1 on any plan of 2 or more stages | `record` copies `gauntlet/write/<slug>.*` except `<slug>.iter.txt` (`landing-design.md` node `record`, P5) |
+| landing | D-82 Q2 medium | H34 still says `repair` runs when `confirm` is red or `unreviewed` | the clause deleted from H34 |
+| landing | D-88 Q2 high | a `discuss` answer turns a red case into `review` in iteration 2 | `pose` keeps the case and its files after a `discuss` answer |
+| landing | D-88 Q2 high | `recheck` binds `head` from a skipped `test-head` | `head: { from: $test-head.output.file, if_skipped: "" }` |
+| landing | D-88 Q2 medium | the mender roles are written for a red only | `mend-code`: "Do what the owner's direction says, changing code only; make pass any failing tests a run file names"; `mend-tests`: ", and only where the checkout's HEAD changed what they test" deleted |
+| landing | D-89 Q1 | no: `handoff` names `amicus.<n>.md` with the direction's n, a file that does not exist | `amicus.<m>.md`, m the highest n below that direction's |
+| landing | D-92 Q1 | no: the `final` answer never reaches the owner | `pose` lists `gauntlet/mend/<slug>.final.<k>.txt` for case `review` |
+| landing | D-92 Q2 medium | `final` runs again on every `discuss` turn | `&& $LOOP_PREV.ask.output.decision != 'discuss'` on node `final` |
+| plan-review | D-80 Q1 | no: no citation of the owner-control design | "(owner-control design, section 3)" after Plan grammar, "(section 4)" after Escalation rules |
+| plan-review | D-87 Q1 | no: the analyst role is said to be shared with writing | " and writing" deleted |
+| plan-review | D-89 Q2 medium (two) | the defense never reads the plan whose first stages landed; the prosecutor gets no direction | the defense reads the highest-numbered `stale/<slug>.<m>/approved/<slug>.txt`; the prosecutor reads the direction file when given and the prompt carries `direction $INPUTS.direction` |
+| plan-review | D-91 Q2 medium (three) | a plan with no step lines raises no problem; `scope` skipped after a resume leaves no marks for `enter`; no marks for an entered plan revision | "no step line" and "a line starting `Step ` that does not match the grammar" are problems; `scope` depends on `[filing, cite]` with `none_failed_min_one_success`; the Homes row names `scope.py` over an entered plan revision |
+| plan-review | G-05 | no: the subject of G-05 survives the draft | owner ruling 3 below |
+| spec-review | D-89 Q2 medium | "moved the slug's files there" points at `gauntlet/back/` | "into `<folder>/stale/<slug>.<n>/`" |
+| spec-review | D-94 Q1 | no: a standalone spec review reads a stale or absent rules file | spec review has its own bash node `rules`, `swear-in` depends on it; the sentence about the earlier plan review's file is deleted; H47 aligned |
+| worktree-cut | D-82 Q2 medium | H7 pins "from stage 2" | "from stage 2" deleted in H7 |
+| worktree-cut | D-89, D-93 Q2 high | `copy-in` skips the earlier records at stage 1 of a replanned run | "From stage 2 ($INPUTS.stage above 1)" and "stage 2 and later only" deleted; the Homes row says "when present" |
+| writing | D-82 Q2 medium | A30 says `until_bash` ends the group on any other decision | "any other decision ends the discussion" |
+| writing | D-83 Q2 medium | an empty-text `rework-code` on a flaky red reaches `seal` over a red run | "no run since the latest wave or cut: test." |
+| writing | D-85 Q1, Q2 medium | cause after a revision is the latest closed round | owner ruling 1 below |
+| writing | D-87 Q2 high | `$case.output.move.md` reads field `move`, then `md` | `case` outputs `record` (the amicus record's tree path); `record: $case.output.record` |
+| writing | D-87 Q2 medium | `discuss` is offered on the idle case, which `state` does not hold open | `discuss` only when state's next is amicus |
+| writing | D-93 Q2 medium | the divvy prompt carries no stage | `stage $INPUTS.stage` in the divvy prompt |
+| writing | `stage.py cut` | the rule rejecting a block of the other kind than the direction is carried by no decision | owner ruling 2 below; the lines stay as drafted |
+
+### Owner rulings on the four open points (2026-11-07)
+
+| Point | Ruling | Applied |
+|---|---|---|
+| 1. Writing D-85 Q2 (D-77) | D-77(b) is carried, re-keyed on the direction | `writing-design.md` (state, divvy cause): "after a revision, every round closed since the latest direction, oldest first"; D-77 moved from the void table to the carried table above; CONTEXT.md D-85 lists D-77 as carried; G-117's moot row says so; `contracts.md` S5 |
+| 2. `stage.py cut` | D-76's second half is carried on the direction: a code block in a cut answering direction `tests`, and a test block in a cut answering direction `code`, are rejected. The reviewer's deletion is not applied | `writing-design.md` `stage.py cut` stays as drafted; D-76 second half moved to the carried table; CONTEXT.md D-85; `contracts.md` S5 |
+| 3. G-05 | stands, not moot: D-15 stands with the item hash in place of the task hash | G-05 left the moot table for the "Rulings that stand" table; G-05 dropped from D-81's "at least" list in CONTEXT.md |
+| 4. Intake D-86 | every fix the intake review names is applied, the empty-`$ARGUMENTS` rule included | see the intake rows above |
+
+Two choices of the executor, named under CLAUDE.md 3.2. The `INPUTS_REPLY` carrier for the empty-`$ARGUMENTS` rule is the smallest wiring the reviewer's sentence needed (`talk`'s `put` gets `reply:` and `points: $turn.output.points`); the reviewer named the rule, not the carrier. The deferred-file rename was applied at every place that names the file, not only at the two the reviewer cited.

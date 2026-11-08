@@ -4,9 +4,9 @@ Status: proposed.
 
 ## Why
 
-Writing is phase 5, block `write` of the tree run `gauntlet-tree`, after the baseline (`gauntlet-design.md`). That design gives the block's signature, its nodes `enter` and `handoff`, the approved revisions and the run's end on `defective`; this file gives the rest of the block and nothing it restates. Every path is in the tree unless it names the pack root.
+Writing is phase 5, block `write` of the tree run `gauntlet-tree`, after the baseline (`gauntlet-design.md`). That design gives the block's signature, its nodes `enter` and `handoff`, the approved revisions and the exit to planning; this file gives the rest of the block and nothing it restates. Every path is in the tree unless it names the pack root.
 
-Inside one loop, the divvyer cuts the approved plan and spec into blocks and orders them in waves. Test writers write the tests from the approved spec, then coders write the code from the approved plan. A juror rules on every red: a block's contest, a blocked block, a failed commit, a red test run or a failed final commit. A wrong spec or plan is revised in the same loop, tried by a fresh reviewer and approved by the owner at `bench`. A defective plan ends the run.
+Inside one loop, the divvyer cuts the approved plan and spec into blocks and orders them in waves, within one stage of the plan. Test writers write the tests from the approved spec, then coders write the code from the approved plan. The amicus briefs the owner on every red: a block's contest, a blocked block, a failed commit, a red test run, a failed final commit or an iteration that made no progress. It rules on nothing; the owner chooses at `bench` (the owner-control design, section 2). A wrong spec or plan is revised in the same loop when the owner's direction asks for it, tried by a fresh reviewer and approved by the owner at `bench`. The owner's back to planning ends the block.
 
 What the tree holds for the concerns writing touches:
 
@@ -16,44 +16,35 @@ What the tree holds for the concerns writing touches:
 - Round logic: designed and unbuilt, `.shared/rounds.py` (spec review design). Writing's revision hearing uses it through a `write/scripts/ledger.py` `Profile`, as `gauntlet-design.md` requires.
 - Steering screening: designed and unbuilt, the `screen` workflow (spec review design). Its fence, `screen/screener.mcp.json`, reads only `gauntlet/plans/*.txt` and `gauntlet/specs/*.txt`, so it cannot read a revision round.
 - Hidden reads: designed and unbuilt, `FENCE_HIDE` in `fence/files.py` (`gauntlet-design.md`). The coder's blindness to `tests/` rests on it.
-- Roles: no copy usable here. `gauntlet-design.md` gives writing its own `write/commands/`.
+- Roles: no copy usable here. `gauntlet-design.md` gives writing its own `write/commands/`. The one role shared with another phase is the amicus, which this design homes as an included block (`amicus/`, below).
 - Fanned-out writers: Archon runs `include:` with `fan_out:` inside the run, but rejects a `wait:` anywhere in the fanned-out block. The only wait is `bench`, in writing's loop.
 
 The repository's `.archon/config.yaml` `env:` reaches bash nodes only (cut design), so the fences and `stage.py` read `gauntlet/settings.json`, which node `settings` of the tree run writes, and no fence config carries a test value.
 
 ## Terms
 
-- **Block**: one writer's share of the work: `{ id, kind, specs, steps, paths, ruling }`, `kind` is `tests` or `code`. `specs` lists spec ids, `steps` lists plan steps, `paths` lists every file the block may change. `ruling` holds the juror's `To the writers:` text when the cut answers a verdict, and `""` otherwise.
+- **Block**: one writer's share of the work: `{ id, kind, specs, steps, paths, ruling }`, `kind` is `tests` or `code`. `specs` lists spec ids, `steps` lists plan steps, `paths` lists every file the block may change. `ruling` holds the owner's direction text, verbatim, when the cut answers a direction, and `""` otherwise.
 - **Wave**: blocks of one kind that share no path and run in one fan-out, one block at a time.
-- **Cut**: the divvyer's waves for one cause, test waves first. The first cut covers the whole plan and spec. A later cut covers only what its cause affects; `stage.py state` carries the unrun waves of the cuts it replaces. The cause is a juror verdict `TESTS` or `CODE`, or an approved revision.
-- **Move** `N`: one file `gauntlet/write/<slug>.<kind>.N.<ext>`, with one counter over every kind. Each loop iteration makes at most one move besides a writing ruling.
+- **Cut**: the divvyer's waves for one cause, test waves first. The first cut covers the whole stage's plan steps and the specs they serve. A later cut covers only what its cause affects; `stage.py state` carries the unrun waves of the cuts it replaces. The cause is an owner's direction `tests` or `code`, or an approved revision.
+- **Move** `N`: one file `gauntlet/write/<slug>.<kind>.N.<ext>`, with one counter over every kind. Each loop iteration makes at most one move besides a direction or a writing ruling.
 - **Red**: the latest test run timed out and the brief baseline did not, or names a failing test (`FAILED` or `ERROR`) that the brief baseline does not name as failing. A run that exits non-zero with no failing line is also red when the brief baseline exited 0. A baseline failure that now passes is not red.
-- **Revision round** `N`: one file `gauntlet/revisions/<slug>.N.txt`, with its review, ruling and summary, under `.shared/rounds.py`. Line 1 is `Revises: plan` or `Revises: spec`. Line 2 is `Answers: <tree path>`, naming the verdict, or the entered plan revision it follows. The clauses it changes come after, each as it now reads; `enter` copies the round to its revision file without the two header lines. A spec revision that follows a plan revision and changes nothing holds `No change.` after the two lines.
+- **Revision round** `N`: one file `gauntlet/revisions/<slug>.N.txt`, with its review, ruling and summary, under `.shared/rounds.py`. Line 1 is `Revises: plan` or `Revises: spec`. Line 2 is `Answers: <tree path>`, naming the direction, or the entered plan revision it follows. The clauses it changes come after, each as it now reads; `enter` copies the round to its revision file without the two header lines. A spec revision that follows a plan revision and changes nothing holds `No change.` after the two lines.
 - **Plan files**, **spec files**: `approved/<slug>.txt`, then each `approved/<slug>.rev<N>.txt` in order of N. An agent that needs the plan or the spec is handed these.
-
-Juror verdicts, first line of `<slug>.verdict.N.txt`, `Verdict: <verdict>`:
-
-| Verdict | Next |
-|---|---|
-| `TESTS` | a cut of test blocks for the tests the verdict names |
-| `CODE` | a cut of code blocks for the code the verdict names |
-| `SPEC` | a spec revision of the quoted clause, then a cut of the affected tests |
-| `PLAN` | a plan revision of the quoted clause; with a spec, a spec revision of the affected specs; then a cut of the affected tests and code |
-| `DEFECTIVE` | the loop ends; writing hands off `defective` and the verdict's path |
-
-A change too large for a revision gets `DEFECTIVE`.
+- **Stage**: the plan's stage `stage` (the block's input, counted from 1; a plan with no stage lines is stage 1), its steps and the specs they serve. A stage's writing starts at `start`, the highest move on disk when the block began (`stage.py open`): every rule of `state` reads only files whose move is above `start`, and every counter continues above it, so the earlier stages' records that `copy-in` brought in (worktree cut design) are history and not state. The divvyer cuts blocks and waves within the stage, never across one, and each stage seals with a final commit of its own: `<slug>` in the repository's `GAUNTLET_FINAL_SUBJECT` (below) stands for `<slug>` at stage 1 and `<slug>-s<k>` at stage `k` after it, so no two stages commit the same subject. `gauntlet-design.md` gives the stages' order, bound and node ids.
+- **Amicus**: the owner-control design's briefing role (the owner is the bench); it rules on nothing. It runs, and the loop stops for the owner at `bench`, on every amicus case, and the existence of the case is the trigger, never an agent's judgment: a **red** (the latest test run is red), a block's **contest** (a writer says a test or its spec is wrong), a **blocked** block (edits outside its `paths`; the grounds are those paths), a **failed commit** (a block's commit, or the final commit by `seal`), and the **idle** case (an iteration that wrote no file). `cap` (200 iterations) is no amicus case: it asks a plain reply. The amicus works out why the run failed, explains it to the owner in plain words with no other agent checking the explanation, and discusses the way forward with the owner. The discussion is a wait: the amicus is the agent node `amicus` of block `write`'s loop `work`, ahead of its sole terminal wait `bench`; each answer of `discuss` runs one more iteration in which the amicus reads the owner's words as `$LOOP_PREV.bench.output.text` and answers, and any other answer ends the discussion (contracts A30). One shared included block, `amicus/`, holds the role for writing, the mend and the review before landing, as `screen` does for steering: a role file resolves only from its own workflow's `commands/` (contracts A6), so one block states the role once where per-workflow copies would restate it in `write/commands/` and `mend/commands/`.
+- **Direction**: the owner's answer to an amicus case that ends the discussion, recorded by `stage.py record` as the file `gauntlet/write/<slug>.direction.N.md`, N the next free move, once. Line 1 is `Rework: tests`, `Rework: code`, `Rework: spec`, `Rework: plan` or `Rework: planning`, from the owner's choice at `bench` (options below); line 2 is `Landed: <n>`, the stages landed before this one; then a blank line and the owner's text verbatim, which may be empty. The next pass is bound by it: the file names which part is reworked, so no agent rules on that. `stage.py state` reads it: `tests` and `code` start a cut, `spec` and `plan` start a revision hearing, `planning` ends the block. Every writer, the divvyer and the reviser are handed the latest direction's text (blocks carry it as `ruling`; the divvyer and the reviser read every direction), and no direction is edited or removed. The amicus record `gauntlet/write/<slug>.amicus.N.md`, N the same next free move, holds the amicus's explanation as it stands, rewritten each turn; it is no move. The mend writes its own direction files, `gauntlet/mend/<slug>.direction.N.md` (landing design), in this form with `Rework: code`, `Rework: tests`, `Rework: again` (the tests rerun with no mender) or `Rework: planning`. Both files reach plan review on a back to planning (`gauntlet-design.md`, "Back to planning").
 
 Files in `gauntlet/write/`:
 
 | File | Writer | Rule |
 |---|---|---|
 | `<slug>.cut.N.json` | `stage.py cut` | the divvyer's waves and their cause; a rejected cut holds its problems and no waves |
-| `<slug>.blocks.N.json` | `stage.py result` | one wave's block outcomes, in block order |
+| `<slug>.blocks.N.json` | `stage.py result` | one wave's block outcomes, in block order; each committed block also holds `outside`, the paths of its commit that lie outside the block's `paths` (the paths mark, `[]` when none), the second mechanical scope check, read by the review before landing (landing design) |
 | `<slug>.run.N.txt` | node `test` | `exit=<n> timed_out=<true\|false>`, then the brief command's output |
 | `<slug>.seal.N.txt` | node `seal` | `exit=<n>`, then git's and the hooks' output; `nothing` when the tree had no change |
-| `<slug>.verdict.N.txt` | juror | once |
-| `<slug>.ruling.N.txt` | `stage.py record` | the owner's reply to a `stalled`, `idle` or `cap` case, verbatim; once |
-| `<slug>.idle.K.md` | analyst | written once: why the iteration that wrote no file made no progress; K is one above the highest move at the ask, the N the reply's ruling file takes; no move counts it |
+| `<slug>.direction.N.md` | `stage.py record` | the owner's direction (Terms), once |
+| `<slug>.amicus.N.md` | node `amicus` | the amicus's explanation of the case at move N, rewritten each turn; no move counts it |
+| `<slug>.ruling.N.txt` | `stage.py record` | the owner's reply to a `cap` case, verbatim; once |
 | `<slug>.leftover.N.patch` | `stage.py result` | the tree's uncommitted changes when a block of wave N did not end committed, written before the tree is restored to `HEAD`; once |
 
 Files in `gauntlet/revisions/`: `<slug>.N.txt` (reviser), `<slug>.review.N.txt` (reviewer, or `ledger.py screen` for `SCREENED`), `<slug>.ruling.N.txt` (`stage.py record`), `<slug>-summary.N.md` (reporter), each as `.shared/rounds.py` rules them.
@@ -118,25 +109,28 @@ Suite: `write/tests/test_ledger.py`. It pins `UNSOUND` counted as an attempt, `S
 
 ### `write/scripts/stage.py`
 
-Writing's progress: what is owed next, the cut and wave records, red, the owner's cases outside the hearing, and the run's end. It derives everything from `gauntlet/write/`, `gauntlet/revisions/` and `approved/`, so a resumed run reads the same state. It takes the hearing's state, docket, screen and record from `.shared/rounds.py` with `PROFILE`, and red from `.shared/red.py`, and computes none of them itself. Standard library only. Replaces nothing.
+Writing's progress: what is owed next, the cut and wave records, red, the paths mark, the owner's cases outside the hearing, the direction and the block's end. It derives everything from `gauntlet/write/`, `gauntlet/revisions/` and `approved/`, so a resumed run reads the same state. It takes the hearing's state, docket, screen and record from `.shared/rounds.py` with `PROFILE`, and red from `.shared/red.py`, and computes none of them itself. Standard library only. Replaces nothing.
 
 ```python
 # /// script
 # requires-python = ">=3.12"
 # ///
-# Env: INPUTS_MODE, INPUTS_SLUG, INPUTS_PLAN, INPUTS_SPEC, INPUTS_BRIEF (block inputs); INPUTS_START in the loop;
-#   INPUTS_BASE in docket; per mode below. The test base is "base" of gauntlet/settings.json (none when the file is
+# Env: INPUTS_MODE, INPUTS_SLUG, INPUTS_PLAN, INPUTS_SPEC, INPUTS_BRIEF, INPUTS_STAGE (block inputs); INPUTS_START in the
+#   loop; INPUTS_BASE in docket; per mode below. The test base is "base" of gauntlet/settings.json (none when the file is
 #   missing or the list is empty).
-#   The slug is INPUTS_SLUG; the hearing's rounds.py calls take theirs from INPUTS_TASK through .shared/pin.py's slug,
+#   The slug is INPUTS_SLUG; the hearing's rounds.py calls take theirs from INPUTS_ITEMS through .shared/pin.py's slug,
 #   the one derivation (worktree cut design). Every rounds.state and rounds.docket call passes first: the round after
 #   the latest closed round, 1 when none, so each revision hearing in gauntlet/revisions/ starts there.
+#   Stage (Terms): every rule below reads only files whose move is above START, the highest move when the block began; the
+#   stage's plan steps are the steps of approved/<slug>.scope.txt (plan review design) whose stage is INPUTS_STAGE, and the
+#   counters of move and round continue above whatever the tree already holds.
 
 def open_() -> dict: ...          # mode "open", before the loop: { "start": highest move, 0 when none, "base": lines of <slug>.iter.txt }
 
 def state(start: int) -> dict: ...
 # Each call appends one line to gauntlet/write/<slug>.iter.txt (state runs once per iteration), holding the highest move
 #   and rounds.state's round, owed and guard-record count, which docket counts.
-# { "next": "divvy" | "tests" | "code" | "test" | "seal" | "juror" | "revise" | "review" | "none",
+# { "next": "divvy" | "tests" | "code" | "test" | "seal" | "amicus" | "revise" | "review" | "none",
 #   "move": int,                  # the next move's N
 #   "wave": [block],              # tests and code: one wave, the first unrun one in this order: test waves before code
 #                                 #   waves; of one kind, the waves carried from the cuts the latest cut replaced, oldest
@@ -148,7 +142,8 @@ def state(start: int) -> dict: ...
 #   "kind": "plan" | "spec" | "", # revise and review
 #   "round": int,                 # revise and review: rounds.state's round
 #   "file": str,                  # review: gauntlet/revisions/<slug>.<round>.txt
-#   "cause": str,                 # divvy: the tree paths the cut answers, newline-separated; juror: the case's files,
+#   "cause": str,                 # divvy: the tree paths the cut answers, newline-separated; amicus: the case's name (red,
+#                                 #   contest, blocked, commit-failed or idle) on line 1, then the case's files,
 #                                 #   newline-separated, the leftover patch of the case's move among them when there is one;
 #                                 #   revise: the tree path the round answers
 #   "problems": str,              # divvy: the latest rejected cut's problems, "" when none
@@ -156,107 +151,107 @@ def state(start: int) -> dict: ...
 #   "approved": str }             # seal: the summary files of the revision rounds the owner approved (an approve ruling),
 #                                 #   in order of N, newline-separated tree paths; a round sent back is not listed
 # First that holds:
-#   latest verdict DEFECTIVE, or latest seal exit 0 or nothing: none.
-#   a revision owed: latest verdict SPEC or PLAN not yet answered by an approved round; an entered plan revision,
-#     spec not "", and no spec round answering it closed. A round is closed by an approve ruling, or a SOUND
+#   latest direction `Rework: planning`, or latest seal exit 0 or nothing: none.
+#   a revision owed: latest direction `Rework: spec` or `Rework: plan` not yet answered by an approved round; an entered
+#     plan revision, spec not "", and no spec round answering it closed. A round is closed by an approve ruling, or a SOUND
 #     review of a "No change." round. next from rounds.state: reviser owes: revise; reviewer owes: review; owner owes:
 #     none, so docket asks the unanswered case again.
-#   a case for the juror: the latest blocks file holds a contest, commit-failed or blocked newer than the latest verdict
-#     (a blocked block's grounds are the paths outside it; the juror's TESTS or CODE verdict starts the cut that carries
+#   a case for the amicus: the latest blocks file holds a contest, commit-failed or blocked newer than the latest direction
+#     (a blocked block's grounds are the paths outside it; the owner's direction `tests` or `code` starts the cut that carries
 #     the block, and the case precedes test and seal, so no seal runs over a blocked wave); the
-#     latest run is red and newer than the latest verdict; the latest seal exit is not 0 and is newer than the latest
-#     verdict. A reply to a stalled, idle or cap case opens no juror case.
-#   no cut since the latest cause, or the latest cut rejected: divvy. The cause is the latest verdict when it is TESTS
-#     or CODE; after a SPEC or PLAN verdict, every round closed since that verdict, oldest first, newline-separated;
-#     no verdict and no round: the approved files.
+#     latest run is red and newer than the latest direction; the latest seal exit is not 0 and is newer than the latest
+#     direction. next amicus, cause as above. A discussion that gave no direction leaves the case open, so the next
+#     iteration is the amicus again. A reply to a cap case opens no amicus case.
+#   no cut since the latest cause, or the latest cut rejected: divvy. The cause is the latest direction when it is `tests`
+#     or `code`; after a revision, every round closed since the latest direction, oldest first; no direction and no round: the stage's plan steps and the specs
+#     they serve in the approved files.
 #   an unrun wave, the latest cut's or a carried one: the kind of the wave handed out.
-#   no run since the latest wave: test.
+#   no run since the latest wave or cut: test.
 #   no seal since the latest run: seal.
 
 def cut(move: int, divvy: str, cause: str) -> dict: ...
 # Writes <slug>.cut.<move>.json: { "cause", "waves", "problems" }. Problems, each one line: an empty wave; a code
 #   wave before a test wave; a path in two blocks of one wave; a tests block path outside tests/ and
 #   the test base; a code block path inside tests/ or gauntlet/; a block id repeated; a step of an
-#   uncommitted earlier block missing from a code cut; a code block in a cut answering TESTS; a test block in a cut
-#   answering CODE. Any problem: "waves" is []. stdout { "problems" }.
+#   uncommitted earlier block missing from a code cut; a step outside the stage; a code block in a cut answering a
+#   direction `tests`; a test block in a cut answering a direction `code`. Any problem: "waves" is []. stdout { "problems" }.
 
 def result(move: int, tests: str, code: str) -> dict: ...
 # Writes <slug>.blocks.<move>.json from the wave's ordered outcomes, the one of tests and code not ""; an { "archon_failed": true } item is
 #   recorded as commit-failed with its error. stdout { "contested": bool }.
+# The paths mark: for each committed block, `git -C <tree> diff-tree --no-commit-id --name-only -r <commit>` against the block's
+#   paths; the block's record holds "outside", the changed paths no entry of "paths" covers, [] when none. A mark is no stop.
 # A block of the wave that did not end committed: in the tree's root, never the checkout (git -C <tree>), first writes
 #   every uncommitted change as gauntlet/write/<slug>.leftover.<move>.patch (git diff HEAD, staged and unstaged, then each
 #   untracked file not ignored as a new-file diff), then restores the tree to HEAD: git restore --source=HEAD --staged
 #   --worktree -- :/ and git clean -fd -- :/, ignored files (gauntlet/ among them) kept. Writers run one at a time
-#   (max_parallel: 1), so every such change is the wave's own. The patch is named in the juror case's files.
+#   (max_parallel: 1), so every such change is the wave's own. The patch is named in the amicus case's files.
 
 def red(run: str, brief: str) -> bool: ...
 # The latest run file and the brief baseline, passed to .shared/red.py's red with no head; returns its answer.
 
 def docket(start: int, base: int) -> dict: ...
-# { "case": <rounds.docket case> | "stalled" | "idle" | "cap" | "none", "ask": bool, "attention": str,
-#   "options": [ { "id", "label" } ], "round": int, "summary": bool, "end": "written" | "defective" | "",
-#   "idle": int,    # case idle only (0 otherwise): K of <slug>.idle.K.md, one above the highest move; no idle file counts as a move
-#   "reason": bool }  # case idle only: <slug>.idle.<idle>.md is still absent, so node why writes it
+# { "case": <rounds.docket case> | "amicus" | "cap" | "none", "ask": bool, "attention": str,
+#   "options": [ { "id", "label" } ], "round": int, "summary": bool, "amicus": bool,
+#   "name": str, "files": str,   # case amicus: the case (red, contest, blocked, commit-failed or idle) and its files, newline-separated
+#                                #   (idle: the iteration file and the latest cut, blocks, run, seal, direction and revision files)
+#   "record": str,  # case amicus: the amicus record's tree path, gauntlet/write/<slug>.amicus.<N>.md, N one above the highest move (the direction takes it too)
+#   "end": "written" | "planning" | "" }
 #   First that holds: rounds.docket's case when not none, except a SOUND review of a "No change." round;
-#   stalled (verdicts and rejected cuts since the latest writing ruling >= 5); idle (the last rounds.IDLE lines of
-#   <slug>.iter.txt hold the highest move and the round, owed and guard-record count docket now reads, so an iteration
-#   that wrote no file calls the owner at once; the attention is the counts, then the text of <slug>.idle.<idle>.md);
-#   cap (loop iterations since open, the lines of <slug>.iter.txt above INPUTS_BASE, >= rounds.CAP);
-#   none. stalled, idle and cap offer one option, reply. end follows the first rule of state. ask and idle are false whenever end is not "".
+#   amicus (state's next is amicus, or the last rounds.IDLE lines of <slug>.iter.txt hold the highest move and the round,
+#   owed and guard-record count docket now reads, so an iteration that wrote no file is the idle case at once; "amicus" is
+#   true in both, and the case's name is state's cause or "idle"); cap (loop iterations since open, the lines of
+#   <slug>.iter.txt above INPUTS_BASE, >= rounds.CAP); none.
+#   amicus: ask true; attention is the case's name, then the text of <slug>.amicus.<move>.md verbatim once the amicus has written
+#   it, else the case's name alone; options: discuss, only when state's next is amicus ("Discuss it with the amicus (your words in the text)"), rework-tests,
+#   rework-code (each "Run the tests / the code again with my direction"), revise-spec when spec is not "", revise-plan when
+#   plan is not "" ("Revise the spec / the plan, with my direction"), and back-to-planning ("Back to planning").
+#   cap offers one option, reply. end follows the first rule of state. ask is false whenever end is not "".
 
 def record(round: int, case: str, decision: str, text: str) -> dict: ...
-# decision "": records nothing. Hearing cases: rounds.record. stalled, idle and cap: writes <slug>.ruling.N.txt, N the next
-#   free move number of gauntlet/write/. stdout { "enter": tree path of the round file when decision approves a review
-#   case, else "" }.
+# decision "": records nothing. Hearing cases: rounds.record. cap: writes <slug>.ruling.N.txt, N the next free move number
+#   of gauntlet/write/. amicus: decision discuss records nothing; any other decision writes <slug>.direction.N.md (Terms),
+#   N the case's move, line 1 `Rework: ` and tests, code, spec, plan or planning for rework-tests, rework-code, revise-spec,
+#   revise-plan or back-to-planning, line 2 `Landed: ` and INPUTS_STAGE less one, the owner's text verbatim after a blank line.
+#   stdout { "enter": tree path of the round file when decision approves a review case, else "" }.
 
 def close() -> dict: ...
-# { "outcome": "written" | "defective", "verdict": absolute path of the DEFECTIVE verdict, "" when written,
+# { "outcome": "written" | "planning", "direction": absolute path of the latest direction when outcome is planning, "" when written,
+#   "amicus": absolute path of the amicus record of that direction's N, "" when written,
 #   "summary": the plan summary file's text when plan is not "", then the text of each approved revision summary in order of N,
-#   blank-line separated; "" when defective }
+#   blank-line separated; "" when planning }
 
 def main() -> int: ...             # dispatches on INPUTS_MODE, prints JSON to stdout
 ```
 
-Suite: `write/tests/test_stage.py`, run as `docs/testing.md` states with the folder `write/tests`. It drives `main` through real files under `tmp_path`. It pins each rule of `state` in its precedence, the wave order and each carry rule of `wave`, a red run reaching the juror, each cut problem, `record` writing a ruling at the next free move, and `close` on `DEFECTIVE`.
+Suite: `write/tests/test_stage.py`, run as `docs/testing.md` states with the folder `write/tests`. It drives `main` through real files under `tmp_path`. It pins each rule of `state` in its precedence, the wave order and each carry rule of `wave`, a red run reaching the amicus, the start rule that makes an earlier stage's records history, the paths mark of a commit outside its block, each cut problem, `record` writing a direction at the case's move and nothing for `discuss`, and `close` on a `planning` direction.
 
-### Roles: `write/commands/divvyer.md`, `juror.md`, `reviser.md`, `reviewer.md`, `reporter.md`, `analyst.md`
+### Roles: `write/commands/divvyer.md`, `reviser.md`, `reviewer.md`, `reporter.md`
 
 Each starts a fresh session, primed from files. Replace nothing.
 
 ```markdown
 divvyer.md
-Inputs: the cause, the problems of the latest rejected cut, the plan files, the spec files, every earlier cut and
-blocks file, every writing ruling.
+Inputs: the cause, the stage, the problems of the latest rejected cut, the plan files, the spec files, the plan's scope
+marks (approved/<slug>.scope.txt; the plan review design gives the step grammar and the marks), every earlier cut and blocks file, every direction and writing ruling.
 Output the waves: test waves before code waves; one block per related set of specs or plan steps; blocks of one
-wave share no path; a block that needs another's files sits in a later wave. A cause other than the approved files:
-only the tests and code it affects. Test block paths sit in tests/ or the repository's test base files; code block
-paths sit outside tests/ and gauntlet/. Writes nothing.
-Tools: the fence-files server only.
-```
-
-```markdown
-juror.md
-Inputs: move N and the case's files; read the task, the plan files, the spec files, every verdict, every writing
-ruling and the code and tests the case touches. The owner's words in rulings bind the verdict.
-Write gauntlet/write/<slug>.verdict.N.txt once. Line 1 "Verdict: <TESTS|CODE|SPEC|PLAN|DEFECTIVE>". SPEC and
-PLAN: a line "Clause:" quoting the one clause wrong, verbatim. TESTS and CODE: a section "To the writers:"
-naming what each writer must change. A CODE section names failing tests and plan clauses, and quotes no spec
-text or test source. Then "Grounds:".
-TESTS: a test departs from its approved spec. CODE: the code fails the plan or a test that matches its spec.
-SPEC or PLAN: the clause itself is wrong and a revision of it fixes it. DEFECTIVE: the plan cannot stand, or the
-change needed is too large for a revision. A failed commit is ruled like any red, on the block's paths and the names
-of the hooks that failed; a failed seal, on its seal file.
+wave share no path; a block that needs another's files sits in a later wave. Cut only the stage's own steps and the
+specs they serve, never across a stage. Read each step's item ids and its mark in the scope marks: a step marked "added
+scope" serves no item of the item file; cut it in a block of its own, so the review before landing can see it, and
+never fold it into another step's block. A cause other than the approved files: only the tests and code it affects. A
+block that answers an owner's direction carries the direction's text, verbatim, as its ruling. Test block paths sit in
+tests/ or the repository's test base files; code block paths sit outside tests/ and gauntlet/. Writes nothing.
 Tools: the fence-files server only.
 ```
 
 ```markdown
 reviser.md
 Inputs: round N, kind (plan or spec), the tree path the round answers, the plan files, the spec files, every
-revision ruling, the latest review (may be "").
+revision ruling, every direction, the latest review (may be "").
 Write gauntlet/revisions/<slug>.N.txt: "Revises: <kind>", "Answers: <path>", then each clause it changes as it
-now reads, nothing else. Answering a verdict: only the quoted clause. Following a plan revision: only the specs
-it affects, or "No change.". Latest review OBJECTION: LEADING or SCREENED: the previous round with the quoted text
-removed, nothing else changed. A spec revision holds no source text.
+now reads, nothing else. Answering a direction: what the owner's words ask, and nothing past it. Following a plan
+revision: only the specs it affects, or "No change.". Latest review OBJECTION: LEADING or SCREENED: the previous
+round with the quoted text removed, nothing else changed. A spec revision holds no source text.
 Never tell the reviewer how to rule. Never paraphrase the owner's words.
 Tools: the fence-files server only.
 ```
@@ -279,14 +274,47 @@ spec and why, in plain English, no code, no path:line, no review history.
 Tools: the fence-files server only.
 ```
 
+### `amicus/amicus.yaml`, `amicus/commands/amicus.md`, `amicus/amicus.mcp.json` (the amicus, shared)
+
+The amicus block, the one home of the role, included by `write` (node `amicus`), by `mend` (landing design: its node `amicus`, for the mend's cases and the review before landing) and by no other block. Pick: **one shared included block, as `screen` is**, and not a copy of the role in `write/commands/` and `mend/commands/`: a role file resolves only from its own workflow's `commands/` (contracts A6), and the block states the role and its fence once (D-61). The block holds the agent and nothing else: the owner's wait stays in the host's loop body, its sole terminal sink, so the block has no `wait:`. Replaces nothing.
+
+```yaml
+name: amicus
+description: >-
+  Gauntlet amicus, included by write and mend only. Not for direct use.
+provider: claude
+model: claude-opus-5-5
+inputs:
+  slug: { description: The item file's slug. }
+  case: { description: "The case: red, contest, blocked, commit-failed, idle (writing), unsound or review (the mend)." }
+  files: { description: The case's files, newline-separated tree paths. }
+  record: { description: The tree path of the record file to write, rewritten each turn. }
+  words: { default: "", description: "The owner's words from the last answer, $LOOP_PREV.<wait>.output.text, or \"\"." }
+returns: explain
+nodes:
+  - id: explain
+    command: amicus
+    context: fresh
+    allowed_tools: []
+    mcp: amicus.mcp.json
+    prompt: <slug $INPUTS.slug; case $INPUTS.case; files $INPUTS.files; record $INPUTS.record; the owner's words $INPUTS.words>
+    output_format: { type: object, properties: { record: { type: string } }, required: [record] }
+```
+
 ```markdown
-analyst.md
-Inputs: the idle file to write, gauntlet/write/<slug>.idle.K.md, and the iteration file, gauntlet/write/<slug>.iter.txt.
-The last iteration of this hearing wrote no file. Read the iteration file, the cut, blocks, run, seal, verdict and ruling
-files and the revision files, and find why no progress was made. Write the idle file once: the reason, in plain English
-for the owner, in a few sentences, with no code and no path:line. Propose nothing and change nothing else.
+amicus.md
+Inputs: the case and its files (the run, blocks, seal and leftover files, or the mend's, or the review before landing's file),
+the record file to write, the owner's last words (may be ""), the item file, the plan files, every direction.
+You brief the owner and rule on nothing; the owner is the bench. No agent reads your explanation before the owner does.
+1. Work out why the run failed (case review: what the review found); read the code, the tests and the files as needed.
+2. Explain it to the owner in plain words, short, no code and no path:line. If you cannot state the problem so that it holds
+   together, say so; do not guess past the evidence.
+3. Discuss the way forward: answer the owner's last words, and say what each choice at the bench would do.
+Write the record file with the explanation as it now stands, over the earlier turn's. Write nothing else.
 Tools: the fence-files server only.
 ```
+
+`amicus.mcp.json` names one server, `fence-files`, launched as the spec review design's fences are: `FENCE_READ=.`, `FENCE_WRITE=gauntlet/write/*.amicus.*.md:gauntlet/mend/*.amicus.*.md`, `FENCE_DENY` and `FENCE_ONCE` unset, `FENCE_COMMIT` unset. Fixtures: `amicus/fixtures/explain.stubs.yaml`.
 
 ### `write-tests/write-tests.yaml`, `write-tests/commands/test-writer.md`, `write-tests/test-writer.mcp.json`
 
@@ -378,24 +406,22 @@ Tools: fence-files, fence-checks.
 
 | Server | Settings |
 |---|---|
-| `fence-files` | `FENCE_READ=.`; `FENCE_WRITE=.`; `FENCE_DENY=tests:gauntlet`; `FENCE_HIDE=tests:gauntlet/tasks:gauntlet/specs:gauntlet/baseline:gauntlet/revisions:gauntlet/write`; `FENCE_COMMIT=1` |
+| `fence-files` | `FENCE_READ=.`; `FENCE_WRITE=.`; `FENCE_DENY=tests:gauntlet`; `FENCE_HIDE=tests:gauntlet/items:gauntlet/specs:gauntlet/baseline:gauntlet/revisions:gauntlet/write`; `FENCE_COMMIT=1` |
 | `fence-checks` | `FENCE_CUT=1`: runs the brief command with the timeout from `gauntlet/settings.json`, each returned line cut at its first ` - `; the coder sees test ids, never a message or a traceback |
 
 Fixtures: `write-code/fixtures/committed.stubs.yaml`, `write-code/fixtures/contest.stubs.yaml`, `write-code/fixtures/blocked.stubs.yaml`.
 
-### Writing's fences: `write/divvyer.mcp.json`, `juror.mcp.json`, `reviser.mcp.json`, `reviewer-plan.mcp.json`, `reviewer-spec.mcp.json`, `reporter.mcp.json`, `analyst.mcp.json`
+### Writing's fences: `write/divvyer.mcp.json`, `reviser.mcp.json`, `reviewer-plan.mcp.json`, `reviewer-spec.mcp.json`, `reporter.mcp.json`
 
 One server each, `fence-files`, launched as the spec review design's fences are. `FENCE_COPY` and `FENCE_COMMIT` stay unset. No agent reaches `approved/` for writes.
 
 | File | `FENCE_READ` | `FENCE_WRITE` | `FENCE_DENY` | `FENCE_ONCE` |
 |---|---|---|---|---|
 | `divvyer.mcp.json` | `.` | unset | unset | unset |
-| `juror.mcp.json` | `.` | `gauntlet/write/*.verdict.*.txt` | unset | `gauntlet/write/*.verdict.*.txt` |
 | `reviser.mcp.json` | `.` | `gauntlet/revisions/*.txt` | `gauntlet/revisions/*.review.*.txt:gauntlet/revisions/*.ruling.*.txt` | unset |
 | `reviewer-plan.mcp.json` | `.` | `gauntlet/revisions/*.review.*.txt` | unset | `gauntlet/revisions/*.review.*.txt` |
-| `reviewer-spec.mcp.json` | `tests:gauntlet/tasks:gauntlet/plans/approved:gauntlet/specs/approved:gauntlet/revisions/*.txt:gauntlet/write/*.verdict.*.txt:docs/testing.md` | `gauntlet/revisions/*.review.*.txt` | unset | `gauntlet/revisions/*.review.*.txt` |
+| `reviewer-spec.mcp.json` | `tests:gauntlet/items:gauntlet/plans/approved:gauntlet/specs/approved:gauntlet/revisions/*.txt:gauntlet/write/*.direction.*.md:docs/testing.md` | `gauntlet/revisions/*.review.*.txt` | unset | `gauntlet/revisions/*.review.*.txt` |
 | `reporter.mcp.json` | `gauntlet/revisions/*.txt:gauntlet/plans/approved:gauntlet/specs/approved` | `gauntlet/revisions/*-summary.*.md` | unset | `gauntlet/revisions/*-summary.*.md` |
-| `analyst.mcp.json` | `gauntlet/write:gauntlet/revisions/*.txt` | `gauntlet/write/*.idle.*.md` | unset | `gauntlet/write/*.idle.*.md` |
 
 ### `write/write.yaml` (the block's nodes)
 
@@ -403,7 +429,7 @@ The signature, `brief` included, is `gauntlet-design.md`'s. The nodes `enter` an
 
 ```yaml
 inputs:
-  # slug, task, plan, spec, brief: as gauntlet-design.md gives them
+  # slug, items, plan, spec, brief, stage: as gauntlet-design.md gives them
 
 nodes:
   - id: open
@@ -444,7 +470,7 @@ nodes:
           context: fresh
           allowed_tools: []
           mcp: divvyer.mcp.json
-          prompt: <cause $state.output.cause; problems $state.output.problems; plan files $state.output.plans; spec files $state.output.specs>
+          prompt: <cause $state.output.cause; stage $INPUTS.stage; problems $state.output.problems; plan files $state.output.plans; spec files $state.output.specs>
           output_format: <object: waves, an array of { kind (enum tests, code), blocks: array of { id, specs, steps, paths } }; required>
 
         - id: cut
@@ -487,19 +513,10 @@ nodes:
           when: "$state.output.next == 'seal'"
           bash: <git status --porcelain empty: write gauntlet/write/<slug>.seal.$state.output.move.txt "exit=0", "nothing".
                 Else git add -A, git commit -F - with the message on stdin, hooks run: line 1 the repository's
-                GAUNTLET_FINAL_SUBJECT with each "<slug>" replaced by the slug ("<slug>: final" when unset), a blank line,
+                GAUNTLET_FINAL_SUBJECT with each "<slug>" replaced by the slug at stage 1 and by <slug>-s<k> at stage k after it ("<slug>: final" when unset), a blank line,
                 gauntlet/plans/approved/<slug>-summary.md when plan is not "", then each summary file of $state.output.approved
                 (the revision rounds the owner approved) in order, each separated by a blank line; write the file:
                 "exit=<n>", then the output; exit 0. A clean tree gets no final commit>
-
-        - id: juror
-          depends_on: [state]
-          when: "$state.output.next == 'juror'"
-          command: juror
-          context: fresh
-          allowed_tools: []
-          mcp: juror.mcp.json
-          prompt: <move $state.output.move; case $state.output.cause; plan files; spec files>
 
         - id: revise
           depends_on: [state]
@@ -535,7 +552,7 @@ nodes:
         - id: review-spec              # as review-plan, for kind spec, mcp reviewer-spec.mcp.json
 
         - id: case
-          depends_on: [state, cut, result, test, seal, juror, revise, flag, review-plan, review-spec]
+          depends_on: [state, cut, result, test, seal, revise, flag, review-plan, review-spec]
           trigger_rule: none_failed_min_one_success
           runtime: uv
           script: stage
@@ -551,18 +568,16 @@ nodes:
           prompt: <round file gauntlet/revisions/<slug>.<round>.txt; summary file gauntlet/revisions/<slug>-summary.<round>.md;
                   slug $INPUTS.slug, round $case.output.round>
 
-        - id: why                      # fresh analyst; only for an idle iteration whose idle file is not yet written
+        - id: amicus                   # the shared amicus block (Terms), only for an amicus case, ahead of bench
           depends_on: [case]
-          when: "$case.output.reason == true"
-          command: analyst
-          context: fresh
-          allowed_tools: []
-          mcp: analyst.mcp.json
-          prompt: <idle file gauntlet/write/<slug>.idle.$case.output.idle.md; iteration file gauntlet/write/<slug>.iter.txt;
-                  slug $INPUTS.slug; next $state.output.next, move $state.output.move>
+          when: "$case.output.amicus == true"
+          include: amicus
+          with: { slug: $INPUTS.slug, case: $case.output.name, files: $case.output.files,
+                  record: $case.output.record,
+                  words: $LOOP_PREV.bench.output.text }
 
         - id: docket
-          depends_on: [case, report, why]
+          depends_on: [case, report, amicus]
           trigger_rule: none_failed_min_one_success
           runtime: uv
           script: stage
@@ -585,7 +600,7 @@ nodes:
 
 `<slug>`, plan files and spec files in prompts come from `$INPUTS.slug` and `$state.output`. A script reads block inputs as `INPUTS_<NAME>` and binds none in its `with:`, `$INPUTS.<name>` appears in `with:` only on `include:` nodes, and no `when:` reads `$INPUTS`.
 
-Fixtures, `write/fixtures/<route>.stubs.yaml`, one per route: tests then code, the run green, sealed (`written`); no spec, code only; a coder's contest ruled `TESTS`, fixed, green; a contested block's edits saved as its leftover patch, the tree restored and the block carried; a red run ruled `CODE`; a failed commit ruled; a failed seal ruled; `SPEC`, revision `SOUND`, the owner approves, tests re-cut; the owner revises a `SOUND` revision; `PLAN`, then a `No change.` spec round closing without the owner; `UNSOUND` then `SOUND`; a revision `SCREENED`; a rejected cut re-divvied; `stalled` after 5 verdicts, its reply opening no juror case; an iteration that writes no file, asking with the analyst's reason (case `idle`, node `why`), its reply opening no juror case and the hearing going on; `DEFECTIVE` (`defective`); a clean tree at `seal` making no final commit; a dirty tree at `seal` making `<slug>: final`; the unrun waves of a replaced cut carried into the next.
+Fixtures, `write/fixtures/<route>.stubs.yaml`, one per route: tests then code, the run green, sealed (`written`); no spec, code only; a coder's contest, the amicus asking, the owner's `discuss` and then `rework-tests`, fixed, green; a contested block's edits saved as its leftover patch, the tree restored and the block carried; a red run, `rework-code`; a failed commit; a failed seal; `revise-spec`, revision `SOUND`, the owner approves, tests re-cut; the owner revises a `SOUND` revision; `revise-plan`, then a `No change.` spec round closing without the owner; `UNSOUND` then `SOUND`; a revision `SCREENED`; a rejected cut re-divvied; an iteration that writes no file, the amicus asking (case `idle`) and its answer a direction, the hearing going on; `back-to-planning` (`planning`, the direction and the amicus record handed off); a block whose commit holds a path outside its `paths`, marked in the blocks file; a second stage starting above the first stage's records; a clean tree at `seal` making no final commit; a dirty tree at `seal` making `<slug>: final`; the unrun waves of a replaced cut carried into the next.
 
 ### `screen/screener.mcp.json`, `screen/screen.yaml` (revision rounds)
 
@@ -600,7 +615,7 @@ env:
   GAUNTLET_FINAL_SUBJECT: "<line 1 of the final commit, <slug> standing for the slug, such as \"feat(<slug>): final\"; optional>"
 ```
 
-`GAUNTLET_TEST_TIMEOUT` is the cut design's. Writing needs only `GAUNTLET_TEST_BRIEF_COMMAND` to be set, which `gauntlet-run`'s bash node `env-check` checks at run start; `GAUNTLET_TEST_BASE` is optional, none when unset; `GAUNTLET_FINAL_SUBJECT` is optional, `<slug>: final` when unset, and only bash node `seal` reads it, so a repository whose `commit-msg` hook refuses `<slug>: final` sets a subject it accepts. The brief baseline, `gauntlet/baseline/<slug>.brief.txt`, is written by the cut design's node `baseline`.
+`GAUNTLET_TEST_TIMEOUT` is the cut design's. Writing needs only `GAUNTLET_TEST_BRIEF_COMMAND` to be set, which `gauntlet-run`'s bash node `env-check` checks at run start; `GAUNTLET_TEST_BASE` is optional, none when unset; `GAUNTLET_FINAL_SUBJECT` is optional, `<slug>: final` when unset (a later stage's `<slug>` is `<slug>-s<k>`, Terms, "Stage"), and only bash node `seal` reads it, so a repository whose `commit-msg` hook refuses `<slug>: final` sets a subject it accepts. The brief baseline, `gauntlet/baseline/<slug>.brief.txt`, is written by the cut design's node `baseline`.
 
 ## Homes
 
@@ -610,24 +625,27 @@ env:
 | The revision hearing's rounds, verdicts and owner cases | `.shared/rounds.py` with `write/scripts/ledger.py`'s `PROFILE` | `stage.py` or a node computing a round, slot or count |
 | Cutting work into blocks and waves; what runs in one fan-out | the divvyer's output, checked by `stage.py cut` | blocks of one wave sharing a path; a block named by any other role or node |
 | Running the blocks of a wave | `include:` with `fan_out:` of `write-tests` or `write-code`, `max_parallel: 1`, each block opening on node `clean` | a `wait:` in either block; a `workflow:` child per block |
-| Ruling on a red, a contest, a blocked block or a failed commit | the juror's verdict file | a writer, node or script deciding who is wrong; a writer retrying a failed commit |
+| Briefing the owner on a red, a contest, a blocked block, a failed commit or an idle iteration | the shared `amicus` block (Terms, "Amicus"), included as node `amicus` of `work` ahead of `bench`; the owner's choice at `bench` | a writer, node, script or agent ruling who is wrong or whether a case warrants a stop; an agent checking, filtering or rewriting the amicus's explanation; a writer retrying a failed commit |
+| The direction and how the next pass reads it | `stage.py record` writes `gauntlet/write/<slug>.direction.N.md` (Terms, "Direction"); `stage.py state` and `close` read its `Rework:` line; the divvyer and the reviser read its text | an agent writing, editing or removing a direction; a verdict file; a part reworked that the direction does not name |
+| The paths mark | `stage.py result`, the `outside` list of each committed block in `<slug>.blocks.N.json` | any other comparison of a block's diff against its `paths`; a mark that stops the run |
+| A stage's writing | `stage.py` over the records above `start`, the plan steps of stage `stage`, a final commit of its own | a cut across two stages; a stage reading an earlier stage's records as its state |
 | A wrong spec or plan | a revision round in `gauntlet/revisions/`, tried by the reviewer, approved at `bench`, entered by `enter` | any other edit of the approved files; the reviser revising past the quoted clause or the affected specs |
-| Ending on a defective plan | the juror's `DEFECTIVE`, read by `stage.py close` | a size or line-count threshold; any other node ending writing |
+| Ending the block for planning | the owner's `back-to-planning` direction, read by `stage.py close`, which hands off `planning`, the direction and the amicus record | a size or line-count threshold; any other node ending writing; an agent choosing to end it |
 | Commits | the writer's own message through `commit` of `fence/files.py`, which commits only the listed paths that changed, answers "nothing" when none did, retries once after a hook changed files, and returns git's exit and the names of failing hooks and never their output; node `seal` for the final commit, only on a dirty tree, with the message node `seal` gives | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |
 | A block's uncommitted changes | `stage.py result`, in the tree only: the leftover patch `gauntlet/write/<slug>.leftover.<move>.patch` first, then the tree restored to `HEAD`; the block carried | any other restore, clean or reset in a Gauntlet file; a restore in the checkout; a restore before the patch is written |
 | Test output a writer sees | `fence/checks.py` running the brief command from `gauntlet/settings.json`, for the test writer, the coder and both menders, the coder's and `mend-code`'s lines cut at their first ` - ` (`FENCE_CUT=1`) | a writer running any other test command; a tool returning a traceback, a message past ` - ` or hook output to a coder |
 | The per-test listing and red | The brief command's `PASSED`, `FAILED` and `ERROR` lines, read by `.shared/red.py` (`gauntlet-design.md`), which `stage.py red` calls | parsing a runner's full output; a comparison computed in `stage.py`, a node, prompt or role |
 | What a test writer can see | `write-tests/test-writer.mcp.json`: `tests/`, the approved spec, `docs/testing.md`, the test base (`@base`) | a test writer handed the plan, code or a CODE section |
-| What a coder can see | `write-code/coder.mcp.json`'s `FENCE_HIDE`; the block's ruling text | a coder handed the task, the spec, a test file or a verdict file |
+| What a coder can see | `write-code/coder.mcp.json`'s `FENCE_HIDE`; the block's ruling text | a coder handed the item file, the spec, a test file or a direction file |
 | Writers' tools | the fence-files and fence-checks servers | `Bash`, `Agent` or any built-in tool on a writer node |
-| Writing's roles | `write/commands/`, `write-tests/commands/`, `write-code/commands/` | role rules restated in prompts; a role file of another phase |
+| Writing's roles | `write/commands/`, `write-tests/commands/`, `write-code/commands/`; the amicus in `amicus/commands/` | role rules restated in prompts; a role file of another phase |
 
 ## Order
 
-1. Commits and settings in the fence: `fence/files.py` (`commit`, `FENCE_COMMIT`, `@base`), `fence/checks.py` (settings, `FENCE_CUT`), `fence/test_files_commit.py`, `fence/test_settings.py`. Needs `gauntlet-design.md`'s steps 6 and 8. Agent: `builder`.
+1. Commits and settings in the fence: `fence/files.py` (`commit`, `FENCE_COMMIT`, `@base`), `fence/checks.py` (settings, `FENCE_CUT`), `fence/test_files_commit.py`, `fence/test_settings.py`. Needs `gauntlet-design.md`'s steps 5 and 6. Agent: `builder`.
 2. Writing's ledger: `write/scripts/ledger.py`, `write/tests/test_ledger.py`. Needs the spec review design's step 1. Agent: `builder`.
-3. Writing's stage: `write/scripts/stage.py`, `write/tests/test_stage.py`. Needs step 2 and `gauntlet-design.md`'s step 8. Agent: `builder`.
-4. Roles: `write/commands/divvyer.md`, `write/commands/juror.md`, `write/commands/reviser.md`, `write/commands/reviewer.md`, `write/commands/reporter.md`, `write/commands/analyst.md`, `write-tests/commands/test-writer.md`, `write-code/commands/coder.md`. Agent: `role-author`.
-5. Screen reads revisions: `screen/screener.mcp.json`, `screen/screen.yaml`. Needs the spec review design's step 5. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
+3. Writing's stage: `write/scripts/stage.py`, `write/tests/test_stage.py`. Needs step 2 and `gauntlet-design.md`'s step 6. Agent: `builder`.
+4. Roles: `write/commands/divvyer.md`, `write/commands/reviser.md`, `write/commands/reviewer.md`, `write/commands/reporter.md`, `amicus/commands/amicus.md`, `write-tests/commands/test-writer.md`, `write-code/commands/coder.md`. Agent: `role-author`.
+5. Screen reads revisions and the amicus block: `screen/screener.mcp.json`, `screen/screen.yaml`, `amicus/amicus.yaml`, `amicus/amicus.mcp.json`, `amicus/fixtures/explain.stubs.yaml`. Needs the spec review design's step 5 and this design's step 4. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
 6. Writer blocks: `write-tests/write-tests.yaml`, `write-tests/test-writer.mcp.json`, `write-tests/fixtures/committed.stubs.yaml`, `write-tests/fixtures/contest.stubs.yaml`, `write-tests/fixtures/blocked.stubs.yaml`, `write-code/write-code.yaml`, `write-code/coder.mcp.json`, `write-code/fixtures/committed.stubs.yaml`, `write-code/fixtures/contest.stubs.yaml`, `write-code/fixtures/blocked.stubs.yaml`. Needs steps 1 and 4. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
-7. Writing block: `write/write.yaml`, `write/divvyer.mcp.json`, `write/juror.mcp.json`, `write/reviser.mcp.json`, `write/reviewer-plan.mcp.json`, `write/reviewer-spec.mcp.json`, `write/reporter.mcp.json`, `write/analyst.mcp.json`, `write/fixtures/*.stubs.yaml`. Needs steps 3 to 6. If Archon rejects `include:` with `fan_out:` inside a `loop_group` body, the builder stops and reports the gap. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
+7. Writing block: `write/write.yaml`, `write/divvyer.mcp.json`, `write/reviser.mcp.json`, `write/reviewer-plan.mcp.json`, `write/reviewer-spec.mcp.json`, `write/reporter.mcp.json`, `write/fixtures/*.stubs.yaml`. Needs steps 3 to 6. If Archon rejects `include:` with `fan_out:` inside a `loop_group` body, the builder stops and reports the gap. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.

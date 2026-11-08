@@ -1,0 +1,15 @@
+# D-79 review of the owner-control draft: spec-review-design.md
+
+Reviewer: cad-reviewer-medium (opus), 2026-11-07, over `git diff HEAD` at 78b9ff6.
+
+D-80 | Q1: yes | Q2: none | fix: -
+D-81 | Q1: yes | Q2: none | fix: -
+D-82 | Q1: yes (H47 is new and covers the key, its carrier and the arbiter's read; F4, F12 and P6 are re-specified on `gauntlet/items`) | Q2: none | fix: -
+D-83 | Q1: yes (the key `GAUNTLET_ESCALATION` and the carrier `gauntlet/rules/<slug>.txt` are named in spec-review-design.md:340 and contracts.md H47) | Q2: none | fix: -
+D-85 | Q1: yes (the set-aside now keys on `<slug>.items.sha256`, spec-review-design.md:54-55 and :129-131; the `gauntlet/failed` clause is gone from the fence prose at :354) | Q2: none | fix: -
+D-86 | Q1: yes (input `items`, hand-off `{ items, plan, spec, outcome }` at :7, :401, :583-584 and :609; this matches gauntlet-design.md:119 and worktree-cut-design.md:115-129) | Q2: none | fix: -
+D-89 | Q1: yes (gauntlet-design.md:35 has `back` move the slug's spec files, `approved/` and `items.sha256` included, into `gauntlet/specs/stale/<slug>.<m>/`, so `docket-in` hears from round 1) | Q2: medium docs/superpowers/specs/spec-review-design.md:132: "node back moved the slug's files there", where "there" is `gauntlet/back/`. gauntlet-design.md:35, :193-194, plan-review-design.md:549 and contracts.md H24 all put them in `stale/<slug>.<n>/`. A builder who takes the ledger's home at its word fixtures or implements the spec set-aside into `gauntlet/back/`. That puts round files beside the files that `back.py` alone may write (gauntlet-design.md:461 forbids any other writer of `gauntlet/back/`) | fix: in :132, replace "there" with "into `<folder>/stale/<slug>.<n>/`"
+D-90 | Q1: yes (the slug comes from `INPUTS_ITEMS` at :101 and :389; the speccer's `FENCE_READ` names `gauntlet/items` at :348-349; contracts.md F4 and F12 match) | Q2: none | fix: -
+D-94 | Q1: no: the arbiter gets the rules only from `gauntlet/rules/<slug>.txt`, and only plan review's node `rules` writes that file (plan-review-design.md:372-374). A standalone `archon workflow run spec-review` after the owner changes `GAUNTLET_ESCALATION` in `.archon/config.yaml` has the arbiter apply the old value. Owner-control section 4 says repo-wide rules "apply to every run in it". A standalone spec review on a slug that no plan review ever ran (the owner's own item file with `plan=""`) finds no rules file at all | Q2: none | fix: in spec-review-design.md, delete from :340 "and a spec review run on its own reads the file the earlier plan review of the slug wrote". Add to `spec-review.yaml` after `docket-in` (:410) a bash node `rules`, the same as plan review's, and add `rules` to `swear-in`'s `depends_on` (:430). Then align contracts.md H47's parenthesis
+D-96 | Q1: yes (ROADMAP phase 3 criterion 3 names `items.py` in place of `task-format.md`; phase 4 criterion 5 drops the `gauntlet/failed` fence clause and stays true of F4) | Q2: none | fix: -
+Decisions not touching this design: D-84, D-87, D-88, D-91, D-92, D-93, D-95.

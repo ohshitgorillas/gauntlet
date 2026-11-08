@@ -17,8 +17,8 @@ Committed scope. Each maps to exactly one roadmap phase.
 
 ### Roles
 
-- [ ] **ROLE-01**: Owner can read every role file the designs name (clerk, defense, prosecutor, reporter, screener, speccer, divvyer, juror, reviser, reviewer, test-writer, coder, mend-juror, mend-code, mend-tests, mend-review) under its workflow's `commands/`, each stating the turn protocol its design gives
-- [ ] **ROLE-02**: Owner can read `.shared/task-format.md`, the task format Clerk writes to and the file route copies
+- [ ] **ROLE-01**: Owner can read every role file the designs name (clerk, defense, prosecutor, reporter, screener, speccer, divvyer, reviser, reviewer, test-writer, coder, amicus, mend-code, mend-tests, mend-review, final-review) under its workflow's `commands/`, each stating the turn protocol its design gives
+- [ ] **ROLE-02**: Owner can read the item schema in `intake/scripts/items.py`, the item file format Clerk works to and the file route is checked against
 
 ### Shared layer
 
@@ -31,7 +31,7 @@ Committed scope. Each maps to exactly one roadmap phase.
 
 ### Checkout phases
 
-- [ ] **RUN-01**: Owner can run `archon workflow run intake` with a task file or a message and get `gauntlet/tasks/<slug>.md` after approving Clerk's draft
+- [ ] **RUN-01**: Owner can run `archon workflow run intake` with an item file or a message and get `gauntlet/items/<slug>.md` after approving each item, one at a time
 - [ ] **RUN-02**: Owner can run plan review on a task and approve a plain-English summary after the prosecutor's rounds, or get `plan` as `""` when no plan is needed
 - [ ] **RUN-03**: Owner can run spec review on a task and plan and approve the specs the arbiter admitted, or confirm that nothing is testable
 - [ ] **RUN-04**: Owner can start `gauntlet-run` once and have intake, plan review and spec review run in order as included blocks, each handing off through its `handoff` node
@@ -39,14 +39,14 @@ Committed scope. Each maps to exactly one roadmap phase.
 
 ### Tree phases
 
-- [ ] **RUN-06**: After spec review, the run cuts one worktree from the checkout's `HEAD`, copies the approved files in and records the test baseline, and the owner can inspect them in the tree
-- [ ] **RUN-07**: A plan the juror rules defective ends the run at `kill`, with the ruling in the checkout's `gauntlet/failed/<slug>.txt`, readable by Clerk and hidden from every other checkout role
-- [ ] **RUN-08**: In the tree, test writers write the tests from the approved specs and code writers make them pass, with a juror ruling each contested round
-- [ ] **RUN-09**: A wrong plan or spec found in writing becomes an approved revision `<slug>.rev<N>.txt` without leaving the tree run
-- [ ] **RUN-10**: When the tree holds uncommitted changes at the end of writing, writing ends with a commit whose first line is `<slug>: final`, or the repository's `GAUNTLET_FINAL_SUBJECT` when set, and whose body is the approved summaries, made with `git commit -F -`; a clean tree gets no final commit
-- [ ] **RUN-11**: After writing, the mend rebases the tree's branch onto the checkout's `HEAD`, reruns the brief test command when the checkout moved, and repairs a red through a juror-ruled mend read by a reviewer
-- [ ] **RUN-12**: Owner is asked during the mend only when the juror rules defective or the mend stalls, and can answer with guidance or leave
-- [ ] **RUN-13**: Owner can see the mend's test line, the diff stat and the commit messages at landing's gate and choose land or leave
+- [ ] **RUN-06**: After spec review, the run cuts one worktree per stage of the plan (one when the plan names no stage) from the checkout's `HEAD`, copies the approved files in and records the test baseline, and the owner can inspect them in the tree
+- [ ] **RUN-07**: The owner's back to planning ends the run completed, not cancelled, copies the amicus record and the owner's direction into the checkout's `gauntlet/back/`, and prints the one command that starts the next plan review with both
+- [ ] **RUN-08**: In the tree, test writers write the tests from the approved specs and code writers make them pass, with the amicus briefing the owner on each contested round, red or failed commit and the owner's direction binding the next pass
+- [ ] **RUN-09**: When the owner's direction asks for a plan or spec revision, writing tries it and an approved revision becomes `<slug>.rev<N>.txt` without leaving the tree run
+- [ ] **RUN-10**: When the tree holds uncommitted changes at the end of writing, writing ends with a commit whose first line is `<slug>: final`, or the repository's `GAUNTLET_FINAL_SUBJECT` when set (`<slug>-s<k>` in place of `<slug>` at stage `k` after the first, each stage sealing on its own), and whose body is the approved summaries, made with `git commit -F -`; a clean tree gets no final commit
+- [ ] **RUN-11**: After writing, the mend rebases the tree's branch onto the checkout's `HEAD`, reruns the brief test command when the checkout moved, and repairs a red through the mend whose mender the owner's direction names, read by a reviewer
+- [ ] **RUN-12**: Owner is briefed by the amicus at every mend case (a red, a mender's contest or failed commit, an unsound mend) and can discuss it, run again with a direction, go back to planning or leave
+- [ ] **RUN-13**: Owner can read the review before landing, with the mend's test line, the diff stat and the commit messages, before every landing, and choose land, a rework, back to planning or leave
 - [ ] **RUN-14**: On land, the checkout is fast-forwarded to the tree's branch, the tree's records are copied into the checkout's `gauntlet/`, and the tree and its branch are removed
 
 ### Pack health
@@ -59,7 +59,7 @@ Deferred. Tracked, not in the current roadmap.
 
 ### Landing
 
-- **LAND-01**: When the checkout has moved past the branch the mend rebased, landing re-mends (a second tree run of block `mend` only, on a branch pinned at the first tree's tip) and asks the land-or-leave gate again, at most 2 times; a third move stops the run, naming the move (G-45, the landing design's former open decision 1)
+- **LAND-01**: When the checkout has moved past the branch the mend rebased, landing re-mends (a second tree run of block `mend` only, on a branch pinned at the first tree's tip) and meets the owner again with a new review before landing, at most 2 times; a third move stops the run, naming the move (G-45, the landing design's former open decision 1)
 
 ## Out of Scope
 
@@ -68,8 +68,8 @@ Explicit exclusions. The reason prevents scope creep later.
 | Feature | Reason |
 |---------|--------|
 | Gauntlet pushing, opening a PR or touching a remote | Forbidden by landing's home and by `CLAUDE.md` 4.4; the owner publishes |
-| A phase re-running an earlier phase | The gauntlet design forbids it; revisions happen inside writing |
-| Gauntlet removing the tree or branch on fail, kill or leave | The owner inspects and removes with `archon complete <branch> --force` |
+| A phase re-running an earlier phase | The gauntlet design forbids it; revisions happen inside writing when the owner's direction asks for one, and the owner's back to planning ends the run cleanly and prints the command that starts the next plan review |
+| Gauntlet removing the tree or branch on leave, back to planning or any stop | The owner inspects and removes with `archon complete <branch> --force` |
 | Scaffolding that replaces an Archon feature | `CLAUDE.md` 1.1 and 1.2: a missing feature is reported to the owner |
 | A phase run as a `workflow:` child (the cut's `tree` excepted) | A child run cannot reach the existing tree; phases enter by `include:` |
 
