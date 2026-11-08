@@ -1,0 +1,49 @@
+{
+  "phase": "1",
+  "trigger": "plan",
+  "discriminator": "plan-78b9ff6",
+  "round": 2,
+  "base": "78b9ff6",
+  "head": "818a925",
+  "base_id": "78b9ff600da89b650110c7fdf36a91ed3145baf0",
+  "head_id": "818a925e11e0922ab148be2e525ceed816b13915",
+  "voices": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus"
+    }
+  ],
+  "citations": {
+    "checked": true
+  },
+  "entries": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-6.md",
+      "line": 59,
+      "severity": "medium",
+      "claim": "Round-1 finding 2 is still open for Task 1. A later edit replaced the `-w` sweep with ``grep -nE '`(owed|next|stale/|approved/|...)`'``, which matches only a term written alone inside backticks. The hearing-state and ledger copies in the designs are written in plain text or inside pseudo-code blocks, so this sweep cannot see them.",
+      "failure_scenario": "Say the executor leaves out of homes-4.md one copy of the state rules in spec-review-design.md, for example line 115 (`owed`: author | reviewer | \"owner\" | \"ended\" | \"approved\"), lines 125-127 (owed \"ended\" and owed \"approved\"), line 130/132 (`<folder>/stale/<slug>.<n>/`), or writing-design.md:132/155/202 (owed and guard-record count). Across the seven designs, 50 lines carry a plain `owed` (23 in spec-review-design.md, 21 in plan-review-design.md). Only one of them has `owed` alone in backticks, and `stale/<slug>.<n>/` does not match '`stale/`'. The sweep never prints those lines, Task 1's Verify passes, and Plan 7 Task 1 re-runs only the homes-4.md tokens. The stale copy is committed. This is the G-108 failure that the independent sweep was added to catch. (Task 7's new sweep does close the Tasks 5-7 half of the finding.)",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "818a925",
+      "base_id": "78b9ff600da89b650110c7fdf36a91ed3145baf0",
+      "head_id": "818a925e11e0922ab148be2e525ceed816b13915"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-7.md",
+      "line": 91,
+      "severity": "medium",
+      "claim": "The new condition for the pass k+1 model-spec read diffs from `<pass k review commit>`, but no plan makes such a commit. Task 3 writes REVIEW-pass<k>.md and commits nothing. The file is first committed in Task 4 step 5's round commit, together with the ruling edits. Under the only concrete reading of that ref, the diff is always empty, so the re-read is skipped even when a ruling changed the model spec.",
+      "failure_scenario": "Pass 4: the model-spec reviewer returns a high finding. The owner's ruling edits runtime-model-design.md, and step 5 commits that edit and REVIEW-pass4.md as one round commit X. The executor takes X as the pass-4 review commit, the only commit that holds REVIEW-pass4.md. `git diff X..HEAD -- docs/superpowers/specs/runtime-model-design.md` is then empty, because HEAD is X. Read (a) is skipped. If the graph and candidate sources are empty, the loop ends with no pass-5 file. The changed model spec is never re-read, against D-98 (3) and the fix's own stated intent (\"runs only if a pass-k ruling changed the model spec\"). The base that works is the HEAD the pass-k read ran against, for example the D-98 commit for k=4 or the previous round commit, but the plan names no such ref.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "818a925",
+      "base_id": "78b9ff600da89b650110c7fdf36a91ed3145baf0",
+      "head_id": "818a925e11e0922ab148be2e525ceed816b13915"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "phase": "1",
+  "trigger": "plan",
+  "discriminator": "plan-78b9ff6",
+  "round": 1,
+  "base": "78b9ff6",
+  "head": "818a925",
+  "base_id": "78b9ff600da89b650110c7fdf36a91ed3145baf0",
+  "head_id": "818a925e11e0922ab148be2e525ceed816b13915",
+  "voices": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus"
+    }
+  ],
+  "citations": {
+    "checked": true
+  },
+  "entries": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-6.md",
+      "line": 130,
+      "severity": "high",
+      "claim": "Task 8 forbids touching any planning line except AC3, ROADMAP pass 4, criterion 3 and REV-05, yet the D-98 index form (Task 6: F rows hold no `FENCE_*` value) contradicts REV-04 ('contracts.md naming every ... fence value'), ROADMAP pass 1 ('every `FENCE_*` value per fence') and durable decision D-01 ('`FENCE_*` values as a fence x variable matrix'), which D-02 requires to be edited in the same ruling commit.",
+      "failure_scenario": "Plan 6 Tasks 5-6 remove every value and the fence x variable matrix from contracts.md. Task 8's Verify ('changes exactly AC3, the pass-4 line, criterion 3 and REV-05') then forbids editing REV-04, ROADMAP pass 1 or D-01. Task 5 line 98 claims D-98 supersedes D-01, but D-98 records only that it supersedes D-84 and PLAN-6, and line 130 says no other decision line is edited. Plan 7 Task 2 commits this state and Plan 7 claims REV-04. A phase verifier then reads REV-04 against a contracts.md that names no fence value and finds REV-04 unmet, with D-01 still binding the opposite shape. That breaks D-02 and leaves a requirement the plans claim but do not meet.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "818a925",
+      "base_id": "78b9ff600da89b650110c7fdf36a91ed3145baf0",
+      "head_id": "818a925e11e0922ab148be2e525ceed816b13915"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-6.md",
+      "line": 59,
+      "severity": "medium",
+      "claim": "The checks for 'every restated fact becomes a pointer' (Must-be-true line 32, D-98 (2)) grep only the tokens the executor chose to record in homes-4.md, so a copy the executor missed has no token and no check catches it; Tasks 1 and 5-7 have no independent sweep like Task 3's resum|rerun grep.",
+      "failure_scenario": "Say plan-review-design.md keeps its own statement of what `owed`/`next` mean, or a contracts.md H value is restated in a third design. If Task 1 or Task 5 never lists that copy in homes-4.md, it has no token. Task 1's Verify (headings, its own tokens, one 'Same meaning' phrase, no Order edits) and Task 5's Verify (eight sampled homes) both pass. Plan 7 Task 1 re-runs only the homes-4.md tokens. D-98 puts no reviewer over the designs, so the stale copy is committed and approved. This is the G-108 failure D-98 exists to remove, and no verify can catch it.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "818a925",
+      "base_id": "78b9ff600da89b650110c7fdf36a91ed3145baf0",
+      "head_id": "818a925e11e0922ab148be2e525ceed816b13915"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-7.md",
+      "line": 230,
+      "severity": "medium",
+      "claim": "Task 4 re-dispatches the full opus read of runtime-model-design.md (and the owner-ruled local read) every pass k+1 after any high/medium group, even when that pass's rulings left the model spec unchanged and pass k's read of it was clean; that spends tokens the sequence does not need (CLAUDE.md 1.3) and can start a new round over findings on unchanged text (1.4).",
+      "failure_scenario": "In pass 4 the model-spec reviewer returns no high/medium finding. One homes-4 candidate (two designs' copies disagree) is medium, and its ruling edits only landing-design.md's home. The D-79 closed review already checks that edit. Line 230 still forces pass 5 to read runtime-model-design.md in full again, though the file is byte-identical to the one already read clean. A fresh reviewer's new medium finding on that unchanged text then forces pass 6.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "818a925",
+      "base_id": "78b9ff600da89b650110c7fdf36a91ed3145baf0",
+      "head_id": "818a925e11e0922ab148be2e525ceed816b13915"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-7.md",
+      "line": 216,
+      "severity": "low",
+      "claim": "Task 3's Verify regex 'row [A-Z][0-9]+|internal to' rejects the multi-row anchor form the review record already uses ('rows F1-F4'), so a correctly anchored finding fails the check.",
+      "failure_scenario": "A pass-4 finding is written in pass 3's own form, e.g. 3.02 '**3.02** `gauntlet-design.md:409`, rows F1-F4, F9, F10'. 'rows F1' does not match 'row [A-Z][0-9]+'. The grep -vc count is then 1, not 0, and the Verify fails on a finding that does carry contracts.md row ids (D-04, AC1). The executor stops or rewrites a valid anchor.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "818a925",
+      "base_id": "78b9ff600da89b650110c7fdf36a91ed3145baf0",
+      "head_id": "818a925e11e0922ab148be2e525ceed816b13915"
+    }
+  ]
+}
