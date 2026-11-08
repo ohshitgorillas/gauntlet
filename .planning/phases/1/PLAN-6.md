@@ -2,14 +2,10 @@
 phase: 1
 plan: 6
 requirements:
-  - REV-01
   - REV-02
-  - REV-03
   - REV-04
-  - REV-05
 files:
-  - .planning/phases/1/
-  - docs/superpowers/specs/contracts.md
+  - docs/superpowers/specs/runtime-model-design.md
   - docs/superpowers/specs/gauntlet-design.md
   - docs/superpowers/specs/gauntlet-intake-design.md
   - docs/superpowers/specs/plan-review-design.md
@@ -17,94 +13,128 @@ files:
   - docs/superpowers/specs/worktree-cut-design.md
   - docs/superpowers/specs/writing-design.md
   - docs/superpowers/specs/landing-design.md
-  - .planning/PROJECT.md
+  - docs/superpowers/specs/contracts.md
+  - .planning/phases/1/reviews/homes-4.md
+  - .planning/phases/1/CONTEXT.md
   - .planning/ROADMAP.md
   - .planning/REQUIREMENTS.md
 ---
 
-# Phase 1: Design review - Plan 6: Round-4 convergence and approval
+# Phase 1: Design review - Plan 6: Round-4 restructure into one home per fact
 
 ## Goal
 
-The seven designs under `docs/superpowers/specs/` are made consistent with each other in one converging pass, not finding by finding. A full read of the edited designs returns no unruled high or medium finding. After that, every section A verdict is closed and all seven designs are `Status: approved`, with `contracts.md` the closed reference later phases are reviewed against.
+The seven designs under `docs/superpowers/specs/` are made consistent with each other in one converging pass, not finding by finding. This plan drafts the D-98 restructure: the shared runtime model is written once in one new spec, every restated fact becomes a pointer to its one home, and `contracts.md` becomes an index of homes. Plan 7 checks the draft by grep and lands it in one commit.
 
 ## Must be true when done
 
-- `.planning/phases/1/REVIEW-convergence.md` records a full pass over the seven designs. It holds no high or medium finding that is not already ruled (D-60). It lists each low finding of that pass with its group and ruling. It is committed after the last ruling commit.
-- Every finding in each `REVIEW-pass<k>.md` this plan writes cites a design anchor, plus either a `contracts.md` row or "internal to <design>". Each finding group carries one owner ruling, applied in one commit that edits every design it names.
-- Every section A row of `contracts.md` holds one of three closed verdicts: `documented` with a `docs/reference/archon/` citation, `probed` with its PROBES.md id, or `unsupported` with the commit hash that changed each assuming design. No row is open. The three owner-control behaviours are among these rows.
-- `grep -l '^Status: approved' docs/superpowers/specs/*-design.md` lists the seven designs and the owner-control design. The AC5 grep over the seven designs and the AC6 grep over the planning docs print no line. Every copy-list bullet is marked resolved.
-- `archon workflow list --json` shows `"errors": []`, and `archon validate workflows` reports no error under the pack root.
+- `docs/superpowers/specs/runtime-model-design.md` exists, with line 1 `Status: proposed.`. It holds the headings `## Hearing state`, `## Ledger`, `## Loop shape and bounds`, `## Resume and rerun` and `## Commit model`, and each is the one statement of its rules and values.
+- Where a design held a copy of a model rule or value, it now holds a heading-level pointer to the model spec. Where two designs stated one contract, only its home states it, and the other place points to the home by file and heading or node id.
+- `contracts.md` keeps every row id and holds no value. Each row names its contract, its one home, every design that names it and its seed. Section A also keeps its verdict. `grep -c 'Value each design states' docs/superpowers/specs/contracts.md` prints 0.
+- `.planning/phases/1/reviews/homes-4.md` lists each moved fact with a value-bearing grep token and its home. It also lists, as candidates, each disagreement between copies that no ruling settles.
+- CONTEXT AC3, ROADMAP Phase 1 pass 4 and success criterion 3, and REQUIREMENTS REV-05 state the D-98 round-4 shape. REQUIREMENTS REV-04, ROADMAP Phase 1 pass 1 and CONTEXT D-01 state `contracts.md` as the D-98 (2) index, naming each contract's one home rather than its value (D-02).
+- Nothing is committed: `git log -1 --format=%H` is the commit this plan started from.
 
 ## Context
 
-- Runs after Plan 5's D-81 commit. Round 4 adds only the full read, because Plan 5 Task 5's closed review was its diff half (D-84, D-79). D-60's bar holds: a pass with no new high or medium finding converges. A low finding is recorded, ruled and fixed, and starts no new pass.
-- D-79 governs every ruling round. The owner rules every group through the ask-user seam, and `/cad-decision-review` is not run. The executor drafts the edits uncommitted. One closed review reads the draft diff. The executor applies only its high and medium fixes, runs the D-63 grep and commits. D-61 and D-62 hold. D-02 holds: a ruling that contradicts a planning line edits that line in the same commit.
-- CLAUDE.md 1.9 binds every Archon run here. D-64 is void (D-97): no validation run of the designed YAML.
-- D-97 binds the round-4 review shape. No reviewer per design, in parallel or one at a time; no single reviewer over all seven designs; no reviewer over the round-3 changes only. No shape is ruled yet.
-- The executor cannot dispatch agents or ask the owner. Tasks 1 and 2 stop for the main session by checkpoint, as PLAN-3 Task 3 did.
-- Standing checks: as Plan 4's Context states. Pre-commit also runs before every commit. Testing scope: documentation only, as Plan 4 states.
+- D-98 binds this plan (owner-approved). It drafts D-98 (1), the one model spec with pointers, and D-98 (2), D-61 applied in one pass with `contracts.md` as an index of homes. Plan 7 runs the D-63 grep over this draft, makes the one D-98 commit (AC2, D-02), and then runs D-98 (3). No task here dispatches or needs a reviewer, and none of D-97's rejected shapes (1) to (4) appears anywhere.
+- Pointer rule (D-61): a pointer names the home file and its heading or node id, never a line number. A module or node stays in its design with its signature, and the rule or value it implements becomes a pointer. The model spec adds no module and no `## Order` step. No task edits a step or a Needs clause of any `## Order` section, so `reviews/convergence-graph-4.md` stays valid. The owner-control design is not touched (D-80).
+- Value rule: each home states the value the latest ruling set (CONTEXT D-NN lines, RULINGS.md). The executor never settles a disagreement between copies that no ruling settles. The home states the value of the design whose `## Homes` table names it as home, and `homes-4.md`'s `## Candidates` section records the disagreement: each copy's anchor and value, and its row id or "internal to <design>". Plan 7 puts the candidates to the owner.
+- Token rule (D-63): each moved fact gets one line in `homes-4.md` with the fact, a `grep -F` token and the home (file and heading). The token carries the value (a constant with its value, a file-name form, a state with its condition), never a bare module or node name. The check runs `grep -nF -- '<token>'` over the eight specs and `contracts.md`. Every hit must lie in the home section, or its line must name the home file. If a token hits a line that only names the thing, choose a better token. Never record an exemption (CLAUDE.md 3.4).
+- CLAUDE.md 1.9: answer Archon questions from `docs/reference/archon/`. Run no Archon experiment.
+- Standing checks for every task (CLAUDE.md 1.8), from the pack root: `archon workflow list --json` shows `"errors": []`, and `archon validate workflows` reports no error under the pack root beyond the 23 non-pack `No default provider` baseline errors. Testing scope for every task: documentation only, so no automated test applies (PLAN-2 Notes). The greps in each Verify are the evidence, and testing stops there.
 
 ## Tasks
 
-### Task 1: Round-4 full read
+### Task 1: Write the ledger home
 
-- **Files:** .planning/phases/1/
+- **Files:** docs/superpowers/specs/runtime-model-design.md, .planning/phases/1/reviews/homes-4.md, docs/superpowers/specs/spec-review-design.md (section `.shared/rounds.py`, `plan-review/scripts/ledger.py (on the shared core)`, `spec-review/scripts/ledger.py`), docs/superpowers/specs/plan-review-design.md (Terms, `plan-review/scripts/ledger.py`), docs/superpowers/specs/writing-design.md (`write/scripts/ledger.py`, `write/scripts/stage.py`), docs/superpowers/specs/gauntlet-design.md, docs/superpowers/specs/gauntlet-intake-design.md, docs/superpowers/specs/worktree-cut-design.md, docs/superpowers/specs/landing-design.md
 - **Action:**
-  - Re-derive the build-order graph over the seven `## Order` sections. Check it for dependency cycles and for steps that need a file no earlier step builds, as `reviews/convergence-graph-3.md` did. Write the graph as the next `reviews/convergence-graph-<n>.md`.
-  - Return a `decision` checkpoint whose Need asks the main session to get the round-4 review shape from the owner (D-97). The checkpoint dispatches nothing, and offers none of D-97's rejected shapes.
-  - The review this task runs is the shape the owner rules. Each finding is marked as matching a ruled group, or as new. Each finding carries a design anchor (file, heading or node, and line) and either a `contracts.md` row id or "internal to <design>" (D-04).
-  - If the pass returned any new finding, write `REVIEW-pass<k>.md`, k being 4 for this pass. Group the new findings by root cause (D-62), starting from the next free G id. Each group carries its severity, its members' anchors and its row citations.
-- **Verify:** The graph file exists and states its cycle check and its missing-file check. The review's return is saved under `reviews/`. Either `REVIEW-pass4.md` exists, and every finding in it has an anchor and a row id or "internal to" (a grep counting findings that lack one prints 0), or the pass returned no new finding and no pass file is written. Plus the standing checks.
+  - Create the model spec with `Status: proposed.` on line 1, a title, and a short `## Why` that cites D-98 and names the seven designs that point here.
+  - Write `## Hearing state`. It covers which files make up one hearing in its folder, and its first round (D-67). It also covers what `owed` and `next` mean and when each value holds, the item-file hash and the move to `stale/`, and the `approved/` short-circuit.
+  - Write `## Ledger`. It covers the modes `state`, `filing`, `docket`, `screen`, `record` and `close`, with their inputs and outputs. It also covers verdict parsing, the owner cases and their precedence, rulings and guard records, and `cite.py` as the one judge of citation state (D-74).
+  - Take the content from the `.shared/rounds.py` comments, the plan review ledger's meaning of `state` (which `.shared/rounds.py` cites as "Same meaning as the plan review design's ledger"), the three profiles, and writing's ledger and `stage.py`.
+  - Replace each copy in the seven designs with a pointer under the pointer rule. The module sections keep their dataclass shapes, function signatures and suites.
+  - Create `homes-4.md` with its fact table and a `## Candidates` section. Add this task's facts and candidates.
+- **Verify:** `grep -n '^## Hearing state\|^## Ledger' docs/superpowers/specs/runtime-model-design.md` prints 2 lines. Every token this task added to `homes-4.md` passes the token rule's check. Independent sweep, not drawn from `homes-4.md`: ``grep -nE '\bowed\b|stale/|approved/|\bdocket\b|`(next|filing|screen|record|close)`' docs/superpowers/specs/{gauntlet,gauntlet-intake,plan-review,spec-review,worktree-cut,writing,landing}-design.md``: each line it prints either names `runtime-model-design.md` or states a local fact that `homes-4.md` does not list as a model fact; a line restating a hearing-state or ledger rule fails the task until it becomes a pointer and its fact gets a token. `grep -c 'Same meaning as the plan review design' docs/superpowers/specs/spec-review-design.md` prints 0. `git diff -- docs/superpowers/specs` changes no line inside a `## Order` section. Plus the standing checks.
 
-### Task 2: Rule and apply each round's findings until a pass converges
+### Task 2: Write the loop and bounds home
 
-- **Files:** .planning/phases/1/, docs/superpowers/specs/contracts.md, docs/superpowers/specs/gauntlet-design.md, docs/superpowers/specs/gauntlet-intake-design.md, docs/superpowers/specs/plan-review-design.md, docs/superpowers/specs/spec-review-design.md, docs/superpowers/specs/worktree-cut-design.md, docs/superpowers/specs/writing-design.md, docs/superpowers/specs/landing-design.md, .planning/PROJECT.md, .planning/ROADMAP.md, .planning/REQUIREMENTS.md
+- **Files:** docs/superpowers/specs/runtime-model-design.md, .planning/phases/1/reviews/homes-4.md, docs/superpowers/specs/plan-review-design.md (`plan-review/plan-review.yaml`), docs/superpowers/specs/spec-review-design.md (`.shared/rounds.py` constants, `spec-review/spec-review.yaml`), docs/superpowers/specs/writing-design.md (`write/write.yaml`), docs/superpowers/specs/landing-design.md (`mend/mend.yaml` group `repair`), docs/superpowers/specs/gauntlet-intake-design.md (`intake/intake.yaml`), docs/superpowers/specs/gauntlet-design.md (heading "Stages", `land/land.yaml`), docs/superpowers/specs/worktree-cut-design.md
 - **Action:**
-  - Run this task only when the latest pass wrote a `REVIEW-pass<k>.md`. With no new finding it does nothing and makes no commit.
-  - Return a `decision` checkpoint whose Need asks the main session to put every group to the owner through the ask-user seam, with its options and evidence (D-79 (1)).
-  - On continuation:
-    1. Record each ruling verbatim under its group, and in a RULINGS.md table for pass k.
-    2. Draft the edits under D-61, uncommitted. Update the `contracts.md` row when a ruling changes a contract. Edit a planning line when a ruling contradicts it.
-    3. Run the D-63 grep.
-    4. Return a second `decision` checkpoint for the D-79 closed review of the draft diff, with the closed questions and the 1.9 rule Plan 5 Task 5 gives.
-    5. Apply only the high and medium fixes, run the D-63 grep again, and commit the round once.
-  - If any group of this round held a high or medium finding, run Task 1's procedure again as pass k+1, then this task again.
-  - A pass whose new findings are all low ends the loop after their rulings are committed (D-60).
-- **Verify:** Each `REVIEW-pass<k>.md` group from 4 upward carries exactly one ruling line (groups without one: 0). For each round, one commit edits every design its rulings name, plus `contracts.md` and the planning files when a ruling changed them. `git show --stat <round commit>` lists them. The last pass run holds no high or medium finding. Plus pre-commit and the standing checks.
+  - Write `## Loop shape and bounds`. It covers the shape of a hearing body: the terminal wait, `until_bash` and what it reads, `max_iterations`, and the agent nodes gated on `owed`. It covers the `vacant` exit and the `cancel:` node after the group (D-69). It covers the unrolled bounded form a repeated `workflow:` node takes, because a `loop_group` body rejects one (D-93; it covers `land` to `land-4` and the stages).
+  - It also states every bound once: `SLOTS`, `STRETCH`, `CAP`, `IDLE` (D-75), the attempt and non-responsive counts, and the idle analyst's turn.
+  - Take the content from the hearing bodies of plan review, spec review, writing, the mend and intake, and from the `.shared/rounds.py` constants. Cite each Archon form's `docs/reference/archon/` line, as `contracts.md` section A does.
+  - The "Stages" heading of the gauntlet design keeps its own bound, node ids and order (its `## Homes` row "Stages"), and points here only for the unrolled-form rule.
+  - Replace each copy with a pointer under the pointer rule. A YAML sketch's bound value becomes a pointer as well. Add this task's facts and candidates to `homes-4.md`.
+- **Verify:** `grep -c '^## Loop shape and bounds' docs/superpowers/specs/runtime-model-design.md` prints 1. Every token this task added to `homes-4.md` passes the token rule's check, including one token for each named bound. `git diff -- docs/superpowers/specs` changes no line inside a `## Order` section. Plus the standing checks.
 
-### Task 3: Write the convergence record
+### Task 3: Write the resume and rerun home
 
-- **Files:** .planning/phases/1/REVIEW-convergence.md
+- **Files:** docs/superpowers/specs/runtime-model-design.md, .planning/phases/1/reviews/homes-4.md, docs/superpowers/specs/landing-design.md (`mend/mend.yaml`, `land/land.yaml`, `gauntlet-remend/gauntlet-remend.yaml`), docs/superpowers/specs/spec-review-design.md (`.shared/rounds.py` `state` and `docket`), docs/superpowers/specs/plan-review-design.md, docs/superpowers/specs/writing-design.md (`write/scripts/stage.py`), docs/superpowers/specs/gauntlet-intake-design.md, docs/superpowers/specs/gauntlet-design.md, docs/superpowers/specs/worktree-cut-design.md
 - **Action:**
-  - Write `REVIEW-convergence.md`, dated, for the pass that converged. It holds:
-    - One section per design, covering all seven.
-    - The graph check.
-    - Each finding the pass returned, with the group and ruling it matches. A low finding of that pass appears with the group that fixed it (D-60).
-  - Commit it alone, after the last ruling commit (AC3).
-- **Verify:** The file holds the seven design sections and the graph check. A count of high or medium findings without a ruled group prints 0. `git log -1 --format=%ct -- .planning/phases/1/REVIEW-convergence.md` is later than `git log -1 --format=%ct -- docs/superpowers/specs/*-design.md` at its commit. Plus pre-commit and the standing checks.
+  - Write `## Resume and rerun`. It states what a failure resume does: the group restarts at iteration 1, citing the `docs/reference/archon/` lines that D-66 cites. It states what a rerun on an unchanged or a changed item file does.
+  - It states the rule that everything owed is read from the files alone (D-66 (b)): the owner case from the latest tried round with no ruling or guard record after it; a missing plan, which is nothing to resolve; and a resumed landing, which owes repair while the latest `mended` file has no SOUND review after it.
+  - It states which nodes skip on a resume or a rerun, and why: no second reporter, and a skipped hearing reads its ruling.
+  - Take the content from every design's resume and rerun clauses (G-104, G-114, G-51, G-99, G-101).
+  - Replace each copy with a pointer under the pointer rule. Add this task's facts and candidates to `homes-4.md`.
+- **Verify:** `grep -c '^## Resume and rerun' docs/superpowers/specs/runtime-model-design.md` prints 1. Every token this task added to `homes-4.md` passes the token rule's check. `grep -niE 'resum|rerun' docs/superpowers/specs/{gauntlet,gauntlet-intake,plan-review,spec-review,worktree-cut,writing,landing}-design.md`: each line it prints either names `runtime-model-design.md` or states a local fact that `homes-4.md` does not list as a model fact. `git diff -- docs/superpowers/specs` changes no line inside a `## Order` section. Plus the standing checks.
 
-### Task 4: Close the section A verdicts
+### Task 4: Write the commit model home
 
-- **Files:** docs/superpowers/specs/contracts.md (section "A. Assumed Archon features")
-- **Action:** For each section A row whose verdict is `unsupported`, cite the hash of the commit that changed each assuming design to a documented form. Find it with `git log -S` on the replaced form; for an owner-control row from Plan 4 Task 1, the designs never held the replaced form, so cite the D-81 commit, which added the documented form (`git log -S '<documented form>' -- docs/superpowers/specs/*-design.md`). These rows include A11, A19 and any owner-control row that Plan 4 Task 1 set `unsupported`. A commit cannot name its own hash, so this edit follows the ruling commits. Leave every other row as it stands, and commit.
-- **Verify:** Every section A row holds `documented` or `probed` with its citation, or `unsupported` with a hash. `grep -c 'pending probe'` on section A rows prints 0. For each hash, `git cat-file -t <hash>` prints `commit`, and `git show --stat <hash>` lists each design the row cites. Plus pre-commit and the standing checks.
+- **Files:** docs/superpowers/specs/runtime-model-design.md, .planning/phases/1/reviews/homes-4.md, docs/superpowers/specs/writing-design.md (`fence/files.py (commit)`, `write/scripts/stage.py`, `write/write.yaml` nodes `result` and `seal`), docs/superpowers/specs/landing-design.md (`mend/mend.yaml` group `repair`, `land/land.yaml` node `merge`), docs/superpowers/specs/gauntlet-design.md (`## Homes` rows "The final commit" and "Commits on the tree's branch past the writers' commits and `seal`"), docs/superpowers/specs/plan-review-design.md, docs/superpowers/specs/spec-review-design.md, docs/superpowers/specs/gauntlet-intake-design.md, docs/superpowers/specs/worktree-cut-design.md
+- **Action:**
+  - Write `## Commit model`. It states who commits on the tree's branch and through which tool. It states the commit tool's rules (D-68): only changed paths are added, no change returns exit 0 "nothing", and a hook that changed files gets one retry. It states what a failed or uncommitted block leaves: the leftover patch `gauntlet/write/<slug>.leftover.<move>.patch`, and `result` restoring the tree to `HEAD`.
+  - It also states the seal: made only on uncommitted changes, once per stage, its subject and `GAUNTLET_FINAL_SUBJECT` (D-78), and `git commit -F -`. It states the mend's commits past `seal`, and the fast-forward-only merge.
+  - Take the content from writing and landing (G-106, G-116, G-86 to G-88, G-93).
+  - The `fence/files.py` commit tool's module section stays in the writing design, with its signature.
+  - Replace each copy with a pointer under the pointer rule. Add this task's facts and candidates to `homes-4.md`.
+- **Verify:** `grep -c '^## Commit model' docs/superpowers/specs/runtime-model-design.md` prints 1. Every token this task added to `homes-4.md` passes the token rule's check, including tokens for the leftover patch name, the seal subject and `--ff-only`. `git diff -- docs/superpowers/specs` changes no line inside a `## Order` section. Plus the standing checks.
 
-### Task 5: Approve the seven designs
+### Task 5: Make section H an index of homes
 
-- **Files:** docs/superpowers/specs/gauntlet-design.md, docs/superpowers/specs/gauntlet-intake-design.md, docs/superpowers/specs/plan-review-design.md, docs/superpowers/specs/spec-review-design.md, docs/superpowers/specs/worktree-cut-design.md, docs/superpowers/specs/writing-design.md, docs/superpowers/specs/landing-design.md
-- **Action:** Change line 1 of each design from `Status: proposed.` to `Status: approved.` and nothing else, and commit. Approval follows the convergence record (REV-05), so a design approved before `REVIEW-convergence.md` is committed is a defect.
-- **Verify:**
-  - `grep -l '^Status: approved' docs/superpowers/specs/*-design.md | wc -l` prints 8, and `grep -l '^Status: proposed' docs/superpowers/specs/*-design.md` prints nothing.
-  - `git diff HEAD~1 --stat -- docs/superpowers/specs/` shows one changed line per design, and the commit of `REVIEW-convergence.md` precedes this one.
-  - `grep -nE 'commands/juror\.md|mend-juror|DEFECTIVE|gauntlet/failed|task-format\.md'` over the seven designs prints nothing. `grep -nE 'juror|DEFECTIVE|gauntlet/failed|task-format' .planning/REQUIREMENTS.md .planning/ROADMAP.md .planning/PROJECT.md` prints nothing.
-  - Every bullet under "The phase designs contain these copies:" carries a resolved mark.
-  - From the pack root, `archon workflow list --json` shows `"errors": []`, and `archon validate workflows` reports no error under the pack root beyond the 23 non-pack baseline errors.
-  - Plus pre-commit.
+- **Files:** docs/superpowers/specs/contracts.md (preamble, section "H. Node references and hand-off fields"), .planning/phases/1/reviews/homes-4.md, docs/superpowers/specs/runtime-model-design.md, docs/superpowers/specs/gauntlet-design.md, docs/superpowers/specs/gauntlet-intake-design.md, docs/superpowers/specs/plan-review-design.md, docs/superpowers/specs/spec-review-design.md, docs/superpowers/specs/worktree-cut-design.md, docs/superpowers/specs/writing-design.md, docs/superpowers/specs/landing-design.md
+- **Action:**
+  - Rewrite the preamble of `contracts.md` to the index form (D-98 (2); it contradicts D-01's value cells and fence value matrix, so Task 8 rewords D-01, REV-04 and ROADMAP pass 1 in the same commit under D-02). It lists the eight specs. A row names one contract, its one home (file, and heading or node id), every spec that names it, and its seed. It holds no value. Section A also holds a verdict, whose home is this file (D-03, AC4). Citations go by heading or node id (D-61), so the "Citation age" paragraph goes, and the "Seed" paragraph cites the copy list by its heading.
+  - Rewrite section H's table to the columns `Id`, `Contract`, `Home`, `Named by` and `Seed`. Keep every row id, and never renumber or reuse one.
+  - For each row, before its value leaves `contracts.md`, confirm that the home states it. Where only `contracts.md` held a value, or held a ruled value its home lacks, write it into the home first.
+  - In every other design that restates the row's value, replace the copy with a pointer to the home. A row on a model fact gets the model spec heading as its home.
+  - A fact restated in two or more designs with no row gets a new row at section H's next free id (AC1). Record moved facts and candidates in `homes-4.md`.
+- **Verify:** Section H's header line is `| Id | Contract | Home | Named by | Seed |`. `grep -cE '^\| H[0-9]+ \|' docs/superpowers/specs/contracts.md` prints 51 or more, and `git diff` removes no H id. Every token this task added to `homes-4.md` passes the token rule's check. Pick eight H rows: each one's home holds the contract at the cited heading or node. Plus the standing checks.
+
+### Task 6: Make sections P and F an index of homes
+
+- **Files:** docs/superpowers/specs/contracts.md (sections "P. Paths", "F. Fences"), .planning/phases/1/reviews/homes-4.md, docs/superpowers/specs/runtime-model-design.md, docs/superpowers/specs/gauntlet-design.md, docs/superpowers/specs/gauntlet-intake-design.md, docs/superpowers/specs/plan-review-design.md, docs/superpowers/specs/spec-review-design.md, docs/superpowers/specs/worktree-cut-design.md, docs/superpowers/specs/writing-design.md, docs/superpowers/specs/landing-design.md
+- **Action:**
+  - Apply Task 5's procedure to section P and section F.
+  - A P row keeps the path family as its contract name. The writer and reader facts move to the home's `## Homes` row where it lacks them.
+  - The F matrix becomes one row per fence file: the fence file, its home (the design section that declares its `FENCE_*` values), the specs that name it, and its seed. Every `FENCE_*` value and "how the fence receives its variables" lives in that home section alone.
+  - Replace each restated fence value or path rule in another design with a pointer. Record moved facts and candidates in `homes-4.md`.
+- **Verify:** The P and F header lines hold the index columns, and the F header line names no `FENCE_*` variable. `grep -cE '^\| P[0-9]+ \|'` prints 20 or more and `grep -cE '^\| F[0-9]+ \|'` prints 15 or more, with no id removed. Every token this task added to `homes-4.md` passes the token rule's check. For three fences, each `FENCE_*` value appears in its home section alone, or on lines that name the home. Plus the standing checks.
+
+### Task 7: Make sections S, R and A an index of homes
+
+- **Files:** docs/superpowers/specs/contracts.md (sections "S. Scripts", "R. Roles", "A. Assumed Archon features"), .planning/phases/1/reviews/homes-4.md, docs/superpowers/specs/runtime-model-design.md, docs/superpowers/specs/gauntlet-design.md, docs/superpowers/specs/gauntlet-intake-design.md, docs/superpowers/specs/plan-review-design.md, docs/superpowers/specs/spec-review-design.md, docs/superpowers/specs/worktree-cut-design.md, docs/superpowers/specs/writing-design.md, docs/superpowers/specs/landing-design.md
+- **Action:**
+  - Apply Task 5's procedure to sections S and R. Their resolution-rule preambles become pointers to the home of each rule.
+  - Section A takes the columns `Id`, `Archon feature`, `Home`, `Named by`, `Verdict` and `Seed`. The "Form each design assumes" cells move to the home of each form. Each verdict cell is kept word for word, with its `docs/reference/archon/` citation or PROBES.md id, because `contracts.md` is the verdict's home. Plan 7 adds the hashes.
+  - Record moved facts and candidates in `homes-4.md`.
+- **Verify:** The S, R and A header lines hold the index columns. `git diff -U0 -- docs/superpowers/specs/contracts.md` changes no verdict text of any A row. The counts of `^\| S[0-9]+ \|`, `^\| R[0-9]+ \|` and `^\| A[0-9]+ \|` rows are 19, 14 and 32 or more, with no id removed. `grep -c 'Value each design states' docs/superpowers/specs/contracts.md` prints 0. Every token this task added to `homes-4.md` passes the token rule's check. Independent sweep over Tasks 5 to 7, not drawn from `homes-4.md`: take each value-bearing string (a constant with its value, a path form, a `FENCE_*` assignment, a state with its condition) from the lines `git diff -U0 -- docs/superpowers/specs/contracts.md` removes, and `grep -nF` it over the eight specs. Every hit lies in the row's home section or names the home file; a value with a hit elsewhere fails the task until that copy becomes a pointer and the fact gets a token in `homes-4.md`. Plus the standing checks.
+
+### Task 8: Edit the planning lines D-98 contradicts
+
+- **Files:** .planning/phases/1/CONTEXT.md (section "Acceptance criteria", AC3; decision line D-01), .planning/ROADMAP.md (Phase 1 goal pass 1 and pass 4, success criterion 3), .planning/REQUIREMENTS.md (REV-04, REV-05)
+- **Action:**
+  - Rewrite AC3, as D-98 directs. `REVIEW-convergence.md` records round 4 as D-98 sets it. That covers the one-home grep (D-63), the build-order graph check, the one review of `runtime-model-design.md`, and the read of the remaining local defects in the shape the owner rules, or the owner's ruling that none runs. It holds no high or medium finding not already ruled (D-60), and it is committed after the last ruling commit in `git log`.
+  - Under D-02, reword in ROADMAP Phase 1 pass 4 ("A second full review over the edited designs") and success criterion 3, and in REV-05, only the phrase that names a full review over the edited designs, so that it matches the new AC3.
+  - Under D-02, reword the three lines that promise values in `contracts.md`, which D-98 (2) contradicts: REV-04 ("naming every hand-off, path, fence value, script, role and assumed Archon feature"), ROADMAP Phase 1 pass 1 (*Inventory*, "every `FENCE_*` value per fence") and D-01 ("`FENCE_*` values as a fence x variable matrix"). Each comes to say that `contracts.md` names every such contract with its one home and every design that names it, holding no value, and that each value lives in its home alone. D-01's line notes "amended by D-98 (2)". Keep each line's other content, the REV-04 id and the D-01 id.
+  - Touch no other line. No decision line other than D-01 is edited, because D-98 records its own supersession of D-84.
+- **Verify:** `git diff -U0 -- .planning/phases/1/CONTEXT.md .planning/ROADMAP.md .planning/REQUIREMENTS.md` changes exactly AC3, D-01, the pass-1 and pass-4 lines, criterion 3, REV-04 and REV-05. `grep -n 'fence value\|FENCE_\*. value\|fence x variable matrix' .planning/phases/1/CONTEXT.md .planning/ROADMAP.md .planning/REQUIREMENTS.md` prints no line that places a value in `contracts.md`. `grep -n 'full review over the edited designs\|full review pass over the edited designs\|full pass over all seven edited designs' .planning/phases/1/CONTEXT.md .planning/ROADMAP.md .planning/REQUIREMENTS.md` prints nothing. Plus the standing checks.
 
 ## Notes
 
-- Sequential after Plans 4 and 5, with which it shares the designs and `contracts.md`.
-- This plan supersedes PLAN-3 Task 3's round-4 shape (D-84) and carries out PLAN-3 Tasks 4 and 5, which never ran. PLAN-3.md itself stays untouched.
-- Task 2 is the one task that may commit more than once, once per ruling round. Its lease covers the `.planning/phases/1/` directory because the number of `REVIEW-pass<k>.md` files is unknown until the passes run.
-- The graph re-derivation in Task 1 follows the roadmap's review pass and the precedent of rounds 2 and 3. Owner-control adds and removes modules in the `## Order` sections, so the earlier graphs no longer hold.
+- Sequential. Plan 7 runs after this plan, in the same working tree, on this plan's uncommitted draft. Both plans share the designs, `contracts.md` and the planning lines. This plan lands no commit by design, because D-98 is one ruling and AC2 wants it in one commit. `execute.md` treats it as done with `risk_check_skipped`, as it treated Plan 4.
+- This file replaces PLAN-6 as first planned (round-4 full read with per-design reviewers), which D-97 and D-98 supersede. That plan's report stopped at a decision checkpoint at 0 of 5 tasks. Its open items, seven reviewers and the D-64 run, are void under D-97. Its graph check, `reviews/convergence-graph-4.md`, is committed (3de6ddf), and Plan 7 carries its two candidates.
+- Discretion choices: the spec is named `runtime-model-design.md`, so the `*-design.md` approval grep covers it (REV-03: build phases read it through the pointers). It holds rules and values and no module or Order step, so the build graph is unchanged. Hearing state and ledger share one task because they share their sources, the `rounds.py` core and its three profiles.
+- Testing-policy deviation, as recorded once for the phase in PLAN-2 Notes: no task here builds the CI jobs (`tests`, `fixtures`, `lint`). ROADMAP Phase 2 owns that gate. CONTEXT's scope boundary leaves code and workflow files out of Phase 1. `.github/cadence/coverage-policy.json` is already tracked.
+- Recalled memory informs Tasks 2, 7 and 8: D-93 (unrolled bounded form; phases/1/CONTEXT.md, phase 1), D-80 (owner-control stays an approved source, untouched; phases/1/CONTEXT.md, phase 1) and D-02 (planning lines in the ruling's commit; phases/1/CONTEXT.md, phase 1).
