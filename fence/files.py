@@ -349,5 +349,13 @@ def delete_file(path: str) -> str:
     return f"deleted {_rel(real)}"
 
 
+if os.environ.get("FENCE_COMMIT") == "1":
+
+    @mcp.tool()
+    def commit(message: str, paths: list[str]) -> str:
+        """Commit the listed paths that changed."""
+        return ""
+
+
 if __name__ == "__main__":
     mcp.run()
