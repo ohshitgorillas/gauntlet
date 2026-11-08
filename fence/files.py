@@ -13,6 +13,8 @@ import sys
 
 from mcp.server.fastmcp import FastMCP
 
+import files_commit  # the sibling of this script, on sys.path when it runs
+
 ALWAYS_DENY_WRITE = (".archon", ".claude", ".git")
 CAP = 500
 
@@ -47,6 +49,7 @@ DENY = _folders("FENCE_DENY") + [(d,) for d in ALWAYS_DENY_WRITE]
 ONCE = _folders("FENCE_ONCE")
 COPY = _folders("FENCE_COPY")
 HIDE = _folders("FENCE_HIDE")
+RECORDED: set[str] = set()  # paths this process wrote, edited, copied to or deleted
 
 mcp = FastMCP("fence-files")
 
@@ -293,6 +296,7 @@ def write_file(path: str, content: str) -> str:
     _check_copy(path, parts)
     if os.path.lexists(real):
         _check_once(path, parts)
+    RECORDED.add(_rel(real))
     os.makedirs(os.path.dirname(real), exist_ok=True)
     with open(real, "w", encoding="utf-8", newline="") as fh:
         fh.write(content)
@@ -315,6 +319,7 @@ def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> str:
         raise ValueError(f"{path}: old text not found")
     if count > 1 and not replace_all:
         raise ValueError(f"{path}: old text occurs {count} times; not unique")
+    RECORDED.add(_rel(real))
     with open(real, "w", encoding="utf-8", newline="") as fh:
         fh.write(text.replace(old, new))
     return f"edited {_rel(real)} ({count} replacement{'s' if count > 1 else ''})"
@@ -332,6 +337,7 @@ def copy_file(src: str, dst: str) -> str:
         raise FileExistsError(f"{dst}: destination already exists")
     if not os.path.isfile(src_real):
         raise ValueError(f"{src}: not a file")
+    RECORDED.add(_rel(dst_real))
     os.makedirs(os.path.dirname(dst_real), exist_ok=True)
     shutil.copyfile(src_real, dst_real)
     return f"copied {_rel(src_real)} to {_rel(dst_real)}"
@@ -345,16 +351,29 @@ def delete_file(path: str) -> str:
     _check_once(path, parts)
     if not os.path.isfile(real):
         raise ValueError(f"{path}: not a file")
+    RECORDED.add(_rel(real))
     os.remove(real)
     return f"deleted {_rel(real)}"
+
+
+def _writable(path: str) -> str:
+    """Fence-check a path the commit tool may stage; return it relative to root."""
+    real, parts = _resolve(path)
+    _check_write(path, parts)
+    return _rel(real)
 
 
 if os.environ.get("FENCE_COMMIT") == "1":
 
     @mcp.tool()
     def commit(message: str, paths: list[str]) -> str:
-        """Commit the listed paths that changed."""
-        return ""
+        """Commit the listed paths that changed, and only those. Refuses a
+        changed path this server wrote, edited, copied to or deleted that is
+        missing from `paths`. Returns `exit=<n>`, then the commit hash, or the
+        hook names when git failed, or `nothing`."""
+        return files_commit.commit(
+            ROOT, message, [_writable(p) for p in paths], RECORDED, _writable
+        )
 
 
 if __name__ == "__main__":
