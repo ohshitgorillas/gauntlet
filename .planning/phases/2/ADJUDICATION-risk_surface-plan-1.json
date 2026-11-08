@@ -1,0 +1,34 @@
+{
+  "phase": "2",
+  "trigger": "risk_surface",
+  "discriminator": "plan-1",
+  "round": 1,
+  "base": "c46f147",
+  "head": "6a89b9e",
+  "base_id": "c46f1474e4b7172d640ec4339de68d92fe893a44",
+  "head_id": "6a89b9eab29bd335070b3339c5ef0f3eee1bea9e",
+  "voices": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus"
+    }
+  ],
+  "citations": {
+    "checked": true
+  },
+  "entries": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".shared/working-folder.ts",
+      "line": 40,
+      "severity": "medium",
+      "claim": "The committed branch decides whether a rule comes from a repo .gitignore only by checking that the source's basename is \".gitignore\". So a global excludes file named .gitignore (core.excludesFile=~/.gitignore) is treated as an uncommitted repo .gitignore, and the run fails. The design says the global excludes file must pass with committed.",
+      "failure_scenario": "Set core.excludesFile to /home/u/.gitignore holding 'gauntlet/', with no repo rule. `git check-ignore -v gauntlet/` then prints '/home/u/.gitignore:1:gauntlet/\\tgauntlet/' with exit 0 (reproduced with a temp repo). source.split('/').pop() is '.gitignore', so the code runs `git show HEAD:/home/u/.gitignore`, which exits non-zero. requireIgnored({committed:true}) then exits 1 with 'Gauntlet failed because the rule keeping <root>/gauntlet/ out of git sits in <root>//home/u/.gitignore, which is not committed'. gauntlet-run's guard stops even though the run's tree shares that excludes file (gauntlet-intake-design.md lines 59-61).",
+      "ruling": "survived",
+      "convergent": false,
+      "base_id": "c46f1474e4b7172d640ec4339de68d92fe893a44",
+      "head_id": "6a89b9eab29bd335070b3339c5ef0f3eee1bea9e"
+    }
+  ]
+}
