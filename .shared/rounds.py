@@ -44,40 +44,16 @@ class Profile:
     iterations: bool = False
 
 
-class State(TypedDict):
-    round: int
-    slug: str
-    file: str
-    owed: str
-    next: str
-    start: int
-    since: int
-    attempts: int
-    non_responsive: int
-    stretch: int
-    repairs: int
-    base: int
-    rulings: list[str]
-    review: str
-    verdict: str
-
-
-class Docket(TypedDict):
-    case: str
-    ask: bool
-    attention: str
-    options: list[list[str]]
-    round: int
-    summary: bool
-    verdict: str
-    idle: int
-    reason: bool
-
-
-class Closing(TypedDict):
-    outcome: str
-    file: str
-    summary: str
+State = TypedDict(
+    "State",
+    {"round": int, "slug": str, "file": str, "owed": str, "next": str, "start": int, "since": int, "attempts": int, "non_responsive": int, "stretch": int, "repairs": int, "base": int, "rulings": list[str], "review": str, "verdict": str},
+)
+Docket = TypedDict(
+    "Docket",
+    {"case": str, "ask": bool, "attention": str, "options": list[list[str]], "round": int, "summary": bool, "verdict": str, "idle": int, "reason": bool},
+)
+Closing = TypedDict("Closing", {"outcome": str, "file": str, "summary": str})
+Written = TypedDict("Written", {"file": str})
 
 
 def _lines(path: Path) -> list[str]:
@@ -86,10 +62,6 @@ def _lines(path: Path) -> list[str]:
 
 def _unresolved(line: str) -> list:
     return json.loads(line).get("unresolved", [])
-
-
-def _entry_markers(line: str) -> int:
-    return int(json.loads(line).get("markers", 0))
 
 
 def cited(folder: str, slug: str, round: int) -> bool:
@@ -118,11 +90,14 @@ def _verdict(p: Profile, path: Path) -> str | None:
     return max(named, key=len) if named else None
 
 
+def _head(path: Path) -> tuple[str, str]:
+    """(case, decision) from the first two lines of a ruling; the owner's text sits below them and is never read."""
+    head = path.read_text().splitlines()[:2] + ["", ""]
+    return head[0].removeprefix("Case: "), head[1].removeprefix("Decision: ")
+
+
 def _ends(p: Profile, path: Path) -> bool:
-    """Whether the ruling's decision ends the hearing."""
-    head = path.read_text().splitlines()[:2]
-    case = head[0].removeprefix("Case: ") if head else ""
-    decision = head[1].removeprefix("Decision: ") if len(head) > 1 else ""
+    case, decision = _head(path)
     return any(c.case == case and c.ends and c.ends == decision for c in p.owner_cases)
 
 
@@ -150,7 +125,7 @@ class _Hearing:
 def _repairs(folder: Path, slug: str, rnd: int, guards: dict[int, Path]) -> int:
     marked = sum(1 for line in _lines(folder / f"{slug}.cite.{rnd}.txt") if _unresolved(line))
     entries = _lines(guards[rnd]) if rnd in guards else []
-    return max(0, marked - (_entry_markers(entries[-1]) if entries else 0))
+    return max(0, marked - (json.loads(entries[-1]).get("markers", 0) if entries else 0))
 
 
 def _review_case(p: Profile, verdicts: dict[int, str | None], tried: tuple[int, ...], since: int, guards: dict[int, Path], counts: tuple[int, int]) -> str:
@@ -238,10 +213,6 @@ def state(p: Profile, slug: str, start: int | None, first: int = 1, filing: bool
     return out
 
 
-def _is_slug_file(slug: str, name: str) -> bool:
-    return name.startswith(f"{slug}.") or (name.startswith(f"{slug}-summary.") and name.endswith(".md"))
-
-
 def _create(path: Path, text: str) -> bool:
     """Write a file that must not exist yet; False when it does."""
     made = False
@@ -258,7 +229,8 @@ def _set_aside(folder: Path, slug: str) -> None:
         n += 1
     for path in sorted(folder.rglob("*")):
         rel = path.relative_to(folder)
-        if path.is_file() and rel.parts[0] != "stale" and _is_slug_file(slug, path.name):
+        ours = path.name.startswith(f"{slug}.") or (path.name.startswith(f"{slug}-summary.") and path.name.endswith(".md"))
+        if path.is_file() and rel.parts[0] != "stale" and ours:
             target = folder / "stale" / f"{slug}.{n}" / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             os.replace(path, target)
@@ -275,20 +247,105 @@ def _settle_items(p: Profile, slug: str, items: Path) -> None:
     _create(mark, digest + "\n")
 
 
-def docket(p: Profile, slug: str, first: int = 1) -> Docket:
-    return Docket()
+def _text(path: Path) -> str:
+    return path.read_text().strip() if path.is_file() else ""
+
+
+def _attention(h: _Hearing, case: str) -> str:
+    """What the owner is shown for a case: the counts, then the text the case turns on."""
+    folder = Path(h.p.folder)
+    counts = f"attempts={h.attempts} non_responsive={h.non_responsive} stretch={h.stretch} repairs={h.repairs}"
+    latest = h.tried[-1] if h.tried else 0
+    review = h.reviews[max(h.reviews)].read_text() if h.reviews else ""
+    owner = next((c for c in h.p.owner_cases if c.case == case), None)
+    marked = [_unresolved(line) for line in _lines(folder / f"{h.slug}.cite.{h.round}.txt")]
+    markers = "\n".join(next((m for m in reversed(marked) if m), []))
+    if owner and owner.summary:
+        return _text(folder / f"{h.slug}-summary.{latest}.md")
+    if case == "bench":
+        return review.partition("\n")[2].strip()
+    if case == "idle":
+        return f"{counts}\n{_text(folder / f'{h.slug}.idle.{h.idle}.md')}"
+    return f"{counts}\n{markers if case == 'guard' and markers else review}"
+
+
+def _case(h: _Hearing, vacant: bool, iterations: int, wrote_nothing: int, base: int) -> str:
+    if vacant:
+        return "vacant"
+    if h.owed == "ended":
+        return "none"
+    counted = h.p.iterations
+    holds = [
+        (h.review_case, bool(h.review_case)),
+        ("guard", h.stretch >= STRETCH or h.repairs >= REPAIRS),
+        ("idle", counted and wrote_nothing >= IDLE),
+        ("cap", counted and iterations - base >= CAP),
+    ]
+    return next((case for case, yes in holds if yes), "none")
+
+
+def docket(p: Profile, slug: str, first: int = 1, start: int | None = None, base: int = 0) -> Docket:
+    h = _read(p, slug, first)
+    folder = Path(p.folder)
+    lines = _lines(folder / f"{slug}.iter.txt")
+    now = f"{h.round} {h.owed} {h.guard_count} {h.repairs}"
+    mine = lines[base:]
+    quiet = next((i for i, line in enumerate(reversed(mine)) if line != now), len(mine))
+    vacant = _slot(h, (h.tried[-1] if h.tried else 0) if start is None else start) == "vacant"
+    case = _case(h, vacant, len(lines), quiet, base)
+    owner = next((c for c in p.owner_cases if c.case == case), None)
+    asks = case not in ("vacant", "none")
+    from_review = bool(h.review_case) and case == h.review_case
+    summary_file = folder / f"{slug}-summary.{h.tried[-1] if h.tried else 0}.md"
+    return Docket(
+        case=case,
+        ask=asks,
+        attention=_attention(h, case) if asks else "",
+        options=[list(o) for o in owner.options] if owner else ([["reply", "Reply"]] if asks else []),
+        round=h.tried[-1] if from_review else h.round,
+        summary=bool(owner and owner.summary and not summary_file.exists()),
+        verdict=(h.verdicts[max(h.verdicts)] or "") if h.verdicts else "",
+        idle=h.idle if case == "idle" else 0,
+        reason=case == "idle" and not (folder / f"{slug}.idle.{h.idle}.md").exists(),
+    )
 
 
 def screen(p: Profile, slug: str, round: int, quote: str) -> str:
-    return ""
+    """Write the SCREENED review of a round; '' when the round already has its review."""
+    path = Path(p.folder) / f"{slug}.review.{round}.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path) if _create(path, f"Verdict: SCREENED\n{quote}") else ""
 
 
 def record(p: Profile, slug: str, round: int, case: str, decision: str, text: str) -> str:
-    return ""
+    """The owner's answer: a ruling when the round has its review, else a guard entry. '' when the ruling exists."""
+    h = _read(p, slug, 1)
+    folder = Path(p.folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    case, decision = " ".join(case.split()), " ".join(decision.split())
+    question = _attention(h, case)
+    if round in h.reviews:
+        path = folder / f"{slug}.ruling.{round}.txt"
+        made = _create(path, f"Case: {case}\nDecision: {decision}\nQuestion: {question}\nText: {text}")
+        return str(path) if made else ""
+    path = folder / f"{slug}.guard.{round}.txt"
+    markers = sum(1 for line in _lines(folder / f"{slug}.cite.{round}.txt") if _unresolved(line))
+    entry = {"case": case, "question": question, "decision": decision, "text": text, "markers": markers}
+    with path.open("a") as handle:
+        handle.write(json.dumps(entry) + "\n")
+    return str(path)
 
 
-def close(p: Profile, slug: str) -> Closing:
-    return Closing()
+def close(p: Profile, slug: str, start: int | None = None, first: int = 1) -> Closing:
+    h = _read(p, slug, first)
+    ending = [n for n, path in h.rulings.items() if _ends(p, path)]
+    if ending:
+        n = max(ending)
+        invalid = _head(h.rulings[n])[0] == "invalid"
+        return Closing(outcome="invalid" if invalid else "approved", file=f"{slug}.{n}.txt", summary=f"{slug}-summary.{n}.md")
+    latest = h.tried[-1] if h.tried else 0
+    vacant = _slot(h, latest if start is None else start) == "vacant"
+    return Closing(outcome="vacant" if vacant else "", file="", summary="")
 
 
 def _number(name: str) -> int | None:
@@ -305,26 +362,38 @@ def _refusal(mode: str, items: str) -> str:
         return "INPUTS_ITEMS must name an item file"
     if mode == "state" and not given["INPUTS_START"] and not Path(items).is_file():
         return f"INPUTS_ITEMS is not a file: {items}"
+    if mode in ("screen", "record") and not given["INPUTS_ROUND"]:
+        return "INPUTS_ROUND is required"
     bad = [name for name, raw in given.items() if raw and not raw.isdigit()]
     return f"{', '.join(bad)} must be a whole number" if bad else ""
 
 
-def _run(p: Profile, mode: str, items: str) -> State | Docket | Closing:
+def _run(p: Profile, mode: str, items: str) -> State | Docket | Closing | Written:
     name = slug(items)
     start = _number("INPUTS_START")
+    round_ = _number("INPUTS_ROUND") or 0
+    env = os.environ.get
     if mode in ("state", "filing"):
         if start is None and mode == "state":
             _settle_items(p, name, Path(items))
         return state(p, name, start, filing=mode == "filing")
-    return Docket()
+    if mode == "docket":
+        return docket(p, name, start=start, base=_number("INPUTS_BASE") or 0)
+    if mode == "screen":
+        return Written(file=screen(p, name, round_, env("INPUTS_QUOTE", "")))
+    if mode == "record":
+        return Written(file=record(p, name, round_, env("INPUTS_CASE", ""), env("INPUTS_DECISION", ""), env("INPUTS_TEXT", "")))
+    return close(p, name, start)
 
 
 def main(p: Profile) -> int:
     mode = os.environ.get("INPUTS_MODE", "")
     items = os.environ.get("INPUTS_ITEMS", "")
     refusal = _refusal(mode, items)
-    if refusal:
-        print(f"rounds.py: {refusal}", file=sys.stderr)
+    out = {} if refusal else _run(p, mode, items)
+    code = 2 if refusal else int(mode in ("screen", "record") and not out.get("file"))
+    if code:
+        print(f"rounds.py: {refusal or 'the ledger file already exists'}", file=sys.stderr)
     else:
-        print(json.dumps(_run(p, mode, items)))
-    return 2 if refusal else 0
+        print(json.dumps(out))
+    return code

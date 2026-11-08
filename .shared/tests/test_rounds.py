@@ -584,7 +584,7 @@ def test_a_ruling_resets_the_counts(hearing, name, line):
 
 
 def guarded(hearing, files, **over):
-    return rule(hearing, files, round=3, case="guard", decision="reply", text="Carry on.", **over)
+    return rule(hearing, files, **{"round": 3, "case": "guard", "decision": "reply", "text": "Carry on.", **over})
 
 
 def guard_entries(hearing, n=3):
