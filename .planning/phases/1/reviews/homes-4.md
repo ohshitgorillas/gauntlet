@@ -56,6 +56,12 @@ Plan 7 Task 1 ran every token over the seven designs, `runtime-model-design.md` 
 | Pass 4, G-124 (D-101): `close`'s `file` and `summary` are bare names | ``is the bare name `<slug>.N.txt` `` | RM, Ledger | 0 |
 | Pass 4, G-125 (D-102): the scope marks of an approved plan revision | `scope.rev<M>.txt` | `writing-design.md`, Terms (Files in `gauntlet/write/`) | 0 |
 | Pass 4, G-128 (D-104): the mend's leftover patch | `.leftover.<k>.patch` | RM, Commit model | 0 |
+| Pass 5, G-129 (D-105): a brief-command run's files are no agent's change | `is therefore never read as an agent` | RM, Commit model | 0 |
+| Pass 5, G-129 (D-105): `pose` reads the mend's check, not the porcelain | `reads the check and never the porcelain` | RM, Commit model | 0 |
+| Pass 5, G-130 (D-106): every block record holds its `stage` | ``the block input `stage` of the run that wrote it`` | `writing-design.md`, Terms (Files in `gauntlet/write/`) | 0 |
+| Pass 5, G-131 (D-107): the set-aside keeps the `approved/` subfolder | `is flattened into` | RM, Hearing state | 0 |
+| Pass 5, G-129 (D-105), closed review: an agent's run through `fence/checks.py` restores only the paths it made | `restores only what it made and deletes no edit` | RM, Commit model | 0 |
+| Pass 5, G-129 (D-105), closed review: the review before landing is handed a committed block's leftover patch | `is handed the patch of every move of its stage` | RM, Commit model | 0 |
 
 ## Candidates
 

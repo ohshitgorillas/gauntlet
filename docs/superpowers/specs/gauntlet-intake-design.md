@@ -44,6 +44,7 @@ def delete_file(path: str) -> str: ...
 
 # checks.py — server "fence-checks"; environment CLAUDE_PROJECT_DIR (the same check as files.py); the brief test command
 #   and the timeout come from gauntlet/settings.json of the root (writing design), never from the server's environment
+#   a run restores the paths it made (runtime-model-design.md, "Commit model", "A brief-command run restores the tree")
 async def run_tests() -> str: ...
 ```
 

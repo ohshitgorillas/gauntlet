@@ -39,7 +39,7 @@ Files in `gauntlet/write/`:
 | File | Writer | Rule |
 |---|---|---|
 | `<slug>.cut.N.json` | `stage.py cut` | the divvyer's waves and their cause; a rejected cut holds its problems and no waves |
-| `<slug>.blocks.N.json` | `stage.py result` | one wave's block outcomes, in block order; each committed block also holds `outside`, the paths of its commit that lie outside the block's `paths` (the paths mark, `[]` when none), the second mechanical scope check, read by the review before landing (landing design) |
+| `<slug>.blocks.N.json` | `stage.py result` | one wave's block outcomes, in block order; each block's record holds `stage`, the block input `stage` of the run that wrote it, so a record of an earlier stage that `copy-in` brought in is told from this stage's; each committed block also holds `outside`, the paths of its commit that lie outside the block's `paths` (the paths mark, `[]` when none), the second mechanical scope check, read by the review before landing (landing design) |
 | `<slug>.run.N.txt` | node `test` | `exit=<n> timed_out=<true\|false>`, then the brief command's output |
 | `<slug>.seal.N.txt` | node `seal` | `exit=<n>`, then git's and the hooks' output; `nothing` when the tree had no change |
 | `<slug>.direction.N.md` | `stage.py record` | the owner's direction (Terms), once |
@@ -75,11 +75,12 @@ Both servers take the repository's test settings from `gauntlet/settings.json` o
 #   FENCE_CUT=1 (the coder's fence, whose value sits in the section `write-code/write-code.yaml`): each returned line is cut at its first " - " by .shared/red.py's cut, whatever the
 #   repository's command prints, so no assertion message reaches a coder.
 #   File missing or "brief" blank at the first call: the tool returns the error, runs nothing.
+#   The run leaves no path it made: it restores the paths the run made and no edit of the agent, as runtime-model-design.md "Commit model", "A brief-command run restores the tree", states.
 # files.py: the entry "@base" in FENCE_READ or FENCE_WRITE stands for the paths in settings["base"] (none when the list is empty);
 #   an entry "@base" with the file missing stands for nothing.
 ```
 
-Suite: `fence/test_settings.py`, run as `docs/testing.md` states with the folder `fence`, against a settings file under `tmp_path`. It pins the command and timeout read from the file, the default 900, the `@base` expansion, the coder-fence cut of a `FAILED <id> - <message>` line, and the refusal on a missing file.
+Suite: `fence/test_settings.py`, run as `docs/testing.md` states with the folder `fence`, against a settings file under `tmp_path`. It pins the command and timeout read from the file, the default 900, the `@base` expansion, the coder-fence cut of a `FAILED <id> - <message>` line, the refusal on a missing file, and the restore of a run in a git repository under `tmp_path`: a tracked file the command rewrites and an untracked file it creates are restored, a file edited before the run stays edited, and a killed run restores too.
 
 ### `write/scripts/ledger.py`
 
@@ -182,8 +183,10 @@ def result(move: int, tests: str, code: str) -> dict: ...
 #   recorded as commit-failed with its error. stdout { "contested": bool }.
 # The paths mark: for each committed block, `git -C <tree> diff-tree --no-commit-id --name-only -r <commit>` against the block's
 #   paths; the block's record holds "outside", the changed paths no entry of "paths" covers, [] when none. A mark is no stop.
-# A block of the wave that did not end committed: the leftover patch and the restore of the tree to HEAD are
-#   runtime-model-design.md's, "Commit model"; the patch is named in the amicus case's files.
+#   Every block's record also holds "stage", INPUTS_STAGE, whatever its outcome.
+# After the wave, in the tree's root: any uncommitted change, a block that did not end committed or the extras of a committed block
+#   alike, gets the leftover patch and the restore of the tree to HEAD, which are runtime-model-design.md's, "Commit model"; the
+#   patch is named in the amicus case's files when a case opens. Node `test` runs on that clean tree.
 
 def red(run: str, brief: str) -> bool: ...
 # The latest run file and the brief baseline, passed to .shared/red.py's red with no head; returns its answer.
@@ -507,7 +510,8 @@ nodes:
           when: "$state.output.next == 'test'"
           bash: <read "brief" and "timeout" from gauntlet/settings.json in the tree's root, run timeout -k 10 <timeout>
                 nice -n 10 bash -c <brief> < /dev/null there, in the foreground, as node baseline does; write gauntlet/write/<slug>.run.$state.output.move.txt:
-                "exit=<n> timed_out=<true|false>", then the whole output; exit 0>
+                "exit=<n> timed_out=<true|false>", then the whole output; then, on every exit path, the tree restore of
+                runtime-model-design.md, "Commit model" ("A brief-command run restores the tree"), so a file the run made is no agent's change; exit 0>
 
         - id: seal                     # the mechanical final commit
           depends_on: [state]
@@ -631,7 +635,7 @@ env:
 | A wrong spec or plan | a revision round in `gauntlet/revisions/`, tried by the reviewer, approved at `bench`, entered by `enter` | any other edit of the approved files; the reviser revising past the quoted clause or the affected specs |
 | Ending the block for planning | the owner's `back-to-planning` direction, read by `stage.py close`, which hands off `planning`, the direction and the amicus record | a size or line-count threshold; any other node ending writing; an agent choosing to end it |
 | Commits | `runtime-model-design.md`, heading "Commit model"; the tool is `commit` of `fence/files.py`, the final commit node `seal` | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |
-| A block's uncommitted changes | `runtime-model-design.md`, heading "Commit model"; done by `stage.py result` | any other restore, clean or reset in a Gauntlet file; a restore in the checkout; a restore before the patch is written |
+| A wave's uncommitted changes, and the files a brief-command run makes | `runtime-model-design.md`, heading "Commit model"; done by `stage.py result` after a wave, by node `test` after its run, by `fence/checks.py` after an agent's run for the paths that run made, and by the mend's node `leftover` and its test runs (landing design) | any other restore, clean or reset in a Gauntlet file; a restore in the checkout; a restore before the patch is written; a restore after a bash brief-command run in a tree that was not clean when the run began; `fence/checks.py` restoring a path listed before its run |
 | Test output a writer sees | `fence/checks.py` running the brief command from `gauntlet/settings.json`, for the test writer, the coder and both menders, the coder's and `mend-code`'s lines cut at their first ` - ` (the coder-fence cut mode) | a writer running any other test command; a tool returning a traceback, a message past ` - ` or hook output to a coder |
 | The per-test listing and red | The brief command's `PASSED`, `FAILED` and `ERROR` lines, read by `.shared/red.py` (`gauntlet-design.md`), which `stage.py red` calls | parsing a runner's full output; a comparison computed in `stage.py`, a node, prompt or role |
 | What a test writer can see | `write-tests/test-writer.mcp.json`: `tests/`, the approved spec, `docs/testing.md`, the test base (`@base`) | a test writer handed the plan, code or a CODE section |
@@ -641,7 +645,7 @@ env:
 
 ## Order
 
-1. Commits and settings in the fence: `fence/files.py` (`commit`, `FENCE_COMMIT`, `@base`), `fence/checks.py` (settings, `FENCE_CUT`), `fence/test_files_commit.py`, `fence/test_settings.py`. Needs `gauntlet-design.md`'s steps 5 and 6. Agent: `builder`.
+1. Commits and settings in the fence: `fence/files.py` (`commit`, `FENCE_COMMIT`, `@base`), `fence/checks.py` (settings, `FENCE_CUT`, the restore of a run), `fence/test_files_commit.py`, `fence/test_settings.py`. Needs `gauntlet-design.md`'s steps 5 and 6. Agent: `builder`.
 2. Writing's ledger: `write/scripts/ledger.py`, `write/tests/test_ledger.py`. Needs the spec review design's step 1. Agent: `builder`.
 3. Writing's stage: `write/scripts/stage.py`, `write/tests/test_stage.py`. Needs step 2, `gauntlet-design.md`'s step 6 and the plan review design's step 2 (`marks`). Agent: `builder`.
 4. Roles: `write/commands/divvyer.md`, `write/commands/reviser.md`, `write/commands/reviewer.md`, `write/commands/reporter.md`, `amicus/commands/amicus.md`, `write-tests/commands/test-writer.md`, `write-code/commands/coder.md`. Agent: `role-author`.

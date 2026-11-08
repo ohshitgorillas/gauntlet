@@ -149,8 +149,10 @@ Opening turn (node `open`), inputs: the item file path, the amicus record and di
     Not needed only when every requested change is inside tests/ of the checkout and no source code behavior changes.
   - Plan files already there (a run picking up earlier rounds): needed is true; read the item file, every ruling
     and guard file, the latest plan and the latest review.
-  - Amicus record and direction given (a back to planning): read both first, and the approved plan in the highest-numbered
-    gauntlet/plans/stale/<slug>.<m>/approved/<slug>.txt, whose first Landed stages are in the checkout. The last plan failed in the owner's judgment; the
+  - Amicus record and direction given (a back to planning): read both first, and the approved plan, which is
+    <slug>.txt and then each <slug>.rev<N>.txt in order of N, all in the approved/ folder of the highest-numbered
+    gauntlet/plans/stale/<slug>.<m>/ (the set-aside keeps that folder: runtime-model-design.md, "Hearing state"), whose first
+    Landed stages are in the checkout with their revisions applied. The last plan failed in the owner's judgment; the
     amicus record says why, and the owner's direction binds the plan, in the owner's words. The direction's "Landed:" line
     counts the stages already landed; the checkout holds their code, and the new plan covers only the work not yet landed,
     its stages counted from 1.

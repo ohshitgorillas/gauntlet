@@ -192,13 +192,14 @@ Node `back`: the run's end on the owner's back to planning (heading "Back to pla
 #   and gauntlet/back/<slug>.<n>.amicus.md (cp -n semantics; differing target: exit 1 naming both paths). Moves every file of the
 #   slug in gauntlet/plans/, gauntlet/specs/, gauntlet/write/ and gauntlet/revisions/, approved/ included, into
 #   gauntlet/plans/stale/<slug>.<m>/, gauntlet/specs/stale/<slug>.<m>/, gauntlet/write/stale/<slug>.<m>/ and
-#   gauntlet/revisions/stale/<slug>.<m>/, m the next free number of each.
+#   gauntlet/revisions/stale/<slug>.<m>/, m the next free number of each. Each file keeps its path under the folder
+#   (approved/ stays a subfolder: runtime-model-design.md, "Hearing state").
 # stdout: the command, one line:
 #   the command of the heading "Back to planning", naming INPUTS_ITEMS and the two copied files
 def main() -> int: ...
 ```
 
-Suite: `gauntlet-run/tests/test_back.py`, run as `docs/testing.md` states with the folder `gauntlet-run/tests`. It drives `main` against a real folder under `tmp_path`. It pins: the two files copied under the next free number; the slug's plan and spec files, approved ones included, moved to `stale/`; the printed command naming the three paths; a second back to planning on the slug taking the next number.
+Suite: `gauntlet-run/tests/test_back.py`, run as `docs/testing.md` states with the folder `gauntlet-run/tests`. It drives `main` against a real folder under `tmp_path`. It pins: the two files copied under the next free number; the slug's plan and spec files, approved ones included, moved to `stale/`, each file at the path under `stale/<slug>.<m>/` that it had under the folder (`approved/<slug>.txt` and `approved/<slug>.rev<N>.txt` keep their `approved/` subfolder), a flattened file failing the test; the printed command naming the three paths; a second back to planning on the slug taking the next number.
 
 ### `gauntlet-run/scripts/guard.ts`
 

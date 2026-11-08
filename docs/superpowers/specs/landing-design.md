@@ -72,7 +72,9 @@ nodes:
     bash: <git checkout $INPUTS.branch.
           file = gauntlet/mend/$INPUTS.slug.run.<head>.<tip>.txt, tip the branch's commit now.
           file absent: run the brief command in the tree's root as node baseline runs it, "brief" and "timeout" read
-          from the tree's gauntlet/settings.json, written in its format. print { file } as an absolute tree path>
+          from the tree's gauntlet/settings.json, written in its format; then, on every exit path, the tree restore of
+          runtime-model-design.md, "Commit model" ("A brief-command run restores the tree"), so a file the run made is no mender's.
+          print { file } as an absolute tree path>
     output_format: <object: file (string), required>
 
   - id: red                            # red without the head check
@@ -88,7 +90,7 @@ nodes:
     always_run: true
     bash: <file = gauntlet/mend/$INPUTS.slug.head.$onto.output.head.txt. file absent:
           git checkout --detach $onto.output.head, run the brief command as test-tree
-          does into file, then git checkout $INPUTS.branch, on every exit path.
+          does into file and restore the tree as test-tree does, then git checkout $INPUTS.branch, on every exit path.
           print { file } as an absolute tree path>
     output_format: <object: file (string), required>
 
@@ -127,9 +129,14 @@ nodes:
           depends_on: [hear]
           when: "$hear.output.end == ''"
           bash: <git -C <tree> log -p $onto.output.head..$INPUTS.branch, <tree> the tree's root, into
-                gauntlet/mend/$INPUTS.slug.changes.$hear.output.n.txt, over any earlier file of that n.
-                print { file } as an absolute tree path>
-          output_format: <object: file (string), required>
+                gauntlet/mend/$INPUTS.slug.changes.$hear.output.n.txt, over any earlier file of that n. Also the blocks files of
+                this stage: each gauntlet/write/$INPUTS.slug.blocks.*.json of the tree whose block records hold "stage" equal to
+                $INPUTS.stage (writing design, Files in `gauntlet/write/`), newline-separated, in order of move.
+                Also, of those blocks files, the leftover patch of the same move (runtime-model-design.md, "Commit model",
+                "What a wave leaves uncommitted"), each when it exists, newline-separated, in order of move (the work a restore removed
+                from the branch).
+                print { file, blocks, leftovers } as absolute tree paths, blocks and leftovers "" when none>
+          output_format: <object: file (string), blocks (string), leftovers (string), all required>
 
         - id: mend-code                # the owner's direction is Rework: code; the owner picks the mender, no agent does
           depends_on: [hear, changes]
@@ -152,11 +159,21 @@ nodes:
           prompt: <as mend-code, with the approved spec gauntlet/specs/approved/$INPUTS.slug.txt and its revisions in place of the plan>
           output_format: <as mend-code>
 
-        - id: retest                   # the branch as the mender left it; runs only after a committed mend or a run again
+        - id: leftover                 # the tree after the mender, before any test run: what the mender left uncommitted is saved, then restored away
           depends_on: [hear, mend-code, mend-tests]
           trigger_rule: none_failed_min_one_success
+          when: "$hear.output.rework == 'code' || $hear.output.rework == 'tests'"
+          bash: <in the tree's root, git status --porcelain, gauntlet/ excluded: not empty: the leftover patch
+                gauntlet/mend/$INPUTS.slug.leftover.$hear.output.n.patch, then the restore of the tree to HEAD, in the form of
+                runtime-model-design.md, "Commit model", "The mend's uncommitted edits"; empty: nothing written, nothing restored.
+                print { file }: the patch's absolute tree path, "" when none>
+          output_format: <object: file (string), required>
+
+        - id: retest                   # the branch as the mender left it; runs only after a committed mend or a run again
+          depends_on: [hear, leftover, mend-code, mend-tests]
+          trigger_rule: none_failed_min_one_success
           when: "$mend-code.output.outcome == 'committed' || $mend-tests.output.outcome == 'committed' || $hear.output.rework == 'again'"
-          bash: <as test-tree, unconditionally, into gauntlet/mend/$INPUTS.slug.run.$onto.output.head.<tip>.txt, the key differing from
+          bash: <as test-tree, the restore included, unconditionally, into gauntlet/mend/$INPUTS.slug.run.$onto.output.head.<tip>.txt, the key differing from
                 test-tree's file by construction after a committed mend; after a run again the file is rewritten by cp -n semantics
                 under the run's n: gauntlet/mend/$INPUTS.slug.run.$onto.output.head.<tip>.again.$hear.output.n.txt.
                 print { file } as an absolute tree path>
@@ -192,15 +209,15 @@ nodes:
           output_format: <object: verdict (SOUND | UNSOUND), file (string), all required>
 
         - id: pose                     # whether the owner has ended it, the case, and the options
-          depends_on: [hear, review]
+          depends_on: [hear, leftover, review]
           trigger_rule: none_failed_min_one_success
           bash: <hear ended it: end is hear's. A `discuss` answer keeps $LOOP_PREV.pose.output.case and its files. Else end "", and the case, first that holds: red (recheck red, or in the first
                 iteration confirm red); contest or commit-failed (this iteration's mender outcome; the grounds written by cp -n to
-                gauntlet/mend/$INPUTS.slug.grounds.$hear.output.n.txt, an uncommitted mend, git status --porcelain not empty,
-                gauntlet/ excluded, counting as commit-failed; its leftover patch and the restore of the tree to HEAD, before the case is read: runtime-model-design.md, "Commit model", "The mend's uncommitted edits"); unsound (this iteration's review is UNSOUND); else review (the tree
+                gauntlet/mend/$INPUTS.slug.grounds.$hear.output.n.txt; an uncommitted mend, $leftover.output.file not "" (the check of node `leftover`, which
+                alone reads the porcelain: runtime-model-design.md, "Commit model", "The mend's uncommitted edits"), counting as commit-failed); unsound (this iteration's review is UNSOUND); else review (the tree
                 is landable: not red, nothing uncommitted, the latest committed mend, when there is one, reviewed SOUND).
                 files = newline-separated tree paths the amicus reads: the latest run file and head file, the changes file, the
-                latest direction file, the grounds file, the leftover patch gauntlet/mend/$INPUTS.slug.leftover.$hear.output.n.patch, the review or mended file of the case, each when there is one (the review before landing's file is added by node `files`, once `final` has written it).
+                latest direction file, the grounds file, the leftover patch $leftover.output.file, the review or mended file of the case, each when there is one (the review before landing's file is added by node `files`, once `final` has written it).
                 options: discuss, rework-code, rework-tests, again, back-to-planning, leave, and land when the case is review.
                 print { end, case, files, options }>
           output_format: <object: end ("" | done | left | planning), case (string), files (string), options (array of { id, label }), all required>
@@ -214,7 +231,7 @@ nodes:
           mcp: final-review.mcp.json
           prompt: <the file to write, gauntlet/mend/$INPUTS.slug.final.$hear.output.n.txt; stage $INPUTS.stage; the item file
                   gauntlet/items/$INPUTS.slug.md; the approved plan files, gauntlet/plans/approved/$INPUTS.slug.scope.txt and gauntlet/write/$INPUTS.slug.scope.rev*.txt;
-                  the blocks files gauntlet/write/$INPUTS.slug.blocks.*.json; the changes file $changes.output.file>
+                  the blocks files $changes.output.blocks (this stage's only); the leftover patches $changes.output.leftovers; the changes file $changes.output.file>
 
         - id: files                    # the files the amicus reads: pose's, and for case review the review before landing's file, which exists only once final has run
           depends_on: [pose, final]
@@ -269,7 +286,7 @@ nodes:
 
 Every stop is a failed node: a rebase conflict or a failed repair node. It fails the tree run and so `gauntlet-run`'s node `tree` (in a re-mend, the re-mend run and so the round's node `retree`, and `archon workflow resume <gauntlet-run id>` re-drives that child); the tree, its branch and any rebase in progress stay,; the resume, the restart of `repair` and what the mend owes (`unreviewed` from `onto`) are `runtime-model-design.md`'s, "Resume and rerun"; its direction, review, reply, changes, amicus, final and mended files are kept. A red on the rebased tree is no stop: it is the first amicus case. Every iteration that is not the owner's ending one briefs the owner and asks, and an iteration the owner has ended runs no agent. The owner chooses at `ask`: discuss with the amicus; run again with a direction (`rework-code` or `rework-tests` names the mender, `again` reruns the tests with no mender and an empty direction); `back-to-planning`; `leave`, which hands off `left` with the tree kept, so `gauntlet-run` ends with no landing; and, only when the tree is landable (case `review`), `land`. The owner never sees a diff in the repair's cases; the review before landing shows the diff stat and the commit messages. An uncommitted mend (a commit-failed mender) is a case, never an end. The mend's commits and its rebase rules are `runtime-model-design.md`'s, "Commit model".
 
-Fixtures, `mend/fixtures/<route>.stubs.yaml`, one per route: `still` (`moved` false, `test-tree` not reached, `repair` reaches case `review`, `final`, `ask` answered `land`, `ready`); `moved` (`red` false, `test-head` not reached, case `review`, `land`, `ready`); `resumed` (`moved` true on a rebased marker, `test-tree` reached); `head-red` (`red` true, `confirm` not red, case `review`, `ready`); `red-code` (`confirm` red, case `red`, `ask` answered `rework-code`; iteration 2 `mend-code` committed, `recheck` not red, `review` SOUND, case `review`, `land`; `ready`); `red-tests` (`rework-tests`, `mend-tests` committed, not red, SOUND; `ready`); `unsound` (`mend-code` committed, `review` UNSOUND, case `unsound`, `rework-code` again, SOUND; `ready`); `uncommitted` (`mend-code` commit-failed, `retest` not reached, case `commit-failed`, `ask` reached); `discuss` (`ask` answered `discuss`; iteration 2 the amicus reads the owner's words, `ask` reached again); `again` (case `red`, `ask` answered `again`; iteration 2 `changes`, menders not reached, `retest` green, `mended` prints "", `review` not reached, case `review`, `ready`); `again-review` (`mend-code` committed, `recheck` red, `review` not reached; iteration 2 `again` answered; iteration 3 `retest` green, `mended` writes its file, `review` SOUND, case `review`, `ready`); `resumed-review` (a mended file with no review on file, `confirm` not red, iteration 1 a run again: menders not reached, `review` SOUND, case `review`, `ready`); `planning` (case `red`, `back-to-planning`, `planning` with the direction and the amicus record); `leave` (case `review`, `leave`, `left`); `conflict` (`rebase` fails, its rebased marker written, `handoff` not reached).
+Fixtures, `mend/fixtures/<route>.stubs.yaml`, one per route: `still` (`moved` false, `test-tree` not reached, `repair` reaches case `review`, `final`, `ask` answered `land`, `ready`); `moved` (`red` false, `test-head` not reached, case `review`, `land`, `ready`); `resumed` (`moved` true on a rebased marker, `test-tree` reached); `head-red` (`red` true, `confirm` not red, case `review`, `ready`); `red-code` (`confirm` red, case `red`, `ask` answered `rework-code`; iteration 2 `mend-code` committed, `recheck` not red, `review` SOUND, case `review`, `land`; `ready`); `red-tests` (`rework-tests`, `mend-tests` committed, not red, SOUND; `ready`); `unsound` (`mend-code` committed, `review` UNSOUND, case `unsound`, `rework-code` again, SOUND; `ready`); `uncommitted` (`mend-code` commit-failed, `leftover` prints a patch path, `retest` not reached, case `commit-failed` from that path, `ask` reached; and a mender that committed with an edit left over: `leftover` prints a patch path, `retest` green, case `commit-failed`); `discuss` (`ask` answered `discuss`; iteration 2 the amicus reads the owner's words, `ask` reached again); `again` (case `red`, `ask` answered `again`; iteration 2 `changes`, menders not reached, `retest` green, `mended` prints "", `review` not reached, case `review`, `ready`); `again-review` (`mend-code` committed, `recheck` red, `review` not reached; iteration 2 `again` answered; iteration 3 `retest` green, `mended` writes its file, `review` SOUND, case `review`, `ready`); `resumed-review` (a mended file with no review on file, `confirm` not red, iteration 1 a run again: menders not reached, `review` SOUND, case `review`, `ready`); `planning` (case `red`, `back-to-planning`, `planning` with the direction and the amicus record); `leave` (case `review`, `leave`, `left`); `conflict` (`rebase` fails, its rebased marker written, `handoff` not reached).
 
 ### `land/land.yaml` (landing in the checkout)
 
@@ -497,14 +514,14 @@ Tools: fence-files.
 ```markdown
 final-review
 Inputs: the file to write, the stage, the item file, the approved plan files and the plan's scope marks, the blocks files of
-writing (each block's "outside" paths, the paths mark), the changes file (the log and patches of the branch past the checkout's HEAD).
+this stage of writing (each block's "outside" paths, the paths mark; the earlier stages' files are not handed to you), the leftover patches of those moves (work a writer left uncommitted, which the restore took from the branch), the changes file (the log and patches of the branch past the checkout's HEAD).
 The review before landing, short, because the review before implementation was extensive. Did the workers faithfully implement the
 requested features and fix the bugs as instructed, and nothing else? Are there shortcuts that need to be redone properly?
 Read each item of the item file against its own fields (Goal, Desired behavior, Constraints, Out of scope), the plan steps of
 this stage with the item ids they cite, and the two scope-check marks: a step marked "added scope", and a block whose "outside"
 list is not empty. Judge what a script cannot, such as a step that cites an item and does not serve it.
 You rule on nothing. Write the file once: a few plain sentences for the owner, per item what was done and what was not, then
-each mark and each shortcut with its path. The amicus carries your answer to the owner.
+each mark and each shortcut with its path, and for each leftover patch its paths and whether the branch carries that work. The amicus carries your answer to the owner.
 Tools: fence-files.
 ```
 
@@ -550,11 +567,11 @@ Suite: `mend/tests/test_verify.py`, run as `docs/testing.md` states with the fol
 | The commit landing lands against | `land`'s node `onto`'s `head`, read by `show` and `merge` | any other `land/` node reading the checkout's `HEAD`, `merge`'s ancestry check excepted |
 | Rebasing the tree's branch | `mend`'s node `rebase`, `git rebase <head> <branch>` in the tree | any other rebase, reset, amend, squash or history rewrite in a Gauntlet file; a rebase in the checkout; a rebase aborted by Gauntlet |
 | Whether the mend reruns tests | `onto`'s `moved` for `test-tree`; `red`'s answer, or `onto`'s `unreviewed`, for `test-head`; a committed mend or a run again for `retest` | a retest with no committed mend and no run again; a test run when the checkout's `HEAD` is in the branch's history, except after a first pass's rebase, marked by `gauntlet/mend/<slug>.rebased.<head>`; a head run when the rebased tree is not red without it and no mend awaits review; a test run in the checkout |
-| The mend's test runs | `test-tree`, `test-head` and `retest`, as node `baseline` runs its command, with no node `timeout:`, into `gauntlet/mend/<slug>.run.<head>.<tip>.txt` and `gauntlet/mend/<slug>.head.<head>.txt` of the tree | any other file name or folder; another invocation of the brief command in `mend/` or `land/` |
+| The mend's test runs | `test-tree`, `test-head` and `retest`, as node `baseline` runs its command, with no node `timeout:`, into `gauntlet/mend/<slug>.run.<head>.<tip>.txt` and `gauntlet/mend/<slug>.head.<head>.txt` of the tree, each run ending with the tree restore of `runtime-model-design.md`, "Commit model" | any other file name or folder; another invocation of the brief command in `mend/` or `land/`; a run that leaves the tree as the run made it |
 | Red in the mend | `mend/scripts/verify.py` over `.shared/red.py`; a red with the head check is the first case of `repair`, and a mend `onto` finds unreviewed is retested and reviewed before the owner is asked | a comparison or listing in a `mend/` or `land/` node; a red stopping the run |
 | Mending a red on the rebased tree | group `repair` of block `mend`: the amicus (writing design, "Amicus") briefs the owner on every red, contest, failed commit and UNSOUND review, and the owner's direction (`gauntlet/mend/<slug>.direction.<n>.md`, writing design "Direction") runs one mender: `mend-code` fenced out of `tests/` and `gauntlet/`, `mend-tests` fenced to `tests/` and the test base; `mend-review` reviews every mend into `gauntlet/mend/<slug>.review.<n>.txt`; only the owner ends the group, by `land`, `leave` or `back-to-planning` | an agent choosing a mender or ruling on a case; a mender run without a direction; one agent writing both code and tests; a mend that reaches landing unreviewed; a mend in the checkout; any other agent writing in the tree after writing |
-| What the amicus and reviewers read of the branch | group `repair`'s node `changes`, after `hear`, into `gauntlet/mend/<slug>.changes.<n>.txt` for the amicus and `final`, and node `mended`, after `recheck`, into `gauntlet/mend/<slug>.mended.<n>.txt` for `review`, each `git -C <tree> log -p <head>..<branch>`; a `mended` file also records that the repair committed a mend | a git tool or command given to a mend agent; any other writer of those files; a log of the branch's whole history |
-| The review before landing | node `final` of group `repair`, role `final-review`, writing `gauntlet/mend/<slug>.final.<n>.txt` in the iteration where the tree is landable (case `review`); it runs in the tree run and in the re-mend run, and in each re-mend (the re-mend rule), before every landing, failed or clean, and for each stage's own plan steps and items; it reads each item against its fields, the plan steps of the stage with their item ids and the two scope-check marks (plan review design, "Plan grammar"; writing design, the `outside` list of the blocks file); its answer reaches the owner through the amicus, with the choices `land`, `rework-code` or `rework-tests` or `again` (run again with a direction), `back-to-planning` and `leave` | the review in block `land` or in any node of `gauntlet-run`; a landing with no review; an agent ruling on the review; the review reading more than the files above |
+| What the amicus and reviewers read of the branch | group `repair`'s node `changes`, after `hear`, into `gauntlet/mend/<slug>.changes.<n>.txt` for the amicus and `final` (and the lists of this stage's blocks files and their leftover patches for `final`), and node `mended`, after `recheck`, into `gauntlet/mend/<slug>.mended.<n>.txt` for `review`, each `git -C <tree> log -p <head>..<branch>`; a `mended` file also records that the repair committed a mend | a git tool or command given to a mend agent; any other writer of those files; a log of the branch's whole history |
+| The review before landing | node `final` of group `repair`, role `final-review`, writing `gauntlet/mend/<slug>.final.<n>.txt` in the iteration where the tree is landable (case `review`); it runs in the tree run and in the re-mend run, and in each re-mend (the re-mend rule), before every landing, failed or clean, and for each stage's own plan steps and items; it reads each item against its fields, the plan steps of the stage with their item ids and the two scope-check marks (plan review design, "Plan grammar"; writing design, the `outside` list of the blocks file); and each leftover patch of the stage, whether the branch carries that work (runtime-model-design.md, "Commit model"); its answer reaches the owner through the amicus, with the choices `land`, `rework-code` or `rework-tests` or `again` (run again with a direction), `back-to-planning` and `leave` | the review in block `land` or in any node of `gauntlet-run`; a landing with no review; an agent ruling on the review; the review reading more than the files above |
 | The summaries shown with the review | `write`'s hand-off `summary` (the plan summary and the approved revision summaries), carried by the tree run's `handoff` and node `cut` to `land`'s input `summary`, by `retree` to the re-mend run's input, and into `mend`'s input `summary`, which node `show` prints; the test line is composed by node `show` alone | any other node composing the summaries or the test line; either shown anywhere else |
 | What the owner sees and answers | on the tree run's id, or the re-mend run's, `repair`'s `ask`, in every iteration the owner has not ended: the case, the amicus's explanation verbatim, and for case `review` the test line, the plan and revision summaries, the diff stat and the commit messages, form `select`, options `discuss`, `rework-code`, `rework-tests`, `again`, `back-to-planning`, `leave` and, for case `review` only, `land`; the answer kept by `hear` in `gauntlet/mend/<slug>.direction.<n>.md` or `<slug>.reply.<n>.txt`; `gauntlet-run`'s id asks nothing of landing | any other wait or agent in `mend/` or `land/`; a wait in block `land`; a diff shown at `ask`; `land` offered on a case that is not `review` |
 | Which tree records reach the checkout | `record`'s five patterns | any other tree file copied, `gauntlet/mend/`, `gauntlet/items/` and `gauntlet/baseline/` included; a copy that overwrites a differing file |

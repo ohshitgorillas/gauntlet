@@ -303,3 +303,17 @@ Authority. Under D-79 the owner rules every group and no `/cad-decision-review` 
 Two choices of the executor, named under CLAUDE.md 3.2. G-125: the proposal said `enter` runs `scope.py`; a pack script is reached only by `mcp:` or a `.shared/` import (gauntlet-intake design, Homes row "Reaching a pack file from a run in any repository"), so `scope.py`'s function `marks` is imported by writing's `stage.py state` and the marks sit in `gauntlet/write/`, where `enter` (the only writer of `approved/`) is not a second writer. G-121: "unanswered" for `idle` is read as the file `<slug>.idle.K.md` for K one above the guard-record count, which an answer makes stale.
 
 Closed review of the pass-4 draft (`reviews/closed-4.md`): Q1 yes for G-120 to G-128; Q2 one medium, G-125 (a text-only step revision carried no `Stage <k>:` line, so `marks` put the step in stage 1). Fixed inside ruled option (b): `plan-review-design.md` Terms "Plan grammar" (the one home) now requires the line above every step a revision holds, and `scope.py` `marks(..., revision=True)` takes a revision's stage lines as given; `writing-design.md` `stage.py` and the reviser prompt point to it.
+
+## Pass 5 rulings (REVIEW-pass5.md, G-129 to G-131)
+
+Date: 2026-11-08. Option letters are those of `REVIEW-pass5.md` section 2; section 3 there holds the same rulings with their routes.
+
+Authority. Under D-79 the owner rules every group and no `/cad-decision-review` runs. The owner ruled each group in its own question through the ask-user seam and answered verbatim, option (b) each time. The drafted edits get one closed review before they are committed (D-79).
+
+| Group | D-NN | Ruling | By |
+|---|---|---|---|
+| G-129 | D-105 | (b) the change is judged where only the agent could have made it: writing's `result` saves and restores every uncommitted change after a wave, the mend checks the tree once after the mender and `pose` reads that check, and each brief-command run ends with the two restore commands | owner ("(b) Check after agent (Recommended)") |
+| G-130 | D-106 | (b) `stage.py result` writes `stage` into each blocks record, and node `changes` prints this stage's blocks files, which `final` is handed in place of the glob | owner ("(b) Stage field (Recommended)") |
+| G-131 | D-107 | (b) the home states that the set-aside keeps `approved/` as a subfolder, `test_back.py` pins it, and the defense reads `<slug>.txt` and each `<slug>.rev<N>.txt` of the stale `approved/` folder in order of N | owner ("(b) Layout + revisions (Recommended)") |
+
+Choices of the executor, named under CLAUDE.md 3.2: G-129, the mend's check is a new node `leftover` (`when` the iteration ran a mender, before `retest`), which takes over the patch and restore D-104 placed in `pose`; G-130, `stage` sits in every block record of a wave and `changes` prints the matching files as `blocks`; G-131, the layout sentence sits in `runtime-model-design.md`, "Hearing state". Closed-review fixes (reviews/closed-5.md), named under 3.2: the committed block's leftover patch reaches the owner through the review before landing (`changes` prints `leftovers`, `final-review` says per patch whether the branch carries the work), not through a new amicus case; `fence/checks.py` restores only the paths a run made and leaves every path dirty before the run, so no writer edit is deleted and the owner's rejected option (c) is not used.
