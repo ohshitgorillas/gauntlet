@@ -46,6 +46,7 @@ WRITE = _folders("FENCE_WRITE")
 DENY = _folders("FENCE_DENY") + [(d,) for d in ALWAYS_DENY_WRITE]
 ONCE = _folders("FENCE_ONCE")
 COPY = _folders("FENCE_COPY")
+HIDE = _folders("FENCE_HIDE")
 
 mcp = FastMCP("fence-files")
 
@@ -75,7 +76,9 @@ def _name(folder: Parts) -> str:
 
 
 def _resolve(path: str) -> tuple[str, Parts]:
-    """Return (real absolute path, parts relative to root); reject escapes."""
+    """Return (real absolute path, parts relative to root); reject escapes and
+    hidden paths. Every tool resolves first, so a hidden path is refused before
+    any other effect, and listings that skip a refused path skip a hidden one."""
     full = path if os.path.isabs(path) else os.path.join(ROOT, path)
     head, tail = full, []
     while not os.path.lexists(head):
@@ -85,7 +88,10 @@ def _resolve(path: str) -> tuple[str, Parts]:
     rel = os.path.relpath(real, ROOT)
     if rel == ".." or rel.startswith(".." + os.sep):
         raise PermissionError(f"{path}: resolves outside the project root")
-    return real, () if rel == "." else tuple(rel.split(os.sep))
+    parts: Parts = () if rel == "." else tuple(rel.split(os.sep))
+    if _covered(parts, HIDE):
+        raise PermissionError(f"{path}: hidden (FENCE_HIDE)")
+    return real, parts
 
 
 def _check_read(path: str, parts: Parts) -> None:
@@ -129,9 +135,22 @@ def _holds_file(real: str) -> bool:
     return False
 
 
+def _emptied(real: str, parts: Parts) -> bool:
+    """A folder with a hidden path below it that holds no other readable file."""
+    return (
+        os.path.isdir(real)
+        and any(len(parts) < len(h) and _segments(parts, h) for h in HIDE)
+        and not _holds_file(real)
+    )
+
+
 def _visible(real: str, parts: Parts) -> bool:
     """Readable, or a parent of a readable folder. Where a pattern entry is
     what makes a folder visible, the folder must hold a readable file."""
+    return _reads(real, parts) and not _emptied(real, parts)
+
+
+def _reads(real: str, parts: Parts) -> bool:
     for f in READ:
         if not _is_pattern(f):
             if parts[: len(f)] == f or f[: len(parts)] == parts:
@@ -148,11 +167,26 @@ def _visible(real: str, parts: Parts) -> bool:
 def _shown(real: str, parts: Parts) -> bool:
     """Readable and listable: a folder covered by a pattern entry only when it
     holds a readable file."""
-    return any(
+    return not _emptied(real, parts) and any(
         _matches(parts, f)
         and (not _is_pattern(f) or not os.path.isdir(real) or _holds_file(real))
         for f in READ
     )
+
+
+def _walkable(dirpath: str, dirs: list[str]) -> list[str]:
+    """The subfolders grep descends into: visible, never `.git`."""
+    keep = []
+    for name in sorted(dirs):
+        if name == ".git":
+            continue
+        try:
+            shown = _visible(*_resolve(os.path.join(dirpath, name)))
+        except PermissionError:
+            continue
+        if shown:
+            keep.append(name)
+    return keep
 
 
 def _rel(real: str) -> str:
@@ -223,11 +257,7 @@ def grep(regex: str, path: str = ".", glob: str | None = None) -> str:
     else:
         files = []
         for dirpath, dirs, names in os.walk(real):
-            dirs[:] = sorted(
-                d
-                for d in dirs
-                if d != ".git" and _visible(*_resolve(os.path.join(dirpath, d)))
-            )
+            dirs[:] = _walkable(dirpath, dirs)
             files += [os.path.join(dirpath, n) for n in sorted(names)]
     hits: list[str] = []
     for f in files:
