@@ -1,0 +1,77 @@
+{
+  "phase": "1",
+  "trigger": "plan",
+  "discriminator": "plan-a6b1070",
+  "round": 1,
+  "base": "a6b1070",
+  "head": "8f91dc7",
+  "base_id": "a6b1070bd0dac7808895aeaac355e582692f0466",
+  "head_id": "8f91dc7fe174d1b8d1500ed37fa29f9baf01ec8b",
+  "voices": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus"
+    }
+  ],
+  "citations": {
+    "checked": true
+  },
+  "entries": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-5.md",
+      "line": 66,
+      "severity": "medium",
+      "claim": "Task 2 only lets the executor edit D-96's list plus the lines AC6's grep hits, and says \"Touch no other line\". That leaves planning lines the ruling contradicts unedited, against D-02 and the Scope boundary (\"the PROJECT/ROADMAP/REQUIREMENTS lines a ruling contradicts\").",
+      "failure_scenario": "After the D-81 commit, three lines still state pre-ruling facts. ROADMAP.md:61 (Phase 4 SC1) still says the intake file route \"writes `gauntlet/tasks/<slug>.md` matching the file verbatim\", but D-86 replaces that with an item file checked against the item schema. ROADMAP.md:72 (Phase 5 SC1) still says `gauntlet/tasks/<slug>.md` is present in the worktree after the cut, but D-90 changes `copy-in` to copy the item file. REQUIREMENTS.md:71 (Out of Scope) still says \"A phase re-running an earlier phase ... revisions happen inside writing\", yet its twin PROJECT.md:40 is on D-96's list as contradicted by back to planning. None of these lines matches the AC6 grep. Task 2's Verify (`git diff -U0` changes only the named lines) would flag any fix to them as a defect. Phases 4 and 5 are then planned against success criteria the approved designs contradict. RUN-10 (`<slug>: final`) is in the same position if PLAN-4 Task 7 rules that each stage seals with its own subject.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "8f91dc7",
+      "base_id": "a6b1070bd0dac7808895aeaac355e582692f0466",
+      "head_id": "8f91dc7fe174d1b8d1500ed37fa29f9baf01ec8b"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-4.md",
+      "line": 143,
+      "severity": "medium",
+      "claim": "PLAN-4 narrows D-90 (\"every contract derived from the task path is re-specified on the item file\") to the examples D-90 names. Several other task-path derivations get no task, and no Verify in PLAN-4 or PLAN-5 greps for them.",
+      "failure_scenario": "These task-path derivations stay unchanged: landing-design.md:23 derives the checkout root from the tree run's `task` input \"without its trailing `/gauntlet/tasks/<slug>.md`\". Task 8 has no D-90 share. writing-design.md:130 takes the hearing's slug from INPUTS_TASK, and writing-design.md:396 has the `reviewer-spec` FENCE_READ on `gauntlet/tasks`. Task 7 moves only the coder's FENCE_HIDE. spec-review-design.md:349 has the `arbiter.mcp.json` FENCE_READ on `gauntlet/tasks`. Task 5 (line 112) moves only the speccer's FENCE_READ. Tasks 3 and 6 move the item file and `copy-in`'s copy, so these lines then name a path or derivation that no longer exists. PLAN-4 Tasks 5, 7 and 8 do not grep `gauntlet/tasks|INPUTS_TASK`. PLAN-5 Task 4's and Task 6's greps (`commands/juror\\.md|mend-juror|DEFECTIVE|gauntlet/failed|task-format\\.md`) do not catch them either. So the D-81 commit can land designs whose landing checkout root and reviewer and arbiter fences still assume the task path.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "8f91dc7",
+      "base_id": "a6b1070bd0dac7808895aeaac355e582692f0466",
+      "head_id": "8f91dc7fe174d1b8d1500ed37fa29f9baf01ec8b"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-4.md",
+      "line": 98,
+      "severity": "medium",
+      "claim": "D-91 says the plan-step grammar and its added-scope mark are \"read by the divvyer\", but no task makes writing-design, the divvyer's home, state that read. Task 4 instead writes the divvyer's read into plan-review-design, which restates a writing fact outside its home (D-61).",
+      "failure_scenario": "Task 7's D-91 writing share (line 142) covers only the paths mark and the within-stage rule, and Task 7's Verify does not check that the divvyer reads item ids or the added-scope mark. After PLAN-4, `write/commands/divvyer.md` in writing-design takes no item-id or added-scope input, so the divvyer cuts blocks blind to added scope. PLAN-5 Task 1's new grammar row also lists only the designs that name the read, so writing is left out of a contract D-91 says it reads.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "8f91dc7",
+      "base_id": "a6b1070bd0dac7808895aeaac355e582692f0466",
+      "head_id": "8f91dc7fe174d1b8d1500ed37fa29f9baf01ec8b"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": ".planning/phases/1/PLAN-6.md",
+      "line": 94,
+      "severity": "low",
+      "claim": "Task 4 says to find the hash for an `unsupported` owner-control row with `git log -S` on the replaced form. The seven designs never held that form, because PLAN-4 drafted the documented form directly, so the search finds no commit.",
+      "failure_scenario": "Suppose PLAN-4 Task 1 rules the multi-turn amicus wait `unsupported`. Tasks 7 and 8 then write the replacement form straight into the drafts, so the D-81 commit adds the replacement form and never removes the replaced one. `git log -S '<replaced form>' -- docs/superpowers/specs/*-design.md` then returns no commit, or a pre-ruling commit unrelated to the row. The executor cannot get the AC4 hash by the stated method, unless it falls back to the D-81 commit, which the plan does not name.",
+      "ruling": "survived",
+      "convergent": false,
+      "fix_commit": "8f91dc7",
+      "base_id": "a6b1070bd0dac7808895aeaac355e582692f0466",
+      "head_id": "8f91dc7fe174d1b8d1500ed37fa29f9baf01ec8b"
+    }
+  ]
+}
