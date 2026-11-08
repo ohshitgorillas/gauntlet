@@ -28,3 +28,6 @@ watch = 400
 cap = 15
 cap_tests = 30
 exclude = ["__init__.py"]
+
+[tool.coverage.run]
+omit = ["**/test_*.py", "**/tests/**"]
