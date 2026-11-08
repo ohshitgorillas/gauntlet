@@ -68,7 +68,7 @@ Finding: the `talk` group's `until_bash` reads `put`, which iteration 1 always s
 Text: "the refusal $LOOP_PREV.put.output.refusal".
 Finding: in iteration 2 `$LOOP_PREV.put` is iteration 1's skipped `put`, so a `put-open` refusal never reaches Clerk, against `:263` ("the refusal reaches Clerk's next turn"): one more refused turn and owner answer. `show` (`:235`, "the refusal (put's, else put-open's)") keeps showing the stale opening refusal on later turns where `put` succeeds with refusal "".
 
-**2.13** `gauntlet-intake-design.md:138`, contract `put`'s `output_format` (`:204`, `:230`). New, high. Group G-74.
+**2.13** `gauntlet-intake-design.md:138`, internal to intake (contract `put`'s `output_format`, `:204`, `:230`). New, high. Group G-74.
 Text: "draft \"\" or slug \"\": writes nothing."
 Finding: the branch states no stdout, while `put-open` and `put` require `{ slug, task, refusal }`. In the common opening case (first reply asks questions, draft ""), `put-open` fails its `output_format` and the Clerk route stops before the owner sees the first reply, unless `put` prints `{ slug: "", task: "", refusal: "" }`.
 
