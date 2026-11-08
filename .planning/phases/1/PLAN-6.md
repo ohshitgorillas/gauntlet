@@ -40,7 +40,8 @@ The seven designs under `docs/superpowers/specs/` are made consistent with each 
 
 - Runs after Plan 5's D-81 commit. Round 4 adds only the full read, because Plan 5 Task 5's closed review was its diff half (D-84, D-79). D-60's bar holds: a pass with no new high or medium finding converges. A low finding is recorded, ruled and fixed, and starts no new pass.
 - D-79 governs every ruling round. The owner rules every group through the ask-user seam, and `/cad-decision-review` is not run. The executor drafts the edits uncommitted. One closed review reads the draft diff. The executor applies only its high and medium fixes, runs the D-63 grep and commits. D-61 and D-62 hold. D-02 holds: a ruling that contradicts a planning line edits that line in the same commit.
-- CLAUDE.md 1.9 binds every Archon run here. The D-64 validation of the designed YAML runs only after the owner approves that run, and the main session dispatches it, not the executor.
+- CLAUDE.md 1.9 binds every Archon run here. D-64 is void (D-97): no validation run of the designed YAML.
+- D-97 binds the round-4 review shape. No reviewer per design, in parallel or one at a time; no single reviewer over all seven designs; no reviewer over the round-3 changes only. No shape is ruled yet.
 - The executor cannot dispatch agents or ask the owner. Tasks 1 and 2 stop for the main session by checkpoint, as PLAN-3 Task 3 did.
 - Standing checks: as Plan 4's Context states. Pre-commit also runs before every commit. Testing scope: documentation only, as Plan 4 states.
 
@@ -51,14 +52,10 @@ The seven designs under `docs/superpowers/specs/` are made consistent with each 
 - **Files:** .planning/phases/1/
 - **Action:**
   - Re-derive the build-order graph over the seven `## Order` sections. Check it for dependency cycles and for steps that need a file no earlier step builds, as `reviews/convergence-graph-3.md` did. Write the graph as the next `reviews/convergence-graph-<n>.md`.
-  - Return a `decision` checkpoint whose Need asks the main session for two things:
-    - Dispatch `cad-reviewer` at opus once per design, for a full read hunting high and medium defects under D-60. The brief carries `contracts.md` row ids, the ruled groups of `REVIEW-pass1.md` to `REVIEW-pass3.md` and the RULINGS.md owner-control section. Each finding is then marked as matching a ruled group, or as new. Each finding carries a design anchor (file, heading or node, and line) and either a `contracts.md` row id or "internal to <design>" (D-04).
-    - Ask the owner to approve the D-64 run. A spiker copies the designs' YAML into a scratch folder outside the pack and runs `archon validate workflows` there. If the owner approves, dispatch it. A load error it reports is a finding.
-  - The brief carries rule 1.9.
-  - On continuation, save each return as `reviews/conv4-<design>.md`, and the spiker's output beside them.
+  - Return a `decision` checkpoint whose Need asks the main session to get the round-4 review shape from the owner (D-97). The checkpoint dispatches nothing, and offers none of D-97's rejected shapes.
+  - The review this task runs is the shape the owner rules. Each finding is marked as matching a ruled group, or as new. Each finding carries a design anchor (file, heading or node, and line) and either a `contracts.md` row id or "internal to <design>" (D-04).
   - If the pass returned any new finding, write `REVIEW-pass<k>.md`, k being 4 for this pass. Group the new findings by root cause (D-62), starting from the next free G id. Each group carries its severity, its members' anchors and its row citations.
-  - If the owner does not approve the D-64 run, record that, and do not stop.
-- **Verify:** The graph file exists and states its cycle check and its missing-file check. One `reviews/conv4-<design>.md` exists per design. Either `REVIEW-pass4.md` exists, and every finding in it has an anchor and a row id or "internal to" (a grep counting findings that lack one prints 0), or the pass returned no new finding and no pass file is written. Plus the standing checks.
+- **Verify:** The graph file exists and states its cycle check and its missing-file check. The review's return is saved under `reviews/`. Either `REVIEW-pass4.md` exists, and every finding in it has an anchor and a row id or "internal to" (a grep counting findings that lack one prints 0), or the pass returned no new finding and no pass file is written. Plus the standing checks.
 
 ### Task 2: Rule and apply each round's findings until a pass converges
 
@@ -81,12 +78,11 @@ The seven designs under `docs/superpowers/specs/` are made consistent with each 
 - **Files:** .planning/phases/1/REVIEW-convergence.md
 - **Action:**
   - Write `REVIEW-convergence.md`, dated, for the pass that converged. It holds:
-    - One section per design dispatch.
+    - One section per design, covering all seven.
     - The graph check.
-    - The D-64 validation result, or the owner's refusal of that run.
     - Each finding the pass returned, with the group and ruling it matches. A low finding of that pass appears with the group that fixed it (D-60).
   - Commit it alone, after the last ruling commit (AC3).
-- **Verify:** The file holds the seven design sections, the graph check and the D-64 line. A count of high or medium findings without a ruled group prints 0. `git log -1 --format=%ct -- .planning/phases/1/REVIEW-convergence.md` is later than `git log -1 --format=%ct -- docs/superpowers/specs/*-design.md` at its commit. Plus pre-commit and the standing checks.
+- **Verify:** The file holds the seven design sections and the graph check. A count of high or medium findings without a ruled group prints 0. `git log -1 --format=%ct -- .planning/phases/1/REVIEW-convergence.md` is later than `git log -1 --format=%ct -- docs/superpowers/specs/*-design.md` at its commit. Plus pre-commit and the standing checks.
 
 ### Task 4: Close the section A verdicts
 
