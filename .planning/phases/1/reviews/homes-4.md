@@ -50,9 +50,15 @@ Plan 7 Task 1 ran every token over the seven designs, `runtime-model-design.md` 
 | The plan review defense's deny list (F1) | `gauntlet/plans/*.review.*.txt:gauntlet/plans/*.ruling.*.txt` | `plan-review-design.md`, section `plan-review/defense.mcp.json` | 0 |
 | The stage bound | `STAGES = 3` | `gauntlet-design.md`, heading "Stages" | 0 |
 | The back-to-planning direction copy | `gauntlet/back/<slug>.<n>.direction.md` | `gauntlet-design.md`, heading "Back to planning" | 0 |
+| Pass 4, G-120 (D-99): `docket` answers `none` when `owed` is `ended` | ``` `none` when `owed` is `ended` ``` | RM, Ledger | 0 |
+| Pass 4, G-121 (D-100): a pending `idle` ask is owed `owner` while its idle file is current | `K one above the guard-record count` | RM, Hearing state | 0 |
+| Pass 4, G-122: the leftover patch holds binary content | `git diff --binary HEAD` | RM, Commit model | 0 |
+| Pass 4, G-124 (D-101): `close`'s `file` and `summary` are bare names | ``is the bare name `<slug>.N.txt` `` | RM, Ledger | 0 |
+| Pass 4, G-125 (D-102): the scope marks of an approved plan revision | `scope.rev<M>.txt` | `writing-design.md`, Terms (Files in `gauntlet/write/`) | 0 |
+| Pass 4, G-128 (D-104): the mend's leftover patch | `.leftover.<k>.patch` | RM, Commit model | 0 |
 
 ## Candidates
 
 Disagreements between copies that no ruling settles. The home states the value of the design whose `## Homes` table names it as home; Plan 7 puts each to the owner.
 
-1. An uncommitted mend. Copies: `writing-design.md` `write/scripts/stage.py` `result` writes the block's uncommitted changes as `gauntlet/write/<slug>.leftover.<move>.patch` and restores the tree to `HEAD` (D-68, ruled for writing); `landing-design.md` `mend/mend.yaml` node `pose` counts an uncommitted mend as case `commit-failed` and leaves the tree as it is, and the mend never resets or discards a commit. D-68 rules writing's blocks only. Row id: none yet (a restore or leftover patch for the mender's uncommitted edits is a cross-design contract with no row). Home written: `runtime-model-design.md`, Commit model, states both behaviours as they are.
+1. (Ruled: G-128, D-104, option (b), 2026-11-08; the home now states the mend's handling.) An uncommitted mend. Copies: `writing-design.md` `write/scripts/stage.py` `result` writes the block's uncommitted changes as `gauntlet/write/<slug>.leftover.<move>.patch` and restores the tree to `HEAD` (D-68, ruled for writing); `landing-design.md` `mend/mend.yaml` node `pose` counts an uncommitted mend as case `commit-failed` and leaves the tree as it is, and the mend never resets or discards a commit. D-68 rules writing's blocks only. Row id: none yet (a restore or leftover patch for the mender's uncommitted edits is a cross-design contract with no row). Home written: `runtime-model-design.md`, Commit model, states both behaviours as they are.

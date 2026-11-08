@@ -46,6 +46,7 @@ Files in `gauntlet/write/`:
 | `<slug>.amicus.N.md` | node `amicus` | the amicus's explanation of the case at move N, rewritten each turn; no move counts it |
 | `<slug>.ruling.N.txt` | `stage.py record` | the owner's reply to a `cap` case, verbatim; once |
 | `<slug>.leftover.N.patch` | `stage.py result` | `runtime-model-design.md`, "Commit model" |
+| `<slug>.scope.rev<M>.txt` | `stage.py state` | the scope marks of the approved plan revision `approved/<slug>.rev<M>.txt`, once; no move counts it; read by `stage.py`, the divvyer and the review before landing |
 
 Files in `gauntlet/revisions/`: `<slug>.N.txt` (reviser), `<slug>.review.N.txt` (reviewer, or `ledger.py screen` for `SCREENED`), `<slug>.ruling.N.txt` (`stage.py record`), `<slug>-summary.N.md` (reporter), each as `runtime-model-design.md`, "Hearing state", rules them.
 
@@ -116,13 +117,19 @@ Writing's progress: what is owed next, the cut and wave records, red, the paths 
 #   the one derivation (worktree cut design). Every rounds.state and rounds.docket call passes first (runtime-model-design.md, "Hearing state"): the round after
 #   the latest closed round, 1 when none, so each revision hearing in gauntlet/revisions/ starts there.
 #   Stage (Terms): every rule below reads only files whose move is above START, the highest move when the block began; the
-#   stage's plan steps are the steps of approved/<slug>.scope.txt (plan review design) whose stage is INPUTS_STAGE, and the
-#   counters of move and round continue above whatever the tree already holds.
+#   stage's plan steps are the steps of approved/<slug>.scope.txt (plan review design) whose stage is INPUTS_STAGE, then those
+#   of each gauntlet/write/<slug>.scope.rev<M>.txt (the marks of an approved plan revision; Terms, Files in `gauntlet/write/`) in order of M, a step of
+#   a later file replacing the step of the same number, and the counters of move and round continue above whatever the tree
+#   already holds. A plan revision carries the `Stage <k>:` line above every step it holds, a text-only change included (plan review design, Terms "Plan grammar").
 
 def open_() -> dict: ...          # mode "open", before the loop: { "start": highest move, 0 when none, "base": lines of <slug>.iter.txt }
 
 def state(start: int) -> dict: ...
-# Each call appends one line to gauntlet/write/<slug>.iter.txt (state runs once per iteration), holding the highest move
+# Each call first writes, for each gauntlet/plans/approved/<slug>.rev<M>.txt that has no gauntlet/write/<slug>.scope.rev<M>.txt, that
+#   file (Terms, Files in `gauntlet/write/`): plan-review/scripts/scope.py's function `marks` over the revision and the item file, `revision=True` (imported relative to this file, as
+#   .shared/ is; the one parse of the plan grammar, plan review design Homes row "The plan grammar"), the Files-table line
+#   unchanged. It is read from the approved files, so a failure resume that lost it writes it again.
+#   It then appends one line to gauntlet/write/<slug>.iter.txt (state runs once per iteration), holding the highest move
 #   and rounds.state's round, owed and guard-record count, which docket counts.
 # { "next": "divvy" | "tests" | "code" | "test" | "seal" | "amicus" | "revise" | "review" | "none",
 #   "move": int,                  # the next move's N
@@ -204,7 +211,10 @@ def record(round: int, case: str, decision: str, text: str) -> dict: ...
 #   of gauntlet/write/. amicus: decision discuss records nothing; any other decision writes <slug>.direction.N.md (Terms),
 #   N the case's move, line 1 `Rework: ` and tests, code, spec, plan or planning for rework-tests, rework-code, revise-spec,
 #   revise-plan or back-to-planning, line 2 `Landed: ` and INPUTS_STAGE less one, the owner's text verbatim after a blank line.
-#   stdout { "enter": tree path of the round file when decision approves a review case, else "" }.
+#   stdout { "enter": tree path of the round file of the earliest approve ruling (a case review, decision approve) that no
+#   `approved/<slug>.rev<N>.txt` of its kind holds yet, else "" } (the Mth approve ruling of kind plan or spec, in order of
+#   round, against M - 1 revision files of that kind). It is read from the rulings and the approved files on every call, not from
+#   this call's decision, so the iteration after the approval and the first iteration of a failure resume both enter the revision.
 
 def close() -> dict: ...
 # { "outcome": "written" | "planning", "direction": absolute path of the latest direction when outcome is planning, "" when written,
@@ -224,7 +234,7 @@ Each starts a fresh session, primed from files. Replace nothing.
 ```markdown
 divvyer.md
 Inputs: the cause, the stage, the problems of the latest rejected cut, the plan files, the spec files, the plan's scope
-marks (approved/<slug>.scope.txt; the plan review design gives the step grammar and the marks), every earlier cut and blocks file, every direction and writing ruling.
+marks (approved/<slug>.scope.txt and each gauntlet/write/<slug>.scope.rev<M>.txt (Terms, Files in `gauntlet/write/`) in order of M; the plan review design gives the step grammar and the marks), every earlier cut and blocks file, every direction and writing ruling.
 Output the waves: test waves before code waves; one block per related set of specs or plan steps; blocks of one
 wave share no path; a block that needs another's files sits in a later wave. Cut only the stage's own steps and the
 specs they serve, never across a stage. Read each step's item ids and its mark in the scope marks: a step marked "added
@@ -240,7 +250,7 @@ reviser.md
 Inputs: round N, kind (plan or spec), the tree path the round answers, the plan files, the spec files, every
 revision ruling, every direction, the latest review (may be "").
 Write gauntlet/revisions/<slug>.N.txt: "Revises: <kind>", "Answers: <path>", then each clause it changes as it
-now reads, nothing else. Answering a direction: what the owner's words ask, and nothing past it. Following a plan
+now reads, nothing else; a plan step it writes sits under its `Stage <k>:` line (plan review design, Terms "Plan grammar"). Answering a direction: what the owner's words ask, and nothing past it. Following a plan
 revision: only the specs it affects, or "No change.". Latest review OBJECTION: LEADING or SCREENED: the previous
 round with the quoted text removed, nothing else changed. A spec revision holds no source text.
 Never tell the reviewer how to rule. Never paraphrase the owner's words.
@@ -439,10 +449,10 @@ nodes:
           script: stage
           with: { mode: record, start: $open.output.start,
                   round: $LOOP_PREV.docket.output.round, case: $LOOP_PREV.docket.output.case,
-                  decision: { from: $LOOP_PREV.bench.output.decision, if_skipped: "" },
-                  text: { from: $LOOP_PREV.bench.output.text, if_skipped: "" } }
+                  decision: $LOOP_PREV.bench.output.decision,
+                  text: $LOOP_PREV.bench.output.text }          # the string form: a `from:` directive cannot read $LOOP_PREV (loop-nodes.md:812-816); "" on iteration 1 and after a skipped bench
 
-        - id: enter                    # gauntlet-design.md's node
+        - id: enter                    # gauntlet-design.md's node, run off the approve ruling on file (`record`'s enter), as plan and spec review's `enter` runs off `close`
           depends_on: [record]
           when: "$record.output.enter != ''"
           bash: <as gauntlet-design.md gives it, for the round file $record.output.enter; its "Revises:" line names plans or specs>
@@ -633,7 +643,7 @@ env:
 
 1. Commits and settings in the fence: `fence/files.py` (`commit`, `FENCE_COMMIT`, `@base`), `fence/checks.py` (settings, `FENCE_CUT`), `fence/test_files_commit.py`, `fence/test_settings.py`. Needs `gauntlet-design.md`'s steps 5 and 6. Agent: `builder`.
 2. Writing's ledger: `write/scripts/ledger.py`, `write/tests/test_ledger.py`. Needs the spec review design's step 1. Agent: `builder`.
-3. Writing's stage: `write/scripts/stage.py`, `write/tests/test_stage.py`. Needs step 2 and `gauntlet-design.md`'s step 6. Agent: `builder`.
+3. Writing's stage: `write/scripts/stage.py`, `write/tests/test_stage.py`. Needs step 2, `gauntlet-design.md`'s step 6 and the plan review design's step 2 (`marks`). Agent: `builder`.
 4. Roles: `write/commands/divvyer.md`, `write/commands/reviser.md`, `write/commands/reviewer.md`, `write/commands/reporter.md`, `amicus/commands/amicus.md`, `write-tests/commands/test-writer.md`, `write-code/commands/coder.md`. Agent: `role-author`.
 5. Screen reads revisions and the amicus block: `screen/screener.mcp.json`, `screen/screen.yaml`, `amicus/amicus.yaml`, `amicus/amicus.mcp.json`, `amicus/fixtures/explain.stubs.yaml`. Needs the spec review design's step 5 and this design's step 4. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.
 6. Writer blocks: `write-tests/write-tests.yaml`, `write-tests/test-writer.mcp.json`, `write-tests/fixtures/committed.stubs.yaml`, `write-tests/fixtures/contest.stubs.yaml`, `write-tests/fixtures/blocked.stubs.yaml`, `write-code/write-code.yaml`, `write-code/coder.mcp.json`, `write-code/fixtures/committed.stubs.yaml`, `write-code/fixtures/contest.stubs.yaml`, `write-code/fixtures/blocked.stubs.yaml`. Needs steps 1 and 4. `archon workflow list --json` and `archon validate workflows` pass from the pack root. Agent: `workflow-builder`.

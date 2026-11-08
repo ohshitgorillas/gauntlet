@@ -281,3 +281,25 @@ Clean, Q1 yes and Q2 none, no change: D-80 (gauntlet, intake, landing, spec-revi
 | 4. Intake D-86 | every fix the intake review names is applied, the empty-`$ARGUMENTS` rule included | see the intake rows above |
 
 Two choices of the executor, named under CLAUDE.md 3.2. The `INPUTS_REPLY` carrier for the empty-`$ARGUMENTS` rule is the smallest wiring the reviewer's sentence needed (`talk`'s `put` gets `reply:` and `points: $turn.output.points`); the reviewer named the rule, not the carrier. The deferred-file rename was applied at every place that names the file, not only at the two the reviewer cited.
+
+## Pass 4 rulings (REVIEW-pass4.md, G-120 to G-128)
+
+Date: 2026-11-08. Option letters are those of `REVIEW-pass4.md` section 2; section 3 there holds the same rulings with their routes.
+
+Authority. Under D-79 the owner rules every group and no `/cad-decision-review` runs. The owner ruled all nine groups in one question through the ask-user seam, each group with option (b) as the recommendation, and answered verbatim: "All as recommended". The drafted edits get one closed review before they are committed (D-79).
+
+| Group | D-NN | Ruling | By |
+|---|---|---|---|
+| G-120 | D-99 | (b) `docket` answers `none`, nothing asked, when `owed` is `ended`, listed with `vacant` ahead of every owner case and every bound | owner ("All as recommended") |
+| G-121 | D-100 | (b) `owed` is `owner` also for an unanswered `guard` or `idle` ask, read from the counts and from `<slug>.idle.K.md` (`cap` not carried); writing's `enter` runs off the approve ruling on file | owner ("All as recommended") |
+| G-122 | - | (b) the leftover patch is written with `git diff --binary HEAD` and `--binary` on each new-file diff | owner ("All as recommended") |
+| G-123 | - | (b) writing's `record` binds `decision` and `text` in the string form `$LOOP_PREV.bench.output.<field>`, as plan review's `record` does | owner ("All as recommended") |
+| G-124 | D-101 | (b) the home states `close`'s `file` and `summary` as the bare `<slug>.N.txt` and `<slug>-summary.N.md` | owner ("All as recommended") |
+| G-125 | D-102 | (b) an entered plan revision gets scope marks (`marks` of `scope.py`, run by writing's `stage.py state` into `gauntlet/write/<slug>.scope.rev<M>.txt`), read by the stage cut, the divvyer and the review before landing | owner ("All as recommended") |
+| G-126 | D-103 | (b) node `final` stays; the final file joins the amicus's file list in a new node `files` after `final` | owner ("All as recommended") |
+| G-127 | - | (b) gauntlet `## Order` steps 3 and 4 swapped so no step needs a later one; the plan and spec review `guard.ts` steps name the intake design's step 3 | owner ("All as recommended") |
+| G-128 | D-104 | (b) the mend saves its uncommitted edits as `gauntlet/mend/<slug>.leftover.<k>.patch` and restores the tree to the committed tip, as writing does | owner ("All as recommended") |
+
+Two choices of the executor, named under CLAUDE.md 3.2. G-125: the proposal said `enter` runs `scope.py`; a pack script is reached only by `mcp:` or a `.shared/` import (gauntlet-intake design, Homes row "Reaching a pack file from a run in any repository"), so `scope.py`'s function `marks` is imported by writing's `stage.py state` and the marks sit in `gauntlet/write/`, where `enter` (the only writer of `approved/`) is not a second writer. G-121: "unanswered" for `idle` is read as the file `<slug>.idle.K.md` for K one above the guard-record count, which an answer makes stale.
+
+Closed review of the pass-4 draft (`reviews/closed-4.md`): Q1 yes for G-120 to G-128; Q2 one medium, G-125 (a text-only step revision carried no `Stage <k>:` line, so `marks` put the step in stage 1). Fixed inside ruled option (b): `plan-review-design.md` Terms "Plan grammar" (the one home) now requires the line above every step a revision holds, and `scope.py` `marks(..., revision=True)` takes a revision's stage lines as given; `writing-design.md` `stage.py` and the reviser prompt point to it.

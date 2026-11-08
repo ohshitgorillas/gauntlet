@@ -14,7 +14,7 @@ What the designs hold for the concerns landing touches:
 
 - Running a test command from a bash node: 2 designed copies of one invocation, `timeout -k 10 <timeout> nice -n 10 bash -c <brief> < /dev/null` in the tree's root, `brief` and `timeout` read from the tree's `gauntlet/settings.json`, writing `exit=<n> timed_out=<true|false>` then the output: node `baseline` of the tree run (worktree cut design), and node `test` of writing. The mend's three test nodes make 5. `fence/checks.py` runs a test command for agents only, as an MCP tool, so no bash node can call it. Named scripts resolve only from a workflow's own `scripts/`, and the repository's `env:` is measured to reach bash nodes only, so no shared runner can hold the invocation. Its one home is node `baseline`'s invocation and file format, which every other node uses verbatim.
 - Red against the brief baseline: 1 home, `.shared/red.py` (`gauntlet-design.md`). The mend calls it through `mend/scripts/verify.py` and parses no listing.
-- Copying a file only when absent or identical: 3 designed copies of one rule, node `copy-in` of the tree run (worktree cut design), node `copy-in` of the re-mend run (the previous tree's `gauntlet/` into the new tree, the first mend's `gauntlet/mend/<slug>.direction.*`, `.amicus.*`, `.final.*`, `.review.*`, `.reply.*`, `.grounds.*`, `.changes.*`, `.mended.*` and `.rebased.*` files excepted) and landing's `record`, which applies the rule in the other direction, tree to checkout.
+- Copying a file only when absent or identical: 3 designed copies of one rule, node `copy-in` of the tree run (worktree cut design), node `copy-in` of the re-mend run (the previous tree's `gauntlet/` into the new tree, the first mend's `gauntlet/mend/<slug>.direction.*`, `.amicus.*`, `.final.*`, `.review.*`, `.reply.*`, `.grounds.*`, `.leftover.*`, `.changes.*`, `.mended.*` and `.rebased.*` files excepted) and landing's `record`, which applies the rule in the other direction, tree to checkout.
 - Rebase, fast-forward and branch removal: no copy. No other Gauntlet file rebases, merges or removes a branch.
 - Creating a branch at a tree's tip for Archon to cut a tree on: 1 home, `.shared/pin.py` (worktree cut design), called by `gauntlet-run/scripts/pin.py` for the first tree and by `land/scripts/pin.py` for each second tree.
 - Fences for an agent writing code or tests: 2 designed copies, `write-code/coder.mcp.json` and `write-tests/test-writer.mcp.json` (writing design), both rooted at the agent's own working folder, the tree. The mend's two writers take their settings verbatim, plus read access to `gauntlet/mend`.
@@ -197,11 +197,10 @@ nodes:
           bash: <hear ended it: end is hear's. A `discuss` answer keeps $LOOP_PREV.pose.output.case and its files. Else end "", and the case, first that holds: red (recheck red, or in the first
                 iteration confirm red); contest or commit-failed (this iteration's mender outcome; the grounds written by cp -n to
                 gauntlet/mend/$INPUTS.slug.grounds.$hear.output.n.txt, an uncommitted mend, git status --porcelain not empty,
-                gauntlet/ excluded, counting as commit-failed); unsound (this iteration's review is UNSOUND); else review (the tree
+                gauntlet/ excluded, counting as commit-failed; its leftover patch and the restore of the tree to HEAD, before the case is read: runtime-model-design.md, "Commit model", "The mend's uncommitted edits"); unsound (this iteration's review is UNSOUND); else review (the tree
                 is landable: not red, nothing uncommitted, the latest committed mend, when there is one, reviewed SOUND).
                 files = newline-separated tree paths the amicus reads: the latest run file and head file, the changes file, the
-                latest direction file, the grounds file, the review or mended file of the case, for case review gauntlet/mend/$INPUTS.slug.final.<k>.txt (k this
-                iteration's n or, after a discuss, the latest final file), each when there is one.
+                latest direction file, the grounds file, the leftover patch gauntlet/mend/$INPUTS.slug.leftover.$hear.output.n.patch, the review or mended file of the case, each when there is one (the review before landing's file is added by node `files`, once `final` has written it).
                 options: discuss, rework-code, rework-tests, again, back-to-planning, leave, and land when the case is review.
                 print { end, case, files, options }>
           output_format: <object: end ("" | done | left | planning), case (string), files (string), options (array of { id, label }), all required>
@@ -214,15 +213,23 @@ nodes:
           allowed_tools: []
           mcp: final-review.mcp.json
           prompt: <the file to write, gauntlet/mend/$INPUTS.slug.final.$hear.output.n.txt; stage $INPUTS.stage; the item file
-                  gauntlet/items/$INPUTS.slug.md; the approved plan files and gauntlet/plans/approved/$INPUTS.slug.scope.txt;
+                  gauntlet/items/$INPUTS.slug.md; the approved plan files, gauntlet/plans/approved/$INPUTS.slug.scope.txt and gauntlet/write/$INPUTS.slug.scope.rev*.txt;
                   the blocks files gauntlet/write/$INPUTS.slug.blocks.*.json; the changes file $changes.output.file>
 
-        - id: amicus                   # the shared amicus block (writing design, "Amicus"): briefs the owner, rules on nothing
+        - id: files                    # the files the amicus reads: pose's, and for case review the review before landing's file, which exists only once final has run
           depends_on: [pose, final]
           trigger_rule: none_failed_min_one_success
           when: "$pose.output.end == ''"
+          bash: <print { files }: $pose.output.files, then, for case review, gauntlet/mend/$INPUTS.slug.final.<k>.txt (k this
+                iteration's n or, after a discuss, the latest final file), each when there is one>
+          output_format: <object: files (string), required>
+
+        - id: amicus                   # the shared amicus block (writing design, "Amicus"): briefs the owner, rules on nothing
+          depends_on: [pose, files]
+          trigger_rule: none_failed_min_one_success
+          when: "$pose.output.end == ''"
           include: amicus
-          with: { slug: $INPUTS.slug, case: $pose.output.case, files: $pose.output.files,
+          with: { slug: $INPUTS.slug, case: $pose.output.case, files: $files.output.files,
                   record: gauntlet/mend/$INPUTS.slug.amicus.$hear.output.n.md, words: $LOOP_PREV.ask.output.text }
 
         - id: show                     # what the owner reads at ask
@@ -420,7 +427,7 @@ nodes:
   - id: copy-in                        # the only writer of this tree's gauntlet/
     depends_on: [guard, branch-check]
     bash: <$INPUTS.from/gauntlet absent: exit non-zero naming it. Every file under it, gauntlet/settings.json included, but
-          gauntlet/mend/$INPUTS.slug.direction.*, .amicus.*, .final.*, .review.*, .reply.*, .grounds.*, .changes.*, .mended.* and .rebased.*, to the same path under this
+          gauntlet/mend/$INPUTS.slug.direction.*, .amicus.*, .final.*, .review.*, .reply.*, .grounds.*, .leftover.*, .changes.*, .mended.* and .rebased.*, to the same path under this
           tree: absent: cp -n; identical (cmp): nothing; differing: exit non-zero naming both paths, nothing more copied>
 
   - id: paths
@@ -539,7 +546,7 @@ Suite: `mend/tests/test_verify.py`, run as `docs/testing.md` states with the fol
 | The commit the mend rebases onto | `mend`'s node `onto`'s `head`, by `git -C $INPUTS.checkout rev-parse HEAD`, read by `rebase`, the test nodes, `repair` and `handoff` | any other tree-run or re-mend-run node reading the checkout's `HEAD` |
 | Re-mending when the checkout moved | block `land`'s nodes `onto` (the check), `repin`, `retree` and `cur`, within the landing rounds' bound (`runtime-model-design.md`, "Loop shape and bounds"); `gauntlet-remend` running block `mend` only, in a second tree | a re-mend by any other node; a re-mend in the tree of the run before it; a rebase, test run or agent in `land/` |
 | The second tree's branch | `land/scripts/pin.py` over `.shared/pin.py`, creating the branch Archon will name for node `<round>__retree` at the tip of the tree's branch | any other node or script composing that name or creating that branch |
-| What the second tree holds | node `copy-in` of `gauntlet-remend`, the previous tree's `gauntlet/` by `cp -n` semantics, `settings.json` included, but `gauntlet/mend/<slug>.direction.*`, `.amicus.*`, `.final.*`, `.review.*`, `.reply.*`, `.grounds.*`, `.changes.*`, `.mended.*` and `.rebased.*` | an agent or other node writing the second tree's `gauntlet/` before `mend`; a differing file overwritten |
+| What the second tree holds | node `copy-in` of `gauntlet-remend`, the previous tree's `gauntlet/` by `cp -n` semantics, `settings.json` included, but `gauntlet/mend/<slug>.direction.*`, `.amicus.*`, `.final.*`, `.review.*`, `.reply.*`, `.grounds.*`, `.leftover.*`, `.changes.*`, `.mended.*` and `.rebased.*` | an agent or other node writing the second tree's `gauntlet/` before `mend`; a differing file overwritten |
 | The commit landing lands against | `land`'s node `onto`'s `head`, read by `show` and `merge` | any other `land/` node reading the checkout's `HEAD`, `merge`'s ancestry check excepted |
 | Rebasing the tree's branch | `mend`'s node `rebase`, `git rebase <head> <branch>` in the tree | any other rebase, reset, amend, squash or history rewrite in a Gauntlet file; a rebase in the checkout; a rebase aborted by Gauntlet |
 | Whether the mend reruns tests | `onto`'s `moved` for `test-tree`; `red`'s answer, or `onto`'s `unreviewed`, for `test-head`; a committed mend or a run again for `retest` | a retest with no committed mend and no run again; a test run when the checkout's `HEAD` is in the branch's history, except after a first pass's rebase, marked by `gauntlet/mend/<slug>.rebased.<head>`; a head run when the rebased tree is not red without it and no mend awaits review; a test run in the checkout |
