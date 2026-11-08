@@ -1,4 +1,4 @@
-Status: proposed.
+Status: approved.
 
 # Gauntlet worktree cut
 
