@@ -83,7 +83,7 @@ Explicit exclusions. The reason prevents scope creep later.
 | REV-03 | Phase 1 | Complete |
 | REV-05 | Phase 1 | Complete |
 | CORE-05 | Phase 2 | Pending |
-| CORE-06 | Phase 2 | Pending |
+| CORE-06 | Phase 4 | Pending |
 | CORE-01 | Phase 2 | Pending |
 | CORE-02 | Phase 2 | Pending |
 | CORE-03 | Phase 2 | Pending |

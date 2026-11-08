@@ -35,7 +35,7 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 ### Phase 2: Test gate and shared layer
 **Goal:** The accepted testing policy is enforced in GitHub Actions and the shared code every later phase imports exists with its suites: fence name patterns, `FENCE_HIDE`, the fence `commit` tool, `.shared/rounds.py`, `.shared/red.py` and `.shared/working-folder.ts`. Coverage reads unknown today; the gate's first run gives the real figure and this phase closes any shortfall against 85/85 without lowering a threshold.
 **Depends on:** Phase 1
-**Requirements:** CORE-01, CORE-02, CORE-03, CORE-04, CORE-05, CORE-06
+**Requirements:** CORE-01, CORE-02, CORE-03, CORE-04, CORE-05
 **Success Criteria:**
 1. `planning.mjs test-policy check --root .` returns `ok: true` with `.github/cadence/coverage-policy.json` tracked and the jobs `tests`, `fixtures` and `lint` present in a workflow file
 2. The required jobs pass on the commit that closes this phase, with lines and branches at or above 85 over the included scope
@@ -56,7 +56,7 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 ### Phase 4: Checkout phases
 **Goal:** Intake, plan review and spec review run standalone and as included blocks of `gauntlet-run`, with their ledgers, citations, fences and fixtures, and the shared `screen` workflow in front of every reviewer.
 **Depends on:** Phase 2, Phase 3
-**Requirements:** RUN-01, RUN-02, RUN-03, RUN-04, RUN-05
+**Requirements:** RUN-01, RUN-02, RUN-03, RUN-04, RUN-05, CORE-06
 **Success Criteria:**
 1. `archon workflow run intake --input file=<path>` in a repository whose working folder is ignored writes `gauntlet/items/<slug>.md` matching the file verbatim
 2. `archon workflow run gauntlet-run` with a message pauses at intake's approval, then at plan review's and spec review's, each answered on the run's own id
