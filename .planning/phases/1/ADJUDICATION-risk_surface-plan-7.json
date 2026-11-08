@@ -1,0 +1,73 @@
+{
+  "phase": "1",
+  "trigger": "risk_surface",
+  "discriminator": "plan-7",
+  "round": 1,
+  "base": "8aa2fa6",
+  "head": "afa4f14",
+  "base_id": "8aa2fa62ccb171557d014c1c4ee98cbd2dbf5f40",
+  "head_id": "afa4f149d4667f7f5a99b4f502a08c0d448f519f",
+  "voices": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus"
+    }
+  ],
+  "citations": {
+    "checked": true
+  },
+  "entries": [
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": "docs/superpowers/specs/landing-design.md",
+      "line": 374,
+      "severity": "medium",
+      "claim": "Node `record` copies only `gauntlet/write/`, `gauntlet/revisions/` and the approved rev files into the checkout. Node `remove` then runs `archon complete --force` on the landed tree and on every tree in `made`. That deletes the mend's `gauntlet/mend/<slug>.leftover.<k>.patch` and `.settle.<s>.patch`, which D-104 and D-110 (G-128, G-134) created as the only saved copy of a mender's uncommitted edits. `copy-in` of the re-mend also skips `.leftover.*` and `.settle.*`, so a first tree's patches are never carried anywhere.",
+      "failure_scenario": "Stage 1 mend: `mend-code` edits tracked `src/a.py` and `src/b.py` but commits only `src/a.py`. `leftover` writes `gauntlet/mend/x.leftover.2.patch` and restores `src/b.py` to HEAD. Case `commit-failed` follows; the owner answers `rework-code`, the next mender commits, review SOUND, the owner lands. `merge` ff-merges and `record` copies nothing from `gauntlet/mend/`. `remove` runs `archon complete <branch> --force`, which skips the uncommitted-change check (cli.md:1808), and removes the tree. The `src/b.py` edit now exists nowhere. Writing's leftover patches survive the same landing (`record` copies `gauntlet/write/<slug>.*`), so the owner has no reason to expect the mend's patches were destroyed, and no node says so.",
+      "ruling": "survived",
+      "convergent": false,
+      "base_id": "8aa2fa62ccb171557d014c1c4ee98cbd2dbf5f40",
+      "head_id": "afa4f149d4667f7f5a99b4f502a08c0d448f519f"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": "docs/superpowers/specs/writing-design.md",
+      "line": 187,
+      "severity": "medium",
+      "claim": "Writing has no counterpart to the mend's `settle`. `result` is specified to write `<slug>.blocks.<move>.json` (which closes the wave) and to save the leftover patch, with no order given between the two. Node `test` (line 509) then restores the tree unconditionally with `git restore` plus `git clean -fd`. So if `result` fails after the blocks file and before the patch, a failure resume restores away the wave's uncommitted edits unsaved. The runtime model's premise 'the tree is clean when the run begins' is not checked.",
+      "failure_scenario": "A wave whose blocks all end committed, one with extras outside its commit (for example an edit to `src/util.py` its `paths` do not cover). `result` writes `x.blocks.3.json`, then fails while writing the patch (ENOSPC, or `git diff --binary` failing on an unreadable untracked file). The run fails. On `archon workflow resume`, the loop restarts at iteration 1 and `state` reads the blocks file as closing the wave. No case is open, so next is `test`. `test` runs the brief command, then `git restore --source=HEAD --staged --worktree -- :/` and `git clean -fd -- :/`. The `src/util.py` edit is gone, and no `x.leftover.3.patch` exists for `changes`/`leftovers` or the review before landing to show. With a contested block instead, the case opens over a patch that does not exist ('each when it exists'). The next wave then starts on a dirty tree, breaking the stated premise.",
+      "ruling": "survived",
+      "convergent": false,
+      "base_id": "8aa2fa62ccb171557d014c1c4ee98cbd2dbf5f40",
+      "head_id": "afa4f149d4667f7f5a99b4f502a08c0d448f519f"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": "docs/superpowers/specs/worktree-cut-design.md",
+      "line": 195,
+      "severity": "medium",
+      "claim": "Node `baseline` ends with the tree restore of runtime-model-design.md:145 (`git restore --source=HEAD ... -- :/` and `git clean -fd -- :/`). That rule is justified as safe only 'because the tree is clean when the run begins'. But Archon runs `worktree.copyFiles` and `worktree.postCreate` before the tree run's first node (worktree-cut-design.md:147, worktrees.md:35-43). So the restore deletes or reverts the repository's own setup, not only what the brief run made. The same holds for the second tree's first `test-tree` run.",
+      "failure_scenario": "The repository's `.archon/config.yaml` has `copyFiles: ['config/local.toml']`, a file that is untracked but not ignored, and `postCreate: ['npm install']`, which rewrites tracked `package-lock.json`. Archon cuts the tree, copies the file and runs `npm install`. `baseline` runs the brief command with both present and records that baseline. Its restore then reverts `package-lock.json` and `git clean -fd` deletes `config/local.toml` from the tree. Every later writing `test` and mend run then runs without the setup the baseline had. Tests that need the config go red against a green baseline, and the owner gets a red amicus case caused by Gauntlet's own clean.",
+      "ruling": "survived",
+      "convergent": false,
+      "base_id": "8aa2fa62ccb171557d014c1c4ee98cbd2dbf5f40",
+      "head_id": "afa4f149d4667f7f5a99b4f502a08c0d448f519f"
+    },
+    {
+      "voice": "claude-subagent",
+      "model": "opus",
+      "file": "docs/superpowers/specs/runtime-model-design.md",
+      "line": 44,
+      "severity": "low",
+      "claim": "The set-aside moves 'every file of the slug' into `stale/<slug>.<n>/` (the ledger on an item-hash change, and `gauntlet-run`'s `back`). But the naming `<slug>-summary.N.md` / `approved/<slug>-summary.md` (lines 23, 28) makes slug `X`'s summary files share a prefix with the files of an item whose slug is `X-summary`. No rule decides which hearing those files belong to, so one hearing's set-aside moves another hearing's files.",
+      "failure_scenario": "The checkout holds approved hearings for `gauntlet/items/auth.md` and `gauntlet/items/auth-summary.md` (slugs `auth` and `auth-summary`, which `slug` keeps as is). Item `auth` is edited and rerun. The ledger sets aside slug `auth`'s files, which by the naming must include `auth-summary.*`. That moves `auth-summary.1.txt`, `auth-summary.review.1.txt` and `approved/auth-summary.txt`, the other item's approved plan, into `plans/stale/auth.<n>/`. The `auth-summary` hearing loses its approved plan and rounds. Its next run re-hears it from round 1, and its cut's `copy-in` fails on the missing approved file. Nothing tells the owner which hearing's files were moved.",
+      "ruling": "survived",
+      "convergent": false,
+      "base_id": "8aa2fa62ccb171557d014c1c4ee98cbd2dbf5f40",
+      "head_id": "afa4f149d4667f7f5a99b4f502a08c0d448f519f"
+    }
+  ]
+}
