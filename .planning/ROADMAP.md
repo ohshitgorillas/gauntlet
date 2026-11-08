@@ -6,7 +6,7 @@ Nothing is built past the fence and the arbiter, and every design is still propo
 
 ## Phases
 
-- [ ] **Phase 1: Design review** - the seven designs reviewed adversarially for cross-design consistency and snags, findings ruled on, designs approved
+- [x] **Phase 1: Design review** - the seven designs reviewed adversarially for cross-design consistency and snags, findings ruled on, designs approved
 - [ ] **Phase 2: Test gate and shared layer** - the CI gate the policy requires, plus the fence extensions and `.shared/` cores every phase imports
 - [ ] **Phase 3: Roles** - every role file the designs name, and the item schema
 - [ ] **Phase 4: Checkout phases** - intake, plan review, spec review and the shared screen, standalone and as blocks of `gauntlet-run`
