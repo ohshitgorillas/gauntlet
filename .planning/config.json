@@ -100,8 +100,7 @@
       "statements": 0,
       "include": [
         "fence/**/*.py",
-        ".shared/**/*.py",
-        "*/scripts/**/*.py"
+        ".shared/**/*.py"
       ],
       "exclude": [
         "**/test_*.py",
@@ -113,7 +112,7 @@
         "**/*.json"
       ],
       "commands": [
-        "uv run --no-project --with 'mcp>=1.2,<2' --with pytest --with pytest-cov pytest -q --cov=fence --cov-branch --cov-report=json fence",
+        "uv run --no-project --with 'mcp>=1.2,<2' --with pytest --with pytest-cov pytest -q --cov=fence --cov=.shared --cov-branch --cov-report=json fence .shared/tests",
         "node .github/cadence/coverage-report-check.mjs --format python --report coverage.json",
         "archon workflow test",
         ".venv/bin/pre-commit run -c .pre-commit/config.yaml --all-files"

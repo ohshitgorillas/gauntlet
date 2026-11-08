@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Python suites with coverage
+        run: |
+          uv run --no-project --with 'mcp>=1.2,<2' --with pytest --with pytest-cov pytest -q --cov=fence --cov=.shared --cov-branch --cov-report=json fence .shared/tests
+      - name: Coverage thresholds
+        run: |
+          node .github/cadence/coverage-report-check.mjs --format python --report coverage.json
+
+  fixtures:
+    runs-on: ubuntu-latest
+    env:
+      ARCHON_HOME: ${{ github.workspace }}/archon-home
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: archon-home/workflows/gauntlet
+      - name: Install the Archon CLI v0.13.2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/archon-dl" "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP/archon-dl"
+          gh release download v0.13.2 --repo coleam00/Archon --pattern archon-linux-x64 --pattern checksums.txt
+          sha256sum --check --ignore-missing checksums.txt
+          install -m 0755 archon-linux-x64 "$RUNNER_TEMP/bin/archon"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Workflow fixtures
+        working-directory: archon-home/workflows/gauntlet
+        run: |
+          archon workflow test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install the gate tools
+        run: |
+          uv sync
+      - name: Pre-commit gate
+        run: |
+          .venv/bin/pre-commit run -c .pre-commit/config.yaml --all-files
