@@ -82,11 +82,16 @@ def hashed(folder, slug, digest):
     return put(folder, f"{slug}.items.sha256", digest + "\n")
 
 
-def leading(count):
+def tried(count, line=PASS):
+    """Rounds 1 to count, each filed and reviewed with the given first line."""
     files = []
     for n in range(1, count + 1):
-        files += [("round", n), ("review", n, LEAD)]
+        files += [("round", n), ("review", n, line)]
     return files
+
+
+def leading(count):
+    return tried(count, LEAD)
 
 
 KINDS = {
