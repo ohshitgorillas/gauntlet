@@ -20,7 +20,7 @@ This design therefore moves the decision at every implementation failure, and be
 ## Goals
 
 1. Every writing or landing failure that today goes to a juror stops the run and puts the owner in charge of the next pass.
-2. Every run, failed or clean, meets the owner before it lands, with a short review of whether the work did what was asked and nothing else.
+2. Every landing, failed or clean, meets the owner first, with a short review of whether the work did what was asked and nothing else. A run whose plan lands in several stages meets the owner before each stage lands.
 3. Intake produces few, structured items whose goals and fields the owner stated or confirmed, one at a time.
 4. Scope is checked against the approved items, mechanically where a script can and by review where it cannot.
 5. Plan review and spec review keep running on their own; the owner can set what reviewers escalate.
@@ -110,10 +110,16 @@ The `DEFECTIVE` verdict is removed; ending on a defective plan is the owner's "b
 
 There is a review before implementation and none after it. This closes the gap.
 
-- It runs on every run before landing, failed or clean.
+- It runs before every landing, failed or clean.
 - It is short, because the review before implementation is already extensive. Its question: did the workers faithfully implement the requested features and fix the bugs as instructed, and nothing else? Are there shortcuts that need to be redone properly?
 - It reads each approved item against its own fields, the plan steps with the item ids they cite, and the marks of the mechanical scope checks below.
 - It rules on nothing. Its answer goes to the owner through the amicus, and the owner chooses: land, run again with direction, or back to planning.
+
+### Staged plans
+
+Some work needs one part landed before the next part can start. The plan names those parts as **stages**, in landing order; a plan with no such dependency is one stage. Plan review reviews the stages with the rest of the plan. The divvyer cuts blocks and waves within a stage, never across one.
+
+Each stage writes, then meets the owner through the amicus with this review scoped to the stage's own plan steps and items, then lands. The next stage starts only after it lands. At each stage the owner chooses: land and go on, run the stage again with direction, or back to planning, where the stages not yet landed are replanned and the landed ones stay.
 
 ### Mechanical scope checks
 
@@ -150,6 +156,7 @@ Reviewers receive both, verbatim, beside the built-in criteria.
 - `DEFECTIVE` is removed.
 - The owner's direction is a recorded file binding the next pass; no agent checks the amicus's explanation; landing's `mend-juror` goes the same way.
 - A short post-implementation review before every landing, with the question stated in section 3.
+- The amicus and that review meet the owner before every landing, including each stage of a plan that lands in several stages, not only once at the end of the run.
 - Plan review and spec review keep their loops; reviewers keep `APPROACH THE BENCH`; escalation rules are repo-wide, with per-item rules in Notes.
 - Constraint and out-of-scope breaches in a plan are the reviewer's to reject, not the owner's to hear.
 - GitHub integration is deferred.
@@ -163,6 +170,7 @@ Reviewers receive both, verbatim, beside the built-in criteria.
 - The length cap on Clerk-written fields, the "none" rule and the point-assignment check.
 - Plan steps cite item ids, and block diffs are compared against block `paths`.
 - The item file is local and issue-shaped.
+- The plan, not the divvyer, names the stages, so plan review sees them; the divvyer cuts within a stage.
 - Back to planning reruns plan review over the same approved item file, with the amicus's record and the owner's direction attached, so the planner sees why the last plan failed.
 
 ## Left to the builder
