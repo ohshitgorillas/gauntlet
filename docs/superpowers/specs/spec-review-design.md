@@ -115,7 +115,7 @@ def close(p: Profile, slug: str) -> dict: ...
 def main(p: Profile) -> int: ...   # reads INPUTS_*, dispatches on INPUTS_MODE, prints JSON to stdout
 ```
 
-Suite: `.shared/tests/test_rounds.py`, run as `docs/testing.md` states with the folder `.shared/tests`. It drives `main` through a test `Profile` and real files under `tmp_path`.
+Suite: `.shared/tests/test_rounds.py`, run as `docs/testing.md` states with the folder `.shared/tests`. It drives `main` through a test `Profile` and real files under `tmp_path`, and pins the `next` of `runtime-model-design.md`, "Hearing state": `vacant` at the twelfth LEADING review although `owed` is the author.
 
 ### `plan-review/scripts/ledger.py` (on the shared core)
 
@@ -529,7 +529,7 @@ nodes:
       required: [items, plan, spec, outcome]
 ```
 
-Fixtures: `spec-review/fixtures/<route>.stubs.yaml`, one per route, each stubbing the included `screen` workflow's node ids (`check`) and the ledger's modes: not needed; already approved (no hearing); an ending ruling already on file (no agent session, `close` and `enter` run); no plan, `READY` then owner approves; owner revises a `READY`; `INVALID` confirmed; `INVALID` sent back; bench; deadlock at the attempts bound; two `NON-RESPONSIVE`; one `LEADING` handing the repaired block to `arbitrate-2`; one `SCREENED` repaired with no slot retired; guard at the stretch bound; every slot retired, the last `LEADING` review asking nothing, the hearing ending on case `vacant` and `vacate` cancelling the run; a rerun finding a `READY` unanswered, asked again; an iteration that writes nothing, asking with the analyst's reason (case `idle`, node `why`), the answer a guard record and the hearing going on; past the cap, every iteration asking, an ask from an iteration with no new review kept in `<slug>.guard.N.txt` with round N still untried.
+Fixtures: `spec-review/fixtures/<route>.stubs.yaml`, one per route, each stubbing the included `screen` workflow's node ids (`check`) and the ledger's modes: not needed; already approved (no hearing); an ending ruling already on file (no agent session, `close` and `enter` run); no plan, `READY` then owner approves; owner revises a `READY`; `INVALID` confirmed; `INVALID` sent back; bench; deadlock at the attempts bound; two `NON-RESPONSIVE`; one `LEADING` handing the repaired block to `arbitrate-2`; one `SCREENED` repaired with no slot retired; guard at the stretch bound; every slot retired, the twelfth `LEADING` review asking nothing (`owed` the speccer, `next` `vacant`, no author node run), the hearing ending on case `vacant` and `vacate` cancelling the run; a rerun finding a `READY` unanswered, asked again; an iteration that writes nothing, asking with the analyst's reason (case `idle`, node `why`), the answer a guard record and the hearing going on; past the cap, every iteration asking, an ask from an iteration with no new review kept in `<slug>.guard.N.txt` with round N still untried.
 
 Plan review's `screen` node is `include: screen` with `with: { file: $ready.output.file }` (plan review design); spec review writes nothing in `plan-review/`.
 

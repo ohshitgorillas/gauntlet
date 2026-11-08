@@ -62,6 +62,13 @@ Plan 7 Task 1 ran every token over the seven designs, `runtime-model-design.md` 
 | Pass 5, G-131 (D-107): the set-aside keeps the `approved/` subfolder | `is flattened into` | RM, Hearing state | 0 |
 | Pass 5, G-129 (D-105), closed review: an agent's run through `fence/checks.py` restores only the paths it made | `restores only what it made and deletes no edit` | RM, Commit model | 0 |
 | Pass 5, G-129 (D-105), closed review: the review before landing is handed a committed block's leftover patch | `is handed the patch of every move of its stage` | RM, Commit model | 0 |
+| Pass 6, G-132 (D-109): `next` is `vacant` whoever owes the round | `whoever owes the round and whatever the round's state` | RM, Hearing state | 0 |
+| Pass 6, G-133: the commit tool reads the changed paths with `-uall` | `-z -uall -- <listed paths>` | RM, Commit model | 0 |
+| Pass 6, G-134 (D-110): node `settle` saves a failed mender's edits on a resume | `.settle.<s>.patch` | RM, Commit model | 0 |
+| Pass 6, G-134 (D-110), closed review: a settle patch stays owed until a numbered file above it exists | `is owed until a numbered file above it exists` | RM, Commit model | 0 |
+| Pass 6, G-135: the test baseline ends with the tree restore | `the worktree cut's node` | RM, Commit model | 0 |
+| Pass 6, G-136: the direction file's N is the next free move | `N the next free move, once` | `writing-design.md`, Terms (Direction) | 0 |
+| Pass 6, G-137: the first cut with no plan covers the approved spec file | `covers the approved spec file` | `writing-design.md`, Terms (Cut) | 0 |
 
 ## Candidates
 

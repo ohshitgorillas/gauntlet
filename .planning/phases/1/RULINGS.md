@@ -317,3 +317,22 @@ Authority. Under D-79 the owner rules every group and no `/cad-decision-review` 
 | G-131 | D-107 | (b) the home states that the set-aside keeps `approved/` as a subfolder, `test_back.py` pins it, and the defense reads `<slug>.txt` and each `<slug>.rev<N>.txt` of the stale `approved/` folder in order of N | owner ("(b) Layout + revisions (Recommended)") |
 
 Choices of the executor, named under CLAUDE.md 3.2: G-129, the mend's check is a new node `leftover` (`when` the iteration ran a mender, before `retest`), which takes over the patch and restore D-104 placed in `pose`; G-130, `stage` sits in every block record of a wave and `changes` prints the matching files as `blocks`; G-131, the layout sentence sits in `runtime-model-design.md`, "Hearing state". Closed-review fixes (reviews/closed-5.md), named under 3.2: the committed block's leftover patch reaches the owner through the review before landing (`changes` prints `leftovers`, `final-review` says per patch whether the branch carries the work), not through a new amicus case; `fence/checks.py` restores only the paths a run made and leaves every path dirty before the run, so no writer edit is deleted and the owner's rejected option (c) is not used.
+
+## Pass 6 rulings (REVIEW-pass6.md, G-132 to G-137)
+
+Date: 2026-11-08. Option letters are those of `REVIEW-pass6.md` section 2; section 3 there holds the same rulings with their routes. After this round no pass-7 read runs (D-108).
+
+Authority. Under D-79 the owner rules every group and no `/cad-decision-review` runs. The owner ruled all six groups in one question through the ask-user seam, each group with option (b) as the recommendation, and answered verbatim: "All as recommended". The drafted edits get one closed review before they are committed (D-79).
+
+| Group | D-NN | Ruling | By |
+|---|---|---|---|
+| G-132 | D-109 | (b) `next` is `vacant` as soon as twelve LEADING reviews exist, whoever owes the round; otherwise the author when `owed` is the author; otherwise the reviewer slot | owner ("All as recommended") |
+| G-133 | - | (b) the commit tool asks `git status --porcelain -z -uall -- <listed paths>`, so a new file in a new directory is a change | owner ("All as recommended") |
+| G-134 | D-110 | (b) a new node `settle` of the mend, before `rebase` and `always_run`, saves a failed mender's uncommitted edits as a patch and restores the tree; `pose` counts it as `commit-failed` | owner ("All as recommended") |
+| G-135 | - | (b) node `baseline` ends with the two restore commands on every exit path, the fifth site of the brief-command restore | owner ("All as recommended") |
+| G-136 | - | (b) `record` writes `direction.N.md` with N the next free move, the N of the amicus record `docket` named, and `close` hands off that record | owner ("All as recommended") |
+| G-137 | - | (b) with `plan` "" the first cut's cause is the approved spec file and its approved revisions, stage 1 only | owner ("All as recommended") |
+
+Choices of the executor, named under CLAUDE.md 3.2: G-134, the patch is `gauntlet/mend/<slug>.settle.<s>.patch` (`s` numbered as `hear` numbers its files, settle patches counted), not `leftover.0.patch`, so a second failure resume cannot overwrite the first, `settle` prints the owed patch (nothing numbered above it) on every resume so a resume that failed before `pose` loses nothing (the one medium of `reviews/closed-6.md`), and `settle` touches nothing while a rebase is in progress in the tree, so the owner's conflict resolution is not restored away; G-136, N is one above the highest move because the amicus record is no move; G-137, the cause is `INPUTS_SPEC` and its approved revisions as tree paths. G-132 and G-133 pins sit in the fixtures and suite descriptions the options name.
+
+Closed review of the pass-6 draft (`reviews/closed-6.md`): Q1 yes for G-132 to G-137; Q2 one medium, G-134 (a settle patch written on a resume that then failed before `pose`, a `rebase` conflict, was lost to the next resume, which found a clean tree and printed `file` ""). Fixed inside ruled option (b): `runtime-model-design.md` "Commit model", "The mend's uncommitted edits" (the one home) numbers the patch as `hear` numbers its files and keeps it owed until a numbered file above it exists; `settle` prints the owed patch on every resume; `landing-design.md` node `hear` counts settle patches in `n`; the fixture `settled` pins the second resume.

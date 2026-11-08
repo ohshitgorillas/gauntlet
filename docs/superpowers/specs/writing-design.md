@@ -25,7 +25,7 @@ The repository's `.archon/config.yaml` `env:` reaches bash nodes only (cut desig
 
 - **Block**: one writer's share of the work: `{ id, kind, specs, steps, paths, ruling }`, `kind` is `tests` or `code`. `specs` lists spec ids, `steps` lists plan steps, `paths` lists every file the block may change. `ruling` holds the owner's direction text, verbatim, when the cut answers a direction, and `""` otherwise.
 - **Wave**: blocks of one kind that share no path and run in one fan-out, one block at a time.
-- **Cut**: the divvyer's waves for one cause, test waves first. The first cut covers the whole stage's plan steps and the specs they serve. A later cut covers only what its cause affects; `stage.py state` carries the unrun waves of the cuts it replaces. The cause is an owner's direction `tests` or `code`, or an approved revision.
+- **Cut**: the divvyer's waves for one cause, test waves first. The first cut covers the whole stage's plan steps and the specs they serve; with `plan` "" (the route with no plan, which spec review's design names, and always stage 1) no step exists, and it covers the approved spec file `INPUTS_SPEC` and its approved revisions alone (G-137). A later cut covers only what its cause affects; `stage.py state` carries the unrun waves of the cuts it replaces. The cause is an owner's direction `tests` or `code`, or an approved revision.
 - **Move** `N`: one file `gauntlet/write/<slug>.<kind>.N.<ext>`, with one counter over every kind. Each loop iteration makes at most one move besides a direction or a writing ruling.
 - **Red**: the latest test run timed out and the brief baseline did not, or names a failing test (`FAILED` or `ERROR`) that the brief baseline does not name as failing. A run that exits non-zero with no failing line is also red when the brief baseline exited 0. A baseline failure that now passes is not red.
 - **Revision round** `N`: one file `gauntlet/revisions/<slug>.N.txt`, with its review, ruling and summary, under `.shared/rounds.py`. Line 1 is `Revises: plan` or `Revises: spec`. Line 2 is `Answers: <tree path>`, naming the direction, or the entered plan revision it follows. The clauses it changes come after, each as it now reads; `enter` copies the round to its revision file without the two header lines. A spec revision that follows a plan revision and changes nothing holds `No change.` after the two lines.
@@ -63,7 +63,7 @@ def commit(message: str, paths: list[str]) -> str: ...
 # Rules, errors and return value: runtime-model-design.md, "Commit model".
 ```
 
-Suite: `fence/test_files_commit.py`, run as `docs/testing.md` states with the folder `fence`, against a real git repository under `tmp_path`. It pins a commit holding exactly `paths` while another path is staged, the refusal of a recorded path left out of `paths`, a listed path that does not exist left out of the commit, the "nothing" answer when no path changed and the one retry after a hook changed files (both `runtime-model-design.md`, "Commit model"), a failing `pre-commit` hook giving a non-zero `exit` and no commit, and the tool's absence without `FENCE_COMMIT`.
+Suite: `fence/test_files_commit.py`, run as `docs/testing.md` states with the folder `fence`, against a real git repository under `tmp_path`. It pins a commit holding exactly `paths` while another path is staged, the refusal of a recorded path left out of `paths`, a listed path that does not exist left out of the commit, a listed new file in a directory that does not exist yet committed, the "nothing" answer when no path changed and the one retry after a hook changed files (both `runtime-model-design.md`, "Commit model"), a failing `pre-commit` hook giving a non-zero `exit` and no commit, and the tool's absence without `FENCE_COMMIT`.
 
 ### `fence/files.py` and `fence/checks.py` (settings)
 
@@ -166,7 +166,7 @@ def state(start: int) -> dict: ...
 #     iteration is the amicus again. A reply to a cap case opens no amicus case.
 #   no cut since the latest cause, or the latest cut rejected: divvy. The cause is the latest direction when it is `tests`
 #     or `code`; after a revision, every round closed since the latest direction, oldest first; no direction and no round: the stage's plan steps and the specs
-#     they serve in the approved files.
+#     they serve in the approved files; with INPUTS_PLAN "" no step exists, and the cause is INPUTS_SPEC and its approved revisions as tree paths (Terms, "Cut").
 #   an unrun wave, the latest cut's or a carried one: the kind of the wave handed out.
 #   no run since the latest wave or cut: test.
 #   no seal since the latest run: seal.
@@ -212,7 +212,8 @@ def docket(start: int, base: int) -> dict: ...
 def record(round: int, case: str, decision: str, text: str) -> dict: ...
 # decision "": records nothing. Hearing cases: rounds.record. cap: writes <slug>.ruling.N.txt, N the next free move number
 #   of gauntlet/write/. amicus: decision discuss records nothing; any other decision writes <slug>.direction.N.md (Terms),
-#   N the case's move, line 1 `Rework: ` and tests, code, spec, plan or planning for rework-tests, rework-code, revise-spec,
+#   N the next free move (Terms, "Direction"): one above the highest move, the N of the amicus record `docket` named (the record is
+#   no move), never the move of the case's own file; line 1 `Rework: ` and tests, code, spec, plan or planning for rework-tests, rework-code, revise-spec,
 #   revise-plan or back-to-planning, line 2 `Landed: ` and INPUTS_STAGE less one, the owner's text verbatim after a blank line.
 #   stdout { "enter": tree path of the round file of the earliest approve ruling (a case review, decision approve) that no
 #   `approved/<slug>.rev<N>.txt` of its kind holds yet, else "" } (the Mth approve ruling of kind plan or spec, in order of
@@ -221,14 +222,14 @@ def record(round: int, case: str, decision: str, text: str) -> dict: ...
 
 def close() -> dict: ...
 # { "outcome": "written" | "planning", "direction": absolute path of the latest direction when outcome is planning, "" when written,
-#   "amicus": absolute path of the amicus record of that direction's N, "" when written,
+#   "amicus": absolute path of the amicus record <slug>.amicus.N.md of that direction's N (the same N), "" when written,
 #   "summary": the plan summary file's text when plan is not "", then the text of each approved revision summary in order of N,
 #   blank-line separated; "" when planning }
 
 def main() -> int: ...             # dispatches on INPUTS_MODE, prints JSON to stdout
 ```
 
-Suite: `write/tests/test_stage.py`, run as `docs/testing.md` states with the folder `write/tests`. It drives `main` through real files under `tmp_path`. It pins each rule of `state` in its precedence, the wave order and each carry rule of `wave`, a red run reaching the amicus, the start rule that makes an earlier stage's records history, the paths mark of a commit outside its block, each cut problem, `record` writing a direction at the case's move and nothing for `discuss`, and `close` on a `planning` direction.
+Suite: `write/tests/test_stage.py`, run as `docs/testing.md` states with the folder `write/tests`. It drives `main` through real files under `tmp_path`. It pins each rule of `state` in its precedence, the wave order and each carry rule of `wave`, a red run reaching the amicus, the start rule that makes an earlier stage's records history, the paths mark of a commit outside its block, each cut problem, `record` writing a direction at the next free move and nothing for `discuss` (case `red` at move 7: the direction is `direction.8.md`, and `close` hands off `amicus.8.md`), and `close` on a `planning` direction.
 
 ### Roles: `write/commands/divvyer.md`, `reviser.md`, `reviewer.md`, `reporter.md`
 
@@ -240,7 +241,7 @@ Inputs: the cause, the stage, the problems of the latest rejected cut, the plan 
 marks (approved/<slug>.scope.txt and each gauntlet/write/<slug>.scope.rev<M>.txt (Terms, Files in `gauntlet/write/`) in order of M; the plan review design gives the step grammar and the marks), every earlier cut and blocks file, every direction and writing ruling.
 Output the waves: test waves before code waves; one block per related set of specs or plan steps; blocks of one
 wave share no path; a block that needs another's files sits in a later wave. Cut only the stage's own steps and the
-specs they serve, never across a stage. Read each step's item ids and its mark in the scope marks: a step marked "added
+specs they serve, never across a stage; when the cause holds no plan step (the route with no plan), cut the specs alone. Read each step's item ids and its mark in the scope marks: a step marked "added
 scope" serves no item of the item file; cut it in a block of its own, so the review before landing can see it, and
 never fold it into another step's block. A cause other than the approved files: only the tests and code it affects. A
 block that answers an owner's direction carries the direction's text, verbatim, as its ruling. Test block paths sit in
@@ -603,7 +604,7 @@ nodes:
 
 `<slug>`, plan files and spec files in prompts come from `$INPUTS.slug` and `$state.output`. A script reads block inputs as `INPUTS_<NAME>` and binds none in its `with:`, `$INPUTS.<name>` appears in `with:` only on `include:` nodes, and no `when:` reads `$INPUTS`.
 
-Fixtures, `write/fixtures/<route>.stubs.yaml`, one per route: tests then code, the run green, sealed (`written`); no spec, code only; a coder's contest, the amicus asking, the owner's `discuss` and then `rework-tests`, fixed, green; a contested block's edits saved as its leftover patch, the tree restored and the block carried; a red run, `rework-code`; a failed commit; a failed seal; `revise-spec`, revision `SOUND`, the owner approves, tests re-cut; the owner revises a `SOUND` revision; `revise-plan`, then a `No change.` spec round closing without the owner; `UNSOUND` then `SOUND`; a revision `SCREENED`; a rejected cut re-divvied; an iteration that writes no file, the amicus asking (case `idle`) and its answer a direction, the hearing going on; `back-to-planning` (`planning`, the direction and the amicus record handed off); a block whose commit holds a path outside its `paths`, marked in the blocks file; a second stage starting above the first stage's records; a clean tree at `seal` making no final commit; a dirty tree at `seal` making `<slug>: final`; the unrun waves of a replaced cut carried into the next.
+Fixtures, `write/fixtures/<route>.stubs.yaml`, one per route: tests then code, the run green, sealed (`written`); no spec, code only; no plan, the specs alone cut (`plan` "", the cause the spec file); a coder's contest, the amicus asking, the owner's `discuss` and then `rework-tests`, fixed, green; a contested block's edits saved as its leftover patch, the tree restored and the block carried; a red run, `rework-code`; a failed commit; a failed seal; `revise-spec`, revision `SOUND`, the owner approves, tests re-cut; the owner revises a `SOUND` revision; `revise-plan`, then a `No change.` spec round closing without the owner; `UNSOUND` then `SOUND`; a revision `SCREENED`; a rejected cut re-divvied; an iteration that writes no file, the amicus asking (case `idle`) and its answer a direction, the hearing going on; `back-to-planning` (`planning`, the direction and the amicus record handed off); a block whose commit holds a path outside its `paths`, marked in the blocks file; a second stage starting above the first stage's records; a clean tree at `seal` making no final commit; a dirty tree at `seal` making `<slug>: final`; the unrun waves of a replaced cut carried into the next.
 
 ### `screen/screener.mcp.json`, `screen/screen.yaml` (revision rounds)
 
@@ -635,7 +636,7 @@ env:
 | A wrong spec or plan | a revision round in `gauntlet/revisions/`, tried by the reviewer, approved at `bench`, entered by `enter` | any other edit of the approved files; the reviser revising past the quoted clause or the affected specs |
 | Ending the block for planning | the owner's `back-to-planning` direction, read by `stage.py close`, which hands off `planning`, the direction and the amicus record | a size or line-count threshold; any other node ending writing; an agent choosing to end it |
 | Commits | `runtime-model-design.md`, heading "Commit model"; the tool is `commit` of `fence/files.py`, the final commit node `seal` | a writer's Bash; any other `git add` or `git commit` in a Gauntlet file; `--no-verify` |
-| A wave's uncommitted changes, and the files a brief-command run makes | `runtime-model-design.md`, heading "Commit model"; done by `stage.py result` after a wave, by node `test` after its run, by `fence/checks.py` after an agent's run for the paths that run made, and by the mend's node `leftover` and its test runs (landing design) | any other restore, clean or reset in a Gauntlet file; a restore in the checkout; a restore before the patch is written; a restore after a bash brief-command run in a tree that was not clean when the run began; `fence/checks.py` restoring a path listed before its run |
+| A wave's uncommitted changes, and the files a brief-command run makes | `runtime-model-design.md`, heading "Commit model"; done by `stage.py result` after a wave, by node `test` after its run and by the worktree cut's node `baseline` after its run, by `fence/checks.py` after an agent's run for the paths that run made, and by the mend's nodes `settle` and `leftover` and its test runs (landing design) | any other restore, clean or reset in a Gauntlet file; a restore in the checkout; a restore before the patch is written; a restore after a bash brief-command run in a tree that was not clean when the run began; `fence/checks.py` restoring a path listed before its run |
 | Test output a writer sees | `fence/checks.py` running the brief command from `gauntlet/settings.json`, for the test writer, the coder and both menders, the coder's and `mend-code`'s lines cut at their first ` - ` (the coder-fence cut mode) | a writer running any other test command; a tool returning a traceback, a message past ` - ` or hook output to a coder |
 | The per-test listing and red | The brief command's `PASSED`, `FAILED` and `ERROR` lines, read by `.shared/red.py` (`gauntlet-design.md`), which `stage.py red` calls | parsing a runner's full output; a comparison computed in `stage.py`, a node, prompt or role |
 | What a test writer can see | `write-tests/test-writer.mcp.json`: `tests/`, the approved spec, `docs/testing.md`, the test base (`@base`) | a test writer handed the plan, code or a CODE section |

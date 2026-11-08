@@ -191,7 +191,9 @@ nodes:
     bash: <gauntlet/baseline/<slug>.brief.txt present: nothing. Else read "brief" and "timeout" from gauntlet/settings.json
           in the tree's root and run the brief command there, in the foreground, as timeout -k 10 <timeout> nice -n 10
           bash -c <brief> < /dev/null, and write the file: first line "exit=<n> timed_out=<true|false>", then the command's
-          whole stdout and stderr. Exit 0 whatever the command's exit: a red tree is the baseline. gauntlet-run's node
+          whole stdout and stderr. Then, on every exit path, the tree restore of runtime-model-design.md, "Commit model" ("A brief-command run
+          restores the tree"), so a file the run made is no agent's change; the file under gauntlet/baseline/ stays.
+          Exit 0 whatever the command's exit: a red tree is the baseline. gauntlet-run's node
           env-check has refused a blank command at run start, so none is recorded as "no test command">
 
   - id: handoff
@@ -234,7 +236,7 @@ env:
 | Setting up the tree | the repository's `worktree.copyFiles` and `worktree.postCreate` | any install or setup command in a Gauntlet file |
 | The repository's test command and timeout | the repository's `env:`: `GAUNTLET_TEST_BRIEF_COMMAND`, required, refused by `gauntlet-run`'s node `env-check` when unset or blank; `GAUNTLET_TEST_TIMEOUT`, optional (900 when unset), refused at run start when set but not a positive integer; `GAUNTLET_TEST_BASE`, optional (none when unset) (`gauntlet-design.md`) | a test command written, guessed or detected by any Gauntlet file; a node `timeout:` on a test node |
 | What the fences and node `baseline` read of those settings | `gauntlet/settings.json` of the tree, written once by node `settings` | a fence server or node `baseline` reading the environment for them; a `sh -c` launch line building a `FENCE_*` value |
-| The test baseline | `gauntlet/baseline/<slug>.brief.txt` of the tree, written once by node `baseline` | a red baseline stopping the run; a rerun rewriting it; any other baseline file |
+| The test baseline | `gauntlet/baseline/<slug>.brief.txt` of the tree, written once by node `baseline`, which ends with the tree restore of `runtime-model-design.md`, "Commit model" | a red baseline stopping the run; a rerun rewriting it; any other baseline file |
 | Approved files in the tree | node `copy-in`, by `cp -n`, for the cut's copies (the item file, the approved plan and spec with their summaries and the plan's scope marks, and the earlier stages' revisions and writing records, when present), failing on a named input that is absent from the checkout; writing's node `enter`, by `cp -n`, for each `<slug>.rev<N>.txt` in `gauntlet/plans/approved/` and `gauntlet/specs/approved/` (`gauntlet-design.md`, writing's signature) | any agent or other node writing the tree's `gauntlet/items`, `gauntlet/plans` or `gauntlet/specs`; a move or edit of a checkout file; a missing input skipped |
 | Working-folder check in the tree | node `guard` of `gauntlet-tree`, through `.shared/working-folder.ts` (intake design) | any other check of `gauntlet/` being ignored in the tree |
 | The tree run's hand-off | node `handoff` of `gauntlet-tree`, whose `output_format` declares every field, read by node `cut` as `$tree.output.<field>` | node `cut` reading any other node of the tree run, or a file |
