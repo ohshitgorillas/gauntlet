@@ -50,8 +50,24 @@ COPY = _folders("FENCE_COPY")
 mcp = FastMCP("fence-files")
 
 
-def _inside(parts: Parts, folder: Parts) -> bool:
-    return parts[: len(folder)] == folder
+def _is_pattern(entry: Parts) -> bool:
+    return any(c in seg for seg in entry for c in "*?[")
+
+
+def _segments(parts: Parts, entry: Parts) -> bool:
+    return all(fnmatch.fnmatchcase(p, e) for p, e in zip(parts, entry))
+
+
+def _matches(parts: Parts, entry: Parts) -> bool:
+    """A folder entry covers its subtree; a pattern entry covers the paths with
+    its segment count whose segments each match."""
+    if _is_pattern(entry):
+        return len(parts) == len(entry) and _segments(parts, entry)
+    return parts[: len(entry)] == entry
+
+
+def _covered(parts: Parts, entries: list[Parts]) -> bool:
+    return any(_matches(parts, e) for e in entries)
 
 
 def _name(folder: Parts) -> str:
@@ -73,7 +89,7 @@ def _resolve(path: str) -> tuple[str, Parts]:
 
 
 def _check_read(path: str, parts: Parts) -> None:
-    if not any(_inside(parts, f) for f in READ):
+    if not _covered(parts, READ):
         rules = ", ".join(_name(f) for f in READ) or "none"
         raise PermissionError(
             f"{path}: not inside any FENCE_READ folder (allowed: {rules})"
@@ -82,9 +98,9 @@ def _check_read(path: str, parts: Parts) -> None:
 
 def _check_write(path: str, parts: Parts) -> None:
     for f in DENY:
-        if _inside(parts, f):
+        if _matches(parts, f):
             raise PermissionError(f"{path}: inside denied folder {_name(f)}")
-    if not any(_inside(parts, f) for f in WRITE):
+    if not _covered(parts, WRITE):
         rules = ", ".join(_name(f) for f in WRITE) or "none"
         raise PermissionError(
             f"{path}: not inside any FENCE_WRITE folder (allowed: {rules})"
@@ -92,18 +108,51 @@ def _check_write(path: str, parts: Parts) -> None:
 
 
 def _check_copy(path: str, parts: Parts) -> None:
-    if any(_inside(parts, f) for f in COPY):
+    if _covered(parts, COPY):
         raise PermissionError(f"{path}: created only by copy_file (FENCE_COPY)")
 
 
 def _check_once(path: str, parts: Parts) -> None:
-    if any(_inside(parts, f) for f in ONCE):
+    if _covered(parts, ONCE):
         raise PermissionError(f"{path}: files here are written once (FENCE_ONCE)")
 
 
-def _visible(parts: Parts) -> bool:
-    """Readable, or a parent of a readable folder."""
-    return any(_inside(parts, f) or _inside(f, parts) for f in READ)
+def _holds_file(real: str) -> bool:
+    for dirpath, _dirs, names in os.walk(real):
+        for n in names:
+            try:
+                fparts = _resolve(os.path.join(dirpath, n))[1]
+            except PermissionError:
+                continue
+            if _covered(fparts, READ):
+                return True
+    return False
+
+
+def _visible(real: str, parts: Parts) -> bool:
+    """Readable, or a parent of a readable folder. Where a pattern entry is
+    what makes a folder visible, the folder must hold a readable file."""
+    for f in READ:
+        if not _is_pattern(f):
+            if parts[: len(f)] == f or f[: len(parts)] == parts:
+                return True
+        elif len(parts) <= len(f) and _segments(parts, f):
+            if not os.path.isdir(real):
+                if len(parts) == len(f):
+                    return True
+            elif _holds_file(real):
+                return True
+    return False
+
+
+def _shown(real: str, parts: Parts) -> bool:
+    """Readable and listable: a folder covered by a pattern entry only when it
+    holds a readable file."""
+    return any(
+        _matches(parts, f)
+        and (not _is_pattern(f) or not os.path.isdir(real) or _holds_file(real))
+        for f in READ
+    )
 
 
 def _rel(real: str) -> str:
@@ -127,15 +176,15 @@ def list_directory(path: str = ".") -> str:
     """List a directory; subdirectories end with `/`. Shows only readable
     entries and entries leading to readable folders."""
     real, parts = _resolve(path)
-    if not _visible(parts):
+    if not _visible(real, parts):
         _check_read(path, parts)
     names = []
     for entry in sorted(os.listdir(real)):
         try:
-            eparts = _resolve(os.path.join(real, entry))[1]
+            ereal, eparts = _resolve(os.path.join(real, entry))
         except PermissionError:
             continue
-        if not _visible(eparts):
+        if not _visible(ereal, eparts):
             continue
         is_dir = os.path.isdir(os.path.join(real, entry))
         names.append(entry + "/" if is_dir else entry)
@@ -146,7 +195,7 @@ def list_directory(path: str = ".") -> str:
 def find_files(pattern: str, path: str = ".") -> str:
     """Glob for files under path (supports `**`); readable paths only, max 500."""
     real, parts = _resolve(path)
-    if not _visible(parts):
+    if not _visible(real, parts):
         _check_read(path, parts)
     found = []
     for match in sorted(globmod.glob(pattern, root_dir=real, recursive=True)):
@@ -154,7 +203,7 @@ def find_files(pattern: str, path: str = ".") -> str:
             mreal, mparts = _resolve(os.path.join(real, match))
         except PermissionError:
             continue
-        if any(_inside(mparts, f) for f in READ):
+        if _shown(mreal, mparts):
             found.append(_rel(mreal))
         if len(found) >= CAP:
             break
@@ -166,7 +215,7 @@ def grep(regex: str, path: str = ".", glob: str | None = None) -> str:
     """Search files under path for a regex; returns `path:line:text`.
     Readable text files only, skips `.git`, max 500 hits. glob filters names."""
     real, parts = _resolve(path)
-    if not _visible(parts):
+    if not _visible(real, parts):
         _check_read(path, parts)
     pat = re.compile(regex)
     if os.path.isfile(real):
@@ -177,8 +226,7 @@ def grep(regex: str, path: str = ".", glob: str | None = None) -> str:
             dirs[:] = sorted(
                 d
                 for d in dirs
-                if d != ".git"
-                and _visible(_resolve(os.path.join(dirpath, d))[1])
+                if d != ".git" and _visible(*_resolve(os.path.join(dirpath, d)))
             )
             files += [os.path.join(dirpath, n) for n in sorted(names)]
     hits: list[str] = []
@@ -187,7 +235,7 @@ def grep(regex: str, path: str = ".", glob: str | None = None) -> str:
             freal, fparts = _resolve(f)
         except PermissionError:
             continue
-        if not any(_inside(fparts, r) for r in READ) or not os.path.isfile(freal):
+        if not _covered(fparts, READ) or not os.path.isfile(freal):
             continue
         if glob and not (
             fnmatch.fnmatch(os.path.basename(f), glob)
