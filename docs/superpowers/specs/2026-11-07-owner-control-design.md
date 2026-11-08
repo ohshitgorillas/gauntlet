@@ -1,4 +1,4 @@
-Status: proposed.
+Status: approved (owner, 2026-11-07).
 
 # Owner control: structured intake, the amicus, and the review before landing
 
