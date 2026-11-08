@@ -1,6 +1,6 @@
 # State
 
-Phase: 1 of 7 (Design review)
-Status: phase complete
-Next: /cad-context 2
+Phase: 2 of 7 (Test gate and shared layer)
+Status: context gathered
+Next: /cad-plan 2
 Updated: 2026-11-08
